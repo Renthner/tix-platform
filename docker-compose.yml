@@ -1,0 +1,192 @@
+# Full stack: web, worker, PostgreSQL, Redis, S3-compatible object storage.
+#
+#   cp .env.example .env   # then fill in the secrets (see comments in .env.example)
+#   docker compose up -d --build
+#   docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
+#
+# Only web (3000) is meant to be public – put a TLS-terminating reverse proxy in front of it.
+# Infrastructure ports are bound to 127.0.0.1 for local development tools only.
+
+name: ${COMPOSE_PROJECT_NAME:-tix}
+
+x-app-environment: &app-environment
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  APP_URL: ${APP_URL:-http://localhost:3000}
+  DATABASE_URL: postgres://${POSTGRES_USER:-tix}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-tix}
+  REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
+  REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-tix}
+  APP_ENCRYPTION_KEYS: ${APP_ENCRYPTION_KEYS:?set APP_ENCRYPTION_KEYS in .env}
+  SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+  S3_ENDPOINT: http://minio:9000
+  S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
+  S3_BUCKET_ASSETS: ${S3_BUCKET_ASSETS:-tix-assets}
+  S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-tix-documents}
+  S3_FORCE_PATH_STYLE: 'true'
+
+x-worker-image: &worker-image
+  image: ${IMAGE_REGISTRY:-tix}/worker:${IMAGE_TAG:-local}
+  build:
+    context: .
+    target: worker
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-tix}
+      TZ: UTC
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-200}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
+      - -c
+      - log_lock_waits=on
+      - -c
+      - deadlock_timeout=1s
+      - -c
+      - log_min_duration_statement=${POSTGRES_SLOW_QUERY_MS:-500}
+    # PostgreSQL 18 images keep PGDATA in a versioned sub-directory of this mount point.
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    shm_size: 256mb
+    ports:
+      - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+      - --requirepass
+      - ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-1gb}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    ports:
+      - 127.0.0.1:${REDIS_PORT:-6379}:6379
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Upstream MinIO no longer publishes container images; the default is a maintained
+  # community build of the same server. Any S3-compatible service works (override
+  # MINIO_IMAGE or point S3_* at an external provider).
+  minio:
+    image: ${MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    volumes:
+      - minio-data:/data
+    ports:
+      - 127.0.0.1:${MINIO_API_PORT:-9000}:9000
+      - 127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/minio/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: ${MC_IMAGE:-pgsty/mc:RELEASE.2026-10-26T00-00-00Z}
+    restart: 'no'
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '/init/init.sh']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_BUCKET_ASSETS: ${S3_BUCKET_ASSETS:-tix-assets}
+      S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-tix-documents}
+    volumes:
+      - ./docker/minio:/init:ro
+
+  # One-shot: apply SQL migrations (advisory-locked) and idempotent reference data.
+  migrate:
+    <<: *worker-image
+    restart: 'no'
+    command: ['sh', '-c', 'node dist/migrate.mjs && node dist/seed.mjs']
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: ${IMAGE_REGISTRY:-tix}/web:${IMAGE_TAG:-local}
+    build:
+      context: .
+      target: web
+    init: true
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      DATABASE_POOL_MAX: ${WEB_DATABASE_POOL_MAX:-20}
+    ports:
+      - ${WEB_PORT:-3000}:3000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  worker:
+    <<: *worker-image
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 40s
+    environment:
+      <<: *app-environment
+      DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-10}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-8}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8081/healthz >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

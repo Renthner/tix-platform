@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+**/migrations/meta/**
+**/.next/**
+**/dist/**
+apps/android/**
+CLAUDE.md

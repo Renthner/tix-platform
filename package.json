@@ -1,0 +1,30 @@
+{
+  "name": "tix-platform",
+  "private": true,
+  "license": "PolyForm-Shield-1.0.0",
+  "description": "High-concurrency ticketing platform with seating editor, virtual waiting room, Vorkasse reconciliation and offline check-in.",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24.7.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=@tix/web --filter=@tix/worker",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @tix/db db:generate",
+    "db:migrate": "pnpm --filter @tix/db db:migrate",
+    "db:seed": "pnpm --filter @tix/db db:seed",
+    "db:studio": "pnpm --filter @tix/db db:studio",
+    "admin:create": "pnpm --filter @tix/db admin:create",
+    "infra:up": "docker compose up -d postgres redis minio minio-init",
+    "infra:down": "docker compose down"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "turbo": "^2.11.10",
+    "typescript": "~6.0.3"
+  }
+}

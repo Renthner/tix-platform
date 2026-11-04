@@ -1,0 +1,29 @@
+{
+  "name": "@tix/worker",
+  "version": "0.1.0",
+  "private": true,
+  "license": "PolyForm-Shield-1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "build": "node build.mjs",
+    "start": "node dist/index.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tix/db": "workspace:*",
+    "@tix/redis": "workspace:*",
+    "@tix/shared": "workspace:*",
+    "bullmq": "^6.4.0",
+    "drizzle-orm": "^0.45.4",
+    "ioredis": "^5.11.1",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "esbuild": "^0.27.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
+  }
+}
