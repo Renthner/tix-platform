@@ -8,7 +8,7 @@
     "node": ">=24.7.0"
   },
   "scripts": {
-    "dev": "turbo run dev --filter=@tix/web --filter=@tix/worker",
+    "dev": "turbo run dev --filter=@tix/web --filter=@tix/worker --filter=@tix/realtime",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -20,7 +20,8 @@
     "db:studio": "pnpm --filter @tix/db db:studio",
     "admin:create": "pnpm --filter @tix/db admin:create",
     "infra:up": "docker compose up -d postgres redis minio minio-init",
-    "infra:down": "docker compose down"
+    "infra:down": "docker compose down",
+    "db:demo": "pnpm --filter @tix/core db:demo"
   },
   "devDependencies": {
     "prettier": "^3.9.10",

@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "description": "Tickets, Saalpläne und Warteraum."
+  },
+  "locale": {
+    "label": "Sprache",
+    "en": "English",
+    "de": "Deutsch"
+  },
+  "actions": {
+    "save": "Speichern",
+    "saving": "Speichert…",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "create": "Anlegen",
+    "back": "Zurück",
+    "close": "Schließen",
+    "retry": "Erneut versuchen",
+    "continue": "Weiter",
+    "remove": "Entfernen",
+    "confirm": "Bestätigen"
+  },
+  "states": {
+    "loading": "Lädt…",
+    "saved": "Gespeichert",
+    "error": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+  },
+  "units": {
+    "seconds": "{count, plural, one {# Sekunde} other {# Sekunden}}",
+    "minutes": "{count, plural, one {# Minute} other {# Minuten}}"
+  },
+  "errors": {
+    "SEAT_UNAVAILABLE": "Dieser Platz ist nicht mehr verfügbar.",
+    "SEAT_LOCKED": "Jemand anderes hat diesen Platz gerade ausgewählt.",
+    "CART_EXPIRED": "Deine Reservierungszeit ist abgelaufen. Bitte wähle deine Plätze erneut.",
+    "TICKET_LIMIT": "Du hast die maximale Anzahl an Tickets für diese Veranstaltung erreicht.",
+    "SECTION_SOLD_OUT": "In diesem Bereich sind nicht mehr genug Plätze frei.",
+    "NOT_ENOUGH_SEATS": "In dieser Kategorie sind nicht genügend Plätze frei. Wähle weniger Tickets oder eine andere Kategorie.",
+    "PASS_REQUIRED": "Deine Einkaufssitzung ist abgelaufen. Bitte betritt den Shop erneut.",
+    "SALE_CLOSED": "Für diese Veranstaltung läuft aktuell kein Verkauf.",
+    "RATE_LIMITED": "Zu viele Anfragen. Bitte warte einen Moment.",
+    "CODE_INVALID": "Dieser Code ist ungültig oder abgelaufen.",
+    "CODE_EXHAUSTED": "Dieser Code wurde bereits verwendet.",
+    "QUEUE_FULL": "Der Warteraum ist voll. Bitte versuche es später erneut.",
+    "ADMISSION_EXPIRED": "Dein Einlass ist verfallen. Bitte stelle dich erneut an.",
+    "TARIFF_NOT_ALLOWED": "Dieser Tarif ist für diesen Platz nicht verfügbar.",
+    "MANUAL_SELECTION_DISABLED": "Die Platzauswahl ist für diese Veranstaltung nicht verfügbar.",
+    "BEST_AVAILABLE_DISABLED": "Die Bestplatzbuchung wird für diese Veranstaltung nicht angeboten.",
+    "INTERNAL_ERROR": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "CATEGORY_LIMIT": "In „{category}“ sind höchstens {max} Tickets pro Bestellung möglich.",
+    "TARIFF_LIMIT": "Der Tarif „{tariff}“ ist auf {max} Tickets pro Bestellung begrenzt."
+  }
+}

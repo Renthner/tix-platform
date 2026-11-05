@@ -10,6 +10,7 @@ export const mediaAssetKindEnum = pgEnum('media_asset_kind', E.MEDIA_ASSET_KINDS
 
 export const seatMapKindEnum = pgEnum('seat_map_kind', E.SEAT_MAP_KINDS);
 export const sectionTypeEnum = pgEnum('section_type', E.SECTION_TYPES);
+export const symbolKindEnum = pgEnum('symbol_kind', E.SYMBOL_KINDS);
 export const seatMapElementTypeEnum = pgEnum('seat_map_element_type', E.SEAT_MAP_ELEMENT_TYPES);
 export const seatBlockReasonEnum = pgEnum('seat_block_reason', E.SEAT_BLOCK_REASONS);
 export const seatFeatureEnum = pgEnum('seat_feature', E.SEAT_FEATURES);

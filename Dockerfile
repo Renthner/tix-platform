@@ -2,6 +2,7 @@
 # Multi-target build for the monorepo:
 #   docker build --target web    -t tix/web .
 #   docker build --target worker -t tix/worker .   (also runs migrate/seed/create-admin)
+#   docker build --target realtime -t tix/realtime .
 
 ARG NODE_IMAGE=node:24-alpine
 
@@ -19,9 +20,11 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
+COPY apps/realtime/package.json apps/realtime/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/redis/package.json packages/redis/package.json
+COPY packages/core/package.json packages/core/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store
 
@@ -31,6 +34,7 @@ COPY tsconfig.base.json turbo.json ./
 COPY packages ./packages
 COPY apps ./apps
 RUN pnpm --filter @tix/worker build \
+ && pnpm --filter @tix/realtime build \
  && pnpm --filter @tix/web build
 
 # ─── Runtime: web (Next.js standalone server) ───────────────────────────────
@@ -56,4 +60,14 @@ COPY --from=build --chown=node:node /repo/apps/worker/dist ./dist
 COPY --from=build --chown=node:node /repo/packages/db/migrations ./migrations
 USER node
 EXPOSE 8081
+CMD ["node", "--enable-source-maps", "dist/index.mjs"]
+
+# ─── Runtime: realtime gateway (Socket.io, self-contained esbuild bundle) ───
+FROM ${NODE_IMAGE} AS realtime
+ENV NODE_ENV=production \
+    REALTIME_PORT=3001
+WORKDIR /app
+COPY --from=build --chown=node:node /repo/apps/realtime/dist ./dist
+USER node
+EXPOSE 3001
 CMD ["node", "--enable-source-maps", "dist/index.mjs"]

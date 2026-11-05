@@ -83,3 +83,44 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* Rendered rich text (event descriptions). */
+.rich-text > * + * {
+  margin-top: 0.6em;
+}
+.rich-text h2 {
+  font-size: 1.35em;
+  font-weight: 600;
+}
+.rich-text h3 {
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.rich-text h4 {
+  font-weight: 600;
+}
+.rich-text ul {
+  list-style: disc;
+  padding-left: 1.4em;
+}
+.rich-text ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+.rich-text blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 0.9em;
+  color: var(--muted-foreground);
+}
+.rich-text a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--primary);
+}
+.rich-text hr {
+  border-color: var(--border);
+}
+.rich-text code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}

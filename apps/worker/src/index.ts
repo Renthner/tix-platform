@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { createCoreContext } from '@tix/core';
 import { createDb, loadRootEnv, pingDb } from '@tix/db';
 import {
   QUEUE_NAMES,
@@ -15,6 +16,7 @@ import { createSecretBox, parseKeyRing } from '@tix/shared/server';
 import { Queue, Worker } from 'bullmq';
 import { loadEnv } from './env';
 import { createLogger } from './logger';
+import { startLoops } from './loops';
 import {
   MAINTENANCE_JOBS,
   PURGE_INTERVAL_MS,
@@ -47,6 +49,16 @@ async function main(): Promise<void> {
   const redisConfig = await inspectRedisConfig(redis.command);
   for (const warning of redisConfig.warnings) logger.warn({ warning }, 'redis configuration');
   logger.info({ workerId, dbLatency, redisLatency }, 'dependencies reachable');
+
+  // ── Seat-lock sweeper + waiting-room ticker (leader-elected) ──────────────
+  const core = createCoreContext({
+    db: dbHandle.db,
+    redis: redis.command,
+    publisher: redis.publisher,
+    keyPrefix: env.REDIS_KEY_PREFIX,
+    sessionSecret: env.SESSION_SECRET,
+  });
+  const loops = startLoops(core, workerId, logger);
 
   // ── Queues & processors ───────────────────────────────────────────────────
   const bullPrefix = keys.bullPrefix();
@@ -137,6 +149,7 @@ async function main(): Promise<void> {
 
     clearInterval(heartbeatTimer);
     healthServer.close();
+    await loops.stop();
     await Promise.allSettled(workers.map((w) => w.close()));
     await maintenanceQueue.close();
     await removeWorkerHeartbeat(redis.command, keys, workerId).catch(() => {});

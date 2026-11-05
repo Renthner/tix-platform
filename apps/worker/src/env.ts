@@ -11,6 +11,7 @@ const envSchema = z.object({
     .regex(/^[a-z0-9_-]{1,32}$/)
     .default('tix'),
   APP_ENCRYPTION_KEYS: z.string().min(1),
+  SESSION_SECRET: z.string().min(32),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(256).default(8),
   WORKER_HEARTBEAT_SECONDS: z.coerce.number().int().min(2).max(300).default(10),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65_535).default(8081),

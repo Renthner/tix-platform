@@ -1,0 +1,21 @@
+{
+  "title": "Warenkorb",
+  "empty": "Dein Warenkorb ist leer.",
+  "browseEvents": "Veranstaltungen ansehen",
+  "summary": {
+    "title": "Übersicht",
+    "reservedFor": "Reserviert für",
+    "tickets": "{count, plural, one {# Ticket} other {# Tickets}}",
+    "total": "Gesamt",
+    "feesNote": "Gebühren und Zahlungsarten werden an der Kasse angezeigt.",
+    "mixedCurrencies": "Dein Warenkorb enthält Veranstaltungen mit unterschiedlichen Währungen. Bitte kaufe sie in getrennten Bestellungen."
+  },
+  "proofNote": "Ermäßigte Tickets: Bitte bring einen Nachweis mit – er wird beim Einlass geprüft.",
+  "editSeats": "Plätze ändern",
+  "row": "Reihe {label}",
+  "seat": "Platz {label}",
+  "standing": "Stehplatz",
+  "tariff": "Tarif",
+  "proofBadge": "Nachweis beim Einlass",
+  "remove": "Entfernen"
+}

@@ -4,14 +4,18 @@
 
 ```
 apps/
-  web/        Next.js 16 (App Router) – storefront, Admin Portal, REST/route handlers
-  worker/     BullMQ worker – PDFs, wallet passes, e-mail, bank polling, dunning, lock sweeps
+  web/        Next.js 16 (App Router, next-intl) – storefront, Admin Portal, route handlers
+  realtime/   Socket.io gateway – live seat deltas, waiting-room updates (stateless, scalable)
+  worker/     BullMQ jobs + leader-elected loops (lock sweeper, waiting-room ticker)
   android/    Offline-first check-in app (Kotlin, Phase 6)
 packages/
-  shared/     Isomorphic: enums, Zod schemas, settings registry; `./server`: crypto helpers
+  shared/     Isomorphic: enums, Zod schemas, settings registry, seating rules, pricing, geometry
   db/         Drizzle schema, migrations, client, transaction helpers, seed & CLIs
-  redis/      ioredis connection roles, key schema, pub/sub channels, queue names, health
-docker/       Redis config, object-storage bootstrap
+  redis/      Connection roles, key schema, Lua engines (seat locks, waiting room, rate limit)
+  core/       Server-side domain services shared by web/worker: cart, waiting room, seat-map
+              save/clone, inventory mirror, public seat map cache, realtime publishing
+docker/       Redis config, object-storage bootstrap, Caddy reverse proxy
+scripts/      Smoke tests against running servers
 ```
 
 Internal packages are consumed as TypeScript source (`exports` → `src/*.ts`): Next.js
@@ -27,10 +31,29 @@ ESM files, so runtime images need no workspace `node_modules`.
 | `minio`      | S3-compatible storage | Uploaded assets, generated PDFs / `.pkpass`, bank statements              |
 | `minio-init` | `mc`                  | Creates buckets + least-privilege app user (idempotent)                   |
 | `migrate`    | worker image          | One-shot: advisory-locked migrations + idempotent seed                    |
-| `web`        | Next.js standalone    | Public + admin HTTP                                                       |
-| `worker`     | worker image          | Background jobs, heartbeat, `/healthz`                                    |
+| `web`        | Next.js standalone    | Shop + Admin Portal + API (only reachable through `proxy`)                |
+| `realtime`   | Socket.io gateway     | WebSockets; Redis Pub/Sub fan-out, 100 ms delta batching                  |
+| `worker`     | worker image          | Background jobs, lock sweeper + waiting-room ticker, heartbeat            |
+| `proxy`      | `caddy:2-alpine`      | Public entry: `/socket.io` → realtime, rest → web; automatic HTTPS        |
 
-Real-time fan-out (Socket.io with Redis adapter) and a TLS reverse proxy are added in Phase 2.
+Seat locking, waiting room and realtime data flow: see [REDIS.md](REDIS.md).
+
+## Request flow of a seat click
+
+1. Browser `POST /api/events/:id/seats` (session cookie + QueuePassToken cookie).
+2. Web validates the pass and rate limits, loads the cached public seat map, ensures the Redis
+   inventory mirror is current, runs the `lockSeats` Lua script (all-or-nothing).
+3. Web publishes `[seatId, 'L']` to Redis Pub/Sub; every realtime instance batches deltas for
+   100 ms and pushes one frame to all browsers watching the event.
+4. Unclaimed locks expire (`PXAT` = cart expiry); the worker sweeper broadcasts the release.
+5. At checkout (phase 3) PostgreSQL's partial unique index is the final authority.
+
+## Internationalisation
+
+`next-intl` with English as default (no URL prefix) and German under `/de`. Messages live in
+`apps/web/messages/<locale>/<namespace>.json`; `pnpm --filter @tix/web test` verifies that all
+locales have identical keys and ICU placeholders. Adding a language = new message folder +
+entry in `SUPPORTED_LOCALES` (`packages/shared/src/i18n.ts`).
 
 ## Key decisions
 
@@ -47,8 +70,10 @@ Real-time fan-out (Socket.io with Redis adapter) and a TLS reverse proxy are add
 | **Connection roles**                   | Separate command (auto-pipelined), publisher, subscriber and BullMQ connections                                                                                                               |
 | **Secrets in DB, encrypted**           | Zero-hardcoding: credentials are edited in the Admin Portal; only infrastructure lives in env                                                                                                 |
 | **Node built-in Argon2id**             | `crypto.argon2` (Node ≥ 24.7) – no native addon to compile                                                                                                                                    |
-| **Bundled worker**                     | One ESM file per entry (worker, migrate, seed, create-admin); tiny runtime image                                                                                                              |
+| **Bundled worker / realtime**          | One ESM file per entry (worker, migrate, seed, create-admin, realtime); tiny runtime images                                                                                                   |
 | **S3 abstraction**                     | Any S3-compatible backend; the compose default is a maintained MinIO community build because upstream MinIO stopped publishing images                                                         |
+| **SVG symbol library in the DB**       | Seat shapes and element icons are stored as sanitised SVG fragments (allow-listed shape tags only, no scripts/links/styles) and inlined once per plan as `<symbol>` + `<use>`                 |
+| **Rich text as sanitised HTML**        | Event descriptions are edited with TipTap and stored as allow-listed HTML; sanitised again on save so the shop can render it directly                                                         |
 
 ## Environment vs. database configuration
 
@@ -60,8 +85,8 @@ PostgreSQL and managed in the Admin Portal.
 
 ## Implementation phases
 
-1. **Architecture, database schema & Docker foundation** ← current
-2. Visual seating editor, Redis locking & waiting room
+1. Architecture, database schema & Docker foundation ✓
+2. **Visual seating editor, Redis locking & waiting room** ← current
 3. Checkout, PayPal & bank-transfer reconciliation engine
 4. PDF ticket designer, Apple/Google Wallet & e-mail worker
 5. Admin Portal completion & box office

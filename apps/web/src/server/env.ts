@@ -20,6 +20,8 @@ const envSchema = z.object({
   APP_ENCRYPTION_KEYS: z.string().min(1),
   /** HMAC key for signed cookies (QueuePassToken, cart session, admin CSRF). */
   SESSION_SECRET: z.string().min(32),
+  /** Public URL of the realtime gateway; unset = same origin (/socket.io behind the proxy). */
+  REALTIME_PUBLIC_URL: z.url().optional(),
   S3_ENDPOINT: z.url(),
   S3_PUBLIC_URL: z.url(),
   S3_REGION: z.string().min(1).default('us-east-1'),

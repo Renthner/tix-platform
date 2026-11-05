@@ -1,0 +1,83 @@
+{
+  "layout": {
+    "events": "Veranstaltungen",
+    "imprint": "Impressum",
+    "privacy": "Datenschutz",
+    "terms": "AGB"
+  },
+  "home": {
+    "title": "Kommende Veranstaltungen",
+    "empty": "Aktuell sind keine Veranstaltungen im Verkauf.",
+    "fromPrice": "ab {price}",
+    "tickets": "Tickets"
+  },
+  "saleState": {
+    "NOT_PUBLISHED": "Nicht verfügbar",
+    "CANCELLED": "Abgesagt",
+    "NOT_STARTED": "Bald erhältlich",
+    "PRESALE": "Vorverkauf",
+    "ON_SALE": "Im Verkauf",
+    "PAUSED": "Pausiert",
+    "ENDED": "Verkauf beendet"
+  },
+  "event": {
+    "postponed": "Verschoben",
+    "doors": "Einlass {time}",
+    "showOnMap": "In Google Maps anzeigen"
+  },
+  "chart": {
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "reset": "Ganzen Plan anzeigen",
+    "ariaLabel": "Saalplan",
+    "remaining": "{count, plural, =0 {ausverkauft} one {# Platz frei} other {# Plätze frei}}"
+  },
+  "selection": {
+    "loading": "Saalplan wird geladen…",
+    "row": "Reihe {label}",
+    "seat": "Platz {label}",
+    "from": "ab {price}",
+    "legend": {
+      "unavailable": "Verkauft",
+      "selected": "Deine Auswahl",
+      "inOtherCart": "In einem anderen Warenkorb"
+    },
+    "bestAvailable": {
+      "title": "Bestplatzbuchung",
+      "category": "Kategorie",
+      "choose": "Kategorie wählen",
+      "quantity": "Tickets",
+      "submit": "Plätze finden",
+      "found": "{count, plural, one {# Platz für dich reserviert} other {# Plätze für dich reserviert}}",
+      "notTogether": {
+        "ROWS": "Es waren keine {count} Plätze nebeneinander frei. Wir haben die besten Plätze in direkt hintereinanderliegenden Reihen ausgewählt.",
+        "SCATTERED": "Es waren keine {count} Plätze zusammen frei. Wir haben die besten verfügbaren Plätze ausgewählt – sie liegen nicht nebeneinander."
+      }
+    },
+    "close": "Schließen",
+    "standing": {
+      "remaining": "{count, plural, =0 {Ausverkauft} one {# Platz frei} other {# Plätze frei}}",
+      "quantity": "Stehplatz-Tickets"
+    },
+    "yourSelection": "Deine Auswahl",
+    "count": "{count} / {max}",
+    "emptyManual": "Klicke im Saalplan auf freie Plätze oder einen Stehplatzbereich.",
+    "emptyBest": "Wähle oben eine Kategorie und die Anzahl der Tickets.",
+    "remove": "Entfernen",
+    "orphanHint": "Bitte lass keine einzelnen freien Plätze neben deiner Auswahl übrig.",
+    "orphanRule": "Deine Auswahl würde einen einzelnen freien Platz übrig lassen (rot markiert). Bitte passe deine Auswahl an.",
+    "continue": "Weiter zum Warenkorb",
+    "tariffHint": "Ermäßigungen (Schüler, Kinder …) wählst du im Warenkorb für jeden Platz einzeln.",
+    "decrease": "Weniger",
+    "increase": "Mehr",
+    "countUnlimited": "{count} ausgewählt",
+    "companionRule": "Begleitplätze können nur zusammen mit dem zugehörigen Rollstuhlplatz gebucht werden. Bitte wähle den Rollstuhlplatz dazu oder entferne den Begleitplatz.",
+    "companionSeatTitle": "Begleitplatz – nur zusammen mit dem zugehörigen Rollstuhlplatz",
+    "priceRange": "{min} bis {max}",
+    "seatType": {
+      "wheelchair": "Rollstuhlplatz",
+      "companion": "Begleitplatz"
+    },
+    "companionOwnerCheck": "Der zugehörige Rollstuhlplatz ist bereits verkauft. Du kannst den Begleitplatz buchen, wenn der Rollstuhlplatz mit derselben E-Mail-Adresse gebucht wurde – das wird an der Kasse geprüft."
+  }
+}

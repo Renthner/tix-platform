@@ -1,18 +1,22 @@
-# Full stack: web, worker, PostgreSQL, Redis, S3-compatible object storage.
+# Full stack: reverse proxy, web, realtime gateway, worker, PostgreSQL, Redis, object storage.
 #
 #   cp .env.example .env   # then fill in the secrets (see comments in .env.example)
 #   docker compose up -d --build
 #   docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
+#   open http://localhost:8080
 #
-# Only web (3000) is meant to be public – put a TLS-terminating reverse proxy in front of it.
-# Infrastructure ports are bound to 127.0.0.1 for local development tools only.
+# Only the `proxy` service (Caddy) is reachable from the browser: it routes /socket.io to the
+# realtime gateway and everything else to web, and obtains TLS certificates automatically when
+# SITE_ADDRESS is a domain. web / realtime / worker publish no ports (always use the proxy);
+# PostgreSQL, Redis and MinIO are bound to 127.0.0.1 for local tools and `pnpm dev` only.
 
 name: ${COMPOSE_PROJECT_NAME:-tix}
 
 x-app-environment: &app-environment
   NODE_ENV: production
   LOG_LEVEL: ${LOG_LEVEL:-info}
-  APP_URL: ${APP_URL:-http://localhost:3000}
+  # Public URL as seen by browsers (through the proxy).
+  APP_URL: ${PUBLIC_URL:-http://localhost:8080}
   DATABASE_URL: postgres://${POSTGRES_USER:-tix}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-tix}
   REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
   REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-tix}
@@ -147,8 +151,8 @@ services:
     environment:
       <<: *app-environment
       DATABASE_POOL_MAX: ${WEB_DATABASE_POOL_MAX:-20}
-    ports:
-      - ${WEB_PORT:-3000}:3000
+    # No published port: browsers reach web only through `proxy` (avoids clashing with
+    # `pnpm dev` on :3000 and keeps realtime / headers consistent).
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -186,7 +190,54 @@ services:
       start_period: 15s
       retries: 3
 
+  # Socket.io gateway: live seat updates, waiting-room positions, announcements.
+  # Stateless – scale with `docker compose up --scale realtime=N` (Redis Pub/Sub fan-out).
+  realtime:
+    image: ${IMAGE_REGISTRY:-tix}/realtime:${IMAGE_TAG:-local}
+    build:
+      context: .
+      target: realtime
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      APP_URL: ${PUBLIC_URL:-http://localhost:8080}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-tix}
+      SESSION_SECRET: ${SESSION_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3001/healthz >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # Public entry point (HTTP/HTTPS). Automatic TLS when SITE_ADDRESS is a domain name.
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - ${HTTP_PORT:-8080}:80
+      - ${HTTPS_PORT:-8443}:443
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   redis-data:
   minio-data:
+  caddy-data:
+  caddy-config:

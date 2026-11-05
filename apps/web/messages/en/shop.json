@@ -1,0 +1,83 @@
+{
+  "layout": {
+    "events": "Events",
+    "imprint": "Imprint",
+    "privacy": "Privacy",
+    "terms": "Terms"
+  },
+  "home": {
+    "title": "Upcoming events",
+    "empty": "There are no events on sale at the moment.",
+    "fromPrice": "from {price}",
+    "tickets": "Tickets"
+  },
+  "saleState": {
+    "NOT_PUBLISHED": "Not available",
+    "CANCELLED": "Cancelled",
+    "NOT_STARTED": "Coming soon",
+    "PRESALE": "Presale",
+    "ON_SALE": "On sale",
+    "PAUSED": "Paused",
+    "ENDED": "Sales ended"
+  },
+  "event": {
+    "postponed": "Postponed",
+    "doors": "Doors open {time}",
+    "showOnMap": "Show on Google Maps"
+  },
+  "chart": {
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Fit plan",
+    "ariaLabel": "Seating plan",
+    "remaining": "{count, plural, =0 {sold out} one {# spot left} other {# spots left}}"
+  },
+  "selection": {
+    "loading": "Loading seating plan…",
+    "row": "Row {label}",
+    "seat": "Seat {label}",
+    "from": "from {price}",
+    "legend": {
+      "unavailable": "Sold",
+      "selected": "Your selection",
+      "inOtherCart": "In another cart"
+    },
+    "bestAvailable": {
+      "title": "Best available",
+      "category": "Category",
+      "choose": "Choose a category",
+      "quantity": "Tickets",
+      "submit": "Find seats",
+      "found": "{count, plural, one {# seat reserved for you} other {# seats reserved for you}}",
+      "notTogether": {
+        "ROWS": "There were no {count} seats side by side. We selected the best seats in rows directly behind each other.",
+        "SCATTERED": "There were no {count} seats together. We selected the best available seats – they are not next to each other."
+      }
+    },
+    "close": "Close",
+    "standing": {
+      "remaining": "{count, plural, =0 {Sold out} one {# spot left} other {# spots left}}",
+      "quantity": "Standing tickets"
+    },
+    "yourSelection": "Your selection",
+    "count": "{count} / {max}",
+    "emptyManual": "Click on available seats or a standing area in the plan.",
+    "emptyBest": "Choose a category and the number of tickets above.",
+    "remove": "Remove",
+    "orphanHint": "Please don't leave single empty seats next to your selection.",
+    "orphanRule": "Your selection would leave a single empty seat (marked red). Please adjust your selection.",
+    "continue": "Continue to cart",
+    "tariffHint": "Reductions (students, children …) are chosen per seat in the cart.",
+    "decrease": "Decrease",
+    "increase": "Increase",
+    "countUnlimited": "{count} selected",
+    "companionRule": "Companion seats can only be booked together with their wheelchair space. Please add the wheelchair space or remove the companion seat.",
+    "companionSeatTitle": "Companion seat – only together with its wheelchair space",
+    "priceRange": "{min} – {max}",
+    "seatType": {
+      "wheelchair": "Wheelchair space",
+      "companion": "Companion seat"
+    },
+    "companionOwnerCheck": "The wheelchair space belonging to your companion seat has already been sold. You can book the companion seat if the wheelchair space was booked with the same e-mail address – this is checked at checkout."
+  }
+}

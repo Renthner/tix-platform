@@ -1,0 +1,21 @@
+{
+  "title": "Cart",
+  "empty": "Your cart is empty.",
+  "browseEvents": "Browse events",
+  "summary": {
+    "title": "Summary",
+    "reservedFor": "Reserved for",
+    "tickets": "{count, plural, one {# ticket} other {# tickets}}",
+    "total": "Total",
+    "feesNote": "Fees and payment options are shown at checkout.",
+    "mixedCurrencies": "Your cart contains events with different currencies. Please buy them in separate orders."
+  },
+  "proofNote": "Reduced tickets: please bring proof of eligibility – it is checked at the entrance.",
+  "editSeats": "Change seats",
+  "row": "Row {label}",
+  "seat": "Seat {label}",
+  "standing": "Standing",
+  "tariff": "Tariff",
+  "proofBadge": "Proof at entry",
+  "remove": "Remove"
+}

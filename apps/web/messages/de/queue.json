@@ -1,0 +1,39 @@
+{
+  "checking": "Verfügbarkeit wird geprüft…",
+  "admitted": { "title": "Du bist an der Reihe!", "enter": "Zum Shop" },
+  "lobby": {
+    "title": "Du bist in der Lobby",
+    "description": "Zum Verkaufsstart erhalten alle in der Lobby einen Platz in der Warteschlange. Bitte lass diese Seite geöffnet."
+  },
+  "notStarted": {
+    "title": "Der Verkauf hat noch nicht begonnen",
+    "description": "Tickets sind hier erhältlich, sobald der Verkauf startet.",
+    "lobby": "Der Warteraum öffnet in Kürze. Lass diese Seite geöffnet, um automatisch beizutreten."
+  },
+  "closed": {
+    "NOT_PUBLISHED": "Diese Veranstaltung ist nicht verfügbar.",
+    "CANCELLED": "Diese Veranstaltung wurde abgesagt.",
+    "NOT_STARTED": "Der Verkauf hat noch nicht begonnen.",
+    "PRESALE": "Der Vorverkauf läuft.",
+    "ON_SALE": "Tickets sind im Verkauf.",
+    "PAUSED": "Der Ticketverkauf ist gerade pausiert. Bitte versuche es später erneut.",
+    "ENDED": "Der Online-Verkauf für diese Veranstaltung ist beendet."
+  },
+  "waiting": {
+    "title": "Du bist in der Warteschlange",
+    "description": "Wegen hoher Nachfrage lassen wir Besucher in Gruppen in den Shop. Du wirst automatisch eingelassen.",
+    "position": "Deine Position",
+    "minutes": "Minuten (geschätzt)",
+    "paused": "Der Einlass ist vom Veranstalter kurz pausiert. Du behältst deinen Platz.",
+    "keepOpen": "Bitte lass diese Seite geöffnet – Neuladen kostet dich nicht deinen Platz."
+  },
+  "code": {
+    "title": { "PRESALE": "Vorverkaufszugang", "VIP_ONLY": "Zugangscode erforderlich" },
+    "description": {
+      "PRESALE": "Der Vorverkauf läuft. Bitte gib deinen Vorverkaufscode ein.",
+      "VIP_ONLY": "Tickets für diese Veranstaltung gibt es nur mit Zugangscode."
+    },
+    "placeholder": "Zugangscode",
+    "submit": "Freischalten"
+  }
+}

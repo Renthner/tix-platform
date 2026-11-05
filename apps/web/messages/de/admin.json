@@ -1,0 +1,711 @@
+{
+  "panelTitle": "Admin-Portal",
+  "logout": "Abmelden",
+  "nav": {
+    "dashboard": "Übersicht",
+    "events": "Veranstaltungen",
+    "venues": "Spielstätten & Pläne",
+    "waitingRoom": "Warteraum",
+    "symbols": "Symbolbibliothek",
+    "settings": "Einstellungen"
+  },
+  "login": {
+    "title": "Admin-Anmeldung",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "submitting": "Meldet an…",
+    "errors": {
+      "INVALID": "E-Mail oder Passwort ist falsch.",
+      "LOCKED": "Zu viele Fehlversuche. Das Konto ist vorübergehend gesperrt.",
+      "RATE_LIMITED": "Zu viele Anmeldeversuche. Bitte warte einige Minuten."
+    }
+  },
+  "messages": {
+    "saved": "Änderungen gespeichert.",
+    "created": "Erfolgreich angelegt.",
+    "deleted": "Gelöscht.",
+    "reset": "Der Warteraum wurde zurückgesetzt.",
+    "published": "Die Veranstaltung ist jetzt veröffentlicht."
+  },
+  "errors": {
+    "required": "Dieses Feld ist erforderlich.",
+    "invalid": "Dieser Wert ist ungültig.",
+    "tooLong": "Dieser Text ist zu lang.",
+    "tooSmall": "Dieser Wert ist zu klein.",
+    "tooLarge": "Dieser Wert ist zu groß.",
+    "slugFormat": "Nur Kleinbuchstaben, Ziffern und einzelne Bindestriche verwenden.",
+    "slugTaken": "Dieser URL-Kurzname wird bereits verwendet.",
+    "nameTaken": "Dieser Name wird bereits verwendet.",
+    "codeFormat": "4–64 Zeichen verwenden: Buchstaben, Ziffern und Bindestriche.",
+    "codeTaken": "Dieser Code existiert bereits.",
+    "timeZone": "Unbekannte Zeitzone (IANA-Namen wie Europe/Berlin verwenden).",
+    "money": "Bitte einen Betrag wie 12,50 eingeben.",
+    "percent": "Bitte einen Prozentwert zwischen 0 und 100 eingeben.",
+    "dateOrder": "Dieses Datum passt in der Reihenfolge nicht zu den anderen.",
+    "url": "Bitte eine vollständige URL mit https:// eingeben.",
+    "country": "Zweistelligen Ländercode wie DE verwenden.",
+    "form": {
+      "generic": "Die Aktion konnte nicht ausgeführt werden.",
+      "notFound": "Der Eintrag existiert nicht mehr. Bitte die Seite neu laden.",
+      "inUse": "Dieser Eintrag wird von bestehenden Bestellungen verwendet und kann nicht gelöscht werden. Deaktiviere ihn stattdessen.",
+      "publishIncomplete": "Die Veranstaltung kann noch nicht veröffentlicht werden – vervollständige zuerst die Checkliste.",
+      "warningRequired": "Ein Scanner-Hinweis ist erforderlich, wenn der Nachweis beim Einlass geprüft wird.",
+      "templateMismatch": "Der gewählte Saalplan gehört zu einer anderen Spielstätte.",
+      "validation": "Bitte die markierten Felder prüfen.",
+      "eventHasOrders": "Diese Veranstaltung hat Bestellungen. Bestellungen und Rechnungen müssen für die Buchhaltung aufbewahrt werden und können nicht gelöscht werden.",
+      "eventNotArchived": "Nur archivierte Veranstaltungen können gelöscht werden. Setze den Status zuerst auf „Archiviert“.",
+      "builtinSymbol": "Mitgelieferte Symbole können nicht gelöscht werden.",
+      "venueHasEvents": "An dieser Spielstätte gibt es noch Veranstaltungen, daher kann sie nicht gelöscht werden."
+    },
+    "email": "Bitte eine gültige E-Mail-Adresse eingeben.",
+    "fileRequired": "Bitte eine Datei auswählen.",
+    "svgTooLarge": "Die SVG-Datei ist zu groß (max. 200 KB).",
+    "svgInvalid": "Diese Datei ist kein gültiges SVG-Bild (es braucht eine viewBox oder Breite/Höhe).",
+    "svgEmpty": "Das SVG enthält keine zeichenbaren Formen.",
+    "svgTooComplex": "Das SVG ist zu komplex. Bitte vereinfachen und erneut versuchen.",
+    "confirmMismatch": "Der Text stimmt nicht mit dem Titel der Veranstaltung überein."
+  },
+  "common": {
+    "inherit": "Global übernehmen ({value})",
+    "unlimited": "unbegrenzt",
+    "on": "An",
+    "off": "Aus",
+    "active": "Aktiv",
+    "inactive": "Inaktiv"
+  },
+  "eventStatus": {
+    "DRAFT": "Entwurf",
+    "PUBLISHED": "Veröffentlicht",
+    "POSTPONED": "Verschoben",
+    "CANCELLED": "Abgesagt",
+    "ARCHIVED": "Archiviert"
+  },
+  "saleState": {
+    "NOT_PUBLISHED": "Nicht veröffentlicht",
+    "CANCELLED": "Abgesagt",
+    "NOT_STARTED": "Verkauf nicht gestartet",
+    "PRESALE": "Vorverkauf",
+    "ON_SALE": "Im Verkauf",
+    "PAUSED": "Verkauf pausiert",
+    "ENDED": "Verkauf beendet"
+  },
+  "dashboard": {
+    "title": "Übersicht",
+    "welcome": "Willkommen zurück, {name}.",
+    "denied": "Du hast keine Berechtigung, diese Seite zu öffnen.",
+    "upcoming": "Kommende Veranstaltungen",
+    "noEvents": "Noch keine kommenden Veranstaltungen.",
+    "links": {
+      "newEvent": "Neue Veranstaltung",
+      "venues": "Spielstätten & Pläne",
+      "waitingRoom": "Warteraum-Standards"
+    },
+    "columns": {
+      "event": "Veranstaltung",
+      "date": "Datum",
+      "venue": "Spielstätte",
+      "status": "Status",
+      "sale": "Verkauf"
+    }
+  },
+  "venues": {
+    "title": "Spielstätten & Saalpläne",
+    "description": "Orte und ihre wiederverwendbaren Master-Saalpläne.",
+    "new": "Neue Spielstätte",
+    "newDescription": "Lege einen Ort an. Master-Saalpläne werden nach dem Speichern hinzugefügt.",
+    "empty": "Noch keine Spielstätten.",
+    "edit": "Details der Spielstätte",
+    "backToList": "Alle Spielstätten",
+    "columns": {
+      "name": "Name",
+      "city": "Ort",
+      "plans": "Master-Pläne",
+      "status": "Status"
+    },
+    "form": {
+      "name": "Name",
+      "slug": "URL-Kurzname",
+      "slugHint": "Kleinbuchstaben, Ziffern und Bindestriche.",
+      "street": "Straße",
+      "postalCode": "PLZ",
+      "city": "Ort",
+      "country": "Land",
+      "countryHint": "Zweistelliger ISO-Code, z. B. DE.",
+      "timeZone": "Zeitzone",
+      "timeZoneHint": "IANA-Name, z. B. Europe/Berlin.",
+      "latitude": "Breitengrad",
+      "longitude": "Längengrad",
+      "coordinatesHint": "Wird für Wallet-Tickets und Karten verwendet.",
+      "websiteUrl": "Website",
+      "description": "Beschreibung",
+      "isActive": "Spielstätte ist aktiv",
+      "mapsUrl": "Google-Maps-Link",
+      "mapsUrlHint": "Wird im Shop für „Auf Karte anzeigen“ verwendet. Leer = Link wird aus Adresse bzw. Koordinaten erzeugt."
+    },
+    "plans": {
+      "title": "Master-Saalpläne",
+      "description": "Wiederverwendbare Pläne. Jede Veranstaltung erhält beim Anlegen eine eigene, bearbeitbare Kopie.",
+      "empty": "Noch keine Master-Pläne.",
+      "name": "Name",
+      "seats": "Plätze",
+      "updated": "Letzte Änderung",
+      "actions": "Aktionen",
+      "openEditor": "Editor öffnen",
+      "rename": "Umbenennen",
+      "duplicate": "Duplizieren",
+      "duplicateTitle": "Plan duplizieren?",
+      "duplicateDescription": "Erstellt eine unabhängige Kopie von „{name}“.",
+      "delete": "Löschen",
+      "deleteTitle": "Plan löschen?",
+      "deleteDescription": "„{name}“ wird dauerhaft gelöscht. Veranstaltungen, die daraus erstellt wurden, behalten ihre eigenen Kopien.",
+      "new": "Neuer Master-Plan",
+      "width": "Breite",
+      "height": "Höhe",
+      "create": "Anlegen & Editor öffnen",
+      "copyName": "{name} (Kopie)"
+    },
+    "deletedNotice": "Die Spielstätte wurde endgültig gelöscht.",
+    "danger": {
+      "title": "Spielstätte löschen",
+      "description": "Entfernt die Spielstätte und {plans, plural, =0 {ihre Saalplan-Vorlagen} one {ihre Saalplan-Vorlage} other {ihre # Saalplan-Vorlagen}} endgültig.",
+      "hasEvents": "An dieser Spielstätte gibt es noch {count, plural, one {# Veranstaltung} other {# Veranstaltungen}} (auch archivierte). Erst wenn keine mehr existieren, kann sie gelöscht werden.",
+      "button": "Spielstätte löschen…",
+      "confirmTitle": "„{name}“ endgültig löschen?",
+      "confirmDescription": "Die Spielstätte und {plans, plural, =0 {ihre Saalplan-Vorlagen} one {ihre Saalplan-Vorlage} other {ihre # Saalplan-Vorlagen}} werden entfernt. Das kann nicht rückgängig gemacht werden.",
+      "confirm": "Endgültig löschen"
+    }
+  },
+  "events": {
+    "title": "Veranstaltungen",
+    "description": "Vorstellungen, Verkaufszeiträume, Preise und Zugang.",
+    "new": "Neue Veranstaltung",
+    "empty": "Keine Veranstaltungen gefunden.",
+    "filterAll": "Alle",
+    "backToList": "Alle Veranstaltungen",
+    "defaultTicketType": "Normalpreis",
+    "columns": {
+      "title": "Veranstaltung",
+      "date": "Datum",
+      "venue": "Spielstätte",
+      "status": "Status",
+      "sale": "Verkauf"
+    },
+    "create": {
+      "description": "Der gewählte Master-Plan wird für diese Veranstaltung kopiert und kann danach angepasst werden.",
+      "submit": "Veranstaltung anlegen",
+      "noVenues": "Lege zuerst eine Spielstätte an.",
+      "noTaxRates": "Es gibt keinen aktiven Steuersatz. Lege zuerst einen in den Einstellungen an.",
+      "createVenue": "Spielstätte anlegen"
+    },
+    "fields": {
+      "title": "Titel",
+      "subtitle": "Untertitel",
+      "description": "Beschreibung",
+      "slug": "URL-Kurzname",
+      "slugHint": "Teil der Shop-URL. Kleinbuchstaben, Ziffern und Bindestriche.",
+      "venue": "Spielstätte",
+      "template": "Saalplan",
+      "templateHint": "Wird in einen eigenen Veranstaltungsplan kopiert, der unabhängig bearbeitet werden kann.",
+      "emptyPlan": "Mit leerem Plan beginnen",
+      "startsAt": "Beginn",
+      "timesHint": "Zeiten werden in der Zeitzone der Veranstaltung eingegeben.",
+      "timeZone": "Zeitzone",
+      "doorsOpenAt": "Einlass",
+      "endsAt": "Ende",
+      "currency": "Währung",
+      "taxRate": "Steuersatz",
+      "orphanSeatRule": "Einzelplatz-Regel",
+      "orphanSeatRuleHint": "Wenn aktiviert, können Kunden nicht zum Warenkorb weitergehen, wenn ihre Auswahl einen einzelnen freien Platz in einer Reihe zurücklassen würde. Geprüft wird beim Klick auf „Weiter zum Warenkorb“."
+    },
+    "tabs": {
+      "label": "Bereiche der Veranstaltung",
+      "details": "Details",
+      "sales": "Verkauf",
+      "pricing": "Preise",
+      "seating": "Saalplan",
+      "waitingRoom": "Warteraum",
+      "accessCodes": "Zugangscodes",
+      "page": "Shop-Seite"
+    },
+    "details": {
+      "title": "Details der Veranstaltung"
+    },
+    "publish": {
+      "title": "Status & Veröffentlichung",
+      "description": "Nur veröffentlichte Veranstaltungen sind im Shop sichtbar.",
+      "status": "Status",
+      "apply": "Status übernehmen",
+      "cancellationReason": "Grund der Absage",
+      "checklist": {
+        "seatMap": "Saalplan vorhanden",
+        "category": "Mindestens eine aktive Preiskategorie",
+        "tariff": "Mindestens ein Online-Tarif in einer Kategorie angeboten",
+        "inventory": "Plätze oder Stehbereiche mit Preiskategorie"
+      }
+    },
+    "sales": {
+      "title": "Verkaufseinstellungen",
+      "windows": "Verkaufszeiträume",
+      "windowsHint": "Zeiten in {timeZone}. Ohne Start des öffentlichen Verkaufs ist die Veranstaltung ab Veröffentlichung im Verkauf.",
+      "presaleStartsAt": "Vorverkauf beginnt",
+      "publicSaleStartsAt": "Öffentlicher Verkauf beginnt",
+      "saleEndsAt": "Online-Verkauf endet",
+      "saleEndsAtHint": "Leer = bis zum Beginn der Veranstaltung.",
+      "salesPaused": "Verkauf pausieren",
+      "salesPausedHint": "Notstopp: Niemand kann den Shop betreten oder bezahlen.",
+      "limits": "Limits & Reservierungszeit",
+      "limitsHint": "Leer lassen, um die globale Einstellung zu verwenden.",
+      "maxTicketsPerOrder": "Max. Tickets pro Bestellung",
+      "maxTicketsPerCustomer": "Max. Tickets pro Kunde",
+      "cartLockTtlSeconds": "Warenkorb-Reservierung (Sekunden)",
+      "paymentGraceSeconds": "Nachfrist während der Zahlung (Sekunden)",
+      "selection": "Platzauswahl",
+      "manualSeatSelectionEnabled": "Plätze im Saalplan wählen",
+      "bestAvailableEnabled": "Bestplatzbuchung",
+      "companionRequiresWheelchair": "Begleitplätze nur mit Rollstuhlplatz"
+    },
+    "deletedNotice": "Die Veranstaltung wurde endgültig gelöscht.",
+    "danger": {
+      "title": "Veranstaltung endgültig löschen",
+      "description": "Entfernt die Veranstaltung mit Saalplan, Preisen, Tarifen, Zugangscodes und Warteraum-Daten. Das kann nicht rückgängig gemacht werden.",
+      "notArchived": "Nur für archivierte Veranstaltungen verfügbar. Archiviere die Veranstaltung zuerst.",
+      "hasOrders": "Diese Veranstaltung hat Bestellungen. Bestellungen und Rechnungen sind Buchhaltungsunterlagen, die aufbewahrt werden müssen – die Veranstaltung kann daher nicht gelöscht werden. Lass sie archiviert.",
+      "button": "Veranstaltung löschen…",
+      "confirmTitle": "Diese Veranstaltung endgültig löschen?",
+      "confirmDescription": "Gib zur Bestätigung den exakten Titel der Veranstaltung ein.",
+      "typeTitle": "Titel der Veranstaltung: {title}",
+      "confirm": "Endgültig löschen"
+    },
+    "page": {
+      "title": "Shop-Seite",
+      "description": "Ordne die Event-Seite an und füge Infoboxen hinzu – z. B. akzeptierte Ermäßigungsnachweise oder Hinweise für Menschen mit Beeinträchtigung.",
+      "layoutTitle": "Aufbau der Seite",
+      "layoutHint": "Ziehe einen Baustein auf die linke oder rechte Hälfte eines anderen, um ihn daneben zu platzieren (bis zu {max} pro Zeile), oder auf eine Lücke zwischen den Zeilen für eine eigene Zeile. Der Saalplan nutzt immer die volle Breite. Der Kopfbereich mit Titel, Datum und Ort bleibt oben.",
+      "header": "Kopfbereich – Titel, Datum, Ort",
+      "headerFixed": "immer oben",
+      "blocks": {
+        "DESCRIPTION": "Beschreibung",
+        "SHOP": "Saalplan & Platzauswahl"
+      },
+      "boxesTitle": "Infoboxen",
+      "boxesHint": "Hinweise mit Titel, Symbol und Text – platziere sie oben im Seitenaufbau, z. B. neben der Beschreibung. Bis zu {max} Boxen; leere Boxen werden beim Speichern entfernt.",
+      "emptyBoxes": "Noch keine Infoboxen.",
+      "boxNumber": "Infobox {n}",
+      "boxTitle": "Titel",
+      "boxIcon": "Symbol",
+      "boxContent": "Text",
+      "noIcon": "Kein Symbol",
+      "removeBox": "Infobox entfernen",
+      "addBox": "Infobox hinzufügen",
+      "addTemplate": "Vorlage: {name}",
+      "templates": {
+        "discounts": {
+          "title": "Akzeptierte Ermäßigungsnachweise",
+          "content": "<p>Bitte zeige am Einlass einen gültigen Nachweis vor, zum Beispiel:</p><ul><li><p>Schüler- oder Studierendenausweis</p></li><li><p>Schwerbehindertenausweis</p></li></ul>"
+        },
+        "accessibility": {
+          "title": "Hinweise für Menschen mit Beeinträchtigung",
+          "content": "<p>Rollstuhl- und Begleitplätze sind im Saalplan gekennzeichnet. Wenn du Unterstützung brauchst, melde dich gern bei uns.</p>"
+        }
+      },
+      "blockBox": "Infobox: {title}",
+      "dropNewRow": "Hier als eigene Zeile ablegen",
+      "moveLeft": "Nach links",
+      "moveRight": "Nach rechts",
+      "ownRow": "Eigene Zeile",
+      "wide": "Breit",
+      "joinAbove": "Neben die Zeile darüber",
+      "rowUp": "Zeile nach oben",
+      "rowDown": "Zeile nach unten",
+      "mobileHint": "Auf dem Handy werden die Bausteine einer Zeile untereinander angezeigt.",
+      "textSize": "Textgröße",
+      "iconSize": "Symbolgröße",
+      "sizes": {
+        "S": "Klein",
+        "M": "Mittel",
+        "L": "Groß",
+        "XL": "Sehr groß"
+      }
+    }
+  },
+  "pricing": {
+    "status": "Status",
+    "actions": "Aktionen",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "delete": "Löschen",
+    "sortOrder": "Sortierung",
+    "categories": {
+      "title": "Preiskategorien",
+      "description": "Kategorien werden im Saalplan-Editor Plätzen und Stehbereichen zugewiesen.",
+      "new": "Neue Kategorie",
+      "edit": "Kategorie bearbeiten",
+      "empty": "Noch keine Preiskategorien.",
+      "name": "Name",
+      "color": "Farbe",
+      "descriptionField": "Beschreibung",
+      "basePrice": "Grundpreis",
+      "maxPerOrder": "Max. pro Bestellung",
+      "deleteTitle": "Preiskategorie löschen?",
+      "deleteDescription": "„{name}“ wird von allen Plätzen dieser Veranstaltung entfernt."
+    },
+    "types": {
+      "title": "Tarife",
+      "description": "Kunden wählen zuerst Plätze und danach im Warenkorb den Tarif pro Platz. Ermäßigungen werden beim Einlass geprüft.",
+      "new": "Neuer Tarif",
+      "edit": "Tarif bearbeiten",
+      "empty": "Noch keine Tarife.",
+      "name": "Name",
+      "descriptionField": "Beschreibung",
+      "default": "Standard",
+      "discount": "Ermäßigung",
+      "proof": "Prüfung beim Einlass",
+      "channels": "Verkaufskanäle",
+      "channelsRequired": "Mindestens einen Verkaufskanal auswählen.",
+      "discountKind": "Ermäßigung",
+      "kinds": {
+        "NONE": "Keine Ermäßigung",
+        "PERCENT": "Prozentual",
+        "FIXED_AMOUNT": "Fester Abzug",
+        "FIXED_PRICE": "Festpreis"
+      },
+      "valueLabel": {
+        "NONE": "Wert",
+        "PERCENT": "Ermäßigung in %",
+        "FIXED_AMOUNT": "Abzug",
+        "FIXED_PRICE": "Preis"
+      },
+      "discountPercent": "−{value} %",
+      "discountAmount": "−{value}",
+      "discountFixed": "Festpreis {value}",
+      "requiresProof": "Nachweis beim Einlass erforderlich",
+      "requiresProofHint": "Der Scanner zeigt einen gelben Hinweis, damit das Personal den Nachweis prüft (z. B. Schülerausweis).",
+      "scannerWarning": "Scanner-Hinweis",
+      "scannerWarningPlaceholder": "Bitte Ermäßigungsnachweis prüfen!",
+      "seatFeature": "Nur auf Plätzen",
+      "features": {
+        "none": "Alle Plätze",
+        "WHEELCHAIR_SPACE": "Rollstuhlplatz",
+        "COMPANION_SEAT": "Begleitplatz"
+      },
+      "maxPerOrder": "Max. pro Bestellung",
+      "channelNames": {
+        "ONLINE": "Online-Shop",
+        "BOX_OFFICE": "Abendkasse",
+        "ADMIN": "Admin"
+      },
+      "isDefault": "Standardtarif",
+      "deleteTitle": "Tarif löschen?",
+      "deleteDescription": "„{name}“ wird nicht mehr angeboten."
+    },
+    "matrix": {
+      "title": "Verfügbarkeit & Preise",
+      "description": "Welcher Tarif in welcher Kategorie angeboten wird, optional mit kategoriespezifischem Preis oder Rabatt (z. B. „Ermäßigt“ −5 € in Kat. 1, aber −4 € in Kat. 2).",
+      "category": "Kategorie",
+      "offered": "Angeboten",
+      "finalPrice": "Kunde zahlt {price}",
+      "modesHint": "„Tarif-Standard“ verwendet die Rabattregel des Tarifs. Festpreis, Rabattbetrag und Rabatt in % gelten nur für diese Kategorie.",
+      "tariffDefault": "Standard: {rule}",
+      "mode": "Preisregel",
+      "modes": {
+        "default": "Tarif-Standard",
+        "price": "Festpreis",
+        "amount": "Rabattbetrag",
+        "percent": "Rabatt in %"
+      },
+      "invalidValue": "Bitte einen gültigen Wert eingeben."
+    }
+  },
+  "seating": {
+    "title": "Saalplan der Veranstaltung",
+    "description": "Dieser Plan ist eine Kopie des Master-Plans und kann jederzeit geändert werden, ohne andere Veranstaltungen zu beeinflussen.",
+    "openEditor": "Saalplan-Editor öffnen",
+    "noPlan": "Diese Veranstaltung hat keinen Saalplan.",
+    "missingCategories": "{seats} Plätze und {areas} Stehbereiche haben keine Preiskategorie und können nicht verkauft werden.",
+    "seatsTotal": "Plätze",
+    "seatsBlocked": "Gesperrte Plätze",
+    "seatsWithoutCategory": "Plätze ohne Kategorie",
+    "standingAreas": "Stehbereiche",
+    "standingCapacity": "Stehplatz-Kapazität",
+    "perCategory": "Plätze pro Kategorie",
+    "category": "Kategorie",
+    "seats": "Plätze",
+    "noCategory": "Keine Kategorie"
+  },
+  "queue": {
+    "globalTitle": "Warteraum-Standards",
+    "globalDescription": "Gilt für jede Veranstaltung ohne eigene Warteraum-Konfiguration.",
+    "eventTitle": "Warteraum dieser Veranstaltung",
+    "eventDescription": "Steuert, wie Besucher bei hoher Nachfrage den Shop betreten.",
+    "useGlobal": "Globale Standards verwenden",
+    "useGlobalHint": "Ausschalten, um diese Veranstaltung individuell zu konfigurieren.",
+    "modes": {
+      "OFF": {
+        "label": "Aus",
+        "description": "Alle betreten den Shop direkt."
+      },
+      "AUTO_THRESHOLD": {
+        "label": "Automatisch",
+        "description": "Besucher warten nur, solange die Zahl aktiver Käufer den Schwellwert erreicht."
+      },
+      "SCHEDULED_PRE_REGISTRATION": {
+        "label": "Geplant mit Lobby",
+        "description": "Vor Verkaufsstart öffnet eine Lobby; zum Start erhalten alle in der Lobby einen Platz (Reihenfolge oder Losverfahren) und werden in Gruppen eingelassen."
+      },
+      "VIP_CODE_ONLY": {
+        "label": "Nur mit Zugangscode",
+        "description": "Nur Besucher mit gültigem Zugangscode können eintreten."
+      },
+      "HYBRID": {
+        "label": "Warteschlange mit Code-Vorrang",
+        "description": "Alle ohne Code warten in der Schlange; gültige Zugangscodes überspringen sie."
+      }
+    },
+    "fields": {
+      "mode": "Modus",
+      "activeSessionThreshold": "Max. aktive Käufer",
+      "admissionBatchSize": "Einlass pro Gruppe",
+      "admissionIntervalSeconds": "Gruppen-Intervall (Sekunden)",
+      "passTokenTtlSeconds": "Einkaufszeitfenster (Sekunden)",
+      "lobbyOpensMinutesBefore": "Lobby öffnet (Minuten vorher)",
+      "maxQueueSize": "Max. Länge der Warteschlange",
+      "admissionOrder": "Lobby-Reihenfolge zum Verkaufsstart",
+      "accessCodeBypassesQueue": "Zugangscodes überspringen die Warteschlange",
+      "isPaused": "Einlass pausieren",
+      "title": "Titel des Warteraums",
+      "message": "Nachricht im Warteraum"
+    },
+    "hints": {
+      "activeSessionThreshold": "Wie viele Käufer gleichzeitig im Saalplan einkaufen dürfen.",
+      "admissionBatchSize": "Besucher, die pro Intervall eingelassen werden.",
+      "passTokenTtlSeconds": "Wie lange ein eingelassener Besucher einkaufen darf, bevor er sich erneut anstellen muss.",
+      "lobbyOpensMinutesBefore": "Nur im geplanten Modus.",
+      "maxQueueSize": "Leer = unbegrenzt."
+    },
+    "orders": {
+      "FIFO": "Wer zuerst kommt",
+      "RANDOMIZED": "Losverfahren (zufällige Reihenfolge)"
+    },
+    "stats": {
+      "title": "Live-Status",
+      "description": "Aktueller Zustand des Warteraums (Seite neu laden zum Aktualisieren).",
+      "waiting": "Wartend",
+      "lobby": "In der Lobby",
+      "admittedPending": "Eingelassen, noch nicht im Shop",
+      "active": "Aktive Käufer",
+      "cursor": "Eingelassen bis Nr.",
+      "issued": "Vergebene Nummern"
+    },
+    "reset": {
+      "title": "Warteraum zurücksetzen?",
+      "description": "Entfernt alle aus Warteschlange und Lobby und beendet alle Einkaufszeitfenster. Warenkörbe bleiben bis zum Ablauf reserviert.",
+      "confirm": "Zurücksetzen",
+      "button": "Warteschlange zurücksetzen"
+    },
+    "announcements": {
+      "title": "Ankündigungen",
+      "description": "Werden allen im Warteraum live angezeigt.",
+      "message": "Nachricht",
+      "severity": "Wichtigkeit",
+      "severities": {
+        "INFO": "Info",
+        "WARNING": "Warnung",
+        "CRITICAL": "Kritisch"
+      },
+      "expiresInMinutes": "Sichtbar für (Minuten)",
+      "noExpiry": "Bis zum Beenden",
+      "publish": "Veröffentlichen",
+      "publishedAt": "Veröffentlicht",
+      "state": "Zustand",
+      "end": "Beenden",
+      "endTitle": "Diese Ankündigung beenden?",
+      "ended": "Beendet"
+    }
+  },
+  "accessCodes": {
+    "createTitle": "Zugangscodes anlegen",
+    "createDescription": "VIP- und Vorverkaufscodes. Einmalcodes werden an den ersten Besucher gebunden, der sie einlöst.",
+    "listTitle": "Codes ({count})",
+    "modes": {
+      "single": "Einzelner Code",
+      "batch": "Mehrere erzeugen"
+    },
+    "code": "Code",
+    "codeHint": "Buchstaben, Ziffern und Bindestriche; wird in Großbuchstaben gespeichert.",
+    "count": "Anzahl der Codes",
+    "prefix": "Präfix",
+    "prefixHint": "Optional, z. B. PRESSE.",
+    "label": "Interne Bezeichnung",
+    "type": "Art",
+    "types": {
+      "SINGLE_USE": "Einmalcode",
+      "MULTI_USE": "Mehrfachcode"
+    },
+    "maxRedemptions": "Max. Einlösungen",
+    "unlimitedHint": "Leer = unbegrenzt.",
+    "maxTicketsPerOrder": "Max. Tickets pro Bestellung",
+    "maxTicketsTotal": "Max. Tickets insgesamt",
+    "validFrom": "Gültig ab",
+    "validUntil": "Gültig bis",
+    "zoneHint": "Zeiten in {timeZone}.",
+    "bypassesQueue": "Überspringt den Warteraum",
+    "grantsPresaleAccess": "Berechtigt zum Vorverkauf",
+    "createSingle": "Code anlegen",
+    "createBatch": "Codes erzeugen",
+    "empty": "Noch keine Zugangscodes.",
+    "redemptions": "Eingelöst",
+    "limits": "Limits",
+    "limitsValue": "pro Bestellung {perOrder} · gesamt {total}",
+    "validity": "Gültigkeit",
+    "permissions": "Berechtigungen",
+    "status": "Status",
+    "bypassesQueueShort": "Ohne Warteraum",
+    "presaleShort": "Vorverkauf",
+    "deactivate": "Deaktivieren",
+    "activate": "Aktivieren",
+    "deactivateTitle": "Code deaktivieren?",
+    "activateTitle": "Code aktivieren?"
+  },
+  "richText": {
+    "toolbar": "Textformatierung",
+    "bold": "Fett",
+    "italic": "Kursiv",
+    "underline": "Unterstrichen",
+    "strike": "Durchgestrichen",
+    "heading2": "Überschrift",
+    "heading3": "Zwischenüberschrift",
+    "bulletList": "Aufzählung",
+    "orderedList": "Nummerierte Liste",
+    "blockquote": "Zitat",
+    "addLink": "Link einfügen",
+    "editLink": "Link bearbeiten",
+    "removeLink": "Link entfernen",
+    "linkUrl": "Link-Adresse",
+    "linkHint": "Erlaubt sind https://-, http://-, mailto:- und tel:-Links.",
+    "color": "Textfarbe",
+    "resetColor": "Standard-Textfarbe",
+    "fontFamily": "Schriftart",
+    "defaultFont": "Standardschrift",
+    "fonts": {
+      "sans": "Arial (serifenlos)",
+      "serif": "Georgia (Serifen)",
+      "mono": "Courier (Festbreite)",
+      "verdana": "Verdana",
+      "trebuchet": "Trebuchet MS",
+      "palatino": "Palatino"
+    },
+    "fontSize": "Schriftgröße",
+    "defaultSize": "Standardgröße",
+    "align": {
+      "left": "Linksbündig",
+      "center": "Zentriert",
+      "right": "Rechtsbündig",
+      "justify": "Blocksatz"
+    },
+    "undo": "Rückgängig",
+    "redo": "Wiederholen",
+    "clear": "Formatierung entfernen"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "description": "Shopweite Konfiguration. Änderungen wirken nach wenigen Sekunden.",
+    "sectionsLabel": "Bereiche der Einstellungen",
+    "general": {
+      "title": "Allgemein",
+      "description": "Shop-Name und Vorgaben für neue Veranstaltungen.",
+      "shopName": "Shop-Name",
+      "shopNameHint": "Erscheint im Browsertitel und im Kopf des Shops.",
+      "supportEmail": "Support-E-Mail",
+      "defaultLocale": "Standardsprache",
+      "defaultLocaleHint": "Für E-Mails und Formatierung, wenn keine Sprache bekannt ist.",
+      "defaultCurrency": "Standardwährung",
+      "defaultCurrencyHint": "ISO-Code, z. B. EUR. Wird beim Anlegen von Veranstaltungen vorbelegt.",
+      "defaultTimeZone": "Standard-Zeitzone",
+      "defaultTimeZoneHint": "IANA-Name, z. B. Europe/Berlin. Vorbelegung für neue Spielstätten und Veranstaltungen."
+    },
+    "branding": {
+      "title": "Erscheinungsbild",
+      "description": "Farben und rechtliche Links des Shops.",
+      "primaryColor": "Primärfarbe",
+      "accentColor": "Akzentfarbe",
+      "imprintUrl": "Impressum-URL",
+      "privacyUrl": "Datenschutz-URL",
+      "termsUrl": "AGB-URL",
+      "footerText": "Fußzeilentext",
+      "logoLater": "Logo- und Favicon-Upload folgen mit der Medienbibliothek."
+    },
+    "checkout": {
+      "title": "Platzauswahl & Warenkorb",
+      "description": "Globale Vorgaben für Reservierung, Limits und Platzauswahl.",
+      "overrideNotice": "Dies sind globale Standardwerte. Jede Veranstaltung kann Reservierungszeit, Limits und Auswahloptionen im Tab „Verkauf“ überschreiben.",
+      "cartLockTtlSeconds": "Reservierungszeit (Sekunden)",
+      "cartLockTtlHint": "Wie lange gewählte Plätze im Warenkorb reserviert bleiben.",
+      "paymentGraceSeconds": "Nachfrist während der Zahlung (Sekunden)",
+      "paymentGraceHint": "Wird beim Start der Zahlung addiert, damit Plätze nicht während der Zahlung verfallen.",
+      "minutes": "= {value} Min.",
+      "maxTicketsPerOrder": "Max. Tickets pro Bestellung",
+      "maxTicketsPerCustomer": "Max. Tickets pro Kunde und Veranstaltung",
+      "unlimitedHint": "Leer = unbegrenzt.",
+      "defaults": "Vorgaben für Veranstaltungen",
+      "manualSeatSelectionEnabled": "Kunden wählen Plätze im Saalplan",
+      "bestAvailableEnabled": "Bestplatzbuchung anbieten",
+      "orphanSeatRuleEnabled": "Einzelplatz-Regel",
+      "orphanSeatRuleHint": "Vorbelegung beim Anlegen von Veranstaltungen; jede Veranstaltung entscheidet selbst.",
+      "requireTermsAcceptance": "Zustimmung zu den AGB an der Kasse verlangen",
+      "requireTermsAcceptanceHint": "Kunden müssen ein Kästchen mit Link zur AGB-URL ankreuzen.",
+      "companionSeatsRequireWheelchair": "Begleitplätze nur zusammen mit dem zugehörigen Rollstuhlplatz",
+      "companionSeatsRequireWheelchairHint": "Ein Begleitplatz ist nur buchbar, wenn sein Rollstuhlplatz (benachbart oder im Saalplan-Editor zugeordnet) in derselben Bestellung ist. Geprüft bei „Weiter zum Warenkorb“."
+    },
+    "seatDisplay": {
+      "title": "Farben im Saalplan",
+      "description": "Wie Platzzustände den Kunden im Saalplan angezeigt werden.",
+      "inOtherCartColor": "In einem anderen Warenkorb",
+      "soldColor": "Verkauft / reserviert",
+      "blockedColor": "Gesperrt",
+      "selectionColor": "Eigene Auswahl",
+      "markUnavailableWithCross": "Verkaufte und gesperrte Plätze mit einem Kreuz markieren",
+      "preview": {
+        "title": "Vorschau",
+        "free": "Frei (Kategoriefarbe)",
+        "inOtherCart": "Im Warenkorb eines anderen Kunden",
+        "sold": "Verkauft",
+        "blocked": "Gesperrt",
+        "selected": "Von dir ausgewählt"
+      },
+      "selectionStyle": "Markierung der eigenen Auswahl",
+      "selectionStyles": {
+        "RING": "Ring um den Platz",
+        "FILL": "Platz vollständig einfärben",
+        "BOTH": "Einfärben und Ring"
+      }
+    }
+  },
+  "symbols": {
+    "title": "Symbolbibliothek",
+    "description": "Platzformen und Element-Symbole für den Saalplan-Editor.",
+    "uploadTitle": "Symbol hochladen",
+    "uploadDescription": "SVG-Dateien werden beim Hochladen bereinigt: Nur Formen und Farben bleiben erhalten, Skripte und externe Verweise werden entfernt.",
+    "name": "Name",
+    "kind": "Art",
+    "kinds": {
+      "SEAT": "Platzform",
+      "ELEMENT": "Element-Symbol"
+    },
+    "file": "SVG-Datei",
+    "fileHint": "Max. 200 KB, benötigt eine viewBox oder Breite/Höhe.",
+    "colorize": "Mit Platz- bzw. Elementfarbe einfärben",
+    "colorizeHint": "Ersetzt alle Farben durch die Kategorie- oder Elementfarbe. Ausschalten, um die Originalfarben zu behalten.",
+    "upload": "Hochladen",
+    "filterAll": "Alle",
+    "empty": "Keine Symbole in dieser Ansicht.",
+    "builtin": "Mitgeliefert",
+    "colorized": "Eingefärbt",
+    "usage": "{count, plural, =0 {nicht verwendet} one {# Mal verwendet} other {# Mal verwendet}}",
+    "rename": "Umbenennen",
+    "delete": "Löschen",
+    "deleteTitle": "Symbol löschen?",
+    "deleteUsed": "„{name}“ wird {count, plural, one {# Mal} other {# Mal}} verwendet. Plätze erhalten wieder die Standardform, Symbole werden aus Elementen entfernt.",
+    "deleteUnused": "„{name}“ wird nirgends verwendet."
+  }
+}

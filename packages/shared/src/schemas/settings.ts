@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SEAT_SELECTION_STYLES } from '../enums';
 import {
   countryCodeSchema,
   currencyCodeSchema,
@@ -22,7 +23,7 @@ const optionalUrl = z.url().optional();
 
 const generalSchema = z.object({
   shopName: z.string().trim().min(1).max(120).default('Ticketshop'),
-  defaultLocale: localeSchema.default('de-DE'),
+  defaultLocale: localeSchema.default('en'),
   defaultCurrency: currencyCodeSchema.default('EUR'),
   defaultTimeZone: timeZoneSchema.default('Europe/Berlin'),
   supportEmail: z.email().optional(),
@@ -79,12 +80,15 @@ const checkoutSchema = z.object({
   cartLockTtlSeconds: z.number().int().min(60).max(3_600).default(600),
   /** Added once the customer starts payment so seats never expire mid-payment. */
   paymentGraceSeconds: z.number().int().min(0).max(3_600).default(600),
-  maxTicketsPerOrder: z.number().int().min(1).max(500).default(10),
+  /** Tickets per order (cart). Null = unlimited. */
+  maxTicketsPerOrder: z.number().int().min(1).max(10_000).nullable().default(10),
   /** Across all orders of the same e-mail address per event. Null = unlimited. */
   maxTicketsPerCustomer: z.number().int().min(1).max(10_000).nullable().default(null),
   manualSeatSelectionEnabled: z.boolean().default(true),
   bestAvailableEnabled: z.boolean().default(true),
   orphanSeatRuleEnabled: z.boolean().default(true),
+  /** Companion seats can only be booked together with their wheelchair space. */
+  companionSeatsRequireWheelchair: z.boolean().default(false),
   requireTermsAcceptance: z.boolean().default(true),
 });
 
@@ -171,6 +175,22 @@ const securitySchema = z.object({
   adminSessionTtlHours: z.number().int().min(1).max(720).default(12),
   maxFailedLogins: z.number().int().min(3).max(50).default(5),
   lockoutMinutes: z.number().int().min(1).max(1_440).default(15),
+});
+
+/** How seats are drawn on the public seating chart (colours of the non-free states). */
+const seatDisplaySchema = z.object({
+  /** Seats currently in another customer's cart (not bought yet). */
+  inOtherCartColor: hexColorSchema.default('#F59E0B'),
+  /** Sold / reserved seats. */
+  soldColor: hexColorSchema.default('#D4D4D8'),
+  /** Seats blocked by the organiser (press, technical …). */
+  blockedColor: hexColorSchema.default('#E4E4E7'),
+  /** Draw a cross on sold and blocked seats. */
+  markUnavailableWithCross: z.boolean().default(true),
+  /** Ring colour of the customer's own selection. */
+  selectionColor: hexColorSchema.default('#18181B'),
+  /** How the customer's own seats are marked: ring around the seat, filled, or both. */
+  selectionStyle: z.enum(SEAT_SELECTION_STYLES).default('RING'),
 });
 
 /** Optional customer accounts on top of guest checkout. */
@@ -271,6 +291,11 @@ export const SETTINGS = {
     schema: securitySchema,
     secret: false,
     description: 'Session and lockout policy (admins and customer accounts)',
+  }),
+  seatDisplay: define({
+    schema: seatDisplaySchema,
+    secret: false,
+    description: 'Colours of seats in other carts, sold and blocked seats',
   }),
   customerAccounts: define({
     schema: customerAccountsSchema,

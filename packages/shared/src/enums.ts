@@ -74,6 +74,33 @@ export type SeatFeature = (typeof SEAT_FEATURES)[number];
 export const SEAT_AVAILABILITY = values('AVAILABLE', 'LOCKED', 'RESERVED', 'SOLD', 'BLOCKED');
 export type SeatAvailability = (typeof SEAT_AVAILABILITY)[number];
 
+/** What an SVG symbol from the library is meant for. */
+export const SYMBOL_KINDS = values('SEAT', 'ELEMENT');
+export type SymbolKind = (typeof SYMBOL_KINDS)[number];
+
+/** How the customer's own seats are highlighted on the public seating chart. */
+export const SEAT_SELECTION_STYLES = values('RING', 'FILL', 'BOTH');
+export type SeatSelectionStyle = (typeof SEAT_SELECTION_STYLES)[number];
+
+/**
+ * Seat orientation of a row: ROW = perpendicular to the row curve (plus an optional
+ * offset, e.g. 180° to turn the seats around); FIXED = absolute direction for all seats
+ * (0° = facing up, 90° = right, -90° = left, 45° = diagonal …).
+ */
+export const SEAT_ORIENTATION_MODES = values('ROW', 'FIXED');
+
+/** Size presets of info boxes on the event page (text and icon separately). */
+export const INFO_BOX_SIZES = values('S', 'M', 'L', 'XL');
+export type InfoBoxSize = (typeof INFO_BOX_SIZES)[number];
+
+/** Plan label of wheelchair / companion seats: type icon, seat number, custom text, nothing. */
+export const SPECIAL_SEAT_LABEL_MODES = values('ICON', 'NUMBER', 'TEXT', 'NONE');
+export type SpecialSeatLabelMode = (typeof SPECIAL_SEAT_LABEL_MODES)[number];
+export type SeatOrientationMode = (typeof SEAT_ORIENTATION_MODES)[number];
+
+/** Upper bound of seats / spots handled in one cart request (also best-available). */
+export const MAX_SEATS_PER_REQUEST = 50;
+
 // ─── Events & pricing ───────────────────────────────────────────────────────
 export const EVENT_STATUSES = values('DRAFT', 'PUBLISHED', 'POSTPONED', 'CANCELLED', 'ARCHIVED');
 export type EventStatus = (typeof EVENT_STATUSES)[number];

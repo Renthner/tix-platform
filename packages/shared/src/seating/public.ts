@@ -1,0 +1,176 @@
+import type { SeatFeature, SectionType, SeatMapElementType } from '../enums';
+import type {
+  ElementGeometry,
+  ElementStyle,
+  RowGeometry,
+  SeatMapSettingsInput,
+  SectionGeometry,
+  SectionLabel,
+} from '../schemas/seat-map';
+
+/**
+ * Public, cacheable representation of an event's seating plan (no availability).
+ * Cached per (event, seat map version); availability is fetched / streamed separately.
+ */
+
+/** Seat flags bitmask. */
+export const SEAT_FLAG = {
+  WHEELCHAIR: 1,
+  COMPANION: 2,
+  RESTRICTED_VIEW: 4,
+  BLOCKED: 8,
+} as const;
+
+export interface PublicCategory {
+  id: string;
+  name: string;
+  color: string;
+  basePrice: number;
+  sortOrder: number;
+  /** Max. tickets of this category per order (null = no category limit). */
+  maxPerOrder: number | null;
+}
+
+export interface PublicTicketType {
+  id: string;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+  requiresProofAtEntry: boolean;
+  requiredSeatFeature: SeatFeature | null;
+  maxPerOrder: number | null;
+  sortOrder: number;
+  /** Final gross price (cents) per price category id where this tariff is offered. */
+  prices: Record<string, number>;
+}
+
+export interface PublicSection {
+  id: string;
+  type: SectionType;
+  name: string;
+  ticketLabel: string;
+  geometry: SectionGeometry;
+  label: SectionLabel | null;
+  color: string | null;
+  priceCategoryId: string | null;
+  isBestAvailableEnabled: boolean;
+  /** Lower = preferred by best-available. */
+  bestAvailablePriority: number;
+  /** Whether the block name is drawn on the chart. */
+  showNameOnMap: boolean;
+  /** Whether the ticket label is shown in the cart / printed on tickets. */
+  showLabelOnTicket: boolean;
+}
+
+export interface PublicRow {
+  id: string;
+  sectionId: string;
+  label: string;
+  /** Front-to-back rank used by best-available. */
+  sortOrder: number;
+  geometry: RowGeometry;
+}
+
+export interface PublicElement {
+  id: string;
+  type: SeatMapElementType;
+  label: string | null;
+  geometry: ElementGeometry;
+  style: ElementStyle;
+  zIndex: number;
+}
+
+export interface PublicEntrance {
+  id: string;
+  name: string;
+  code: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * Version of the PublicSeatMap payload shape. Part of the snapshot cache key – BUMP IT whenever
+ * fields are added / changed, otherwise a deploy keeps serving cached snapshots of the old
+ * shape for up to an hour. (3: companion seat partners `w`; 4: category `maxPerOrder`.)
+ */
+export const PUBLIC_MAP_FORMAT = 4;
+
+/** Compact seat (thousands per map): short keys keep the payload small. */
+export interface PublicSeat {
+  /** id */ i: string;
+  /** section id */ s: string;
+  /** row id */ r: string | null;
+  /** table element id */ t: string | null;
+  /** label (seat number) */ l: string;
+  /** adjacency position */ p: number | null;
+  x: number;
+  y: number;
+  /** rotation (deg) */ o: number;
+  /** price category id */ c: string | null;
+  /** best-available rank (lower = better) */ k: number | null;
+  /** SEAT_FLAG bitmask */ f: number;
+  /** custom seat symbol id (falls back to the map default) */ m: string | null;
+  /** companion seats only: wheelchair space(s) this seat belongs to */ w?: string[];
+}
+
+/** SVG symbol (seat shape or element icon) referenced by the plan. */
+export interface PublicSymbol {
+  id: string;
+  viewBox: string;
+  /** Sanitised inner SVG markup (no <svg> wrapper). */
+  markup: string;
+  /** true → fills/strokes use currentColor and follow the seat / element colour. */
+  colorize: boolean;
+}
+
+export interface PublicSeatMap {
+  eventId: string;
+  version: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  settings: SeatMapSettingsInput;
+  backgroundUrl: string | null;
+  currency: string;
+  categories: PublicCategory[];
+  ticketTypes: PublicTicketType[];
+  sections: PublicSection[];
+  rows: PublicRow[];
+  elements: PublicElement[];
+  entrances: PublicEntrance[];
+  seats: PublicSeat[];
+  /** Symbols referenced by seats, elements or the map default. */
+  symbols: PublicSymbol[];
+}
+
+/** Dynamic availability of one event from the perspective of one cart session. */
+export interface EventAvailability {
+  eventId: string;
+  /** Server time (epoch ms) of the snapshot. */
+  at: number;
+  /** Seat map version – clients reload the map when it differs. */
+  version: number;
+  /** Sold / reserved seats. */
+  taken: string[];
+  /** Seats locked in other customers' carts. */
+  locked: string[];
+  /** Seats locked in this session's cart. */
+  mine: string[];
+  /** Remaining spots per STANDING section (capacity − sold − held in carts). */
+  ga: Record<string, number>;
+  /** Spots this session holds per STANDING section. */
+  gaMine: Record<string, number>;
+}
+
+/** Status codes in real-time seat deltas. */
+export type SeatDeltaStatus = 'F' | 'L' | 'S' | 'B';
+
+/** Message broadcast to all clients of an event (batched by the realtime service). */
+export interface SeatDeltaMessage {
+  eventId: string;
+  /** [seatId, status] pairs: F = free, L = locked, S = sold/reserved, B = blocked. */
+  seats: [string, SeatDeltaStatus][];
+  /** Remaining GA capacity per section that changed. */
+  ga?: Record<string, number>;
+  /** New seat map version (clients reload the plan). */
+  version?: number;
+}

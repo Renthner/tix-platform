@@ -1,0 +1,21 @@
+# Public entry point.
+#   SITE_ADDRESS=":80"                 → plain HTTP (local / behind another TLS proxy)
+#   SITE_ADDRESS="tickets.example.org" → automatic HTTPS via Let's Encrypt
+# Caddy ignores X-Forwarded-* from clients and sets them itself, so the app can trust
+# the first X-Forwarded-For entry for rate limiting.
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	@realtime path /socket.io/*
+	handle @realtime {
+		reverse_proxy realtime:3001
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		-Server
+	}
+}

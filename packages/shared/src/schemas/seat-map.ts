@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SEAT_ORIENTATION_MODES, SPECIAL_SEAT_LABEL_MODES } from '../enums';
 import { hexColorSchema } from './common';
 
 /**
@@ -47,6 +48,12 @@ export const sectionLabelSchema = z.object({
 export type SectionLabel = z.infer<typeof sectionLabelSchema>;
 
 // ─── Rows ───────────────────────────────────────────────────────────────────
+export const seatOrientationSchema = z.object({
+  mode: z.enum(SEAT_ORIENTATION_MODES),
+  angle: z.number().min(-360).max(360),
+});
+export type SeatOrientation = z.infer<typeof seatOrientationSchema>;
+
 /**
  * Generator parameters of a row. Seat positions are persisted explicitly on `seats`
  * (x/y); these parameters let the editor re-flow a row (spacing, curvature, numbering).
@@ -65,6 +72,19 @@ export const rowGeometrySchema = z.object({
   seatSpacing: length,
   numbering: z.enum(['ASCENDING', 'DESCENDING', 'ODD_EVEN_FROM_CENTER']).default('ASCENDING'),
   labelPlacement: z.enum(['START', 'END', 'BOTH', 'NONE']).default('BOTH'),
+  /**
+   * Absolute positions of the row labels. When omitted the labels sit just before the first
+   * and after the last seat. Explicit positions let admins align labels of staggered rows
+   * (seats offset "über Kreuz") in one vertical line.
+   */
+  labelStart: pointSchema.optional(),
+  labelEnd: pointSchema.optional(),
+  /**
+   * Direction the seats of this row face. Omitted = perpendicular to the row (follows the
+   * curve). ROW + angle = follow the row turned by `angle` degrees (180 = turned around);
+   * FIXED + angle = same absolute direction for every seat (0 = up, 90 = right, -90 = left).
+   */
+  seatOrientation: seatOrientationSchema.optional(),
 });
 export type RowGeometry = z.infer<typeof rowGeometrySchema>;
 
@@ -103,13 +123,32 @@ export const elementStyleSchema = z
     textColor: hexColorSchema.optional(),
     fontSize: z.number().positive().max(500).optional(),
     fontWeight: z.enum(['normal', 'bold']).optional(),
-    /** Icon identifier for FACILITY/EXIT markers (e.g. "wc", "bar", "cloakroom"). */
+    /** Short text / emoji shown in FACILITY markers (fallback when no symbol is set). */
     icon: z.string().max(64).optional(),
+    /** SVG symbol from the symbol library (svg_symbols.id) drawn inside / on the element. */
+    symbolId: z.uuid().optional(),
+    /** Colour of colourisable symbols (defaults to the text colour). */
+    symbolColor: hexColorSchema.optional(),
+    /** Symbol size in canvas units (defaults to a size derived from the element). */
+    symbolSize: z.number().positive().max(10_000).optional(),
   })
   .strict();
 export type ElementStyle = z.infer<typeof elementStyleSchema>;
 
 // ─── Seat map canvas ────────────────────────────────────────────────────────
+/**
+ * Label of wheelchair spaces / companion seats on the plan (editor + shop): the type icon
+ * (♿ / +), the seat number, a short custom text (e.g. "R", "B") or nothing.
+ */
+export const specialSeatLabelSchema = z
+  .object({
+    mode: z.enum(SPECIAL_SEAT_LABEL_MODES).default('ICON'),
+    text: z.string().trim().max(3).optional(),
+  })
+  .strict();
+export type SpecialSeatLabel = z.infer<typeof specialSeatLabelSchema>;
+export type SpecialSeatLabelInput = z.input<typeof specialSeatLabelSchema>;
+
 export const seatMapSettingsSchema = z
   .object({
     gridSize: z.number().positive().max(1_000).default(10),
@@ -117,9 +156,14 @@ export const seatMapSettingsSchema = z
     seatRadius: z.number().positive().max(500).default(8),
     showSeatNumbers: z.boolean().default(true),
     backgroundOpacity: z.number().min(0).max(1).default(0.35),
+    /** Seat shape for seats without their own symbol (null/absent = plain circle). */
+    defaultSeatSymbolId: z.uuid().nullable().optional(),
     defaultView: z
       .object({ x: coordinate, y: coordinate, zoom: z.number().positive().max(100) })
       .optional(),
+    /** How wheelchair spaces and companion seats are labelled on the plan. */
+    wheelchairLabel: specialSeatLabelSchema.optional(),
+    companionLabel: specialSeatLabelSchema.optional(),
   })
   .strict();
 export type SeatMapSettings = z.infer<typeof seatMapSettingsSchema>;

@@ -30,6 +30,7 @@ import {
   seatMapElementTypeEnum,
   seatMapKindEnum,
   sectionTypeEnum,
+  symbolKindEnum,
 } from './enums';
 import { priceCategories } from './events';
 import { mediaAssets } from './settings';
@@ -50,6 +51,8 @@ export const venues = pgTable(
     timeZone: text('time_zone').notNull(),
     description: text('description'),
     websiteUrl: text('website_url'),
+    /** Link to the venue on Google Maps (shown in the shop); generated from address if empty. */
+    mapsUrl: text('maps_url'),
     imageAssetId: uuid('image_asset_id').references(() => mediaAssets.id, { onDelete: 'set null' }),
     isActive: boolean('is_active').notNull().default(true),
     ...timestamps(),
@@ -63,6 +66,39 @@ export const venues = pgTable(
       sql`${t.longitude} IS NULL OR ${t.longitude} BETWEEN -180 AND 180`,
     ),
     check('venues_country_format', sql`${t.country} IS NULL OR ${t.country} ~ '^[A-Z]{2}$'`),
+  ],
+);
+
+/**
+ * Library of SVG symbols: seat shapes (chair, armchair, sofa …) and element icons
+ * (camera, WC, bar …). Uploaded SVGs are sanitised to a strict allowlist of shape elements
+ * before they are stored; built-in symbols are seeded (`builtin_key`). With `colorize`
+ * all paint is `currentColor`, so the symbol takes the seat / element colour.
+ */
+export const svgSymbols = pgTable(
+  'svg_symbols',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    kind: symbolKindEnum('kind').notNull(),
+    viewBox: text('view_box').notNull(),
+    /** Sanitised inner SVG markup (no <svg> wrapper, no scripts / external references). */
+    markup: text('markup').notNull(),
+    colorize: boolean('colorize').notNull().default(true),
+    /** Stable key of seeded symbols (NULL for uploads). */
+    builtinKey: text('builtin_key'),
+    createdByUserId: uuid('created_by_user_id').references(() => adminUsers.id, {
+      onDelete: 'set null',
+    }),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('svg_symbols_builtin_key_uq')
+      .on(t.builtinKey)
+      .where(sql`${t.builtinKey} IS NOT NULL`),
+    index('svg_symbols_kind_idx').on(t.kind, t.name),
+    check('svg_symbols_markup_size', sql`char_length(${t.markup}) <= 50000`),
+    check('svg_symbols_view_box', sql`${t.viewBox} ~ '^-?[0-9.]+ -?[0-9.]+ [0-9.]+ [0-9.]+$'`),
   ],
 );
 
@@ -162,11 +198,19 @@ export const seatMapSections = pgTable(
     bestAvailablePriority: integer('best_available_priority').notNull().default(100),
     isBestAvailableEnabled: boolean('is_best_available_enabled').notNull().default(true),
     isActive: boolean('is_active').notNull().default(true),
+    /** Draw the block name on the public seating chart. */
+    showNameOnMap: boolean('show_name_on_map').notNull().default(true),
+    /** Show the ticket label in the cart and print it on tickets / wallet passes. */
+    showLabelOnTicket: boolean('show_label_on_ticket').notNull().default(true),
+    /** Soft removal from an event map when seats/items still reference the section. */
+    removedAt: tstz('removed_at'),
     ...timestamps(),
   },
   (t) => [
     index('seat_map_sections_map_idx').on(t.seatMapId, t.sortOrder),
-    unique('seat_map_sections_name_uq').on(t.seatMapId, t.name),
+    uniqueIndex('seat_map_sections_name_uq')
+      .on(t.seatMapId, t.name)
+      .where(sql`${t.removedAt} IS NULL`),
     check(
       'seat_map_sections_capacity_required',
       sql`${t.type} <> 'STANDING' OR (${t.capacity} IS NOT NULL AND ${t.capacity} >= 0)`,
@@ -200,10 +244,14 @@ export const seatMapRows = pgTable(
     label: text('label').notNull(),
     sortOrder: integer('sort_order').notNull().default(0),
     geometry: jsonb('geometry').$type<RowGeometry>().notNull(),
+    /** Soft removal from an event map when contained seats are referenced by orders. */
+    removedAt: tstz('removed_at'),
     ...timestamps(),
   },
   (t) => [
-    unique('seat_map_rows_label_uq').on(t.sectionId, t.label),
+    uniqueIndex('seat_map_rows_label_uq')
+      .on(t.sectionId, t.label)
+      .where(sql`${t.removedAt} IS NULL`),
     index('seat_map_rows_map_idx').on(t.seatMapId),
   ],
 );
@@ -269,6 +317,12 @@ export const seats = pgTable(
     bestAvailableRank: integer('best_available_rank'),
     isWheelchairSpace: boolean('is_wheelchair_space').notNull().default(false),
     isCompanionSeat: boolean('is_companion_seat').notNull().default(false),
+    /**
+     * Wheelchair space this companion seat belongs to. NULL = the directly adjacent
+     * wheelchair space(s) in the same row / at the same table. Validated by the editor save
+     * (same plan, target is a wheelchair space); no FK so plans can be saved in one batch.
+     */
+    companionOfSeatId: uuid('companion_of_seat_id'),
     hasRestrictedView: boolean('has_restricted_view').notNull().default(false),
     /** Sperrplatz (press / VIP / technical e.g. FOH). NULL = sellable. */
     blockReason: seatBlockReasonEnum('block_reason'),
@@ -278,6 +332,8 @@ export const seats = pgTable(
       onDelete: 'set null',
     }),
     attributes: jsonb('attributes').$type<SeatAttributes>().notNull().default({}),
+    /** Custom seat shape; NULL = map default (seat_maps.settings.defaultSeatSymbolId) or circle. */
+    symbolId: uuid('symbol_id').references(() => svgSymbols.id, { onDelete: 'set null' }),
     /** Soft removal from an event map (e.g. space needed for a camera). */
     removedAt: tstz('removed_at'),
     ...timestamps(),
@@ -298,6 +354,7 @@ export const seats = pgTable(
       .on(t.tableElementId, t.position)
       .where(sql`${t.tableElementId} IS NOT NULL AND ${t.removedAt} IS NULL`),
     check('seats_single_parent', sql`${t.rowId} IS NULL OR ${t.tableElementId} IS NULL`),
+    check('seats_companion_not_self', sql`${t.companionOfSeatId} IS DISTINCT FROM ${t.id}`),
     check(
       'seats_position_required',
       sql`(${t.rowId} IS NULL AND ${t.tableElementId} IS NULL) OR ${t.position} IS NOT NULL`,

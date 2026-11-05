@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "description": "Tickets, seating plans and waiting room."
+  },
+  "locale": {
+    "label": "Language",
+    "en": "English",
+    "de": "Deutsch"
+  },
+  "actions": {
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "back": "Back",
+    "close": "Close",
+    "retry": "Try again",
+    "continue": "Continue",
+    "remove": "Remove",
+    "confirm": "Confirm"
+  },
+  "states": {
+    "loading": "Loading…",
+    "saved": "Saved",
+    "error": "Something went wrong. Please try again."
+  },
+  "units": {
+    "seconds": "{count, plural, one {# second} other {# seconds}}",
+    "minutes": "{count, plural, one {# minute} other {# minutes}}"
+  },
+  "errors": {
+    "SEAT_UNAVAILABLE": "This seat is no longer available.",
+    "SEAT_LOCKED": "Someone else just selected this seat.",
+    "CART_EXPIRED": "Your reservation time expired. Please select your seats again.",
+    "TICKET_LIMIT": "You have reached the maximum number of tickets for this event.",
+    "SECTION_SOLD_OUT": "Not enough spots left in this area.",
+    "NOT_ENOUGH_SEATS": "Not enough free seats in this category. Choose fewer tickets or another category.",
+    "PASS_REQUIRED": "Your shopping session expired. Please re-enter the shop.",
+    "SALE_CLOSED": "Tickets for this event are not on sale.",
+    "RATE_LIMITED": "Too many requests. Please wait a moment.",
+    "CODE_INVALID": "This code is invalid or expired.",
+    "CODE_EXHAUSTED": "This code has already been used.",
+    "QUEUE_FULL": "The waiting room is full. Please try again later.",
+    "ADMISSION_EXPIRED": "Your turn expired. Please re-join the queue.",
+    "TARIFF_NOT_ALLOWED": "This tariff is not available for this seat.",
+    "MANUAL_SELECTION_DISABLED": "Seat selection is not available for this event.",
+    "BEST_AVAILABLE_DISABLED": "Best available is not offered for this event.",
+    "INTERNAL_ERROR": "Something went wrong. Please try again.",
+    "CATEGORY_LIMIT": "You can book at most {max} tickets in “{category}” per order.",
+    "TARIFF_LIMIT": "The tariff “{tariff}” is limited to {max} tickets per order."
+  }
+}

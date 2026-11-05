@@ -1,0 +1,27 @@
+{
+  "name": "@tix/realtime",
+  "version": "0.1.0",
+  "private": true,
+  "license": "PolyForm-Shield-1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false --env-file=../../.env src/index.ts",
+    "build": "node build.mjs",
+    "start": "node dist/index.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tix/redis": "workspace:*",
+    "@tix/shared": "workspace:*",
+    "ioredis": "^5.11.1",
+    "pino": "^10.4.0",
+    "socket.io": "^4.8.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "esbuild": "^0.27.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
+  }
+}

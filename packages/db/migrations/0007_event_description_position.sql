@@ -1,0 +1,2 @@
+CREATE TYPE "public"."event_description_position" AS ENUM('ABOVE_PLAN', 'BELOW_PLAN');--> statement-breakpoint
+ALTER TABLE "events" ADD COLUMN "description_position" "event_description_position" DEFAULT 'BELOW_PLAN' NOT NULL;

@@ -1,0 +1,711 @@
+{
+  "panelTitle": "Admin portal",
+  "logout": "Sign out",
+  "nav": {
+    "dashboard": "Dashboard",
+    "events": "Events",
+    "venues": "Venues & plans",
+    "waitingRoom": "Waiting room",
+    "symbols": "Symbol library",
+    "settings": "Settings"
+  },
+  "login": {
+    "title": "Admin sign-in",
+    "email": "E-mail",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "errors": {
+      "INVALID": "E-mail or password is incorrect.",
+      "LOCKED": "Too many failed attempts. The account is temporarily locked.",
+      "RATE_LIMITED": "Too many sign-in attempts. Please wait a few minutes."
+    }
+  },
+  "messages": {
+    "saved": "Changes saved.",
+    "created": "Created successfully.",
+    "deleted": "Deleted.",
+    "reset": "The waiting room was reset.",
+    "published": "The event is now published."
+  },
+  "errors": {
+    "required": "This field is required.",
+    "invalid": "This value is not valid.",
+    "tooLong": "This text is too long.",
+    "tooSmall": "This value is too small.",
+    "tooLarge": "This value is too large.",
+    "slugFormat": "Use lowercase letters, digits and single hyphens only.",
+    "slugTaken": "This URL slug is already in use.",
+    "nameTaken": "This name is already in use.",
+    "codeFormat": "Use 4–64 characters: letters, digits and hyphens.",
+    "codeTaken": "This code already exists.",
+    "timeZone": "Unknown time zone (use an IANA name such as Europe/Berlin).",
+    "money": "Enter an amount such as 12.50.",
+    "percent": "Enter a percentage between 0 and 100.",
+    "dateOrder": "This date is not in the right order relative to the others.",
+    "url": "Enter a full URL starting with https://.",
+    "country": "Use a two-letter country code such as DE.",
+    "form": {
+      "generic": "The action could not be completed.",
+      "notFound": "The item no longer exists. Reload the page.",
+      "inUse": "This item is used by existing orders and cannot be deleted. Deactivate it instead.",
+      "publishIncomplete": "The event cannot be published yet – complete the checklist first.",
+      "warningRequired": "A scanner warning is required when proof is checked at entry.",
+      "templateMismatch": "The selected seating plan belongs to another venue.",
+      "validation": "Please check the highlighted fields.",
+      "eventHasOrders": "This event has orders. Orders and invoices must be retained for accounting and cannot be deleted.",
+      "eventNotArchived": "Only archived events can be deleted. Set the status to “Archived” first.",
+      "builtinSymbol": "Built-in symbols cannot be deleted.",
+      "venueHasEvents": "Events still exist at this venue, so it cannot be deleted."
+    },
+    "email": "Enter a valid e-mail address.",
+    "fileRequired": "Please choose a file.",
+    "svgTooLarge": "The SVG file is too large (max. 200 KB).",
+    "svgInvalid": "This file is not a valid SVG image (it needs a viewBox or width/height).",
+    "svgEmpty": "The SVG contains no drawable shapes.",
+    "svgTooComplex": "The SVG is too complex. Simplify it and try again.",
+    "confirmMismatch": "The text does not match the event title."
+  },
+  "common": {
+    "inherit": "Inherit global ({value})",
+    "unlimited": "unlimited",
+    "on": "On",
+    "off": "Off",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "eventStatus": {
+    "DRAFT": "Draft",
+    "PUBLISHED": "Published",
+    "POSTPONED": "Postponed",
+    "CANCELLED": "Cancelled",
+    "ARCHIVED": "Archived"
+  },
+  "saleState": {
+    "NOT_PUBLISHED": "Not published",
+    "CANCELLED": "Cancelled",
+    "NOT_STARTED": "Sale not started",
+    "PRESALE": "Presale",
+    "ON_SALE": "On sale",
+    "PAUSED": "Sale paused",
+    "ENDED": "Sale ended"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back, {name}.",
+    "denied": "You do not have permission to open that page.",
+    "upcoming": "Upcoming events",
+    "noEvents": "No upcoming events yet.",
+    "links": {
+      "newEvent": "New event",
+      "venues": "Venues & plans",
+      "waitingRoom": "Waiting room defaults"
+    },
+    "columns": {
+      "event": "Event",
+      "date": "Date",
+      "venue": "Venue",
+      "status": "Status",
+      "sale": "Sale"
+    }
+  },
+  "venues": {
+    "title": "Venues & seating plans",
+    "description": "Locations and their reusable master seating plans.",
+    "new": "New venue",
+    "newDescription": "Create a location. Master seating plans are added after saving.",
+    "empty": "No venues yet.",
+    "edit": "Venue details",
+    "backToList": "All venues",
+    "columns": {
+      "name": "Name",
+      "city": "City",
+      "plans": "Master plans",
+      "status": "Status"
+    },
+    "form": {
+      "name": "Name",
+      "slug": "URL slug",
+      "slugHint": "Lowercase letters, digits and hyphens.",
+      "street": "Street",
+      "postalCode": "Postal code",
+      "city": "City",
+      "country": "Country",
+      "countryHint": "Two-letter ISO code, e.g. DE.",
+      "timeZone": "Time zone",
+      "timeZoneHint": "IANA name, e.g. Europe/Berlin.",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "coordinatesHint": "Used for wallet passes and maps.",
+      "websiteUrl": "Website",
+      "description": "Description",
+      "isActive": "Venue is active",
+      "mapsUrl": "Google Maps link",
+      "mapsUrlHint": "Used in the shop for “Show on map”. Empty = a link is generated from the address or coordinates."
+    },
+    "plans": {
+      "title": "Master seating plans",
+      "description": "Reusable layouts. Each event gets its own editable copy when it is created.",
+      "empty": "No master plans yet.",
+      "name": "Name",
+      "seats": "Seats",
+      "updated": "Last change",
+      "actions": "Actions",
+      "openEditor": "Open editor",
+      "rename": "Rename",
+      "duplicate": "Duplicate",
+      "duplicateTitle": "Duplicate plan?",
+      "duplicateDescription": "Creates an independent copy of “{name}”.",
+      "delete": "Delete",
+      "deleteTitle": "Delete plan?",
+      "deleteDescription": "“{name}” will be deleted permanently. Events that were created from it keep their own copies.",
+      "new": "New master plan",
+      "width": "Width",
+      "height": "Height",
+      "create": "Create & open editor",
+      "copyName": "{name} (copy)"
+    },
+    "deletedNotice": "The venue was deleted permanently.",
+    "danger": {
+      "title": "Delete venue",
+      "description": "Removes the venue and its {plans, plural, =0 {master plans} one {master plan} other {# master plans}} permanently.",
+      "hasEvents": "This venue still has {count, plural, one {# event} other {# events}} (including archived ones). Once no events exist any more, the venue can be deleted.",
+      "button": "Delete venue…",
+      "confirmTitle": "Delete “{name}” permanently?",
+      "confirmDescription": "The venue and its {plans, plural, =0 {master plans} one {master plan} other {# master plans}} are removed. This cannot be undone.",
+      "confirm": "Delete permanently"
+    }
+  },
+  "events": {
+    "title": "Events",
+    "description": "Performances, sales windows, pricing and access.",
+    "new": "New event",
+    "empty": "No events found.",
+    "filterAll": "All",
+    "backToList": "All events",
+    "defaultTicketType": "Regular",
+    "columns": {
+      "title": "Event",
+      "date": "Date",
+      "venue": "Venue",
+      "status": "Status",
+      "sale": "Sale"
+    },
+    "create": {
+      "description": "The selected master plan is copied for this event and can be adjusted afterwards.",
+      "submit": "Create event",
+      "noVenues": "Create a venue first.",
+      "noTaxRates": "No active tax rate exists. Add one in the settings first.",
+      "createVenue": "Create venue"
+    },
+    "fields": {
+      "title": "Title",
+      "subtitle": "Subtitle",
+      "description": "Description",
+      "slug": "URL slug",
+      "slugHint": "Part of the shop URL. Lowercase letters, digits and hyphens.",
+      "venue": "Venue",
+      "template": "Seating plan",
+      "templateHint": "Copied into an event plan you can edit independently.",
+      "emptyPlan": "Start with an empty plan",
+      "startsAt": "Starts",
+      "timesHint": "Times are entered in the event's time zone.",
+      "timeZone": "Time zone",
+      "doorsOpenAt": "Doors open",
+      "endsAt": "Ends",
+      "currency": "Currency",
+      "taxRate": "Tax rate",
+      "orphanSeatRule": "Orphan seat rule",
+      "orphanSeatRuleHint": "When enabled, customers cannot continue to the cart if their selection would leave a single empty seat in a row. The rule is checked when they click “Continue to cart”."
+    },
+    "tabs": {
+      "label": "Event sections",
+      "details": "Details",
+      "sales": "Sales",
+      "pricing": "Pricing",
+      "seating": "Seating",
+      "waitingRoom": "Waiting room",
+      "accessCodes": "Access codes",
+      "page": "Shop page"
+    },
+    "details": {
+      "title": "Event details"
+    },
+    "publish": {
+      "title": "Status & publishing",
+      "description": "Only published events are visible in the shop.",
+      "status": "Status",
+      "apply": "Apply status",
+      "cancellationReason": "Reason for cancellation",
+      "checklist": {
+        "seatMap": "Seating plan exists",
+        "category": "At least one active price category",
+        "tariff": "At least one online tariff offered in a category",
+        "inventory": "Seats or standing areas with a price category"
+      }
+    },
+    "sales": {
+      "title": "Sales settings",
+      "windows": "Sales windows",
+      "windowsHint": "Times in {timeZone}. Without a public sale start the event is on sale as soon as it is published.",
+      "presaleStartsAt": "Presale starts",
+      "publicSaleStartsAt": "Public sale starts",
+      "saleEndsAt": "Online sale ends",
+      "saleEndsAtHint": "Empty = until the event starts.",
+      "salesPaused": "Pause sales",
+      "salesPausedHint": "Emergency stop: nobody can enter the shop or check out.",
+      "limits": "Limits & reservation time",
+      "limitsHint": "Leave empty to use the global setting.",
+      "maxTicketsPerOrder": "Max. tickets per order",
+      "maxTicketsPerCustomer": "Max. tickets per customer",
+      "cartLockTtlSeconds": "Cart reservation (seconds)",
+      "paymentGraceSeconds": "Payment grace period (seconds)",
+      "selection": "Seat selection",
+      "manualSeatSelectionEnabled": "Pick seats on the plan",
+      "bestAvailableEnabled": "Best available seats",
+      "companionRequiresWheelchair": "Companion seats only with wheelchair space"
+    },
+    "deletedNotice": "The event was deleted permanently.",
+    "danger": {
+      "title": "Delete event permanently",
+      "description": "Removes the event with its seating plan, prices, tariffs, access codes and waiting-room data. This cannot be undone.",
+      "notArchived": "Available only for archived events. Archive the event first.",
+      "hasOrders": "This event has orders. Orders and invoices are accounting records that must be retained, so the event cannot be deleted – keep it archived instead.",
+      "button": "Delete event…",
+      "confirmTitle": "Delete this event permanently?",
+      "confirmDescription": "Type the exact event title to confirm.",
+      "typeTitle": "Event title: {title}",
+      "confirm": "Delete permanently"
+    },
+    "page": {
+      "title": "Shop page",
+      "description": "Arrange the event page and add info boxes – e.g. accepted proofs of reduction or notes for people with disabilities.",
+      "layoutTitle": "Page layout",
+      "layoutHint": "Drag a block onto the left or right half of another block to place it next to it (up to {max} per row), or onto a gap between rows to give it a row of its own. The seating plan always uses the full width. The header with title, date and venue stays at the top.",
+      "header": "Header – title, date, venue",
+      "headerFixed": "always at the top",
+      "blocks": {
+        "DESCRIPTION": "Description",
+        "SHOP": "Seating plan & seat selection"
+      },
+      "boxesTitle": "Info boxes",
+      "boxesHint": "Notes with title, icon and text – place them in the page layout above, e.g. next to the description. Up to {max} boxes; empty boxes are removed when saving.",
+      "emptyBoxes": "No info boxes yet.",
+      "boxNumber": "Info box {n}",
+      "boxTitle": "Title",
+      "boxIcon": "Icon",
+      "boxContent": "Text",
+      "noIcon": "No icon",
+      "removeBox": "Remove info box",
+      "addBox": "Add info box",
+      "addTemplate": "Template: {name}",
+      "templates": {
+        "discounts": {
+          "title": "Accepted proofs of reduction",
+          "content": "<p>Please show a valid proof at the entrance, for example:</p><ul><li><p>Pupil or student ID</p></li><li><p>Disability card</p></li></ul>"
+        },
+        "accessibility": {
+          "title": "Accessibility",
+          "content": "<p>Wheelchair spaces and companion seats are marked on the seating plan. Please contact us if you need any assistance.</p>"
+        }
+      },
+      "blockBox": "Info box: {title}",
+      "dropNewRow": "Drop here for a row of its own",
+      "moveLeft": "Move left",
+      "moveRight": "Move right",
+      "ownRow": "Own row",
+      "wide": "Wide",
+      "joinAbove": "Next to the row above",
+      "rowUp": "Row up",
+      "rowDown": "Row down",
+      "mobileHint": "On mobile phones the blocks of a row are shown one below the other.",
+      "textSize": "Text size",
+      "iconSize": "Icon size",
+      "sizes": {
+        "S": "Small",
+        "M": "Medium",
+        "L": "Large",
+        "XL": "Extra large"
+      }
+    }
+  },
+  "pricing": {
+    "status": "Status",
+    "actions": "Actions",
+    "active": "Active",
+    "inactive": "Inactive",
+    "delete": "Delete",
+    "sortOrder": "Sort order",
+    "categories": {
+      "title": "Price categories",
+      "description": "Assign categories to seats and standing areas in the seating editor.",
+      "new": "New category",
+      "edit": "Edit category",
+      "empty": "No price categories yet.",
+      "name": "Name",
+      "color": "Colour",
+      "descriptionField": "Description",
+      "basePrice": "Base price",
+      "maxPerOrder": "Max. per order",
+      "deleteTitle": "Delete price category?",
+      "deleteDescription": "“{name}” is removed from all seats of this event."
+    },
+    "types": {
+      "title": "Tariffs",
+      "description": "Customers pick seats first and choose a tariff per seat in the cart. Reductions are verified at the entrance.",
+      "new": "New tariff",
+      "edit": "Edit tariff",
+      "empty": "No tariffs yet.",
+      "name": "Name",
+      "descriptionField": "Description",
+      "default": "Default",
+      "discount": "Discount",
+      "proof": "Check at entry",
+      "channels": "Sales channels",
+      "channelsRequired": "Select at least one sales channel.",
+      "discountKind": "Discount",
+      "kinds": {
+        "NONE": "No discount",
+        "PERCENT": "Percentage",
+        "FIXED_AMOUNT": "Fixed amount off",
+        "FIXED_PRICE": "Fixed price"
+      },
+      "valueLabel": {
+        "NONE": "Value",
+        "PERCENT": "Discount in %",
+        "FIXED_AMOUNT": "Amount off",
+        "FIXED_PRICE": "Price"
+      },
+      "discountPercent": "−{value} %",
+      "discountAmount": "−{value}",
+      "discountFixed": "Fixed {value}",
+      "requiresProof": "Proof required at entry",
+      "requiresProofHint": "The scanner shows a yellow warning so staff can check the proof (e.g. student ID).",
+      "scannerWarning": "Scanner warning",
+      "scannerWarningPlaceholder": "Please check proof of reduction!",
+      "seatFeature": "Only on seats",
+      "features": {
+        "none": "Any seat",
+        "WHEELCHAIR_SPACE": "Wheelchair space",
+        "COMPANION_SEAT": "Companion seat"
+      },
+      "maxPerOrder": "Max. per order",
+      "channelNames": {
+        "ONLINE": "Online shop",
+        "BOX_OFFICE": "Box office",
+        "ADMIN": "Admin"
+      },
+      "isDefault": "Default tariff",
+      "deleteTitle": "Delete tariff?",
+      "deleteDescription": "“{name}” will no longer be offered."
+    },
+    "matrix": {
+      "title": "Availability & prices",
+      "description": "Which tariff is offered in which category, optionally with a category-specific price or discount (e.g. “Reduced” −5 € in Cat 1 but −4 € in Cat 2).",
+      "category": "Category",
+      "offered": "Offered",
+      "finalPrice": "Customer pays {price}",
+      "modesHint": "“Tariff default” uses the tariff’s own discount rule. Fixed price, discount amount and discount % apply to this category only.",
+      "tariffDefault": "Default: {rule}",
+      "mode": "Price rule",
+      "modes": {
+        "default": "Tariff default",
+        "price": "Fixed price",
+        "amount": "Discount amount",
+        "percent": "Discount %"
+      },
+      "invalidValue": "Enter a valid value."
+    }
+  },
+  "seating": {
+    "title": "Event seating plan",
+    "description": "This plan is a copy of the master plan and can be changed at any time without affecting other events.",
+    "openEditor": "Open seating editor",
+    "noPlan": "This event has no seating plan.",
+    "missingCategories": "{seats} seats and {areas} standing areas have no price category and cannot be sold.",
+    "seatsTotal": "Seats",
+    "seatsBlocked": "Blocked seats",
+    "seatsWithoutCategory": "Seats without category",
+    "standingAreas": "Standing areas",
+    "standingCapacity": "Standing capacity",
+    "perCategory": "Seats per category",
+    "category": "Category",
+    "seats": "Seats",
+    "noCategory": "No category"
+  },
+  "queue": {
+    "globalTitle": "Waiting room defaults",
+    "globalDescription": "Applies to every event that has no own waiting-room configuration.",
+    "eventTitle": "Waiting room for this event",
+    "eventDescription": "Controls how visitors enter the shop during high demand.",
+    "useGlobal": "Use the global defaults",
+    "useGlobalHint": "Turn off to configure this event individually.",
+    "modes": {
+      "OFF": {
+        "label": "Off",
+        "description": "Everyone enters the shop directly."
+      },
+      "AUTO_THRESHOLD": {
+        "label": "Automatic",
+        "description": "Visitors queue only while the number of active shoppers is at the threshold."
+      },
+      "SCHEDULED_PRE_REGISTRATION": {
+        "label": "Scheduled with lobby",
+        "description": "A lobby opens before sale start; at T-0 everyone in the lobby gets a place (first come or lottery) and is admitted in batches."
+      },
+      "VIP_CODE_ONLY": {
+        "label": "Access code only",
+        "description": "Only visitors with a valid access code can enter."
+      },
+      "HYBRID": {
+        "label": "Queue with code priority",
+        "description": "Everyone without a code waits in the queue; valid access codes skip it."
+      }
+    },
+    "fields": {
+      "mode": "Mode",
+      "activeSessionThreshold": "Max. active shoppers",
+      "admissionBatchSize": "Admissions per batch",
+      "admissionIntervalSeconds": "Batch interval (seconds)",
+      "passTokenTtlSeconds": "Shopping window (seconds)",
+      "lobbyOpensMinutesBefore": "Lobby opens (minutes before)",
+      "maxQueueSize": "Max. queue length",
+      "admissionOrder": "Lobby order at sale start",
+      "accessCodeBypassesQueue": "Access codes skip the queue",
+      "isPaused": "Pause admissions",
+      "title": "Waiting room title",
+      "message": "Waiting room message"
+    },
+    "hints": {
+      "activeSessionThreshold": "Capacity of shoppers browsing the seating plan at the same time.",
+      "admissionBatchSize": "Visitors admitted per interval.",
+      "passTokenTtlSeconds": "How long an admitted visitor may shop before re-queueing.",
+      "lobbyOpensMinutesBefore": "Only for scheduled mode.",
+      "maxQueueSize": "Empty = unlimited."
+    },
+    "orders": {
+      "FIFO": "First come, first served",
+      "RANDOMIZED": "Lottery (random order)"
+    },
+    "stats": {
+      "title": "Live status",
+      "description": "Current state of the waiting room (refresh the page to update).",
+      "waiting": "Waiting",
+      "lobby": "In lobby",
+      "admittedPending": "Admitted, not yet in shop",
+      "active": "Active shoppers",
+      "cursor": "Admitted up to no.",
+      "issued": "Numbers issued"
+    },
+    "reset": {
+      "title": "Reset waiting room?",
+      "description": "Removes everyone from the queue and lobby and ends all shopping windows. Carts stay reserved until they expire.",
+      "confirm": "Reset",
+      "button": "Reset queue"
+    },
+    "announcements": {
+      "title": "Announcements",
+      "description": "Shown live to everyone in the waiting room.",
+      "message": "Message",
+      "severity": "Importance",
+      "severities": {
+        "INFO": "Info",
+        "WARNING": "Warning",
+        "CRITICAL": "Critical"
+      },
+      "expiresInMinutes": "Visible for (minutes)",
+      "noExpiry": "Until ended",
+      "publish": "Publish",
+      "publishedAt": "Published",
+      "state": "State",
+      "end": "End",
+      "endTitle": "End this announcement?",
+      "ended": "Ended"
+    }
+  },
+  "accessCodes": {
+    "createTitle": "Create access codes",
+    "createDescription": "VIP and presale codes. Single-use codes are bound to the first visitor who redeems them.",
+    "listTitle": "Codes ({count})",
+    "modes": {
+      "single": "Single code",
+      "batch": "Generate several"
+    },
+    "code": "Code",
+    "codeHint": "Letters, digits and hyphens; stored in upper case.",
+    "count": "Number of codes",
+    "prefix": "Prefix",
+    "prefixHint": "Optional, e.g. PRESS.",
+    "label": "Internal label",
+    "type": "Type",
+    "types": {
+      "SINGLE_USE": "Single use",
+      "MULTI_USE": "Multi use"
+    },
+    "maxRedemptions": "Max. redemptions",
+    "unlimitedHint": "Empty = unlimited.",
+    "maxTicketsPerOrder": "Max. tickets per order",
+    "maxTicketsTotal": "Max. tickets in total",
+    "validFrom": "Valid from",
+    "validUntil": "Valid until",
+    "zoneHint": "Times in {timeZone}.",
+    "bypassesQueue": "Skips the waiting room",
+    "grantsPresaleAccess": "Grants presale access",
+    "createSingle": "Create code",
+    "createBatch": "Generate codes",
+    "empty": "No access codes yet.",
+    "redemptions": "Used",
+    "limits": "Limits",
+    "limitsValue": "per order {perOrder} · total {total}",
+    "validity": "Validity",
+    "permissions": "Permissions",
+    "status": "Status",
+    "bypassesQueueShort": "Skips queue",
+    "presaleShort": "Presale",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "deactivateTitle": "Deactivate code?",
+    "activateTitle": "Activate code?"
+  },
+  "richText": {
+    "toolbar": "Text formatting",
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "strike": "Strikethrough",
+    "heading2": "Heading",
+    "heading3": "Subheading",
+    "bulletList": "Bullet list",
+    "orderedList": "Numbered list",
+    "blockquote": "Quote",
+    "addLink": "Add link",
+    "editLink": "Edit link",
+    "removeLink": "Remove link",
+    "linkUrl": "Link address",
+    "linkHint": "Allowed: https://, http://, mailto: and tel: links.",
+    "color": "Text colour",
+    "resetColor": "Default text colour",
+    "fontFamily": "Font",
+    "defaultFont": "Default font",
+    "fonts": {
+      "sans": "Arial (sans-serif)",
+      "serif": "Georgia (serif)",
+      "mono": "Courier (monospace)",
+      "verdana": "Verdana",
+      "trebuchet": "Trebuchet MS",
+      "palatino": "Palatino"
+    },
+    "fontSize": "Font size",
+    "defaultSize": "Default size",
+    "align": {
+      "left": "Align left",
+      "center": "Centre",
+      "right": "Align right",
+      "justify": "Justify"
+    },
+    "undo": "Undo",
+    "redo": "Redo",
+    "clear": "Clear formatting"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Shop-wide configuration. Changes take effect within a few seconds.",
+    "sectionsLabel": "Settings sections",
+    "general": {
+      "title": "General",
+      "description": "Shop name and defaults for new events.",
+      "shopName": "Shop name",
+      "shopNameHint": "Shown in the browser title and the shop header.",
+      "supportEmail": "Support e-mail",
+      "defaultLocale": "Default language",
+      "defaultLocaleHint": "Used for e-mails and formatting when no language is known.",
+      "defaultCurrency": "Default currency",
+      "defaultCurrencyHint": "ISO code, e.g. EUR. Pre-filled when creating events.",
+      "defaultTimeZone": "Default time zone",
+      "defaultTimeZoneHint": "IANA name, e.g. Europe/Berlin. Pre-filled for new venues and events."
+    },
+    "branding": {
+      "title": "Branding",
+      "description": "Colours and legal links of the shop.",
+      "primaryColor": "Primary colour",
+      "accentColor": "Accent colour",
+      "imprintUrl": "Imprint URL",
+      "privacyUrl": "Privacy policy URL",
+      "termsUrl": "Terms & conditions URL",
+      "footerText": "Footer text",
+      "logoLater": "Logo and favicon upload will be available with the media library."
+    },
+    "checkout": {
+      "title": "Seat selection & cart",
+      "description": "Global defaults for reservations, limits and seat selection.",
+      "overrideNotice": "These are global defaults. Each event can override the reservation time, limits and selection options on its “Sales” tab.",
+      "cartLockTtlSeconds": "Reservation time (seconds)",
+      "cartLockTtlHint": "How long selected seats stay reserved in the cart.",
+      "paymentGraceSeconds": "Payment grace period (seconds)",
+      "paymentGraceHint": "Added when the customer starts paying so seats never expire mid-payment.",
+      "minutes": "= {value} min",
+      "maxTicketsPerOrder": "Max. tickets per order",
+      "maxTicketsPerCustomer": "Max. tickets per customer and event",
+      "unlimitedHint": "Empty = unlimited.",
+      "defaults": "Defaults for events",
+      "manualSeatSelectionEnabled": "Customers pick seats on the plan",
+      "bestAvailableEnabled": "Offer “best available” seats",
+      "orphanSeatRuleEnabled": "Orphan seat rule",
+      "orphanSeatRuleHint": "Pre-selected when creating events; each event decides individually.",
+      "requireTermsAcceptance": "Require acceptance of the terms at checkout",
+      "requireTermsAcceptanceHint": "Customers must tick a checkbox linking to the terms URL.",
+      "companionSeatsRequireWheelchair": "Companion seats only together with their wheelchair space",
+      "companionSeatsRequireWheelchairHint": "A companion seat can only be booked when its wheelchair space (adjacent or assigned in the seating editor) is in the same order. Checked on “Continue to cart”."
+    },
+    "seatDisplay": {
+      "title": "Seating chart colours",
+      "description": "How seat states are shown to customers on the seating chart.",
+      "inOtherCartColor": "In another cart",
+      "soldColor": "Sold / reserved",
+      "blockedColor": "Blocked",
+      "selectionColor": "Own selection",
+      "markUnavailableWithCross": "Mark sold and blocked seats with a cross",
+      "preview": {
+        "title": "Preview",
+        "free": "Available (category colour)",
+        "inOtherCart": "In another customer’s cart",
+        "sold": "Sold",
+        "blocked": "Blocked",
+        "selected": "Selected by you"
+      },
+      "selectionStyle": "Marking of the own selection",
+      "selectionStyles": {
+        "RING": "Ring around the seat",
+        "FILL": "Fill the seat with the colour",
+        "BOTH": "Fill and ring"
+      }
+    }
+  },
+  "symbols": {
+    "title": "Symbol library",
+    "description": "Seat shapes and element icons for the seating editor.",
+    "uploadTitle": "Upload symbol",
+    "uploadDescription": "SVG files are cleaned on upload: only shapes and colours are kept, scripts and external references are removed.",
+    "name": "Name",
+    "kind": "Type",
+    "kinds": {
+      "SEAT": "Seat shape",
+      "ELEMENT": "Element icon"
+    },
+    "file": "SVG file",
+    "fileHint": "Max. 200 KB, needs a viewBox or width/height.",
+    "colorize": "Colourise with seat / element colour",
+    "colorizeHint": "Replaces all colours with the category or element colour. Turn off to keep the original colours.",
+    "upload": "Upload",
+    "filterAll": "All",
+    "empty": "No symbols in this view.",
+    "builtin": "Built-in",
+    "colorized": "Colourised",
+    "usage": "{count, plural, =0 {not used} one {used # time} other {used # times}}",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteTitle": "Delete symbol?",
+    "deleteUsed": "“{name}” is used {count, plural, one {# time} other {# times}}. Seats fall back to the default shape and icons are removed from elements.",
+    "deleteUnused": "“{name}” is not used anywhere."
+  }
+}

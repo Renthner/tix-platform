@@ -1,0 +1,1 @@
+ALTER TABLE "events" ALTER COLUMN "page_layout" SET DEFAULT '[[{"ref":"SHOP","span":1}],[{"ref":"DESCRIPTION","span":1}]]'::jsonb;

@@ -1,11 +1,11 @@
 import path from 'node:path';
-import { loadEnvConfig } from '@next/env';
 import type { NextConfig } from 'next';
+import createNextIntlPlugin from 'next-intl/plugin';
 
 const monorepoRoot = path.resolve(process.cwd(), '../..');
 
-// Local development reads the single monorepo-root `.env`; containers get env from compose.
-loadEnvConfig(monorepoRoot);
+// Local development: the root `.env` is loaded by the dev/start scripts (node --env-file-if-exists);
+// containers get their environment from docker compose.
 
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -21,11 +21,13 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   typedRoutes: true,
-  transpilePackages: ['@tix/shared', '@tix/db', '@tix/redis'],
+  transpilePackages: ['@tix/shared', '@tix/db', '@tix/redis', '@tix/core'],
   serverExternalPackages: ['pg', 'ioredis'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
 };
 
-export default nextConfig;
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
+
+export default withNextIntl(nextConfig);

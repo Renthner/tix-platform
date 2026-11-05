@@ -22,6 +22,62 @@
       "when": 1793812352324,
       "tag": "0002_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793813498662,
+      "tag": "0003_soft_remove_sections_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793876523090,
+      "tag": "0004_symbols_section_flags_category_discounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793888735634,
+      "tag": "0005_venue_maps_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793891059168,
+      "tag": "0006_companion_seats",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793892816038,
+      "tag": "0007_event_description_position",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793896715349,
+      "tag": "0008_event_page_layout",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793896727181,
+      "tag": "0009_drop_description_position",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793900734748,
+      "tag": "0010_page_layout_rows",
+      "breakpoints": true
     }
   ]
 }

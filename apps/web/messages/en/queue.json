@@ -1,0 +1,39 @@
+{
+  "checking": "Checking availability…",
+  "admitted": { "title": "It's your turn!", "enter": "Enter the shop" },
+  "lobby": {
+    "title": "You're in the lobby",
+    "description": "When the sale starts, everyone in the lobby gets a place in the queue. Please keep this page open."
+  },
+  "notStarted": {
+    "title": "Sale has not started yet",
+    "description": "Tickets will be available here as soon as the sale starts.",
+    "lobby": "The waiting room opens soon. Keep this page open to join automatically."
+  },
+  "closed": {
+    "NOT_PUBLISHED": "This event is not available.",
+    "CANCELLED": "This event has been cancelled.",
+    "NOT_STARTED": "Sale has not started yet.",
+    "PRESALE": "Presale is running.",
+    "ON_SALE": "Tickets are on sale.",
+    "PAUSED": "Ticket sales are paused at the moment. Please try again later.",
+    "ENDED": "Online sales for this event have ended."
+  },
+  "waiting": {
+    "title": "You're in the queue",
+    "description": "Due to high demand we let visitors into the shop in groups. You will get in automatically.",
+    "position": "Your position",
+    "minutes": "minutes (estimated)",
+    "paused": "Admission is paused briefly by the organiser. You keep your place.",
+    "keepOpen": "Please keep this page open – refreshing does not lose your place."
+  },
+  "code": {
+    "title": { "PRESALE": "Presale access", "VIP_ONLY": "Access code required" },
+    "description": {
+      "PRESALE": "Presale is running. Please enter your presale code.",
+      "VIP_ONLY": "Tickets for this event are only available with an access code."
+    },
+    "placeholder": "Access code",
+    "submit": "Unlock"
+  }
+}

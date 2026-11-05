@@ -15,8 +15,10 @@ Every business parameter (prices, fees, tax rates, layouts, templates, credentia
 rules, branding) is configured in the Admin Portal – nothing organisation-specific is
 hard-coded.
 
-> **Status:** Phase 1 of 6 – architecture, database schema and Docker foundation.
-> See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/DATABASE.md](docs/DATABASE.md).
+> **Status:** Phase 2 of 6 – seating plan editor, seat locking, multi-event cart and virtual
+> waiting room. Checkout and payments follow in phase 3.
+> See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATABASE.md](docs/DATABASE.md) and
+> [docs/REDIS.md](docs/REDIS.md).
 
 ## Requirements
 
@@ -30,8 +32,11 @@ hard-coded.
 cp .env.example .env        # fill in all secrets – generation commands are in the file
 docker compose up -d --build
 docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
-curl http://localhost:3000/api/health
+open http://localhost:8080          # shop; admin portal at /admin
 ```
+
+For production set `PUBLIC_URL=https://tickets.example.org` and `SITE_ADDRESS=tickets.example.org` –
+the bundled Caddy proxy then obtains TLS certificates automatically.
 
 ## Local development
 
@@ -40,21 +45,24 @@ pnpm install
 pnpm infra:up               # PostgreSQL, Redis, object storage
 pnpm db:migrate && pnpm db:seed
 pnpm admin:create --email you@example.org --name "Your Name"
-pnpm dev                    # web on :3000 + worker
+pnpm db:demo                # optional: demo venue + event on sale (/events/demo-concert)
+pnpm dev                    # web :3000, realtime gateway :3001, worker
 ```
 
-| Command            | Description                                                           |
-| ------------------ | --------------------------------------------------------------------- |
-| `pnpm typecheck`   | TypeScript across all packages                                        |
-| `pnpm test`        | Unit tests + PostgreSQL integration tests (needs `TEST_DATABASE_URL`) |
-| `pnpm db:generate` | Generate a migration after changing `packages/db/src/schema`          |
-| `pnpm db:studio`   | Drizzle Studio                                                        |
+| Command                                 | Description                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------------------- |
+| `pnpm typecheck`                        | TypeScript across all packages                                               |
+| `pnpm test`                             | Unit tests + PostgreSQL integration tests (needs `TEST_DATABASE_URL`)        |
+| `pnpm db:generate`                      | Generate a migration after changing `packages/db/src/schema`                 |
+| `pnpm db:studio`                        | Drizzle Studio                                                               |
+| `pnpm db:demo`                          | Demo venue, seating plan and event on sale                                   |
+| `node scripts/smoke/shop.mjs <eventId>` | End-to-end check of locking, cart, tariffs, realtime against running servers |
 
 ## Health endpoints
 
 - `GET /api/health?probe=live` – liveness
 - `GET /api/health` – readiness (PostgreSQL, Redis, live workers)
-- worker `GET :8081/healthz`
+- worker `GET :8081/healthz`, realtime gateway `GET :3001/healthz`
 
 ## License
 

@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -13,6 +14,7 @@ import {
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import type { EventInfoBox } from '@tix/shared';
 import { cents, createdAt, currency, id, timestamps, tstz } from './_columns';
 import { adminUsers } from './auth';
 import {
@@ -71,6 +73,19 @@ export const events = pgTable(
     subtitle: text('subtitle'),
     description: text('description'),
     status: eventStatusEnum('status').notNull().default('DRAFT'),
+    /**
+     * Event page layout: rows of blocks side by side (drag & drop in the admin). Read through
+     * `normalizePageLayout` (also converts the earlier flat format).
+     */
+    pageLayout: jsonb('page_layout')
+      .$type<unknown>()
+      .notNull()
+      .default(sql`'[[{"ref":"SHOP","span":1}],[{"ref":"DESCRIPTION","span":1}]]'::jsonb`),
+    /** Info boxes (proofs of reduction, accessibility …) shown on the event page. */
+    infoBoxes: jsonb('info_boxes')
+      .$type<EventInfoBox[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     startsAt: tstz('starts_at').notNull(),
     endsAt: tstz('ends_at'),
     doorsOpenAt: tstz('doors_open_at'),
@@ -101,6 +116,8 @@ export const events = pgTable(
     manualSeatSelectionEnabled: boolean('manual_seat_selection_enabled'),
     bestAvailableEnabled: boolean('best_available_enabled'),
     orphanSeatRuleEnabled: boolean('orphan_seat_rule_enabled'),
+    /** Companion seats only together with their wheelchair space (NULL = inherit). */
+    companionRequiresWheelchair: boolean('companion_requires_wheelchair'),
 
     // ── Overrides of global `paypal` / `bankTransfer` settings ─────────────
     paypalEnabled: boolean('paypal_enabled'),
@@ -265,7 +282,11 @@ export const ticketTypes = pgTable(
   ],
 );
 
-/** Which ticket types are offered in which category, with an optional fixed price. */
+/**
+ * Which ticket types are offered in which category. A cell may override the tariff's
+ * price rule for this category: either a fixed final price (`price_override`) or a
+ * category-specific discount (`discount_kind` + `discount_value`, e.g. Cat 1 −5 €, Cat 2 −4 €).
+ */
 export const priceCategoryTicketTypes = pgTable(
   'price_category_ticket_types',
   {
@@ -276,6 +297,9 @@ export const priceCategoryTicketTypes = pgTable(
       .notNull()
       .references(() => ticketTypes.id, { onDelete: 'cascade' }),
     priceOverride: cents('price_override'),
+    discountKind: discountKindEnum('discount_kind'),
+    /** Basis points for PERCENT, cents for FIXED_AMOUNT / FIXED_PRICE. */
+    discountValue: integer('discount_value'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: createdAt(),
   },
@@ -288,6 +312,18 @@ export const priceCategoryTicketTypes = pgTable(
     check(
       'price_category_ticket_types_override_nonneg',
       sql`${t.priceOverride} IS NULL OR ${t.priceOverride} >= 0`,
+    ),
+    check(
+      'price_category_ticket_types_discount_pair',
+      sql`(${t.discountKind} IS NULL) = (${t.discountValue} IS NULL)`,
+    ),
+    check(
+      'price_category_ticket_types_single_override',
+      sql`${t.priceOverride} IS NULL OR ${t.discountKind} IS NULL`,
+    ),
+    check(
+      'price_category_ticket_types_discount_range',
+      sql`${t.discountValue} IS NULL OR (${t.discountValue} >= 0 AND (${t.discountKind} <> 'PERCENT' OR ${t.discountValue} <= 10000))`,
     ),
   ],
 );
