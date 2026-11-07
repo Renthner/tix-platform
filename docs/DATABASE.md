@@ -105,6 +105,26 @@ Migrations live in [`packages/db/migrations`](../packages/db/migrations):
 | `bank_transactions`            | Booked transactions with fingerprint dedupe across sources, match status, review reason, candidates                                         |
 | `bank_transaction_allocations` | Money ↔ order links (split and collective payments, reversible)                                                                             |
 
+Reconciliation (`packages/core/src/banking`): every adapter yields the same normalised
+transaction shape, so the `fingerprint` (booking date, signed amount, currency, counterparty
+IBAN, first 80 letters/digits of the remittance text + occurrence index) recognises the same
+booking whether it came via FinTS, finAPI, a camt/MT940/CSV upload or an IMAP attachment.
+Credits are matched by payment reference (Luhn check digit) and amount (setting
+`bankTransfer.autoMatchToleranceCents`); everything else becomes a Klärfall with a
+`review_reason` and scored `match_candidates`. Adapter specifics:
+
+- `FINTS` – `config` holds server URL, bank code, login, TAN procedure/medium and the
+  **FinTS product registration number** (`productId`, entered per connection in the Admin
+  Portal, never in code); the PIN is in `credentials_encrypted`; `state` keeps the bank's
+  parameter data (BPD/UPD, system id) and the offered TAN procedures. TAN challenges wait in
+  the worker (same FinTS dialog) until the admin answers; the TAN only passes through a
+  short-lived, encrypted Redis key.
+- `PSD2_FINAPI` – client id in `config`, client secret + generated finAPI user password in
+  `credentials_encrypted`; `state` holds the finAPI user / bank connection / account ids and
+  the open web form; `consent_expires_at` mirrors the PSD2 consent.
+- `FILE_IMPORT` / `IMAP` – CSV profile (delimiter, encoding, date/decimal format, optional
+  column mapping); originals are stored in the documents bucket under `bank-statements/`.
+
 ### Templates & communication
 
 | Table                 | Purpose                                                              |
@@ -168,6 +188,33 @@ Registering later sets a password on that same row – because this exposes all 
 of the address, orders are only listed after the e-mail has been verified
 (`email_verified_at`). Login links, password resets and verification use `customer_tokens`.
 
+## Order lifecycle
+
+| Status               | Meaning / transition                                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `PENDING`            | Online payment in flight (PayPal). Expires after `paypal.approvalTimeoutSeconds` (seats released)           |
+| `AWAITING_PAYMENT`   | Vorkasse: payment reference + due date set; reminder at `next_reminder_at`, auto-cancel at `auto_cancel_at` |
+| `PAID`               | Fully paid (`amount_paid >= total_gross`); items `CONFIRMED`, invoice + confirmation queued                 |
+| `CANCELLED`          | Unpaid order cancelled (admin, customer, dunning) – items `CANCELLED`, seats / GA capacity released         |
+| `EXPIRED`            | Abandoned online payment                                                                                    |
+| `REFUNDED` / partial | Refund workflow (phase 5)                                                                                   |
+
+- **Payment reference** `PREFIX-YYYY-NNNNNN-C`: random 6-digit number per year, `C` = Luhn
+  check digit over year + number (detects typos and swapped digits). Unique per order.
+- **Vorkasse dates** (event override ?? `bankTransfer` setting; multi-event orders take the
+  strictest value): due date = end of day after `paymentTermDays` (business days without
+  nationwide + regional holidays of `holidayRegion` if configured); reminder on the morning
+  after `reminderAfterDays`; auto-cancel at the end of day `cancelAfterDays` – never later
+  than the start of the first event. `keep_reserved` or a partial payment stops the
+  auto-cancel (shown in the admin instead).
+- **Limits checked at checkout** (in the order transaction, with row locks on the customer and
+  the access code): `max_tickets_per_customer` per event across all active orders of the
+  e-mail address, `access_codes.max_tickets_total` across all orders. A companion seat bought
+  without its wheelchair space requires that space to be SOLD to the same e-mail address.
+- **Payments**: `payments.provider_order_id` holds the PayPal order of an attempt (`CREATED` →
+  `APPROVED` (capture pending) → `CAPTURED` / `FAILED` / `CANCELLED`); captures are idempotent
+  via `provider_capture_id`, bank payments via `bank_transaction_id`.
+
 ## Fee resolution
 
 Fees are global defaults that can be adjusted per event:
@@ -181,6 +228,10 @@ Fees are global defaults that can be adjusted per event:
 
 Effective fees of an event = active global fees not overridden by the event + the event's
 active overrides and additional fees. PER_EVENT fees are charged once per order and event.
+PER_ORDER fees cannot be overridden per event. `payment_methods` restricts a fee to payment
+methods (e.g. a PayPal surcharge) – the checkout therefore shows the total per method.
+PERCENT fees are calculated on the ticket price (PER_TICKET), the event subtotal (PER_EVENT)
+or the ticket total of the order (PER_ORDER); `tax_rate_id` NULL = the event's VAT rate.
 
 ## Effective seat status
 
@@ -201,3 +252,6 @@ nullable override columns (`max_tickets_per_order`, `cart_lock_ttl_seconds`,
 For a multi-event Vorkasse order the strictest value of all contained events applies
 (earliest due date; Vorkasse unavailable if any event is too close).
 Waiting-room config: event row in `queue_configs` ?? global row.
+`events.customer_accounts_enabled` can only hide sign-in / registration in the checkout of an
+event (`false`); `NULL` follows `customerAccounts.enabled`. Where accounts are hidden, guest
+checkout is always allowed.

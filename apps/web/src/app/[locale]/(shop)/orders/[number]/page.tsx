@@ -1,0 +1,321 @@
+import { findOrderIdByNumber, getOrderView, type OrderView } from '@tix/core';
+import { CheckCircle2, Clock, Download, Info, XCircle } from 'lucide-react';
+import { getFormatter, getTranslations } from 'next-intl/server';
+import { notFound } from 'next/navigation';
+import { CopyValue, OrderPaymentActions } from '@/components/shop/order-actions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { resolveLocale } from '@/i18n/locale';
+import { getCore } from '@/server/core';
+import { canAccessOrder } from '@/server/order-access';
+
+export const dynamic = 'force-dynamic';
+
+export async function generateMetadata() {
+  const t = await getTranslations('checkout.order');
+  return { title: t('metaTitle'), robots: { index: false, follow: false } };
+}
+
+const PAYPAL_NOTICES = [
+  'paid',
+  'pending',
+  'cancelled',
+  'failed',
+  'expired',
+  'unavailable',
+] as const;
+type PayPalNotice = (typeof PAYPAL_NOTICES)[number];
+
+const groupIban = (iban: string) => iban.replace(/(.{4})(?=.)/g, '$1 ');
+
+export default async function OrderPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string; number: string }>;
+  searchParams: Promise<{ t?: string; paypal?: string }>;
+}) {
+  await resolveLocale(params);
+  const { number } = await params;
+  const { t: token, paypal } = await searchParams;
+  const core = getCore();
+  const orderId = await findOrderIdByNumber(core, decodeURIComponent(number));
+  // Unknown order and missing access look the same (no enumeration of order numbers).
+  if (!orderId || !(await canAccessOrder(orderId, token))) notFound();
+  const view = (await getOrderView(core, orderId))!;
+  const { order } = view;
+  const [t, format] = await Promise.all([getTranslations('checkout.order'), getFormatter()]);
+  const money = (cents: number) =>
+    format.number(cents / 100, { style: 'currency', currency: order.currency });
+  const notice = (PAYPAL_NOTICES as readonly string[]).includes(paypal ?? '')
+    ? (paypal as PayPalNotice)
+    : null;
+  const tokenQuery = token ? `?t=${encodeURIComponent(token)}` : '';
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {t('title', { number: order.orderNumber })}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t('placedAt', {
+              date: format.dateTime(order.createdAt, { dateStyle: 'long', timeStyle: 'short' }),
+            })}
+          </p>
+        </div>
+        <Badge variant={order.status === 'PAID' ? 'default' : 'secondary'} className="text-sm">
+          {t(`status.${order.status}`)}
+        </Badge>
+      </div>
+
+      {notice && notice !== 'paid' && (
+        <Alert variant={notice === 'pending' ? 'default' : 'destructive'}>
+          <Info className="size-4" />
+          <AlertDescription>{t(`paypalNotice.${notice}`)}</AlertDescription>
+        </Alert>
+      )}
+
+      <StatusCard view={view} money={money} token={token ?? null} format={format} t={t} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('items.title')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {view.events.map((event) => (
+            <div key={event.eventId} className="space-y-2">
+              <div>
+                <div className="font-medium">{event.title}</div>
+                <div className="text-sm text-muted-foreground">
+                  {format.dateTime(new Date(event.startsAt), {
+                    dateStyle: 'full',
+                    timeStyle: 'short',
+                    timeZone: event.timeZone,
+                  })}{' '}
+                  · {event.venueName}
+                </div>
+              </div>
+              <ul className="divide-y text-sm">
+                {event.items.map((item) => (
+                  <li key={item.id} className="flex justify-between gap-3 py-2">
+                    <div>
+                      <div className={item.status === 'CANCELLED' ? 'line-through' : undefined}>
+                        {item.kind === 'SEAT'
+                          ? [
+                              item.sectionLabel,
+                              item.rowLabel ? t('items.row', { label: item.rowLabel }) : null,
+                              t('items.seat', { label: item.seatLabel ?? '' }),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          : `${item.sectionLabel} · ${t('items.standing')}`}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {item.categoryName} · {item.ticketTypeName}
+                      </div>
+                    </div>
+                    <span className="tabular-nums">{money(item.priceGross)}</span>
+                  </li>
+                ))}
+                {view.fees
+                  .filter((fee) => fee.eventId === event.eventId)
+                  .map((fee) => (
+                    <li
+                      key={fee.id}
+                      className="flex justify-between gap-3 py-2 text-muted-foreground"
+                    >
+                      <span>
+                        {fee.name}
+                        {fee.quantity > 1 && ` (${fee.quantity}×)`}
+                      </span>
+                      <span className="tabular-nums">{money(fee.totalGross)}</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
+          <div className="space-y-1 border-t pt-3 text-sm">
+            {view.fees
+              .filter((fee) => fee.eventId === null)
+              .map((fee) => (
+                <div key={fee.id} className="flex justify-between text-muted-foreground">
+                  <span>{fee.name}</span>
+                  <span className="tabular-nums">{money(fee.totalGross)}</span>
+                </div>
+              ))}
+            <div className="flex justify-between text-base font-semibold">
+              <span>{t('items.total')}</span>
+              <span className="tabular-nums">{money(order.totalGross)}</span>
+            </div>
+            {view.taxes
+              .filter((tax) => tax.rateBasisPoints > 0 && tax.tax > 0)
+              .map((tax) => (
+                <div
+                  key={tax.rateBasisPoints}
+                  className="flex justify-between text-xs text-muted-foreground"
+                >
+                  <span>{t('items.vat', { rate: tax.rateBasisPoints / 100 })}</span>
+                  <span className="tabular-nums">{money(tax.tax)}</span>
+                </div>
+              ))}
+            {order.amountPaid > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>{t('items.paid')}</span>
+                <span className="tabular-nums">{money(order.amountPaid)}</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {view.invoices.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('documents.title')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {view.invoices.map((invoice) => (
+                <li key={invoice.id}>
+                  <a
+                    href={`/api/orders/${order.id}/invoices/${invoice.id}${tokenQuery}`}
+                    className="inline-flex items-center gap-2 hover:underline"
+                  >
+                    <Download className="size-4" />
+                    {t(
+                      invoice.type === 'CREDIT_NOTE' ? 'documents.creditNote' : 'documents.invoice',
+                      {
+                        number: invoice.invoiceNumber,
+                      },
+                    )}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      <p className="text-xs text-muted-foreground">{t('contact', { email: order.email })}</p>
+    </div>
+  );
+}
+
+function StatusCard({
+  view,
+  money,
+  token,
+  format,
+  t,
+}: {
+  view: OrderView;
+  money: (cents: number) => string;
+  token: string | null;
+  format: Awaited<ReturnType<typeof getFormatter>>;
+  t: Awaited<ReturnType<typeof getTranslations<'checkout.order'>>>;
+}) {
+  const { order } = view;
+  if (order.status === 'PAID') {
+    return (
+      <Alert>
+        <CheckCircle2 className="size-4" />
+        <AlertTitle>{t('paid.title')}</AlertTitle>
+        <AlertDescription>{t('paid.text', { email: order.email })}</AlertDescription>
+      </Alert>
+    );
+  }
+  if (order.status === 'CANCELLED' || order.status === 'EXPIRED') {
+    return (
+      <Alert variant="destructive">
+        <XCircle className="size-4" />
+        <AlertTitle>{t(`closed.${order.status}`)}</AlertTitle>
+        <AlertDescription>{t('closed.text')}</AlertDescription>
+      </Alert>
+    );
+  }
+  if (order.status === 'AWAITING_PAYMENT' && order.paymentMethod === 'BANK_TRANSFER') {
+    const account = view.bankAccount;
+    return (
+      <Card className="border-primary/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="size-5" /> {t('bankTransfer.title')}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {t('bankTransfer.intro', {
+              date: order.paymentDueAt
+                ? format.dateTime(order.paymentDueAt, { dateStyle: 'full' })
+                : '–',
+            })}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {account ? (
+            <dl className="grid gap-3 text-sm sm:grid-cols-[180px_1fr]">
+              <dt className="text-muted-foreground">{t('bankTransfer.amount')}</dt>
+              <dd>
+                <CopyValue
+                  value={money(view.outstanding)}
+                  copyText={(view.outstanding / 100).toFixed(2)}
+                  strong
+                />
+              </dd>
+              <dt className="text-muted-foreground">{t('bankTransfer.reference')}</dt>
+              <dd>
+                <CopyValue value={order.paymentReference ?? ''} strong />
+              </dd>
+              <dt className="text-muted-foreground">{t('bankTransfer.holder')}</dt>
+              <dd>
+                <CopyValue value={account.accountHolder} />
+              </dd>
+              <dt className="text-muted-foreground">IBAN</dt>
+              <dd>
+                <CopyValue value={groupIban(account.iban)} copyText={account.iban} mono />
+              </dd>
+              {account.bic && (
+                <>
+                  <dt className="text-muted-foreground">BIC</dt>
+                  <dd>
+                    <CopyValue value={account.bic} mono />
+                  </dd>
+                </>
+              )}
+              {account.bankName && (
+                <>
+                  <dt className="text-muted-foreground">{t('bankTransfer.bank')}</dt>
+                  <dd>{account.bankName}</dd>
+                </>
+              )}
+            </dl>
+          ) : (
+            <p className="text-sm">{t('bankTransfer.noAccount')}</p>
+          )}
+          <p className="mt-4 text-xs text-muted-foreground">{t('bankTransfer.hint')}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  if (order.status === 'PENDING' && order.paymentMethod === 'PAYPAL') {
+    return (
+      <Card className="border-primary/40">
+        <CardHeader>
+          <CardTitle>{t('paypal.title')}</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {view.paypal.payable
+              ? t('paypal.intro', {
+                  time: format.dateTime(new Date(view.paypal.expiresAt!), { timeStyle: 'short' }),
+                })
+              : t('paypal.processing')}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {view.paypal.payable && <OrderPaymentActions orderId={order.id} token={token} />}
+        </CardContent>
+      </Card>
+    );
+  }
+  return null;
+}

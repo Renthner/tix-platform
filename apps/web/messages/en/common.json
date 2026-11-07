@@ -49,6 +49,25 @@
     "BEST_AVAILABLE_DISABLED": "Best available is not offered for this event.",
     "INTERNAL_ERROR": "Something went wrong. Please try again.",
     "CATEGORY_LIMIT": "You can book at most {max} tickets in “{category}” per order.",
-    "TARIFF_LIMIT": "The tariff “{tariff}” is limited to {max} tickets per order."
+    "TARIFF_LIMIT": "The tariff “{tariff}” is limited to {max} tickets per order.",
+    "CART_EMPTY": "Your cart is empty.",
+    "CART_OUTDATED": "Your cart changed. Please review it.",
+    "CART_CHANGED": "Your cart changed in the meantime. Please review it before ordering.",
+    "MIXED_CURRENCIES": "Events with different currencies cannot be bought in one order.",
+    "PRICE_CHANGED": "The total of your order changed. Please check the updated prices and order again.",
+    "PAYMENT_METHOD_UNAVAILABLE": "This payment method is not available for your order.",
+    "LOGIN_REQUIRED": "Please sign in to complete your order.",
+    "TERMS_NOT_ACCEPTED": "Please accept the terms and conditions.",
+    "EVENT_NOT_ON_SALE": "Tickets for “{event}” are not on sale at the moment.",
+    "SELECTION_INVALID": "Your seat selection for “{event}” is not allowed (single seats left free or companion seats without wheelchair space). Please adjust it in the cart.",
+    "COMPANION_OWNER_MISMATCH": "This companion seat can only be booked by the person who bought the matching wheelchair space – please use the same e-mail address.",
+    "CUSTOMER_LIMIT": "You can buy at most {max} tickets for “{event}” (still possible: {remaining}).",
+    "ACCESS_CODE_LIMIT": "The ticket quota of your code is used up (still possible: {remaining}).",
+    "PAYPAL_NOT_CONFIGURED": "PayPal is currently not available.",
+    "ORDER_NOT_PAYABLE": "This order can no longer be paid.",
+    "ORDER_NOT_FOUND": "Order not found.",
+    "ORDER_NOT_CANCELLABLE": "This order can no longer be cancelled.",
+    "VALIDATION_FAILED": "Please check your entries.",
+    "INVALID_JSON": "Invalid request."
   }
 }

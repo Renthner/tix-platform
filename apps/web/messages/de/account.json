@@ -1,0 +1,150 @@
+{
+  "nav": {
+    "signIn": "Anmelden",
+    "myAccount": "Mein Konto"
+  },
+  "fields": {
+    "email": "E-Mail-Adresse",
+    "password": "Passwort",
+    "passwordConfirm": "Passwort wiederholen",
+    "newPassword": "Neues Passwort",
+    "firstName": "Vorname",
+    "lastName": "Nachname",
+    "passwordHint": "Mindestens {min} Zeichen.",
+    "submitting": "Bitte warten …",
+    "backToLogin": "Zurück zur Anmeldung"
+  },
+  "login": {
+    "title": "Anmelden",
+    "description": "Melde dich an, um deine Bestellungen und Tickets zu sehen.",
+    "submit": "Anmelden",
+    "or": "oder",
+    "linkSubmit": "Anmeldelink per E-Mail senden",
+    "linkHint": "Ohne Passwort – wir schicken dir einen Link, mit dem du angemeldet wirst.",
+    "forgot": "Passwort vergessen?",
+    "noAccount": "Noch kein Konto?",
+    "register": "Konto erstellen"
+  },
+  "register": {
+    "title": "Konto erstellen",
+    "description": "Mit einem Konto siehst du alle deine Bestellungen und kannst deine Tickets jederzeit erneut herunterladen.",
+    "submit": "Konto erstellen",
+    "haveAccount": "Du hast schon ein Konto?",
+    "login": "Anmelden",
+    "guestNote": "Schon einmal als Gast bestellt? Registriere dich mit derselben E-Mail-Adresse – sobald sie bestätigt ist, erscheinen deine früheren Bestellungen in deinem Konto.",
+    "continueToLogin": "Jetzt anmelden und weiter"
+  },
+  "forgot": {
+    "title": "Passwort vergessen?",
+    "description": "Gib deine E-Mail-Adresse ein. Wir schicken dir einen Link, mit dem du ein neues Passwort festlegen kannst.",
+    "submit": "Link senden"
+  },
+  "reset": {
+    "title": "Neues Passwort festlegen",
+    "description": "Wähle ein neues Passwort für dein Konto. Auf allen anderen Geräten wirst du abgemeldet.",
+    "submit": "Neues Passwort speichern",
+    "requestNew": "Neuen Link anfordern"
+  },
+  "loginLink": {
+    "title": "Anmelden",
+    "description": "Klicke auf den Button, um dich in deinem Konto anzumelden.",
+    "submit": "Jetzt anmelden"
+  },
+  "verify": {
+    "title": "E-Mail-Adresse bestätigen",
+    "verified": "Danke – deine E-Mail-Adresse ist bestätigt. Deine Bestellungen werden jetzt in deinem Konto angezeigt.",
+    "alreadyVerified": "Deine E-Mail-Adresse wurde bereits bestätigt.",
+    "invalid": "Dieser Bestätigungslink ist ungültig oder abgelaufen. Melde dich an und fordere in deinem Konto einen neuen Link an.",
+    "continue": "Weiter",
+    "signIn": "Anmelden"
+  },
+  "overview": {
+    "title": "Mein Konto",
+    "signedInAs": "{name} · {email}",
+    "signOut": "Abmelden",
+    "passwordReset": "Dein neues Passwort wurde gespeichert. Auf allen anderen Geräten wurdest du abgemeldet.",
+    "unverifiedTitle": "Bitte bestätige deine E-Mail-Adresse",
+    "unverified": "Wir haben einen Bestätigungslink an {email} geschickt. Deine Bestellungen erscheinen hier, sobald die Adresse bestätigt ist.",
+    "resend": "Link erneut senden",
+    "noPasswordTitle": "Kein Passwort festgelegt",
+    "noPassword": "Du hast dich mit einem E-Mail-Link angemeldet. Lege unten ein Passwort fest, wenn du dich auch damit anmelden möchtest."
+  },
+  "orders": {
+    "title": "Meine Bestellungen",
+    "unverified": "Bestätige deine E-Mail-Adresse, um deine Bestellungen zu sehen.",
+    "empty": "Du hast noch keine Bestellungen.",
+    "browse": "Veranstaltungen ansehen",
+    "number": "Bestellung {number}",
+    "placedOn": "Bestellt am {date}",
+    "tickets": "{count, plural, one {# Ticket} other {# Tickets}}",
+    "view": "Bestellung ansehen",
+    "status": {
+      "PENDING": "Zahlung läuft",
+      "AWAITING_PAYMENT": "Zahlung ausstehend",
+      "PAID": "Bezahlt",
+      "CANCELLED": "Storniert",
+      "EXPIRED": "Abgelaufen",
+      "REFUNDED": "Erstattet",
+      "PARTIALLY_REFUNDED": "Teilweise erstattet"
+    },
+    "method": {
+      "PAYPAL": "PayPal",
+      "BANK_TRANSFER": "Überweisung (Vorkasse)",
+      "CASH": "Bar",
+      "CARD": "Karte",
+      "COMPLIMENTARY": "Freikarte"
+    }
+  },
+  "profile": {
+    "title": "Persönliche Daten",
+    "description": "Damit wird die Kasse vorausgefüllt. Änderungen wirken sich nicht auf bestehende Bestellungen aus.",
+    "emailHint": "Die E-Mail-Adresse kann nicht geändert werden.",
+    "phone": "Telefon (optional)",
+    "addressTitle": "Adresse (optional)",
+    "street": "Straße und Hausnummer",
+    "addressLine2": "Adresszusatz",
+    "postalCode": "PLZ",
+    "city": "Ort",
+    "country": "Land",
+    "countryHint": "Zweistelliger Code, z. B. DE, AT, CH",
+    "submit": "Daten speichern"
+  },
+  "password": {
+    "title": "Passwort",
+    "changeDescription": "Nach der Änderung wirst du auf allen anderen Geräten abgemeldet.",
+    "setDescription": "Lege ein Passwort fest, um dich ohne E-Mail-Link anzumelden.",
+    "current": "Aktuelles Passwort",
+    "submit": "Passwort ändern",
+    "submitSet": "Passwort festlegen"
+  },
+  "errors": {
+    "INVALID_CREDENTIALS": "E-Mail-Adresse oder Passwort ist nicht korrekt.",
+    "ACCOUNT_LOCKED": "Zu viele Fehlversuche. Bitte versuche es in {minutes, plural, one {# Minute} other {# Minuten}} erneut oder melde dich mit einem E-Mail-Link an.",
+    "RATE_LIMITED": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
+    "TOKEN_INVALID": "Dieser Link ist ungültig oder abgelaufen. Bitte fordere einen neuen an.",
+    "ACCOUNTS_DISABLED": "Kundenkonten sind derzeit nicht verfügbar.",
+    "LOGIN_LINK_DISABLED": "Die Anmeldung per E-Mail-Link ist derzeit nicht verfügbar.",
+    "CURRENT_PASSWORD_INVALID": "Das aktuelle Passwort ist nicht korrekt.",
+    "SESSION_EXPIRED": "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+    "VALIDATION_FAILED": "Bitte prüfe deine Eingaben.",
+    "GENERIC": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+  },
+  "fieldErrors": {
+    "required": "Pflichtfeld",
+    "email": "Bitte gib eine gültige E-Mail-Adresse ein.",
+    "tooLong": "Zu lang",
+    "invalid": "Ungültiger Wert",
+    "country": "Bitte gib einen zweistelligen Ländercode ein (z. B. DE).",
+    "passwordTooShort": "Das Passwort muss mindestens {min} Zeichen lang sein.",
+    "passwordMismatch": "Die Passwörter stimmen nicht überein."
+  },
+  "messages": {
+    "registered": "Fast geschafft! Wir haben eine E-Mail an {email} geschickt. Bitte bestätige deine Adresse mit dem enthaltenen Link und melde dich dann an. Falls du schon ein Konto hast, enthält die E-Mail stattdessen einen Anmeldelink.",
+    "linkSent": "Falls ein Konto für {email} existiert, haben wir einen Anmeldelink dorthin geschickt. Der Link ist {minutes, plural, one {# Minute} other {# Minuten}} gültig.",
+    "resetSent": "Falls ein Konto für {email} existiert, haben wir einen Link zum Festlegen eines neuen Passworts dorthin geschickt. Der Link ist {minutes, plural, one {# Minute} other {# Minuten}} gültig.",
+    "verificationSent": "Wir haben einen neuen Bestätigungslink an {email} geschickt.",
+    "alreadyVerified": "Deine E-Mail-Adresse wurde bereits bestätigt.",
+    "profileSaved": "Deine Daten wurden gespeichert.",
+    "passwordChanged": "Dein Passwort wurde geändert."
+  }
+}

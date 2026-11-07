@@ -7,7 +7,8 @@ ticket shop – theatres, clubs and associations, festivals:
 - multi-event cart; tariffs (reduced, wheelchair, companion …) chosen per seat in the cart
 - virtual waiting room and Redis-backed seat locking for high-demand presales
 - guest checkout plus optional customer accounts
-- PayPal and bank transfer (Vorkasse) with automated reconciliation (FinTS / PSD2 / CAMT)
+- PayPal and bank transfer (Vorkasse) with automated reconciliation (FinTS, PSD2 via finAPI,
+  camt.052/053, MT940, CSV, IMAP) and GoBD-compliant invoices
 - PDF tickets, Apple & Google Wallet passes, transactional e-mail
 - offline-first Android check-in app with cryptographically signed QR codes
 
@@ -15,8 +16,10 @@ Every business parameter (prices, fees, tax rates, layouts, templates, credentia
 rules, branding) is configured in the Admin Portal – nothing organisation-specific is
 hard-coded.
 
-> **Status:** Phase 2 of 6 – seating plan editor, seat locking, multi-event cart and virtual
-> waiting room. Checkout and payments follow in phase 3.
+> **Status:** Phase 3 of 6 – seating plan editor, seat locking, multi-event cart, virtual
+> waiting room, checkout (PayPal + bank transfer), bank reconciliation (FinTS, finAPI,
+> camt/MT940/CSV, IMAP), invoices and transactional e-mail. Tickets and wallet passes follow
+> in phase 4.
 > See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATABASE.md](docs/DATABASE.md) and
 > [docs/REDIS.md](docs/REDIS.md).
 

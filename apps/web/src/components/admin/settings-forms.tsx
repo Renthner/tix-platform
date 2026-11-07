@@ -1,6 +1,7 @@
 'use client';
 
 import { SEAT_SELECTION_STYLES, SUPPORTED_LOCALES, type SeatSelectionStyle } from '@tix/shared';
+import { Clock } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useActionState, useState, type ReactNode } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -18,14 +19,14 @@ import {
 } from './form-controls';
 import { TimeZoneOptions } from './venue-form';
 
-type Action = (state: ActionState, fd: FormData) => Promise<ActionState>;
+export type Action = (state: ActionState, fd: FormData) => Promise<ActionState>;
 
-function useSettingsForm(action: Action) {
+export function useSettingsForm(action: Action) {
   const [state, formAction] = useActionState(action, IDLE);
   return { state, formAction, err: (name: string) => errorOf(state, name) };
 }
 
-function SwitchRow({
+export function SwitchRow({
   name,
   defaultChecked,
   label,
@@ -302,24 +303,44 @@ export function CheckoutSettingsForm({
   const { state, formAction, err } = useSettingsForm(action);
   const [ttl, setTtl] = useState(String(initial.cartLockTtlSeconds));
   const [grace, setGrace] = useState(String(initial.paymentGraceSeconds));
+  const minuteValue = (seconds: string) => {
+    const n = Number(seconds);
+    return Number.isFinite(n) && n >= 0 ? Math.round((n / 60) * 10) / 10 : 0;
+  };
   const minutes = (seconds: string) => {
     const n = Number(seconds);
-    return Number.isFinite(n) && n > 0
-      ? t('minutes', { value: Math.round((n / 60) * 10) / 10 })
-      : undefined;
+    return Number.isFinite(n) && n > 0 ? t('minutes', { value: minuteValue(seconds) }) : undefined;
   };
+  const withMinutes = (seconds: string, hint: string) =>
+    [minutes(seconds), hint].filter(Boolean).join(' · ');
+  const ttlMinutes = minuteValue(ttl);
+  const graceMinutes = minuteValue(grace);
   return (
     <ActionForm action={formAction} className="space-y-5">
       <ActionFeedback state={state} />
       <Alert>
         <AlertDescription>{t('overrideNotice')}</AlertDescription>
       </Alert>
+      <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+        <div className="mb-2 flex items-center gap-2 font-medium">
+          <Clock className="size-4" /> {t('timeline.title')}
+        </div>
+        <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
+          <li>{t('timeline.cart', { minutes: ttlMinutes })}</li>
+          <li>
+            {graceMinutes > 0
+              ? t('timeline.checkout', { minutes: graceMinutes, total: ttlMinutes + graceMinutes })
+              : t('timeline.checkoutNone')}
+          </li>
+          <li>{t('timeline.order')}</li>
+        </ol>
+      </div>
       <div className="grid gap-4 md:grid-cols-2">
         <Field
           label={t('cartLockTtlSeconds')}
           htmlFor="cartLockTtlSeconds"
           error={err('cartLockTtlSeconds')}
-          hint={minutes(ttl) ?? t('cartLockTtlHint')}
+          hint={withMinutes(ttl, t('cartLockTtlHint'))}
         >
           <Input
             id="cartLockTtlSeconds"
@@ -336,7 +357,7 @@ export function CheckoutSettingsForm({
           label={t('paymentGraceSeconds')}
           htmlFor="paymentGraceSeconds"
           error={err('paymentGraceSeconds')}
-          hint={minutes(grace) ?? t('paymentGraceHint')}
+          hint={withMinutes(grace, t('paymentGraceHint'))}
         >
           <Input
             id="paymentGraceSeconds"

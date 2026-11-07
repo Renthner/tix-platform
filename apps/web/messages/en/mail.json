@@ -1,0 +1,55 @@
+{
+  "paymentMethods": {
+    "PAYPAL": "PayPal",
+    "BANK_TRANSFER": "Bank transfer (prepayment)",
+    "CASH": "Cash",
+    "CARD": "Card payment",
+    "COMPLIMENTARY": "Complimentary"
+  },
+  "items": {
+    "seat": "Block {section} · Row {row} · Seat {seat}",
+    "seatWithoutRow": "Block {section} · Seat {seat}",
+    "standing": "Standing area · {section}",
+    "fees": "Fees",
+    "feeQuantity": "{name} ({quantity} ×)",
+    "total": "Total",
+    "doorsOpen": "Doors open {time}"
+  },
+  "invoice": {
+    "title": "Invoice",
+    "creditNoteTitle": "Credit note",
+    "number": "Invoice no.",
+    "creditNoteNumber": "Credit note no.",
+    "date": "Invoice date",
+    "orderNumber": "Order no.",
+    "orderDate": "Order date",
+    "paymentMethod": "Payment method",
+    "customerEmail": "E-mail",
+    "corrects": "Corrects invoice",
+    "heading": "Invoice {number}",
+    "creditNoteHeading": "Credit note {number}",
+    "intro": "Thank you for your order. We invoice you for the following services:",
+    "creditNoteIntro": "We credit you the following amounts:",
+    "position": "Pos.",
+    "description": "Description",
+    "quantity": "Qty",
+    "unitPrice": "Unit price",
+    "taxRate": "VAT",
+    "amount": "Amount",
+    "serviceDate": "Date of supply: {date}",
+    "net": "Net amount",
+    "taxLine": "VAT {rate} on {net}",
+    "gross": "Total amount",
+    "vatId": "VAT ID",
+    "taxNumber": "Tax no.",
+    "register": "Register",
+    "representatives": "Represented by",
+    "page": "Page {page} of {pages}",
+    "notes": {
+      "serviceDate": "Unless stated otherwise, the date of supply is the invoice date.",
+      "paid": "Paid in full on {date} via {method}. Thank you!"
+    },
+    "fileName": "Invoice-{number}.pdf",
+    "creditNoteFileName": "Credit-note-{number}.pdf"
+  }
+}

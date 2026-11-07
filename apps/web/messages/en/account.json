@@ -1,0 +1,150 @@
+{
+  "nav": {
+    "signIn": "Sign in",
+    "myAccount": "My account"
+  },
+  "fields": {
+    "email": "E-mail address",
+    "password": "Password",
+    "passwordConfirm": "Repeat password",
+    "newPassword": "New password",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "passwordHint": "At least {min} characters.",
+    "submitting": "Please wait…",
+    "backToLogin": "Back to sign-in"
+  },
+  "login": {
+    "title": "Sign in",
+    "description": "Sign in to see your orders and tickets.",
+    "submit": "Sign in",
+    "or": "or",
+    "linkSubmit": "E-mail me a sign-in link",
+    "linkHint": "No password needed – we will send you a link that signs you in.",
+    "forgot": "Forgot your password?",
+    "noAccount": "No account yet?",
+    "register": "Create an account"
+  },
+  "register": {
+    "title": "Create an account",
+    "description": "With an account you can see all your orders and download your tickets again at any time.",
+    "submit": "Create account",
+    "haveAccount": "Already have an account?",
+    "login": "Sign in",
+    "guestNote": "Bought tickets as a guest before? Register with the same e-mail address – once it is confirmed, your earlier orders appear in your account.",
+    "continueToLogin": "Sign in and continue"
+  },
+  "forgot": {
+    "title": "Forgot your password?",
+    "description": "Enter your e-mail address and we will send you a link to set a new password.",
+    "submit": "Send link"
+  },
+  "reset": {
+    "title": "Set a new password",
+    "description": "Choose a new password for your account. You will be signed out on all other devices.",
+    "submit": "Save new password",
+    "requestNew": "Request a new link"
+  },
+  "loginLink": {
+    "title": "Sign in",
+    "description": "Click the button to sign in to your account.",
+    "submit": "Sign in now"
+  },
+  "verify": {
+    "title": "Confirm e-mail address",
+    "verified": "Thank you – your e-mail address is confirmed. Your orders are now shown in your account.",
+    "alreadyVerified": "Your e-mail address has already been confirmed.",
+    "invalid": "This confirmation link is invalid or has expired. Sign in and request a new link in your account.",
+    "continue": "Continue",
+    "signIn": "Sign in"
+  },
+  "overview": {
+    "title": "My account",
+    "signedInAs": "{name} · {email}",
+    "signOut": "Sign out",
+    "passwordReset": "Your new password has been saved. You have been signed out on all other devices.",
+    "unverifiedTitle": "Please confirm your e-mail address",
+    "unverified": "We have sent a confirmation link to {email}. Your orders appear here as soon as the address is confirmed.",
+    "resend": "Send the link again",
+    "noPasswordTitle": "No password set",
+    "noPassword": "You signed in with an e-mail link. Set a password below if you also want to sign in with it."
+  },
+  "orders": {
+    "title": "My orders",
+    "unverified": "Confirm your e-mail address to see your orders.",
+    "empty": "You have no orders yet.",
+    "browse": "Browse events",
+    "number": "Order {number}",
+    "placedOn": "Placed on {date}",
+    "tickets": "{count, plural, one {# ticket} other {# tickets}}",
+    "view": "View order",
+    "status": {
+      "PENDING": "Payment in progress",
+      "AWAITING_PAYMENT": "Awaiting payment",
+      "PAID": "Paid",
+      "CANCELLED": "Cancelled",
+      "EXPIRED": "Expired",
+      "REFUNDED": "Refunded",
+      "PARTIALLY_REFUNDED": "Partially refunded"
+    },
+    "method": {
+      "PAYPAL": "PayPal",
+      "BANK_TRANSFER": "Bank transfer",
+      "CASH": "Cash",
+      "CARD": "Card",
+      "COMPLIMENTARY": "Complimentary"
+    }
+  },
+  "profile": {
+    "title": "Personal details",
+    "description": "Used to pre-fill the checkout. Changes do not affect existing orders.",
+    "emailHint": "The e-mail address cannot be changed.",
+    "phone": "Phone (optional)",
+    "addressTitle": "Address (optional)",
+    "street": "Street and house number",
+    "addressLine2": "Address line 2",
+    "postalCode": "Postal code",
+    "city": "City",
+    "country": "Country",
+    "countryHint": "Two-letter code, e.g. DE, AT, CH",
+    "submit": "Save details"
+  },
+  "password": {
+    "title": "Password",
+    "changeDescription": "After the change you will be signed out on all other devices.",
+    "setDescription": "Set a password to sign in without an e-mail link.",
+    "current": "Current password",
+    "submit": "Change password",
+    "submitSet": "Set password"
+  },
+  "errors": {
+    "INVALID_CREDENTIALS": "The e-mail address or password is not correct.",
+    "ACCOUNT_LOCKED": "Too many failed attempts. Please try again in {minutes, plural, one {# minute} other {# minutes}} or sign in with an e-mail link.",
+    "RATE_LIMITED": "Too many requests. Please wait a moment and try again.",
+    "TOKEN_INVALID": "This link is invalid or has expired. Please request a new one.",
+    "ACCOUNTS_DISABLED": "Customer accounts are currently not available.",
+    "LOGIN_LINK_DISABLED": "Sign-in via e-mail link is currently not available.",
+    "CURRENT_PASSWORD_INVALID": "The current password is not correct.",
+    "SESSION_EXPIRED": "Your session has expired. Please sign in again.",
+    "VALIDATION_FAILED": "Please check your input.",
+    "GENERIC": "Something went wrong. Please try again."
+  },
+  "fieldErrors": {
+    "required": "Required",
+    "email": "Please enter a valid e-mail address.",
+    "tooLong": "Too long",
+    "invalid": "Invalid value",
+    "country": "Please enter a two-letter country code (e.g. DE).",
+    "passwordTooShort": "The password needs at least {min} characters.",
+    "passwordMismatch": "The passwords do not match."
+  },
+  "messages": {
+    "registered": "Almost done! We have sent an e-mail to {email}. Please confirm your address with the link it contains, then sign in. If you already have an account, the e-mail contains a sign-in link instead.",
+    "linkSent": "If an account exists for {email}, we have sent it a sign-in link. The link is valid for {minutes, plural, one {# minute} other {# minutes}}.",
+    "resetSent": "If an account exists for {email}, we have sent it a link to set a new password. The link is valid for {minutes, plural, one {# minute} other {# minutes}}.",
+    "verificationSent": "We have sent a new confirmation link to {email}.",
+    "alreadyVerified": "Your e-mail address has already been confirmed.",
+    "profileSaved": "Your details have been saved.",
+    "passwordChanged": "Your password has been changed."
+  }
+}

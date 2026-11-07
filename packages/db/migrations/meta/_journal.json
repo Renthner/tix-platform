@@ -78,6 +78,13 @@
       "when": 1793900734748,
       "tag": "0010_page_layout_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794039438019,
+      "tag": "0011_event_customer_accounts",
+      "breakpoints": true
     }
   ]
 }

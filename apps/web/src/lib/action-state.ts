@@ -26,6 +26,10 @@ export const FIELD_ERROR_CODES = [
   'svgEmpty',
   'svgTooComplex',
   'confirmMismatch',
+  'numberPattern',
+  'dunningOrder',
+  'secretRequired',
+  'prefixFormat',
 ] as const;
 export type FieldErrorCode = (typeof FIELD_ERROR_CODES)[number];
 

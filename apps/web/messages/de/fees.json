@@ -1,0 +1,173 @@
+{
+  "nav": "Gebühren & Steuern",
+  "tab": "Gebühren",
+  "title": "Gebühren & Steuersätze",
+  "description": "Steuersätze und Servicegebühren, die zusätzlich zum Ticketpreis berechnet werden. Veranstaltungen können globale Gebühren im Reiter „Gebühren“ anpassen oder erlassen.",
+  "readOnly": "Sie können diese Einstellungen ansehen. Zum Ändern ist die Rolle Finanzen erforderlich.",
+  "status": "Status",
+  "actions": "Aktionen",
+  "active": "Aktiv",
+  "inactive": "Inaktiv",
+  "moveUp": "Nach oben",
+  "moveDown": "Nach unten",
+  "delete": "Löschen",
+  "howItWorks": {
+    "title": "So werden Gebühren berechnet",
+    "perTicket": "Pro Ticket – für jedes Ticket einer Veranstaltung: fester Betrag oder Prozentsatz des Ticketpreises (nach Ermäßigungen).",
+    "perEvent": "Einmal pro Veranstaltung – einmal je Veranstaltung in der Bestellung: fester Betrag oder Prozentsatz der Tickets dieser Veranstaltung.",
+    "perOrder": "Einmal pro Bestellung – einmal je Bestellung, unabhängig davon, wie viele Veranstaltungen sie enthält. Nur als globale Gebühr möglich, immer mit eigenem Steuersatz.",
+    "filters": "Gebühren lassen sich auf Zahlungsarten (z. B. PayPal-Aufschlag) und Verkaufskanäle beschränken. Beträge sind brutto – die Steuer ist enthalten.",
+    "events": "Jede Veranstaltung übernimmt die globalen Gebühren. Im Reiter „Gebühren“ der Veranstaltung kann eine globale Gebühr angepasst (eigene Werte) oder erlassen werden; zusätzlich sind veranstaltungseigene Gebühren möglich.",
+    "snapshots": "Bestellungen speichern ihre Gebühren und Steuerbeträge – Änderungen gelten nur für neue Bestellungen."
+  },
+  "taxRates": {
+    "title": "Steuersätze",
+    "description": "Umsatzsteuersätze für Tickets und Gebühren. Jede Veranstaltung nutzt einen Steuersatz; Gebühren verwenden den Satz der Veranstaltung, sofern sie keinen eigenen haben.",
+    "new": "Neuer Steuersatz",
+    "edit": "Steuersatz bearbeiten",
+    "empty": "Noch keine Steuersätze.",
+    "name": "Name",
+    "rate": "Satz (%)",
+    "rateColumn": "Satz",
+    "invoiceNote": "Rechnungshinweis",
+    "invoiceNoteHint": "Wird auf Rechnungen gedruckt, z. B. der gesetzliche Hinweis bei steuerfreien Umsätzen oder Kleinunternehmern.",
+    "usage": "Verwendet von",
+    "usageValue": "{events, plural, =0 {keiner Veranstaltung} one {# Veranstaltung} other {# Veranstaltungen}} · {fees, plural, =0 {keiner Gebühr} one {# Gebühr} other {# Gebühren}}",
+    "isDefault": "Standard für neue Veranstaltungen",
+    "default": "Standard",
+    "isActive": "Aktiv – für neue Veranstaltungen und Gebühren auswählbar",
+    "defaultMustBeActive": "Der Standard-Steuersatz muss aktiv sein.",
+    "sortOrder": "Reihenfolge",
+    "rateChangeHint": "Ein geänderter Satz gilt nur für neue Bestellungen; bestehende Bestellungen und Rechnungen behalten ihre Steuerbeträge.",
+    "deleteTitle": "Steuersatz löschen?",
+    "deleteDescription": "„{name}“ wird endgültig gelöscht.",
+    "inUseHint": "Wird von Veranstaltungen oder Gebühren verwendet – stattdessen deaktivieren."
+  },
+  "global": {
+    "title": "Globale Gebühren",
+    "description": "Werden für jede Veranstaltung (in dieser Reihenfolge) berechnet, sofern eine Veranstaltung sie nicht anpasst oder erlässt.",
+    "new": "Neue Gebühr",
+    "edit": "Gebühr bearbeiten",
+    "empty": "Keine Gebühren – Tickets werden zum Ticketpreis verkauft.",
+    "adjustments": "Anpassungen in Veranstaltungen",
+    "adjusted": "{count} angepasst",
+    "waived": "{count} erlassen",
+    "deleteTitle": "Gebühr löschen?",
+    "deleteDescription": "„{name}“ wird gelöscht. Bestehende Bestellungen behalten ihre Gebührenpositionen.",
+    "deleteOverrides": "{count, plural, one {Die Anpassung in # Veranstaltung wird ebenfalls gelöscht.} other {Die Anpassungen in # Veranstaltungen werden ebenfalls gelöscht.}}",
+    "toggleActive": "Gebühr berechnen"
+  },
+  "event": {
+    "globalTitle": "Globale Gebühren für diese Veranstaltung",
+    "globalDescription": "Von den globalen Gebühren übernommen. Passen Sie eine Gebühr an, um eigene Werte für diese Veranstaltung festzulegen, oder erlassen Sie sie.",
+    "globalEmpty": "Es gibt keine globalen Gebühren.",
+    "manageGlobal": "Globale Gebühren verwalten",
+    "orderFeesTitle": "Bestellgebühren",
+    "orderFeesDescription": "Globale Gebühren, die einmal pro Bestellung berechnet werden. Sie können nicht je Veranstaltung angepasst werden.",
+    "ownTitle": "Gebühren nur für diese Veranstaltung",
+    "ownDescription": "Zusätzliche Gebühren, die nur für Tickets dieser Veranstaltung berechnet werden.",
+    "ownEmpty": "Keine zusätzlichen Gebühren.",
+    "newOwn": "Neue Veranstaltungsgebühr",
+    "editOwn": "Veranstaltungsgebühr bearbeiten",
+    "adjust": "Anpassen",
+    "adjustTitle": "„{name}“ für diese Veranstaltung anpassen",
+    "adjustDescription": "Diese Werte ersetzen die globale Gebühr nur für diese Veranstaltung.",
+    "globalValue": "Global: {value}",
+    "waive": "Erlassen",
+    "waiveTitle": "„{name}“ für diese Veranstaltung erlassen?",
+    "waiveDescription": "Die Gebühr wird für diese Veranstaltung nicht mehr berechnet. Sie können sie jederzeit auf die globale Gebühr zurücksetzen.",
+    "reset": "Zurücksetzen",
+    "resetTitle": "„{name}“ auf die globale Gebühr zurücksetzen?",
+    "resetDescription": "Die eigenen Werte der Veranstaltung werden entfernt, die globale Gebühr gilt wieder.",
+    "deleteTitle": "Veranstaltungsgebühr löschen?",
+    "deleteDescription": "„{name}“ wird gelöscht. Bestehende Bestellungen behalten ihre Gebührenpositionen.",
+    "states": {
+      "INHERITED": "Global",
+      "OVERRIDDEN": "Angepasst",
+      "WAIVED": "Erlassen",
+      "globallyInactive": "Global inaktiv"
+    }
+  },
+  "form": {
+    "name": "Name",
+    "nameHint": "Wird Kunden im Checkout und auf Rechnungen angezeigt.",
+    "scope": "Berechnung je",
+    "calculation": "Berechnungsart",
+    "valueFixed": "Betrag ({currency})",
+    "valuePercent": "Prozentsatz (%)",
+    "taxRate": "Steuersatz",
+    "eventTaxRate": "Steuersatz der Veranstaltung",
+    "taxRateRequired": "Gebühren pro Bestellung benötigen einen eigenen Steuersatz.",
+    "inactiveTaxRate": "{name} (inaktiv)",
+    "paymentMethods": "Zahlungsarten",
+    "channels": "Verkaufskanäle",
+    "allHint": "Alle anhaken, damit die Gebühr überall gilt (auch für später hinzukommende Optionen).",
+    "selectionRequired": "Wählen Sie mindestens eine Option.",
+    "isActive": "Aktiv",
+    "sortOrder": "Reihenfolge",
+    "scopeLocked": "Veranstaltungen passen diese Gebühr an, daher kann sie nicht einmal pro Bestellung berechnet werden. Setzen Sie zuerst deren Anpassungen zurück."
+  },
+  "scopes": {
+    "PER_TICKET": "Pro Ticket",
+    "PER_EVENT": "Einmal pro Veranstaltung",
+    "PER_ORDER": "Einmal pro Bestellung"
+  },
+  "calculations": {
+    "FIXED": "Fester Betrag",
+    "PERCENT": "Prozentsatz"
+  },
+  "describe": {
+    "PER_TICKET": {
+      "FIXED": "{amount} pro Ticket",
+      "PERCENT": "{percent} des Ticketpreises"
+    },
+    "PER_EVENT": {
+      "FIXED": "{amount} einmal pro Veranstaltung",
+      "PERCENT": "{percent} der Tickets der Veranstaltung"
+    },
+    "PER_ORDER": {
+      "FIXED": "{amount} einmal pro Bestellung",
+      "PERCENT": "{percent} der Tickets der Bestellung"
+    }
+  },
+  "appliesTo": "Gilt für",
+  "allMethods": "Alle Zahlungsarten",
+  "allChannels": "Alle Kanäle",
+  "taxRateColumn": "Steuersatz",
+  "eventTaxRateShort": "Satz der Veranstaltung",
+  "methods": {
+    "PAYPAL": "PayPal",
+    "BANK_TRANSFER": "Vorkasse (Überweisung)",
+    "CASH": "Bar",
+    "CARD": "Karte",
+    "COMPLIMENTARY": "Freikarte"
+  },
+  "channelNames": {
+    "ONLINE": "Online-Shop",
+    "BOX_OFFICE": "Abendkasse",
+    "ADMIN": "Admin"
+  },
+  "example": {
+    "title": "Beispiel",
+    "description": "Gebühren einer Online-Bestellung für eine Veranstaltung, je Zahlungsart.",
+    "ticketPrice": "Ticketpreis ({currency})",
+    "tickets": "Tickets",
+    "summary": "Für {count, plural, one {# Ticket} other {# Tickets}} zu je {price}:",
+    "ticketsLine": "Tickets",
+    "noFees": "Keine Gebühren",
+    "total": "Gesamt",
+    "invalidPrice": "Geben Sie einen Ticketpreis wie 30,00 ein."
+  },
+  "messages": {
+    "waived": "Die Gebühr wird für diese Veranstaltung erlassen.",
+    "reset": "Die globale Gebühr gilt wieder.",
+    "reordered": "Reihenfolge der Gebühren gespeichert."
+  },
+  "errors": {
+    "TAX_RATE_IN_USE": "Dieser Steuersatz wird von Veranstaltungen oder Gebühren verwendet und kann nicht gelöscht werden. Deaktivieren Sie ihn stattdessen.",
+    "FEE_HAS_OVERRIDES": "Veranstaltungen passen diese Gebühr an oder erlassen sie, daher kann sie nicht einmal pro Bestellung berechnet werden. Setzen Sie diese Veranstaltungen zuerst zurück.",
+    "FEE_NOT_OVERRIDABLE": "Gebühren pro Bestellung können nicht je Veranstaltung angepasst werden.",
+    "FEE_SCOPE_NOT_ALLOWED": "Gebühren pro Bestellung können nur global festgelegt werden.",
+    "FEE_ORDER_INVALID": "Die Liste der Gebühren hat sich zwischenzeitlich geändert. Laden Sie die Seite neu und versuchen Sie es erneut."
+  }
+}

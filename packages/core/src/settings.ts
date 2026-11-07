@@ -69,3 +69,79 @@ export function invalidateSettings(key?: string): void {
   if (key) cache.delete(key);
   else cache.clear();
 }
+
+/* ---------------------------------------------------------------------------------------
+ * Secret settings (`secret: true` keys): stored encrypted in `encrypted_value`, never sent
+ * back to the browser. The admin UI only learns whether a secret is configured.
+ * ------------------------------------------------------------------------------------- */
+
+const secretContext = (key: string) => `setting:${key}`;
+
+function assertSecret(key: SettingKey): void {
+  if (!SETTINGS[key].secret) throw new Error(`Setting "${key}" is not a secret setting`);
+}
+
+/** Decrypted secret setting, or null when it was never configured. */
+export async function getSecretSetting<K extends SettingKey>(
+  ctx: Pick<CoreContext, 'db' | 'secrets'>,
+  key: K,
+): Promise<SettingValue<K> | null> {
+  assertSecret(key);
+  const cacheKey = `secret:${key}`;
+  const hit = cache.get(cacheKey);
+  if (hit && hit.expires > Date.now()) return hit.value as SettingValue<K> | null;
+  const [row] = await ctx.db
+    .select({ encryptedValue: systemSettings.encryptedValue })
+    .from(systemSettings)
+    .where(eq(systemSettings.key, key));
+  let value: SettingValue<K> | null = null;
+  if (row?.encryptedValue) {
+    if (!ctx.secrets) throw new Error('Core context capability "secrets" is not configured');
+    value = parseSetting(key, ctx.secrets.decryptJson(row.encryptedValue, secretContext(key)));
+  }
+  cache.set(cacheKey, { value, expires: Date.now() + TTL_MS });
+  return value;
+}
+
+export async function hasSecretSetting(
+  ctx: Pick<CoreContext, 'db'>,
+  key: SettingKey,
+): Promise<boolean> {
+  assertSecret(key);
+  const [row] = await ctx.db
+    .select({ key: systemSettings.key })
+    .from(systemSettings)
+    .where(eq(systemSettings.key, key));
+  return Boolean(row);
+}
+
+export async function saveSecretSetting<K extends SettingKey>(
+  ctx: Pick<CoreContext, 'publisher' | 'channels' | 'secrets'> & { db: Executor },
+  key: K,
+  input: unknown,
+  updatedByUserId: string | null,
+): Promise<void> {
+  assertSecret(key);
+  if (!ctx.secrets) throw new Error('Core context capability "secrets" is not configured');
+  const value = parseSetting(key, input);
+  const encryptedValue = ctx.secrets.encryptJson(value, secretContext(key));
+  await ctx.db
+    .insert(systemSettings)
+    .values({ key, value: null, encryptedValue, updatedByUserId })
+    .onConflictDoUpdate({
+      target: systemSettings.key,
+      set: { value: null, encryptedValue, updatedByUserId, updatedAt: new Date() },
+    });
+  invalidateSettings(`secret:${key}`);
+  await ctx.publisher.publish(ctx.channels.configInvalidation(), JSON.stringify({ setting: key }));
+}
+
+export async function clearSecretSetting(
+  ctx: Pick<CoreContext, 'publisher' | 'channels'> & { db: Executor },
+  key: SettingKey,
+): Promise<void> {
+  assertSecret(key);
+  await ctx.db.delete(systemSettings).where(eq(systemSettings.key, key));
+  invalidateSettings(`secret:${key}`);
+  await ctx.publisher.publish(ctx.channels.configInvalidation(), JSON.stringify({ setting: key }));
+}

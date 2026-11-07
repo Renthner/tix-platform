@@ -1,10 +1,9 @@
 import { createServer, type Server } from 'node:http';
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { createCoreContext } from '@tix/core';
+import { JobQueues, createCoreContext, objectStorageFromEnv } from '@tix/core';
 import { createDb, loadRootEnv, pingDb } from '@tix/db';
 import {
-  QUEUE_NAMES,
   RedisConnections,
   createKeyspace,
   inspectRedisConfig,
@@ -17,11 +16,7 @@ import { Queue, Worker } from 'bullmq';
 import { loadEnv } from './env';
 import { createLogger } from './logger';
 import { startLoops } from './loops';
-import {
-  MAINTENANCE_JOBS,
-  PURGE_INTERVAL_MS,
-  createMaintenanceProcessor,
-} from './processors/maintenance';
+import { processorRegistrations } from './processors';
 
 const VERSION = process.env.APP_VERSION ?? '0.1.0';
 
@@ -32,8 +27,8 @@ async function main(): Promise<void> {
   const workerId = `${hostname()}-${process.pid}-${randomUUID().slice(0, 8)}`;
   const startedAt = new Date().toISOString();
 
-  // Fail fast on a broken key ring – later phases decrypt bank/PayPal/wallet secrets here.
-  createSecretBox(parseKeyRing(env.APP_ENCRYPTION_KEYS));
+  // Fail fast on a broken key ring – bank / PayPal / SMTP credentials are decrypted here.
+  const secrets = createSecretBox(parseKeyRing(env.APP_ENCRYPTION_KEYS));
 
   const dbHandle = createDb({
     connectionString: env.DATABASE_URL,
@@ -51,40 +46,44 @@ async function main(): Promise<void> {
   logger.info({ workerId, dbLatency, redisLatency }, 'dependencies reachable');
 
   // ── Seat-lock sweeper + waiting-room ticker (leader-elected) ──────────────
+  const jobs = new JobQueues(redis.bullmq, keys.bullPrefix());
   const core = createCoreContext({
     db: dbHandle.db,
     redis: redis.command,
     publisher: redis.publisher,
     keyPrefix: env.REDIS_KEY_PREFIX,
     sessionSecret: env.SESSION_SECRET,
+    appUrl: env.APP_URL,
+    secrets,
+    storage: objectStorageFromEnv(env),
+    jobs,
   });
   const loops = startLoops(core, workerId, logger);
 
   // ── Queues & processors ───────────────────────────────────────────────────
   const bullPrefix = keys.bullPrefix();
-  const maintenanceQueue = new Queue(QUEUE_NAMES.maintenance, {
-    connection: redis.bullmq,
-    prefix: bullPrefix,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5_000 },
-      removeOnComplete: { age: 24 * 3600, count: 1_000 },
-      removeOnFail: { age: 7 * 24 * 3600 },
-    },
-  });
-  await maintenanceQueue.upsertJobScheduler(
-    MAINTENANCE_JOBS.purgeExpiredCredentials,
-    { every: PURGE_INTERVAL_MS },
-    { name: MAINTENANCE_JOBS.purgeExpiredCredentials },
+  const registrations = processorRegistrations({ core, db: dbHandle.db, logger });
+  const schedulerQueues: Queue[] = [];
+  for (const registration of registrations) {
+    if (!registration.schedulers?.length) continue;
+    const queue = new Queue(registration.queue, { connection: redis.bullmq, prefix: bullPrefix });
+    for (const scheduler of registration.schedulers) {
+      await queue.upsertJobScheduler(
+        scheduler.name,
+        { every: scheduler.everyMs },
+        { name: scheduler.name, data: scheduler.data ?? {} },
+      );
+    }
+    schedulerQueues.push(queue);
+  }
+  const workers: Worker[] = registrations.map(
+    (registration) =>
+      new Worker(registration.queue, registration.processor, {
+        connection: redis.bullmq,
+        prefix: bullPrefix,
+        concurrency: registration.concurrency,
+      }),
   );
-
-  const workers: Worker[] = [
-    new Worker(QUEUE_NAMES.maintenance, createMaintenanceProcessor(dbHandle.db, logger), {
-      connection: redis.bullmq,
-      prefix: bullPrefix,
-      concurrency: 1,
-    }),
-  ];
   for (const w of workers) {
     w.on('failed', (job, err) =>
       logger.error({ queue: w.name, job: job?.name, jobId: job?.id, err }, 'job failed'),
@@ -151,7 +150,8 @@ async function main(): Promise<void> {
     healthServer.close();
     await loops.stop();
     await Promise.allSettled(workers.map((w) => w.close()));
-    await maintenanceQueue.close();
+    await Promise.all(schedulerQueues.map((q) => q.close()));
+    await jobs.close();
     await removeWorkerHeartbeat(redis.command, keys, workerId).catch(() => {});
     await redis.close();
     await dbHandle.close();

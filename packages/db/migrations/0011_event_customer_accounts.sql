@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "customer_accounts_enabled" boolean;

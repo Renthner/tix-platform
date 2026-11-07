@@ -1,0 +1,55 @@
+{
+  "paymentMethods": {
+    "PAYPAL": "PayPal",
+    "BANK_TRANSFER": "Überweisung (Vorkasse)",
+    "CASH": "Barzahlung",
+    "CARD": "Kartenzahlung",
+    "COMPLIMENTARY": "Freikarte"
+  },
+  "items": {
+    "seat": "Block {section} · Reihe {row} · Platz {seat}",
+    "seatWithoutRow": "Block {section} · Platz {seat}",
+    "standing": "Stehplatz · {section}",
+    "fees": "Gebühren",
+    "feeQuantity": "{name} ({quantity} ×)",
+    "total": "Gesamt",
+    "doorsOpen": "Einlass {time}"
+  },
+  "invoice": {
+    "title": "Rechnung",
+    "creditNoteTitle": "Rechnungskorrektur",
+    "number": "Rechnungsnr.",
+    "creditNoteNumber": "Korrekturnr.",
+    "date": "Rechnungsdatum",
+    "orderNumber": "Bestellnr.",
+    "orderDate": "Bestelldatum",
+    "paymentMethod": "Zahlungsart",
+    "customerEmail": "E-Mail",
+    "corrects": "Korrektur zu Rechnung",
+    "heading": "Rechnung {number}",
+    "creditNoteHeading": "Rechnungskorrektur {number}",
+    "intro": "Vielen Dank für Ihre Bestellung. Wir berechnen Ihnen folgende Leistungen:",
+    "creditNoteIntro": "Wir schreiben Ihnen folgende Beträge gut:",
+    "position": "Pos.",
+    "description": "Beschreibung",
+    "quantity": "Menge",
+    "unitPrice": "Einzelpreis",
+    "taxRate": "USt.",
+    "amount": "Betrag",
+    "serviceDate": "Leistungsdatum: {date}",
+    "net": "Nettobetrag",
+    "taxLine": "USt. {rate} auf {net}",
+    "gross": "Gesamtbetrag",
+    "vatId": "USt-IdNr.",
+    "taxNumber": "Steuernr.",
+    "register": "Register",
+    "representatives": "Vertreten durch",
+    "page": "Seite {page} von {pages}",
+    "notes": {
+      "serviceDate": "Sofern nicht anders angegeben, entspricht das Leistungsdatum dem Rechnungsdatum.",
+      "paid": "Der Betrag wurde am {date} per {method} vollständig bezahlt. Vielen Dank!"
+    },
+    "fileName": "Rechnung-{number}.pdf",
+    "creditNoteFileName": "Rechnungskorrektur-{number}.pdf"
+  }
+}

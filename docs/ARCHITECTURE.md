@@ -2,7 +2,7 @@
 
 ## Monorepo layout
 
-```
+```text
 apps/
   web/        Next.js 16 (App Router, next-intl) – storefront, Admin Portal, route handlers
   realtime/   Socket.io gateway – live seat deltas, waiting-room updates (stateless, scalable)
@@ -13,7 +13,8 @@ packages/
   db/         Drizzle schema, migrations, client, transaction helpers, seed & CLIs
   redis/      Connection roles, key schema, Lua engines (seat locks, waiting room, rate limit)
   core/       Server-side domain services shared by web/worker: cart, waiting room, seat-map
-              save/clone, inventory mirror, public seat map cache, realtime publishing
+              save/clone, inventory mirror, public seat map cache, realtime publishing,
+              checkout/orders/payments (PayPal), dunning, banking, e-mail, invoices
 docker/       Redis config, object-storage bootstrap, Caddy reverse proxy
 scripts/      Smoke tests against running servers
 ```
@@ -46,7 +47,38 @@ Seat locking, waiting room and realtime data flow: see [REDIS.md](REDIS.md).
 3. Web publishes `[seatId, 'L']` to Redis Pub/Sub; every realtime instance batches deltas for
    100 ms and pushes one frame to all browsers watching the event.
 4. Unclaimed locks expire (`PXAT` = cart expiry); the worker sweeper broadcasts the release.
-5. At checkout (phase 3) PostgreSQL's partial unique index is the final authority.
+5. At checkout PostgreSQL's partial unique index is the final authority.
+
+## Checkout, orders & payments
+
+```text
+cart (Redis locks) ──"Proceed to checkout"──▶ +payment grace once (two-stage TTL)
+   │
+   └─"Place binding order" (POST /api/checkout)
+        quote per payment method (tariffs, fees, VAT) – rejected if the total changed
+        re-checks: sale state, held locks, orphan / companion rules, companion seat bought
+        alone → wheelchair space must be SOLD to the same e-mail, per-customer limit,
+        access-code quota (row locks on customer + code)
+        ┌ one transaction: customer upsert (lower(email)), gapless order number, items
+        │ (partial unique index), fees, GA capacity, history, outbox e-mail
+        └ after commit: Redis "taken" = R, locks removed, GA holds committed, cart cleared
+   ├─ BANK_TRANSFER → AWAITING_PAYMENT: reference PREFIX-YYYY-NNNNNN-C (Luhn), due date
+   │    (business days, regional holidays), reminder + auto-cancel dates, order page shows
+   │    bank details; bank sync / manual entry → recordPayment
+   └─ PAYPAL → PENDING: order page → PayPal Orders v2 (server-side redirect flow)
+        → /api/paypal/return captures → recordPayment; webhooks (signature verified via
+        PayPal's API, idempotent inbox `webhook_events`) cover buyers who never return
+
+recordPayment: fully paid → PAID, items CONFIRMED, Redis "taken" = S, `documents` job
+`order-paid` (invoice PDF + payment confirmation e-mail).
+Dunning job (`dunning` queue, every 5 min): one reminder, auto-cancel overdue Vorkasse orders
+unless "keep reserved" or partially paid, expire abandoned PayPal orders after asking PayPal
+(approved → captured; money arriving for an expired order is refunded automatically).
+```
+
+Order e-mails use a transactional outbox: the `email_messages` row is written in the same
+transaction as the state change, the BullMQ job is added after commit, and the worker
+re-queues stored-but-undispatched messages.
 
 ## Internationalisation
 
@@ -86,8 +118,8 @@ PostgreSQL and managed in the Admin Portal.
 ## Implementation phases
 
 1. Architecture, database schema & Docker foundation ✓
-2. **Visual seating editor, Redis locking & waiting room** ← current
-3. Checkout, PayPal & bank-transfer reconciliation engine
+2. Visual seating editor, Redis locking & waiting room ✓
+3. **Checkout, PayPal & bank-transfer reconciliation engine** ← current
 4. PDF ticket designer, Apple/Google Wallet & e-mail worker
 5. Admin Portal completion & box office
 6. Offline-first Android check-in app & pairing API

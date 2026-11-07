@@ -1,4 +1,5 @@
 import { getSetting } from '@tix/core';
+import { UserRound } from 'lucide-react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
@@ -9,6 +10,7 @@ import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { pickMessages } from '@/i18n/messages';
 import { getCore } from '@/server/core';
+import { getCustomerSession } from '@/server/customer-session';
 
 export default async function ShopLayout({
   children,
@@ -19,10 +21,13 @@ export default async function ShopLayout({
 }) {
   await resolveLocale(params);
   const core = getCore();
-  const [general, branding, t] = await Promise.all([
+  const [general, branding, t, accounts, customer, tAccount] = await Promise.all([
     getSetting(core, 'general'),
     getSetting(core, 'branding'),
     getTranslations('shop.layout'),
+    getSetting(core, 'customerAccounts'),
+    getCustomerSession(),
+    getTranslations('account.nav'),
   ]);
   const legal = [
     { href: branding.imprintUrl, label: t('imprint') },
@@ -31,7 +36,9 @@ export default async function ShopLayout({
   ].filter((l): l is { href: string; label: string } => !!l.href);
 
   return (
-    <NextIntlClientProvider messages={await pickMessages(['common', 'shop', 'queue', 'cart'])}>
+    <NextIntlClientProvider
+      messages={await pickMessages(['common', 'shop', 'queue', 'cart', 'checkout', 'account'])}
+    >
       <CartProvider>
         <div className="flex min-h-dvh flex-col">
           <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
@@ -44,6 +51,17 @@ export default async function ShopLayout({
                   {t('events')}
                 </Link>
               </nav>
+              {accounts.enabled && (
+                <Link
+                  href={customer ? '/account' : '/account/login'}
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
+                >
+                  <UserRound className="size-4" />
+                  <span className="hidden sm:inline">
+                    {customer ? tAccount('myAccount') : tAccount('signIn')}
+                  </span>
+                </Link>
+              )}
               <HeaderCart />
               <LocaleSwitcher />
             </div>

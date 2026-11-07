@@ -213,10 +213,11 @@ export const bankStatementImports = pgTable(
 );
 
 /**
- * Booked transactions from any source. `fingerprint` is a SHA-256 over the normalised
- * booking date, amount, currency, counterparty IBAN, remittance text, end-to-end id and
- * bank reference (+ an occurrence index for identical lines within one statement), so the
- * same booking imported via FinTS *and* a CAMT upload is stored once.
+ * Booked transactions from any source. `fingerprint` is a SHA-256 over the booking date,
+ * signed amount, currency, counterparty IBAN and the normalised remittance text (letters and
+ * digits only, first 80) + an occurrence index for identical lines within one batch, so the
+ * same booking imported via FinTS *and* a CAMT upload is stored once (see
+ * `packages/core/src/banking/fingerprint.ts`).
  */
 export const bankTransactions = pgTable(
   'bank_transactions',

@@ -114,14 +114,18 @@ export function ActionForm({
   );
 }
 
-export function SubmitButton({ children, ...props }: ComponentProps<typeof Button>) {
+export function SubmitButton({
+  children,
+  pendingLabel,
+  ...props
+}: ComponentProps<typeof Button> & { pendingLabel?: ReactNode }) {
   const status = useFormStatus();
   const actionFormPending = useContext(ActionFormPending);
   const pending = actionFormPending ?? status.pending;
   const t = useTranslations('common.actions');
   return (
     <Button type="submit" disabled={pending || props.disabled} {...props}>
-      {pending ? t('saving') : children}
+      {pending ? (pendingLabel ?? t('saving')) : children}
     </Button>
   );
 }

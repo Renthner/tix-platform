@@ -76,8 +76,12 @@ export function CartView() {
               <span className="tabular-nums">{money(cart.totalGross, currency)}</span>
             </div>
             <p className="text-xs text-muted-foreground">{t('summary.feesNote')}</p>
-            {cart.currencies.length > 1 && (
+            {cart.currencies.length > 1 ? (
               <p className="text-xs text-destructive">{t('summary.mixedCurrencies')}</p>
+            ) : (
+              <Button asChild size="lg" className="w-full">
+                <Link href="/checkout">{t('summary.checkout')}</Link>
+              </Button>
             )}
           </CardContent>
         </Card>

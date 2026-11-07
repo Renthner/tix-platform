@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SEAT_SELECTION_STYLES } from '../enums';
+import { GERMAN_STATES } from '../payments/business-days';
 import {
   countryCodeSchema,
   currencyCodeSchema,
@@ -103,6 +104,8 @@ const bankTransferSchema = z
     /** Payment term communicated to the customer. */
     paymentTermDays: z.number().int().min(1).max(60).default(5),
     countBusinessDaysOnly: z.boolean().default(true),
+    /** Federal state whose regional public holidays are skipped (null = nationwide ones only). */
+    holidayRegion: z.enum(GERMAN_STATES).nullable().default(null),
     reminderAfterDays: z.number().int().min(1).max(60).default(4),
     cancelAfterDays: z.number().int().min(1).max(90).default(8),
     /** Vorkasse is not offered when the event starts within this many days. */
@@ -130,17 +133,24 @@ const paypalSchema = z.object({
 });
 const paypalCredentialsSchema = z.object({ clientSecret: z.string().min(1) });
 
+export const SMTP_SECURITY_MODES = ['STARTTLS', 'TLS', 'NONE'] as const;
+export type SmtpSecurityMode = (typeof SMTP_SECURITY_MODES)[number];
+
+/** Outgoing mail server. Without `username` the server is used without authentication. */
 const smtpSchema = z.object({
-  host: z.string().max(255).optional(),
+  host: z.string().trim().max(255).optional(),
   port: z.number().int().min(1).max(65_535).default(587),
-  security: z.enum(['STARTTLS', 'TLS', 'NONE']).default('STARTTLS'),
-  fromName: z.string().max(120).optional(),
+  /** STARTTLS (587, upgrade required), TLS (465, implicit) or NONE (local relays only). */
+  security: z.enum(SMTP_SECURITY_MODES).default('STARTTLS'),
+  username: z.string().trim().max(255).optional(),
+  fromName: z.string().trim().max(120).optional(),
   fromEmail: z.email().optional(),
   replyTo: z.email().optional(),
+  /** Blind copy of every outgoing e-mail (archive mailbox). */
   bccAddress: z.email().optional(),
 });
+/** SMTP password (the user name is a plain setting so admins can see it). */
 const smtpCredentialsSchema = z.object({
-  username: z.string().min(1).max(255),
   password: z.string().min(1).max(1_024),
 });
 

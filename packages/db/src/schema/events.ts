@@ -118,6 +118,11 @@ export const events = pgTable(
     orphanSeatRuleEnabled: boolean('orphan_seat_rule_enabled'),
     /** Companion seats only together with their wheelchair space (NULL = inherit). */
     companionRequiresWheelchair: boolean('companion_requires_wheelchair'),
+    /**
+     * FALSE = no sign-in / registration offered in the checkout of this event (guest orders
+     * only). NULL = global `customerAccounts.enabled`. Accounts cannot be forced on per event.
+     */
+    customerAccountsEnabled: boolean('customer_accounts_enabled'),
 
     // ── Overrides of global `paypal` / `bankTransfer` settings ─────────────
     paypalEnabled: boolean('paypal_enabled'),

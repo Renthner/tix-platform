@@ -9,6 +9,7 @@ import {
   type Executor,
 } from '@tix/db';
 import { and, eq, isNull } from 'drizzle-orm';
+import { sequential } from '../sequential';
 
 /**
  * Deep-copies a seat map (master template → event copy, or event → event when an event is
@@ -24,7 +25,7 @@ export async function cloneSeatMap(
   const [source] = await tx.select().from(seatMaps).where(eq(seatMaps.id, sourceId));
   if (!source) throw new Error(`Seat map ${sourceId} not found`);
 
-  const [entrances, sections, rows, elements, seatRows] = await Promise.all([
+  const [entrances, sections, rows, elements, seatRows] = await sequential([
     tx.select().from(seatMapEntrances).where(eq(seatMapEntrances.seatMapId, sourceId)),
     tx
       .select()

@@ -49,6 +49,25 @@
     "BEST_AVAILABLE_DISABLED": "Die Bestplatzbuchung wird für diese Veranstaltung nicht angeboten.",
     "INTERNAL_ERROR": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
     "CATEGORY_LIMIT": "In „{category}“ sind höchstens {max} Tickets pro Bestellung möglich.",
-    "TARIFF_LIMIT": "Der Tarif „{tariff}“ ist auf {max} Tickets pro Bestellung begrenzt."
+    "TARIFF_LIMIT": "Der Tarif „{tariff}“ ist auf {max} Tickets pro Bestellung begrenzt.",
+    "CART_EMPTY": "Dein Warenkorb ist leer.",
+    "CART_OUTDATED": "Dein Warenkorb hat sich geändert. Bitte prüfe ihn.",
+    "CART_CHANGED": "Dein Warenkorb hat sich inzwischen geändert. Bitte prüfe ihn vor der Bestellung.",
+    "MIXED_CURRENCIES": "Veranstaltungen mit unterschiedlichen Währungen können nicht in einer Bestellung gekauft werden.",
+    "PRICE_CHANGED": "Der Gesamtbetrag deiner Bestellung hat sich geändert. Bitte prüfe die aktualisierten Preise und bestelle erneut.",
+    "PAYMENT_METHOD_UNAVAILABLE": "Diese Zahlungsart ist für deine Bestellung nicht verfügbar.",
+    "LOGIN_REQUIRED": "Bitte melde dich an, um deine Bestellung abzuschließen.",
+    "TERMS_NOT_ACCEPTED": "Bitte akzeptiere die AGB.",
+    "EVENT_NOT_ON_SALE": "Für „{event}“ werden derzeit keine Tickets verkauft.",
+    "SELECTION_INVALID": "Deine Platzauswahl für „{event}“ ist so nicht möglich (einzelne freie Plätze oder Begleitplätze ohne Rollstuhlplatz). Bitte passe sie im Warenkorb an.",
+    "COMPANION_OWNER_MISMATCH": "Dieser Begleitplatz kann nur von der Person gebucht werden, die den zugehörigen Rollstuhlplatz gekauft hat – bitte verwende dieselbe E-Mail-Adresse.",
+    "CUSTOMER_LIMIT": "Du kannst für „{event}“ höchstens {max} Tickets kaufen (noch möglich: {remaining}).",
+    "ACCESS_CODE_LIMIT": "Das Ticketkontingent deines Codes ist ausgeschöpft (noch möglich: {remaining}).",
+    "PAYPAL_NOT_CONFIGURED": "PayPal ist derzeit nicht verfügbar.",
+    "ORDER_NOT_PAYABLE": "Diese Bestellung kann nicht mehr bezahlt werden.",
+    "ORDER_NOT_FOUND": "Bestellung nicht gefunden.",
+    "ORDER_NOT_CANCELLABLE": "Diese Bestellung kann nicht mehr abgebrochen werden.",
+    "VALIDATION_FAILED": "Bitte prüfe deine Eingaben.",
+    "INVALID_JSON": "Ungültige Anfrage."
   }
 }

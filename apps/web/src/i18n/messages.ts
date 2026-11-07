@@ -5,5 +5,6 @@ import type { MessageNamespace } from './namespaces';
 /** Subset of messages for a client provider (keeps admin strings out of shop bundles). */
 export async function pickMessages(namespaces: readonly MessageNamespace[]) {
   const all = await getMessages();
-  return Object.fromEntries(namespaces.map((ns) => [ns, all[ns]]));
+  const byNamespace = all as Record<string, unknown>;
+  return Object.fromEntries(namespaces.map((ns) => [ns, byNamespace[ns]]));
 }

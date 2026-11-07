@@ -21,6 +21,7 @@ import {
 } from '@tix/shared';
 import { and, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
+import { sequential } from '../sequential';
 
 export interface SeatMapMeta {
   id: string;
@@ -319,7 +320,7 @@ async function applyDocument(
   }
 
   // ── Current state ─────────────────────────────────────────────────────────
-  const [curSeats, curSections, curRows, curElements, curEntrances] = await Promise.all([
+  const [curSeats, curSections, curRows, curElements, curEntrances] = await sequential([
     tx
       .select({
         id: seats.id,

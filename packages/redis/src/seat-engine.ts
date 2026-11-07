@@ -144,6 +144,41 @@ return {1, mine, available - held}
 `,
 );
 
+// KEYS: gaAvailable, gaHeld, gaHolds, gaExpiries
+// ARGV: sid, sectionId_1, n_1, sectionId_2, n_2 …
+// Converts a session's GA holds into ordered spots: the hold is consumed and the sellable
+// capacity reduced in one step (the DB allocation is the authority; this keeps the mirror
+// consistent). Returns {1} or {-1, sectionIndex} if a hold is smaller than requested.
+const COMMIT_GA = defineScript(
+  'commitGeneralAdmission',
+  `
+local sid = ARGV[1]
+local holds = {}
+local raw = redis.call('HGET', KEYS[3], sid)
+if raw then holds = cjson.decode(raw) end
+for i = 2, #ARGV, 2 do
+  local section = ARGV[i]
+  local n = tonumber(ARGV[i + 1])
+  if tonumber(holds[section] or 0) < n then return {-1, (i - 2) / 2} end
+end
+for i = 2, #ARGV, 2 do
+  local section = ARGV[i]
+  local n = tonumber(ARGV[i + 1])
+  holds[section] = tonumber(holds[section]) - n
+  if holds[section] <= 0 then holds[section] = nil end
+  redis.call('HINCRBY', KEYS[2], section, -n)
+  redis.call('HINCRBY', KEYS[1], section, -n)
+end
+if next(holds) == nil then
+  redis.call('HDEL', KEYS[3], sid)
+  redis.call('ZREM', KEYS[4], sid)
+else
+  redis.call('HSET', KEYS[3], sid, cjson.encode(holds))
+end
+return {1}
+`,
+);
+
 // KEYS: gaAvailable, gaHeld, gaHolds, gaExpiries   ARGV: now, limit
 // Returns flat list: sectionId, remaining, sectionId, remaining …
 const SWEEP_GA = defineScript(
@@ -425,6 +460,42 @@ export class SeatLockEngine {
     const tx = this.redis.multi();
     if (add.length > 0) tx.hset(k.seatsTaken(eventId), Object.fromEntries(add));
     if (remove.length > 0) tx.hdel(k.seatsTaken(eventId), ...remove);
+    await tx.exec();
+  }
+
+  /** Turns a session's GA holds into ordered spots (see COMMIT_GA). */
+  async commitGeneralAdmission(
+    eventId: string,
+    sessionId: string,
+    quantities: Record<string, number>,
+  ): Promise<boolean> {
+    const entries = Object.entries(quantities).filter(([, n]) => n > 0);
+    if (entries.length === 0) return true;
+    const k = this.keys;
+    const [status] = await runScript<[number, number?]>(
+      this.redis,
+      COMMIT_GA,
+      [
+        k.generalAdmissionAvailable(eventId),
+        k.generalAdmissionHeld(eventId),
+        k.generalAdmissionHolds(eventId),
+        k.generalAdmissionExpiries(eventId),
+      ],
+      [sessionId, ...entries.flatMap(([section, n]) => [section, n])],
+    );
+    return status === 1;
+  }
+
+  /** Gives ordered GA spots back to the sellable capacity (order cancelled / expired). */
+  async releaseGeneralAdmission(
+    eventId: string,
+    quantities: Record<string, number>,
+  ): Promise<void> {
+    const entries = Object.entries(quantities).filter(([, n]) => n > 0);
+    if (entries.length === 0) return;
+    const tx = this.redis.multi();
+    for (const [section, n] of entries)
+      tx.hincrby(this.keys.generalAdmissionAvailable(eventId), section, n);
     await tx.exec();
   }
 

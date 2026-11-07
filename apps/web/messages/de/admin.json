@@ -4,10 +4,13 @@
   "nav": {
     "dashboard": "Übersicht",
     "events": "Veranstaltungen",
+    "orders": "Bestellungen",
+    "banking": "Bank & Zahlungen",
     "venues": "Spielstätten & Pläne",
     "waitingRoom": "Warteraum",
     "symbols": "Symbolbibliothek",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "fees": "Gebühren & Steuern"
   },
   "login": {
     "title": "Admin-Anmeldung",
@@ -64,7 +67,11 @@
     "svgInvalid": "Diese Datei ist kein gültiges SVG-Bild (es braucht eine viewBox oder Breite/Höhe).",
     "svgEmpty": "Das SVG enthält keine zeichenbaren Formen.",
     "svgTooComplex": "Das SVG ist zu komplex. Bitte vereinfachen und erneut versuchen.",
-    "confirmMismatch": "Der Text stimmt nicht mit dem Titel der Veranstaltung überein."
+    "confirmMismatch": "Der Text stimmt nicht mit dem Titel der Veranstaltung überein.",
+    "numberPattern": "Das Muster muss einen Zähler wie '{SEQ:6}' enthalten.",
+    "dunningOrder": "Bitte die Reihenfolge der Fristen prüfen: Erinnerung vor der Stornierung, Stornierung nicht vor Ablauf der Zahlungsfrist.",
+    "secretRequired": "Bitte das Geheimnis eingeben – es ist noch keines gespeichert.",
+    "prefixFormat": "Bitte 2–6 Großbuchstaben (A–Z) verwenden."
   },
   "common": {
     "inherit": "Global übernehmen ({value})",
@@ -226,7 +233,8 @@
       "seating": "Saalplan",
       "waitingRoom": "Warteraum",
       "accessCodes": "Zugangscodes",
-      "page": "Shop-Seite"
+      "page": "Shop-Seite",
+      "fees": "Gebühren"
     },
     "details": {
       "title": "Details der Veranstaltung"
@@ -258,12 +266,18 @@
       "limitsHint": "Leer lassen, um die globale Einstellung zu verwenden.",
       "maxTicketsPerOrder": "Max. Tickets pro Bestellung",
       "maxTicketsPerCustomer": "Max. Tickets pro Kunde",
-      "cartLockTtlSeconds": "Warenkorb-Reservierung (Sekunden)",
-      "paymentGraceSeconds": "Nachfrist während der Zahlung (Sekunden)",
+      "cartLockTtlSeconds": "Reservierungszeit im Warenkorb (Sekunden)",
+      "paymentGraceSeconds": "Zusatzzeit an der Kasse (Sekunden)",
       "selection": "Platzauswahl",
       "manualSeatSelectionEnabled": "Plätze im Saalplan wählen",
       "bestAvailableEnabled": "Bestplatzbuchung",
-      "companionRequiresWheelchair": "Begleitplätze nur mit Rollstuhlplatz"
+      "companionRequiresWheelchair": "Begleitplätze nur mit Rollstuhlplatz",
+      "accounts": "Kundenkonten",
+      "accountsHint": "Ausgeblendet: Die Kasse dieser Veranstaltung bietet weder Anmelden noch Registrieren an – Kunden bestellen als Gast (auch wenn der Gastkauf global ausgeschaltet ist). Der Anmelde-Link im Kopfbereich des Shops bleibt wie global eingestellt.",
+      "customerAccountsEnabled": "Anmelden / Registrieren an der Kasse",
+      "accountsShown": "angezeigt",
+      "accountsHidden": "ausgeblendet",
+      "accountsHideForEvent": "Für diese Veranstaltung ausblenden (nur Gastbestellung)"
     },
     "deletedNotice": "Die Veranstaltung wurde endgültig gelöscht.",
     "danger": {
@@ -610,7 +624,6 @@
   "settings": {
     "title": "Einstellungen",
     "description": "Shopweite Konfiguration. Änderungen wirken nach wenigen Sekunden.",
-    "sectionsLabel": "Bereiche der Einstellungen",
     "general": {
       "title": "Allgemein",
       "description": "Shop-Name und Vorgaben für neue Veranstaltungen.",
@@ -639,10 +652,10 @@
       "title": "Platzauswahl & Warenkorb",
       "description": "Globale Vorgaben für Reservierung, Limits und Platzauswahl.",
       "overrideNotice": "Dies sind globale Standardwerte. Jede Veranstaltung kann Reservierungszeit, Limits und Auswahloptionen im Tab „Verkauf“ überschreiben.",
-      "cartLockTtlSeconds": "Reservierungszeit (Sekunden)",
-      "cartLockTtlHint": "Wie lange gewählte Plätze im Warenkorb reserviert bleiben.",
-      "paymentGraceSeconds": "Nachfrist während der Zahlung (Sekunden)",
-      "paymentGraceHint": "Wird beim Start der Zahlung addiert, damit Plätze nicht während der Zahlung verfallen.",
+      "cartLockTtlSeconds": "Reservierungszeit im Warenkorb (Sekunden)",
+      "cartLockTtlHint": "Startet für den ganzen Warenkorb neu, sobald ein Platz hinzukommt.",
+      "paymentGraceSeconds": "Zusatzzeit an der Kasse (Sekunden)",
+      "paymentGraceHint": "Wird beim Öffnen der Kasse einmalig zur Restzeit addiert. 0 = keine Verlängerung.",
       "minutes": "= {value} Min.",
       "maxTicketsPerOrder": "Max. Tickets pro Bestellung",
       "maxTicketsPerCustomer": "Max. Tickets pro Kunde und Veranstaltung",
@@ -655,7 +668,14 @@
       "requireTermsAcceptance": "Zustimmung zu den AGB an der Kasse verlangen",
       "requireTermsAcceptanceHint": "Kunden müssen ein Kästchen mit Link zur AGB-URL ankreuzen.",
       "companionSeatsRequireWheelchair": "Begleitplätze nur zusammen mit dem zugehörigen Rollstuhlplatz",
-      "companionSeatsRequireWheelchairHint": "Ein Begleitplatz ist nur buchbar, wenn sein Rollstuhlplatz (benachbart oder im Saalplan-Editor zugeordnet) in derselben Bestellung ist. Geprüft bei „Weiter zum Warenkorb“."
+      "companionSeatsRequireWheelchairHint": "Ein Begleitplatz ist nur buchbar, wenn sein Rollstuhlplatz (benachbart oder im Saalplan-Editor zugeordnet) in derselben Bestellung ist. Geprüft bei „Weiter zum Warenkorb“.",
+      "timeline": {
+        "title": "So bleiben Plätze reserviert",
+        "cart": "Warenkorb: Mit jedem neu gewählten Platz startet die Reservierung des ganzen Warenkorbs (neu) mit {minutes} Min. Der Timer im Kopfbereich des Shops zeigt die Restzeit; läuft sie ab, werden die Plätze freigegeben.",
+        "checkout": "Kasse: Öffnet der Käufer die Kasse, wird die verbleibende Zeit einmalig um {minutes} Min. verlängert (also höchstens auf {total} Min.), damit die Plätze beim Ausfüllen und Bezahlen nicht verfallen. Deshalb springt der Timer im Kopfbereich an dieser Stelle nach oben.",
+        "checkoutNone": "Kasse: Es wird keine Zusatzzeit addiert – die Reservierung des Warenkorbs läuft einfach weiter.",
+        "order": "Nach „Zahlungspflichtig bestellen“ hält die Bestellung die Plätze: bei Überweisung bis zur Stornofrist (Zahlungen → Überweisung), bei PayPal bis zum Zeitlimit für die Freigabe (Zahlungen → PayPal)."
+      }
     },
     "seatDisplay": {
       "title": "Farben im Saalplan",
@@ -679,6 +699,185 @@
         "FILL": "Platz vollständig einfärben",
         "BOTH": "Einfärben und Ring"
       }
+    },
+    "secret": {
+      "stored": "gespeichert",
+      "notSet": "nicht gesetzt",
+      "replaceHint": "Verschlüsselt gespeichert und nicht mehr anzeigbar. Nur zum Ersetzen einen neuen Wert eingeben.",
+      "enterHint": "Wird verschlüsselt gespeichert und kann danach nicht mehr angezeigt werden.",
+      "storedPlaceholder": "•••••••• (leer lassen = behalten)"
+    },
+    "organizer": {
+      "title": "Veranstalter & Rechnungssteller",
+      "description": "Rechtliche Angaben des Verkäufers für Rechnungen und die Fußzeile der E-Mails.",
+      "legalName": "Rechtlicher Name",
+      "legalNameHint": "Vollständiger Name des Veranstalters, z. B. Vereins- oder Firmenname. Leer = Shopname.",
+      "street": "Straße und Hausnummer",
+      "postalCode": "PLZ",
+      "city": "Ort",
+      "country": "Land",
+      "countryHint": "Zweistelliger Code, z. B. DE.",
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "website": "Website",
+      "vatId": "USt-IdNr.",
+      "vatIdHint": "Falls vorhanden, z. B. DE123456789.",
+      "taxNumber": "Steuernummer",
+      "taxNumberHint": "Wird auf Rechnungen gedruckt, wenn keine USt-IdNr. vorhanden ist.",
+      "registerCourt": "Registergericht",
+      "registerNumber": "Registernummer",
+      "representatives": "Vertreten durch",
+      "representativesHint": "Vorstand oder Geschäftsführung, z. B. für die Rechnungsfußzeile."
+    },
+    "invoicing": {
+      "title": "Rechnungen & Nummernkreise",
+      "description": "Rechnungen werden bei Zahlungseingang automatisch als PDF erstellt und der Zahlungsbestätigung angehängt.",
+      "issueInvoices": "Rechnungen automatisch erstellen",
+      "issueInvoicesHint": "Erstellt für jede bezahlte Bestellung eine GoBD-konforme Rechnung.",
+      "orderNumberPattern": "Muster Bestellnummer",
+      "invoiceNumberPattern": "Muster Rechnungsnummer",
+      "creditNoteNumberPattern": "Muster Korrekturnummer",
+      "patternHint": "Platzhalter: '{YYYY}' Jahr, '{YY}' zweistelliges Jahr, '{SEQ}' oder '{SEQ:6}' fortlaufender Zähler (mit Nullen aufgefüllt). Mit Jahresplatzhalter beginnt der Zähler jedes Jahr neu.",
+      "gapless": "Rechnungsnummern werden lückenlos vergeben. Ausgestellte Rechnungen können nie geändert oder gelöscht werden – Korrekturen erfolgen über Rechnungskorrekturen.",
+      "invoiceFooter": "Rechnungsfußzeile",
+      "invoiceFooterHint": "Optionaler Text unten auf jeder Rechnungsseite, z. B. Bankverbindung oder Grußformel."
+    },
+    "bankTransfer": {
+      "title": "Überweisung (Vorkasse)",
+      "description": "Zahlungsfristen, Erinnerungen und automatische Zuordnung für Bestellungen per Überweisung.",
+      "overrideNotice": "Dies sind globale Standardwerte. Veranstaltungen können Zahlungsfrist, Erinnerungs- und Stornotage sowie den Vorlauf vor der Veranstaltung überschreiben. Das Empfängerkonto wird unter „Bank & Zahlungen“ verwaltet.",
+      "enabled": "Überweisung anbieten",
+      "enabledHint": "Die Plätze bleiben reserviert, bis die Zahlung eingeht oder die Bestellung storniert wird.",
+      "paymentReferencePrefix": "Präfix des Verwendungszwecks",
+      "paymentReferencePrefixHint": "Beispiel: {example} – die letzte Ziffer ist eine Prüfziffer.",
+      "paymentTermDays": "Zahlungsfrist (Tage)",
+      "paymentTermDaysHint": "Fälligkeitsdatum, das der Kunde sieht.",
+      "countBusinessDaysOnly": "Nur Werktage zählen",
+      "countBusinessDaysOnlyHint": "Wochenenden und Feiertage werden bei Zahlungsfrist, Erinnerung und Stornierung übersprungen.",
+      "holidayRegion": "Feiertage",
+      "holidayRegionHint": "Zusätzlich zu den bundesweiten Feiertagen werden die des gewählten Bundeslands übersprungen.",
+      "reminderAfterDays": "Erinnerung nach (Tagen)",
+      "reminderAfterDaysHint": "Nach so vielen Tagen wird einmalig eine Zahlungserinnerung gesendet.",
+      "cancelAfterDays": "Stornierung nach (Tagen)",
+      "cancelAfterDaysHint": "Unbezahlte Bestellungen werden storniert und die Plätze freigegeben (außer „Reservierung halten“ ist an der Bestellung gesetzt).",
+      "disableDaysBeforeEvent": "Nicht verfügbar ab (Tage vor der Veranstaltung)",
+      "disableDaysBeforeEventHint": "0 = bis zum Veranstaltungsbeginn verfügbar.",
+      "autoMatchTolerance": "Toleranz bei der Zuordnung",
+      "autoMatchToleranceHint": "Erlaubte Abweichung des überwiesenen Betrags bei automatischer Zuordnung; 0,00 = nur exakter Betrag.",
+      "bankAccountNotice": "Kontoinhaber, IBAN und BIC in der Bestätigungs-E-Mail stammen vom Standard-Empfängerkonto unter „Bank & Zahlungen“.",
+      "regions": {
+        "nationwide": "Nur bundesweite Feiertage",
+        "BW": "Baden-Württemberg",
+        "BY": "Bayern",
+        "BE": "Berlin",
+        "BB": "Brandenburg",
+        "HB": "Bremen",
+        "HH": "Hamburg",
+        "HE": "Hessen",
+        "MV": "Mecklenburg-Vorpommern",
+        "NI": "Niedersachsen",
+        "NW": "Nordrhein-Westfalen",
+        "RP": "Rheinland-Pfalz",
+        "SL": "Saarland",
+        "SN": "Sachsen",
+        "ST": "Sachsen-Anhalt",
+        "SH": "Schleswig-Holstein",
+        "TH": "Thüringen"
+      }
+    },
+    "paypal": {
+      "title": "PayPal",
+      "description": "Zugangsdaten Ihrer PayPal-REST-App (Developer Dashboard → Apps & Credentials).",
+      "enabled": "PayPal anbieten",
+      "enabledHint": "Erfordert Client-ID und Secret der gewählten Umgebung.",
+      "environment": "Umgebung",
+      "environmentHint": "Zum Testen die Sandbox verwenden; für den Livebetrieb zusammen mit Live-Zugangsdaten umstellen.",
+      "environments": {
+        "sandbox": "Sandbox (Test)",
+        "live": "Live"
+      },
+      "brandName": "Name bei PayPal",
+      "brandNameHint": "Optional; standardmäßig der Shopname.",
+      "clientId": "Client-ID",
+      "clientSecret": "Client-Secret",
+      "clearClientSecret": "Gespeichertes Client-Secret entfernen",
+      "webhookId": "Webhook-ID",
+      "webhookIdHint": "ID des in Ihrer PayPal-App registrierten Webhooks; dient zur Prüfung der Webhook-Signaturen.",
+      "approvalTimeoutSeconds": "Zeitlimit für die Freigabe (Sekunden)",
+      "approvalTimeoutSecondsHint": "Bestellungen, die nicht innerhalb dieser Zeit bei PayPal freigegeben werden, verfallen und die Plätze werden freigegeben.",
+      "webhookUrlHint": "Webhook-URL für das PayPal-Entwicklerportal (Ereignisse: Checkout order approved, Payment capture completed / denied / refunded / reversed):",
+      "guide": {
+        "title": "Anleitung: PayPal einrichten und mit der Sandbox testen",
+        "intro": "Die Sandbox ist die Testumgebung von PayPal: Es fließt kein echtes Geld, bezahlt wird mit Test-Konten. So richtest du sie ein:",
+        "steps": {
+          "account": "Melde dich auf <link>developer.paypal.com</link> mit dem PayPal-Geschäftskonto des Veranstalters an.",
+          "app": "Unter <b>Apps & Credentials</b> auf <b>Sandbox</b> umschalten und <b>Create App</b> wählen (Typ: Merchant). Die angezeigte <b>Client ID</b> und das <b>Secret</b> unten in die Felder Client-ID und Client-Secret eintragen.",
+          "webhook": "In der App unter <b>Sandbox Webhooks</b> → <b>Add Webhook</b> die Webhook-URL von unten eintragen und die Ereignisse Checkout order approved sowie Payment capture completed / denied / refunded / reversed auswählen. Die angezeigte <b>Webhook ID</b> unten eintragen. PayPal erreicht nur öffentlich erreichbare HTTPS-Adressen – ein lokales Testsystem (localhost) bekommt keine Webhooks. Zahlungen funktionieren dort trotzdem, weil sie bei der Rückkehr von PayPal abgeschlossen werden; Webhooks sichern nur den Fall ab, dass ein Käufer das PayPal-Fenster vorher schließt.",
+          "enable": "Umgebung „Sandbox (Test)“ wählen, „PayPal anbieten“ einschalten und speichern. PayPal erscheint jetzt als Zahlungsart an der Kasse.",
+          "test": "Testkauf: Unter <b>Testing Tools → Sandbox Accounts</b> legt PayPal automatisch ein Käufer-Konto („Personal“) an; E-Mail und Passwort siehst du über „View/Edit account“. Im Shop PayPal wählen, „Zahlungspflichtig bestellen“ klicken, dich auf der PayPal-Testseite mit diesem Käufer-Konto anmelden und bezahlen. Du landest wieder auf der Bestellseite und die Bestellung ist bezahlt. Den Geldeingang siehst du im Business-Testkonto (Anmeldung auf sandbox.paypal.com).",
+          "live": "Live gehen: <b>Apps & Credentials</b> auf <b>Live</b> umschalten, dort eine App mit eigenem Webhook anlegen, Live-Client-ID, -Secret und -Webhook-ID eintragen und die Umgebung auf „Live“ stellen. Sandbox- und Live-Zugangsdaten sind verschieden und nicht austauschbar."
+        }
+      }
+    },
+    "smtp": {
+      "title": "E-Mail-Versand (SMTP)",
+      "description": "Postausgangsserver für Bestellbestätigungen, Erinnerungen, Rechnungen und Konto-E-Mails.",
+      "host": "SMTP-Server",
+      "hostHint": "Ohne Server werden keine E-Mails versendet; wartende E-Mails werden etwa eine Stunde lang erneut versucht.",
+      "port": "Port",
+      "security": "Verschlüsselung",
+      "securityModes": {
+        "STARTTLS": "STARTTLS (587)",
+        "TLS": "SSL/TLS (465)",
+        "NONE": "Keine (nur lokales Relay)"
+      },
+      "username": "Benutzername",
+      "usernameHint": "Leer lassen, wenn der Server keine Anmeldung benötigt.",
+      "password": "Passwort",
+      "clearPassword": "Gespeichertes Passwort entfernen",
+      "fromName": "Absendername",
+      "fromNameHint": "Standardmäßig der Shopname.",
+      "fromEmail": "Absenderadresse",
+      "fromEmailHint": "Muss über diesen Server versenden dürfen (SPF/DKIM).",
+      "replyTo": "Antwortadresse",
+      "replyToHint": "Standardmäßig die Support-E-Mail.",
+      "bccAddress": "Blindkopie (BCC) jeder E-Mail",
+      "bccAddressHint": "Optionales Archiv-Postfach.",
+      "test": {
+        "title": "Test-E-Mail senden",
+        "description": "Verwendet die gespeicherten Einstellungen – Änderungen bitte zuerst speichern.",
+        "recipient": "Empfänger",
+        "language": "Sprache",
+        "send": "Test-E-Mail senden",
+        "sending": "Wird gesendet…",
+        "success": "Der Mailserver hat die Test-E-Mail an {to} angenommen.",
+        "failed": "Die Test-E-Mail konnte nicht gesendet werden:"
+      }
+    },
+    "customerAccounts": {
+      "title": "Kundenkonten",
+      "description": "Optionale Konten zusätzlich zum Gastkauf.",
+      "enabled": "Kundenkonten",
+      "enabledHint": "Kunden können sich registrieren, um ihre Bestellungen zu sehen und Tickets und Rechnungen herunterzuladen. Ausgeschaltet verschwinden die Buttons zum Anmelden und Registrieren aus dem Kopfbereich des Shops und aus der Kasse. Einzelne Veranstaltungen können sie in ihrem Tab „Verkauf“ ausblenden.",
+      "guestCheckoutEnabled": "Gastkauf",
+      "guestCheckoutEnabledHint": "Kaufen ohne Konto bleibt möglich.",
+      "loginLinkEnabled": "Anmeldelink per E-Mail",
+      "loginLinkEnabledHint": "Kunden können sich mit einem Einmal-Link statt mit Passwort anmelden.",
+      "sessionTtlDays": "Angemeldet bleiben (Tage)",
+      "passwordMinLength": "Mindestlänge des Passworts",
+      "emailVerificationTtlHours": "Bestätigungslink gültig (Stunden)",
+      "passwordResetTtlMinutes": "Link zum Zurücksetzen gültig (Minuten)"
+    },
+    "tabs": {
+      "label": "Einstellungsbereiche",
+      "general": "Allgemein",
+      "appearance": "Erscheinungsbild",
+      "organizer": "Veranstalter",
+      "checkout": "Kasse",
+      "payments": "Zahlungen",
+      "invoicing": "Rechnungen",
+      "email": "E-Mail",
+      "accounts": "Kundenkonten"
     }
   },
   "symbols": {

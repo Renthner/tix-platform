@@ -1,0 +1,173 @@
+{
+  "nav": "Fees & taxes",
+  "tab": "Fees",
+  "title": "Fees & tax rates",
+  "description": "Tax rates and the service fees charged on top of ticket prices. Events can adjust or waive global fees in their “Fees” tab.",
+  "readOnly": "You can view these settings. Changing them requires the Finance role.",
+  "status": "Status",
+  "actions": "Actions",
+  "active": "Active",
+  "inactive": "Inactive",
+  "moveUp": "Move up",
+  "moveDown": "Move down",
+  "delete": "Delete",
+  "howItWorks": {
+    "title": "How fees are charged",
+    "perTicket": "Per ticket – for every ticket of an event: a fixed amount or a percentage of the ticket price (after reductions).",
+    "perEvent": "Once per event – once for each event in the order: a fixed amount or a percentage of that event's tickets.",
+    "perOrder": "Once per order – once per order, however many events it contains. Only possible as a global fee, always with its own tax rate.",
+    "filters": "Fees can be limited to payment methods (e.g. a PayPal surcharge) and sales channels. Amounts are gross – the tax is included.",
+    "events": "Every event inherits the global fees. In the event's “Fees” tab a global fee can be adjusted (own values) or waived, and event-only fees can be added.",
+    "snapshots": "Orders store their fees and tax amounts – changes only apply to new orders."
+  },
+  "taxRates": {
+    "title": "Tax rates",
+    "description": "VAT rates for tickets and fees. Each event uses one tax rate; fees use the event's rate unless they have their own.",
+    "new": "New tax rate",
+    "edit": "Edit tax rate",
+    "empty": "No tax rates yet.",
+    "name": "Name",
+    "rate": "Rate (%)",
+    "rateColumn": "Rate",
+    "invoiceNote": "Invoice note",
+    "invoiceNoteHint": "Printed on invoices, e.g. the legal notice for tax-exempt or small-business sales.",
+    "usage": "Used by",
+    "usageValue": "{events, plural, =0 {no events} one {# event} other {# events}} · {fees, plural, =0 {no fees} one {# fee} other {# fees}}",
+    "isDefault": "Default for new events",
+    "default": "Default",
+    "isActive": "Active – offered for new events and fees",
+    "defaultMustBeActive": "The default tax rate must be active.",
+    "sortOrder": "Sort order",
+    "rateChangeHint": "A changed rate applies to new orders only; existing orders and invoices keep their tax amounts.",
+    "deleteTitle": "Delete tax rate?",
+    "deleteDescription": "“{name}” will be deleted permanently.",
+    "inUseHint": "In use by events or fees – deactivate it instead."
+  },
+  "global": {
+    "title": "Global fees",
+    "description": "Charged for every event (in this order) unless an event adjusts or waives them.",
+    "new": "New fee",
+    "edit": "Edit fee",
+    "empty": "No fees – tickets are sold at their ticket price.",
+    "adjustments": "Event adjustments",
+    "adjusted": "{count} adjusted",
+    "waived": "{count} waived",
+    "deleteTitle": "Delete fee?",
+    "deleteDescription": "“{name}” will be deleted. Existing orders keep their fee lines.",
+    "deleteOverrides": "{count, plural, one {The adjustment of # event is deleted as well.} other {The adjustments of # events are deleted as well.}}",
+    "toggleActive": "Charge this fee"
+  },
+  "event": {
+    "globalTitle": "Global fees for this event",
+    "globalDescription": "Inherited from the global fees. Adjust a fee to give this event its own values, or waive it.",
+    "globalEmpty": "There are no global fees.",
+    "manageGlobal": "Manage global fees",
+    "orderFeesTitle": "Order fees",
+    "orderFeesDescription": "Global fees charged once per order. They cannot be adjusted per event.",
+    "ownTitle": "Fees for this event only",
+    "ownDescription": "Additional fees charged only for tickets of this event.",
+    "ownEmpty": "No additional fees.",
+    "newOwn": "New event fee",
+    "editOwn": "Edit event fee",
+    "adjust": "Adjust",
+    "adjustTitle": "Adjust “{name}” for this event",
+    "adjustDescription": "These values replace the global fee for this event only.",
+    "globalValue": "Global: {value}",
+    "waive": "Waive",
+    "waiveTitle": "Waive “{name}” for this event?",
+    "waiveDescription": "The fee is no longer charged for this event. You can reset it to the global fee at any time.",
+    "reset": "Reset",
+    "resetTitle": "Reset “{name}” to the global fee?",
+    "resetDescription": "The event's own values are removed and the global fee applies again.",
+    "deleteTitle": "Delete event fee?",
+    "deleteDescription": "“{name}” will be deleted. Existing orders keep their fee lines.",
+    "states": {
+      "INHERITED": "Global",
+      "OVERRIDDEN": "Adjusted",
+      "WAIVED": "Waived",
+      "globallyInactive": "Inactive globally"
+    }
+  },
+  "form": {
+    "name": "Name",
+    "nameHint": "Shown to customers in the checkout and on invoices.",
+    "scope": "Charged",
+    "calculation": "Calculation",
+    "valueFixed": "Amount ({currency})",
+    "valuePercent": "Percentage (%)",
+    "taxRate": "Tax rate",
+    "eventTaxRate": "Tax rate of the event",
+    "taxRateRequired": "Fees charged once per order need their own tax rate.",
+    "inactiveTaxRate": "{name} (inactive)",
+    "paymentMethods": "Payment methods",
+    "channels": "Sales channels",
+    "allHint": "Tick all to apply the fee everywhere (also to options added later).",
+    "selectionRequired": "Select at least one option.",
+    "isActive": "Active",
+    "sortOrder": "Sort order",
+    "scopeLocked": "Events adjust this fee, so it cannot be charged once per order. Reset their adjustments first."
+  },
+  "scopes": {
+    "PER_TICKET": "Per ticket",
+    "PER_EVENT": "Once per event",
+    "PER_ORDER": "Once per order"
+  },
+  "calculations": {
+    "FIXED": "Fixed amount",
+    "PERCENT": "Percentage"
+  },
+  "describe": {
+    "PER_TICKET": {
+      "FIXED": "{amount} per ticket",
+      "PERCENT": "{percent} of the ticket price"
+    },
+    "PER_EVENT": {
+      "FIXED": "{amount} once per event",
+      "PERCENT": "{percent} of the event's tickets"
+    },
+    "PER_ORDER": {
+      "FIXED": "{amount} once per order",
+      "PERCENT": "{percent} of the order's tickets"
+    }
+  },
+  "appliesTo": "Applies to",
+  "allMethods": "All payment methods",
+  "allChannels": "All channels",
+  "taxRateColumn": "Tax rate",
+  "eventTaxRateShort": "Event's rate",
+  "methods": {
+    "PAYPAL": "PayPal",
+    "BANK_TRANSFER": "Bank transfer",
+    "CASH": "Cash",
+    "CARD": "Card",
+    "COMPLIMENTARY": "Complimentary"
+  },
+  "channelNames": {
+    "ONLINE": "Online shop",
+    "BOX_OFFICE": "Box office",
+    "ADMIN": "Admin"
+  },
+  "example": {
+    "title": "Example",
+    "description": "Fees of an online order for one event, per payment method.",
+    "ticketPrice": "Ticket price ({currency})",
+    "tickets": "Tickets",
+    "summary": "For {count, plural, one {# ticket} other {# tickets}} of {price}:",
+    "ticketsLine": "Tickets",
+    "noFees": "No fees",
+    "total": "Total",
+    "invalidPrice": "Enter a ticket price such as 30.00."
+  },
+  "messages": {
+    "waived": "The fee is waived for this event.",
+    "reset": "The global fee applies again.",
+    "reordered": "Order of the fees saved."
+  },
+  "errors": {
+    "TAX_RATE_IN_USE": "This tax rate is used by events or fees and cannot be deleted. Deactivate it instead.",
+    "FEE_HAS_OVERRIDES": "Events adjust or waive this fee, so it cannot be charged once per order. Reset those events first.",
+    "FEE_NOT_OVERRIDABLE": "Fees charged once per order cannot be adjusted per event.",
+    "FEE_SCOPE_NOT_ALLOWED": "Fees charged once per order can only be defined globally.",
+    "FEE_ORDER_INVALID": "The list of fees changed in the meantime. Reload the page and try again."
+  }
+}

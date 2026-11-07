@@ -26,9 +26,12 @@ export default async function EventSalesPage({
   const row = await getEventWithVenue(id);
   if (!row) notFound();
   const { event } = row;
-  const [t, checkout] = await Promise.all([
+  const [t, checkout, paypal, bank, accounts] = await Promise.all([
     getTranslations('admin.events.sales'),
     getSetting(getCore(), 'checkout'),
+    getSetting(getCore(), 'paypal'),
+    getSetting(getCore(), 'bankTransfer'),
+    getSetting(getCore(), 'customerAccounts'),
   ]);
   const tz = event.timeZone;
 
@@ -49,6 +52,13 @@ export default async function EventSalesPage({
             manualSeatSelectionEnabled: checkout.manualSeatSelectionEnabled,
             bestAvailableEnabled: checkout.bestAvailableEnabled,
             companionRequiresWheelchair: checkout.companionSeatsRequireWheelchair,
+            paypalEnabled: paypal.enabled,
+            bankTransferEnabled: bank.enabled,
+            bankTransferPaymentTermDays: bank.paymentTermDays,
+            bankTransferReminderAfterDays: bank.reminderAfterDays,
+            bankTransferCancelAfterDays: bank.cancelAfterDays,
+            bankTransferDisableDaysBeforeEvent: bank.disableDaysBeforeEvent,
+            customerAccountsEnabled: accounts.enabled,
           }}
           initial={{
             presaleStartsAt: utcToZonedWallTime(event.presaleStartsAt, tz),
@@ -63,6 +73,13 @@ export default async function EventSalesPage({
             bestAvailableEnabled: event.bestAvailableEnabled,
             orphanSeatRuleEnabled: event.orphanSeatRuleEnabled ?? checkout.orphanSeatRuleEnabled,
             companionRequiresWheelchair: event.companionRequiresWheelchair,
+            paypalEnabled: event.paypalEnabled,
+            bankTransferEnabled: event.bankTransferEnabled,
+            bankTransferPaymentTermDays: event.bankTransferPaymentTermDays,
+            bankTransferReminderAfterDays: event.bankTransferReminderAfterDays,
+            bankTransferCancelAfterDays: event.bankTransferCancelAfterDays,
+            bankTransferDisableDaysBeforeEvent: event.bankTransferDisableDaysBeforeEvent,
+            customerAccountsEnabled: event.customerAccountsEnabled,
           }}
         />
       </CardContent>

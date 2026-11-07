@@ -6,6 +6,9 @@ import { AdminNavLinks, type NavKey } from './admin-nav-links';
 const ACCESS: [NavKey, AdminRole[]][] = [
   ['dashboard', []],
   ['events', ['EVENT_MANAGER']],
+  ['orders', ['FINANCE', 'EVENT_MANAGER']],
+  ['banking', ['FINANCE']],
+  ['fees', ['FINANCE', 'EVENT_MANAGER']],
   ['venues', ['EVENT_MANAGER']],
   ['symbols', ['EVENT_MANAGER']],
   ['waitingRoom', ['EVENT_MANAGER']],

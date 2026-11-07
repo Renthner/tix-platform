@@ -1,0 +1,143 @@
+{
+  "title": "Checkout",
+  "loginRequired": "Please sign in or create a customer account to complete your order.",
+  "login": "Sign in",
+  "register": "Create account",
+  "backToCart": "Back to cart",
+  "optional": "optional",
+  "contact": {
+    "title": "Your details",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "email": "E-mail address",
+    "emailHint": "Your confirmation and tickets are sent to this address.",
+    "phone": "Phone",
+    "note": "Note for the organiser"
+  },
+  "address": {
+    "toggle": "Add a billing address (e.g. for an invoice to a company)",
+    "company": "Company",
+    "street": "Street and number",
+    "line2": "Address line 2",
+    "postalCode": "Postal code",
+    "city": "City",
+    "country": "Country"
+  },
+  "payment": {
+    "title": "Payment method",
+    "noneAvailable": "No payment method is available for the tickets in your cart. Please contact the organiser.",
+    "feesIncluded": "incl. {amount} fees",
+    "methods": {
+      "PAYPAL": {
+        "label": "PayPal",
+        "description": "Pay securely with your PayPal account, card or other methods offered by PayPal. Your tickets are confirmed immediately."
+      },
+      "BANK_TRANSFER": {
+        "label": "Bank transfer (prepayment)",
+        "description": "Your seats are reserved for you. You receive the bank details and your personal payment reference right after ordering."
+      }
+    },
+    "unavailable": {
+      "DISABLED": "Currently not available.",
+      "NOT_CONFIGURED": "Currently not available.",
+      "TOO_CLOSE_TO_EVENT": "Not available any more because the event starts soon.",
+      "EVENT_DISABLED": "Not offered for an event in your cart."
+    }
+  },
+  "summary": {
+    "title": "Your order",
+    "reservedFor": "Reserved for",
+    "total": "Total",
+    "vat": "incl. {rate}% VAT",
+    "graceNote": "Your reservation was extended once by {minutes} minutes for checking out."
+  },
+  "terms": "I accept the <terms>terms and conditions</terms> and have read the <privacy>privacy policy</privacy>.",
+  "submit": "Place binding order",
+  "submitPayPal": "Place binding order and pay with PayPal",
+  "submitHintPayPal": "You will be forwarded to PayPal to complete the payment.",
+  "submitHintBankTransfer": "You receive the payment details on the next page and by e-mail.",
+  "item": {
+    "row": "Row {label}",
+    "seat": "Seat {label}",
+    "standing": "Standing",
+    "proof": "proof required"
+  },
+  "proofNote": "Reduced tickets: please bring your proof of eligibility – it is checked at the entrance.",
+  "order": {
+    "metaTitle": "Your order",
+    "title": "Order {number}",
+    "placedAt": "Placed on {date}",
+    "status": {
+      "PENDING": "Awaiting payment",
+      "AWAITING_PAYMENT": "Awaiting bank transfer",
+      "PAID": "Paid",
+      "CANCELLED": "Cancelled",
+      "EXPIRED": "Expired",
+      "REFUNDED": "Refunded",
+      "PARTIALLY_REFUNDED": "Partially refunded"
+    },
+    "paypalNotice": {
+      "pending": "PayPal is still processing your payment. We will confirm your order by e-mail as soon as it is completed.",
+      "cancelled": "The PayPal payment was cancelled. Your seats are still reserved – you can try again below.",
+      "failed": "The PayPal payment could not be completed. Please try again or choose another funding source at PayPal.",
+      "expired": "The payment window of this order has expired and the seats were released. If money was taken, it is refunded automatically.",
+      "unavailable": "PayPal is temporarily unavailable. Your seats are reserved – please try again in a moment."
+    },
+    "paid": {
+      "title": "Thank you – your payment has been received.",
+      "text": "Your order is confirmed. Your tickets are sent to {email}."
+    },
+    "closed": {
+      "CANCELLED": "This order has been cancelled.",
+      "EXPIRED": "This order has expired.",
+      "text": "The seats have been released. If you still want to attend, please place a new order."
+    },
+    "bankTransfer": {
+      "title": "Please transfer the amount",
+      "intro": "Your seats are reserved. Please transfer the amount by {date} at the latest, using the payment reference exactly as shown.",
+      "amount": "Amount",
+      "reference": "Payment reference",
+      "holder": "Account holder",
+      "bank": "Bank",
+      "noAccount": "You will receive the bank details by e-mail.",
+      "hint": "Only the exact payment reference lets us assign your transfer automatically. Unpaid orders are cancelled after the deadline and the seats are released."
+    },
+    "paypal": {
+      "title": "Complete your payment",
+      "intro": "Your seats are reserved until {time}. Complete the payment with PayPal to confirm your order.",
+      "processing": "Your payment is being processed.",
+      "pay": "Pay with PayPal",
+      "cancel": "Cancel order",
+      "cancelTitle": "Cancel this order?",
+      "cancelText": "Your reserved seats are released immediately and can be bought by others.",
+      "keep": "Keep order",
+      "cancelConfirm": "Cancel order",
+      "cancelled": "Your order has been cancelled."
+    },
+    "items": {
+      "title": "Tickets",
+      "row": "Row {label}",
+      "seat": "Seat {label}",
+      "standing": "Standing",
+      "total": "Total",
+      "vat": "incl. {rate}% VAT",
+      "paid": "Paid"
+    },
+    "documents": {
+      "title": "Documents",
+      "invoice": "Invoice {number} (PDF)",
+      "creditNote": "Credit note {number} (PDF)"
+    },
+    "contact": "Questions about your order? Simply reply to the confirmation e-mail sent to {email}.",
+    "copy": "Copy",
+    "copyFailed": "Could not copy to the clipboard."
+  },
+  "account": {
+    "title": "Order faster with a customer account",
+    "text": "Sign in to fill in your details automatically and to find all your orders and tickets in one place. Without an account you can simply continue below as a guest.",
+    "login": "Sign in",
+    "register": "Create account",
+    "signedInAs": "Signed in as {name} ({email})",
+    "myAccount": "My account"
+  }
+}

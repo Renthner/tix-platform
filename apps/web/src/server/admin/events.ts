@@ -1,6 +1,6 @@
 'use server';
 
-import { DomainError, cloneSeatMap, deleteArchivedEvent } from '@tix/core';
+import { DomainError, cloneSeatMap, deleteArchivedEvent, getSetting } from '@tix/core';
 import {
   events,
   isUniqueViolation,
@@ -290,6 +290,10 @@ const salesSchema = z.object({
   maxTicketsPerCustomer: optionalInt(1, 10_000),
   cartLockTtlSeconds: optionalInt(60, 3_600),
   paymentGraceSeconds: optionalInt(0, 3_600),
+  bankTransferPaymentTermDays: optionalInt(1, 60),
+  bankTransferReminderAfterDays: optionalInt(1, 60),
+  bankTransferCancelAfterDays: optionalInt(1, 90),
+  bankTransferDisableDaysBeforeEvent: optionalInt(0, 90),
 });
 
 export async function updateEventSalesAction(
@@ -305,10 +309,23 @@ export async function updateEventSalesAction(
     maxTicketsPerCustomer: text(fd, 'maxTicketsPerCustomer'),
     cartLockTtlSeconds: text(fd, 'cartLockTtlSeconds'),
     paymentGraceSeconds: text(fd, 'paymentGraceSeconds'),
+    bankTransferPaymentTermDays: text(fd, 'bankTransferPaymentTermDays'),
+    bankTransferReminderAfterDays: text(fd, 'bankTransferReminderAfterDays'),
+    bankTransferCancelAfterDays: text(fd, 'bankTransferCancelAfterDays'),
+    bankTransferDisableDaysBeforeEvent: text(fd, 'bankTransferDisableDaysBeforeEvent'),
   });
   const errors: Partial<Record<string, FieldErrorCode>> = parsed.success
     ? {}
     : zodFieldErrors(parsed.error);
+  if (parsed.success) {
+    // Effective Vorkasse deadlines must stay ordered: reminder < cancel, cancel >= term.
+    const bank = await getSetting(getCore(), 'bankTransfer');
+    const term = parsed.data.bankTransferPaymentTermDays ?? bank.paymentTermDays;
+    const reminder = parsed.data.bankTransferReminderAfterDays ?? bank.reminderAfterDays;
+    const cancel = parsed.data.bankTransferCancelAfterDays ?? bank.cancelAfterDays;
+    if (cancel < term) errors.bankTransferCancelAfterDays = 'dunningOrder';
+    if (reminder >= cancel) errors.bankTransferReminderAfterDays = 'dunningOrder';
+  }
   const dates = readDates(
     fd,
     row.event.timeZone,
@@ -336,6 +353,10 @@ export async function updateEventSalesAction(
     bestAvailableEnabled: triState(fd, 'bestAvailableEnabled'),
     orphanSeatRuleEnabled: flag(fd, 'orphanSeatRuleEnabled'),
     companionRequiresWheelchair: triState(fd, 'companionRequiresWheelchair'),
+    paypalEnabled: triState(fd, 'paypalEnabled'),
+    bankTransferEnabled: triState(fd, 'bankTransferEnabled'),
+    // Accounts can only be hidden per event (they cannot be forced on when disabled globally).
+    customerAccountsEnabled: triState(fd, 'customerAccountsEnabled') === false ? false : null,
   };
   const { db } = getCore();
   await db.update(events).set(values).where(eq(events.id, eventId));

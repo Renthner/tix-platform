@@ -98,6 +98,17 @@ export function createKeyspace(prefix: string) {
     /** Idempotency record for retried client requests (checkout submit, webhooks). */
     idempotency: (scope: string, key: string) =>
       `${prefix}:idem:${seg(scope, 'scope')}:${seg(key, 'key')}`,
+    /** STRING cached OAuth access token of a payment provider (TTL = token lifetime). */
+    providerToken: (provider: string, key: string) =>
+      `${prefix}:oauth:${seg(provider, 'provider')}:${seg(key, 'key')}`,
+
+    // ── Banking ──────────────────────────────────────────────────────────
+    /**
+     * STRING admin response to a FinTS TAN challenge (encrypted TAN, decoupled approval or
+     * cancel), consumed by the worker that keeps the bank dialog open. TTL = challenge expiry.
+     */
+    bankTanResponse: (challengeId: string) =>
+      `${prefix}:bank:tan:${seg(challengeId, 'challengeId')}`,
 
     // ── Infrastructure ───────────────────────────────────────────────────
     /** ZSET workerId → last heartbeat (epoch ms). */

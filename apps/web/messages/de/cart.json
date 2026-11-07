@@ -8,7 +8,8 @@
     "tickets": "{count, plural, one {# Ticket} other {# Tickets}}",
     "total": "Gesamt",
     "feesNote": "Gebühren und Zahlungsarten werden an der Kasse angezeigt.",
-    "mixedCurrencies": "Dein Warenkorb enthält Veranstaltungen mit unterschiedlichen Währungen. Bitte kaufe sie in getrennten Bestellungen."
+    "mixedCurrencies": "Dein Warenkorb enthält Veranstaltungen mit unterschiedlichen Währungen. Bitte kaufe sie in getrennten Bestellungen.",
+    "checkout": "Zur Kasse"
   },
   "proofNote": "Ermäßigte Tickets: Bitte bring einen Nachweis mit – er wird beim Einlass geprüft.",
   "editSeats": "Plätze ändern",

@@ -1,0 +1,198 @@
+{
+  "status": {
+    "PENDING": "Payment pending",
+    "AWAITING_PAYMENT": "Awaiting transfer",
+    "PAID": "Paid",
+    "CANCELLED": "Cancelled",
+    "EXPIRED": "Expired",
+    "REFUNDED": "Refunded",
+    "PARTIALLY_REFUNDED": "Partially refunded"
+  },
+  "method": {
+    "PAYPAL": "PayPal",
+    "BANK_TRANSFER": "Bank transfer",
+    "CASH": "Cash",
+    "CARD": "Card",
+    "COMPLIMENTARY": "Complimentary"
+  },
+  "paymentStatus": {
+    "CREATED": "Started",
+    "APPROVED": "Approved / pending",
+    "CAPTURED": "Received",
+    "FAILED": "Failed",
+    "CANCELLED": "Abandoned",
+    "REFUNDED": "Refunded",
+    "PARTIALLY_REFUNDED": "Partially refunded"
+  },
+  "errors": {
+    "ORDER_NOT_OPEN": "Only unpaid orders can be kept reserved.",
+    "ORDER_NOT_CANCELLABLE": "Only unpaid orders can be cancelled here. Paid orders need a refund (coming with the box office features).",
+    "ORDER_NOT_PAYABLE": "This order is cancelled or expired and cannot receive payments.",
+    "NOTHING_TO_SEND": "There is no e-mail for the current state of this order.",
+    "INVALID_AMOUNT": "Please enter a positive amount.",
+    "CURRENCY_MISMATCH": "The currency does not match the order."
+  },
+  "admin": {
+    "title": "Orders",
+    "description": "Search orders, check payment status and handle unpaid bank transfers.",
+    "searchPlaceholder": "Order number, name, e-mail or payment reference",
+    "filters": {
+      "status": "Status",
+      "allStatuses": "All statuses",
+      "method": "Payment method",
+      "allMethods": "All payment methods",
+      "event": "Event",
+      "allEvents": "All events",
+      "overdue": "Overdue transfers only",
+      "apply": "Filter"
+    },
+    "empty": "No orders found.",
+    "columns": {
+      "number": "Order",
+      "date": "Date",
+      "customer": "Customer",
+      "method": "Payment",
+      "tickets": "Tickets",
+      "total": "Total",
+      "status": "Status"
+    },
+    "keptReserved": "kept reserved",
+    "overdue": "overdue",
+    "total": "{count, plural, one {# order} other {# orders}}",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {page} of {pages}",
+    "detailTitle": "Order",
+    "detailHeading": "Order {number}",
+    "customerView": "Customer view",
+    "backToList": "All orders",
+    "buyer": {
+      "title": "Buyer",
+      "note": "Note from the buyer"
+    },
+    "payment": {
+      "title": "Payment",
+      "method": "Method",
+      "total": "Total",
+      "paid": "Paid",
+      "outstanding": "Outstanding",
+      "reference": "Reference",
+      "dueAt": "Due",
+      "autoCancelAt": "Auto-cancel",
+      "keptReserved": "kept reserved",
+      "reminders": "Reminders",
+      "paidAt": "Paid on",
+      "reason": "Reason"
+    },
+    "items": {
+      "title": "Tickets",
+      "place": "Place",
+      "category": "Category",
+      "tariff": "Tariff",
+      "status": "Status",
+      "price": "Price",
+      "rowSeat": "Row {row}, seat {seat}",
+      "standing": "Standing",
+      "total": "Total",
+      "tax": "{rate}% VAT (net + tax)"
+    },
+    "itemStatus": {
+      "PENDING": "Reserved",
+      "CONFIRMED": "Sold",
+      "CANCELLED": "Cancelled",
+      "REFUNDED": "Refunded"
+    },
+    "payments": {
+      "title": "Payments",
+      "empty": "No payments yet.",
+      "date": "Date",
+      "method": "Method",
+      "status": "Status",
+      "reference": "Reference",
+      "amount": "Amount",
+      "bank": "Bank transaction"
+    },
+    "documents": {
+      "title": "Invoices"
+    },
+    "history": {
+      "title": "History",
+      "types": {
+        "created": "Order placed",
+        "status_changed": "Status changed",
+        "payment_received": "Payment received",
+        "payment_partial": "Partial payment received",
+        "payment_failed": "Payment failed",
+        "reminder_sent": "Payment reminder sent",
+        "keep_reserved_changed": "“Keep reserved” changed",
+        "email_resent": "E-mail sent again",
+        "late_payment_refunded": "Late payment refunded automatically",
+        "external_refund_notice": "Refund reported by the payment provider",
+        "shortfall_written_off": "Small underpayment written off (within the matching tolerance)",
+        "invoice_issued": "Invoice issued"
+      },
+      "actors": {
+        "SYSTEM": "System",
+        "ADMIN": "Admin",
+        "CUSTOMER": "Customer",
+        "WEBHOOK": "Payment provider",
+        "DEVICE": "Scanner"
+      }
+    },
+    "feedback": {
+      "keepReservedOn": "The order is kept reserved and will not be cancelled automatically.",
+      "keepReservedOff": "“Keep reserved” removed – the automatic deadline applies again.",
+      "cancelled": "The order has been cancelled and its seats released.",
+      "paymentRecorded": "Payment recorded – the order is paid.",
+      "paymentPartial": "Partial payment recorded – the order still has an outstanding amount.",
+      "emailQueued": "The e-mail has been queued.",
+      "noteSaved": "Note saved."
+    },
+    "actions": {
+      "keepReserved": {
+        "title": "Keep reserved",
+        "description": "Unpaid bank transfer orders are cancelled automatically after the deadline. Keep this order reserved, e.g. when the customer announced a late payment.",
+        "label": "Never cancel automatically",
+        "reason": "Reason (optional)",
+        "save": "Save"
+      },
+      "payment": {
+        "title": "Record payment",
+        "description": "For payments that were not matched automatically (e.g. transfer without reference, cash).",
+        "amount": "Amount",
+        "date": "Received on",
+        "method": "Method",
+        "note": "Note (optional)",
+        "submit": "Record payment"
+      },
+      "cancel": {
+        "title": "Cancel order",
+        "description": "Cancels the unpaid order and releases its seats immediately.",
+        "reason": "Reason (internal, optional)",
+        "notify": "Inform the customer by e-mail",
+        "confirm": "Yes, cancel this order",
+        "submit": "Cancel order"
+      },
+      "resend": {
+        "title": "Send e-mail again",
+        "description": "Sends the e-mail that matches the current order state again (payment instructions, confirmation or cancellation).",
+        "submit": "Send again"
+      },
+      "note": {
+        "title": "Internal note",
+        "description": "Only visible to admins.",
+        "submit": "Save note"
+      }
+    }
+  },
+  "eventPayments": {
+    "title": "Payment methods & bank transfer deadlines",
+    "hint": "Empty / “inherit” uses the global setting. For orders with several events the strictest deadlines apply.",
+    "paypalEnabled": "PayPal",
+    "bankTransferEnabled": "Bank transfer (prepayment)",
+    "paymentTermDays": "Payment term (days)",
+    "reminderAfterDays": "Reminder after (days)",
+    "cancelAfterDays": "Cancel unpaid orders after (days)",
+    "disableDaysBeforeEvent": "No bank transfer within (days before the event)"
+  }
+}

@@ -4,10 +4,13 @@
   "nav": {
     "dashboard": "Dashboard",
     "events": "Events",
+    "orders": "Orders",
+    "banking": "Bank & payments",
     "venues": "Venues & plans",
     "waitingRoom": "Waiting room",
     "symbols": "Symbol library",
-    "settings": "Settings"
+    "settings": "Settings",
+    "fees": "Fees & taxes"
   },
   "login": {
     "title": "Admin sign-in",
@@ -64,7 +67,11 @@
     "svgInvalid": "This file is not a valid SVG image (it needs a viewBox or width/height).",
     "svgEmpty": "The SVG contains no drawable shapes.",
     "svgTooComplex": "The SVG is too complex. Simplify it and try again.",
-    "confirmMismatch": "The text does not match the event title."
+    "confirmMismatch": "The text does not match the event title.",
+    "numberPattern": "The pattern must contain a counter token such as '{SEQ:6}'.",
+    "dunningOrder": "Check the order of the deadlines: reminder before cancellation, cancellation not before the payment term.",
+    "secretRequired": "Please enter the secret – none is stored yet.",
+    "prefixFormat": "Use 2–6 capital letters (A–Z)."
   },
   "common": {
     "inherit": "Inherit global ({value})",
@@ -226,7 +233,8 @@
       "seating": "Seating",
       "waitingRoom": "Waiting room",
       "accessCodes": "Access codes",
-      "page": "Shop page"
+      "page": "Shop page",
+      "fees": "Fees"
     },
     "details": {
       "title": "Event details"
@@ -258,12 +266,18 @@
       "limitsHint": "Leave empty to use the global setting.",
       "maxTicketsPerOrder": "Max. tickets per order",
       "maxTicketsPerCustomer": "Max. tickets per customer",
-      "cartLockTtlSeconds": "Cart reservation (seconds)",
-      "paymentGraceSeconds": "Payment grace period (seconds)",
+      "cartLockTtlSeconds": "Reservation time in the cart (seconds)",
+      "paymentGraceSeconds": "Extra time at the checkout (seconds)",
       "selection": "Seat selection",
       "manualSeatSelectionEnabled": "Pick seats on the plan",
       "bestAvailableEnabled": "Best available seats",
-      "companionRequiresWheelchair": "Companion seats only with wheelchair space"
+      "companionRequiresWheelchair": "Companion seats only with wheelchair space",
+      "accounts": "Customer accounts",
+      "accountsHint": "Hidden: the checkout of this event offers no sign-in or registration – customers order as guests (also when guest checkout is switched off globally). The sign-in link in the shop header stays as set globally.",
+      "customerAccountsEnabled": "Sign-in / registration at the checkout",
+      "accountsShown": "shown",
+      "accountsHidden": "hidden",
+      "accountsHideForEvent": "Hide for this event (guest orders only)"
     },
     "deletedNotice": "The event was deleted permanently.",
     "danger": {
@@ -610,7 +624,6 @@
   "settings": {
     "title": "Settings",
     "description": "Shop-wide configuration. Changes take effect within a few seconds.",
-    "sectionsLabel": "Settings sections",
     "general": {
       "title": "General",
       "description": "Shop name and defaults for new events.",
@@ -639,10 +652,10 @@
       "title": "Seat selection & cart",
       "description": "Global defaults for reservations, limits and seat selection.",
       "overrideNotice": "These are global defaults. Each event can override the reservation time, limits and selection options on its “Sales” tab.",
-      "cartLockTtlSeconds": "Reservation time (seconds)",
-      "cartLockTtlHint": "How long selected seats stay reserved in the cart.",
-      "paymentGraceSeconds": "Payment grace period (seconds)",
-      "paymentGraceHint": "Added when the customer starts paying so seats never expire mid-payment.",
+      "cartLockTtlSeconds": "Reservation time in the cart (seconds)",
+      "cartLockTtlHint": "Restarts for the whole cart whenever a seat is added.",
+      "paymentGraceSeconds": "Extra time at the checkout (seconds)",
+      "paymentGraceHint": "Added once to the remaining time when the checkout is opened. 0 = no extension.",
       "minutes": "= {value} min",
       "maxTicketsPerOrder": "Max. tickets per order",
       "maxTicketsPerCustomer": "Max. tickets per customer and event",
@@ -655,7 +668,14 @@
       "requireTermsAcceptance": "Require acceptance of the terms at checkout",
       "requireTermsAcceptanceHint": "Customers must tick a checkbox linking to the terms URL.",
       "companionSeatsRequireWheelchair": "Companion seats only together with their wheelchair space",
-      "companionSeatsRequireWheelchairHint": "A companion seat can only be booked when its wheelchair space (adjacent or assigned in the seating editor) is in the same order. Checked on “Continue to cart”."
+      "companionSeatsRequireWheelchairHint": "A companion seat can only be booked when its wheelchair space (adjacent or assigned in the seating editor) is in the same order. Checked on “Continue to cart”.",
+      "timeline": {
+        "title": "How seats stay reserved",
+        "cart": "Cart: every newly selected seat (re)starts the reservation of the whole cart at {minutes} min. The timer in the shop header shows the remaining time; when it runs out, the seats are released.",
+        "checkout": "Checkout: when the buyer opens the checkout, the remaining time is extended once by {minutes} min (to at most {total} min), so seats don't expire while the buyer enters their details or pays. That is why the timer in the header jumps up at this point.",
+        "checkoutNone": "Checkout: no extra time is added – the cart reservation simply continues.",
+        "order": "After “Place binding order” the order holds the seats: for bank transfer until the cancellation deadline (Payments → Bank transfer), for PayPal until the approval time limit (Payments → PayPal)."
+      }
     },
     "seatDisplay": {
       "title": "Seating chart colours",
@@ -679,6 +699,185 @@
         "FILL": "Fill the seat with the colour",
         "BOTH": "Fill and ring"
       }
+    },
+    "secret": {
+      "stored": "stored",
+      "notSet": "not set",
+      "replaceHint": "Stored encrypted and never shown again. Enter a new value only to replace it.",
+      "enterHint": "Stored encrypted; it cannot be displayed again after saving.",
+      "storedPlaceholder": "•••••••• (leave empty to keep)"
+    },
+    "organizer": {
+      "title": "Organizer & seller data",
+      "description": "Legal seller details printed on invoices and in e-mail footers.",
+      "legalName": "Legal name",
+      "legalNameHint": "Full name of the organizer, e.g. association or company name. If empty, the shop name is used.",
+      "street": "Street and number",
+      "postalCode": "Postal code",
+      "city": "City",
+      "country": "Country",
+      "countryHint": "Two-letter code, e.g. DE.",
+      "email": "E-mail",
+      "phone": "Phone",
+      "website": "Website",
+      "vatId": "VAT ID",
+      "vatIdHint": "If available, e.g. DE123456789.",
+      "taxNumber": "Tax number",
+      "taxNumberHint": "Printed on invoices when there is no VAT ID.",
+      "registerCourt": "Register court",
+      "registerNumber": "Register number",
+      "representatives": "Represented by",
+      "representativesHint": "Board members or managing directors, e.g. for the invoice footer."
+    },
+    "invoicing": {
+      "title": "Invoices & numbers",
+      "description": "Invoices are issued automatically as PDF when an order is paid and attached to the payment confirmation.",
+      "issueInvoices": "Issue invoices automatically",
+      "issueInvoicesHint": "Creates a GoBD-compliant invoice for every paid order.",
+      "orderNumberPattern": "Order number pattern",
+      "invoiceNumberPattern": "Invoice number pattern",
+      "creditNoteNumberPattern": "Credit note number pattern",
+      "patternHint": "Tokens: '{YYYY}' year, '{YY}' two-digit year, '{SEQ}' or '{SEQ:6}' sequential counter (zero-padded). With a year token the counter restarts every year.",
+      "gapless": "Invoice numbers are assigned without gaps. Issued invoices can never be changed or deleted – corrections are made with credit notes.",
+      "invoiceFooter": "Invoice footer",
+      "invoiceFooterHint": "Optional text at the bottom of every invoice page, e.g. bank details or a greeting."
+    },
+    "bankTransfer": {
+      "title": "Bank transfer (prepayment)",
+      "description": "Payment terms, reminders and automatic matching for orders paid by bank transfer.",
+      "overrideNotice": "These are global defaults. Events can override the payment term, reminder and cancellation days and the cut-off before the event. The receiving bank account is managed under “Bank & payments”.",
+      "enabled": "Offer bank transfer",
+      "enabledHint": "Seats are reserved until the payment arrives or the order is cancelled.",
+      "paymentReferencePrefix": "Payment reference prefix",
+      "paymentReferencePrefixHint": "Example: {example} – the last digit is a check digit.",
+      "paymentTermDays": "Payment term (days)",
+      "paymentTermDaysHint": "Due date shown to the customer.",
+      "countBusinessDaysOnly": "Count business days only",
+      "countBusinessDaysOnlyHint": "Weekends and public holidays are skipped for payment term, reminder and cancellation.",
+      "holidayRegion": "Public holidays",
+      "holidayRegionHint": "Regional holidays of the selected federal state are skipped in addition to the nationwide ones.",
+      "reminderAfterDays": "Reminder after (days)",
+      "reminderAfterDaysHint": "A payment reminder is sent once after this many days.",
+      "cancelAfterDays": "Cancel after (days)",
+      "cancelAfterDaysHint": "Unpaid orders are cancelled and the seats released (unless “keep reserved” is set on the order).",
+      "disableDaysBeforeEvent": "Not available within (days before the event)",
+      "disableDaysBeforeEventHint": "0 = available until the event starts.",
+      "autoMatchTolerance": "Matching tolerance",
+      "autoMatchToleranceHint": "Accepted deviation of the transferred amount for automatic matching; 0.00 = exact amount only.",
+      "bankAccountNotice": "The account holder, IBAN and BIC shown in the confirmation e-mail come from the default receiving account under “Bank & payments”.",
+      "regions": {
+        "nationwide": "Nationwide holidays only",
+        "BW": "Baden-Württemberg",
+        "BY": "Bavaria",
+        "BE": "Berlin",
+        "BB": "Brandenburg",
+        "HB": "Bremen",
+        "HH": "Hamburg",
+        "HE": "Hesse",
+        "MV": "Mecklenburg-Western Pomerania",
+        "NI": "Lower Saxony",
+        "NW": "North Rhine-Westphalia",
+        "RP": "Rhineland-Palatinate",
+        "SL": "Saarland",
+        "SN": "Saxony",
+        "ST": "Saxony-Anhalt",
+        "SH": "Schleswig-Holstein",
+        "TH": "Thuringia"
+      }
+    },
+    "paypal": {
+      "title": "PayPal",
+      "description": "Credentials of your PayPal REST app (developer dashboard → Apps & Credentials).",
+      "enabled": "Offer PayPal",
+      "enabledHint": "Requires client ID and secret of the selected environment.",
+      "environment": "Environment",
+      "environmentHint": "Use the sandbox for testing; switch to live together with live credentials.",
+      "environments": {
+        "sandbox": "Sandbox (test)",
+        "live": "Live"
+      },
+      "brandName": "Name shown at PayPal",
+      "brandNameHint": "Optional; defaults to the shop name.",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "clearClientSecret": "Remove the stored client secret",
+      "webhookId": "Webhook ID",
+      "webhookIdHint": "ID of the webhook registered in your PayPal app; used to verify webhook signatures.",
+      "approvalTimeoutSeconds": "Approval time limit (seconds)",
+      "approvalTimeoutSecondsHint": "Orders not approved at PayPal within this time expire and the seats are released.",
+      "webhookUrlHint": "Webhook URL for the PayPal developer dashboard (events: Checkout order approved, Payment capture completed / denied / refunded / reversed):",
+      "guide": {
+        "title": "Guide: set up PayPal and test with the sandbox",
+        "intro": "The sandbox is PayPal's test environment: no real money moves, you pay with test accounts. Setup:",
+        "steps": {
+          "account": "Sign in at <link>developer.paypal.com</link> with the organiser's PayPal business account.",
+          "app": "Under <b>Apps & Credentials</b>, switch to <b>Sandbox</b> and choose <b>Create App</b> (type: Merchant). Copy the <b>Client ID</b> and the <b>Secret</b> into the fields Client ID and Client secret below.",
+          "webhook": "In the app, open <b>Sandbox Webhooks</b> → <b>Add Webhook</b>, enter the webhook URL shown below and select the events Checkout order approved and Payment capture completed / denied / refunded / reversed. Enter the displayed <b>Webhook ID</b> below. PayPal only reaches public HTTPS addresses – a local test system (localhost) receives no webhooks. Payments still work there, because they are completed when the buyer returns from PayPal; webhooks only cover buyers who close the PayPal window before returning.",
+          "enable": "Select the environment “Sandbox (test)”, switch on “Offer PayPal” and save. PayPal now appears as a payment method in the checkout.",
+          "test": "Test purchase: under <b>Testing Tools → Sandbox Accounts</b> PayPal creates a buyer account (“Personal”) automatically; e-mail and password are shown under “View/Edit account”. In the shop choose PayPal, click “Place binding order”, sign in on PayPal's test page with this buyer account and pay. You return to the order page and the order is paid. The money appears in the sandbox business account (sign in at sandbox.paypal.com).",
+          "live": "Going live: switch <b>Apps & Credentials</b> to <b>Live</b>, create an app with its own webhook there, enter the live client ID, secret and webhook ID and set the environment to “Live”. Sandbox and live credentials are different and cannot be mixed."
+        }
+      }
+    },
+    "smtp": {
+      "title": "E-mail delivery (SMTP)",
+      "description": "Outgoing mail server for order confirmations, reminders, invoices and account e-mails.",
+      "host": "SMTP server",
+      "hostHint": "Without a server no e-mails are sent; queued e-mails are retried for about an hour.",
+      "port": "Port",
+      "security": "Encryption",
+      "securityModes": {
+        "STARTTLS": "STARTTLS (587)",
+        "TLS": "SSL/TLS (465)",
+        "NONE": "None (local relay only)"
+      },
+      "username": "User name",
+      "usernameHint": "Leave empty if the server needs no login.",
+      "password": "Password",
+      "clearPassword": "Remove the stored password",
+      "fromName": "Sender name",
+      "fromNameHint": "Defaults to the shop name.",
+      "fromEmail": "Sender address",
+      "fromEmailHint": "Must be allowed to send via this server (SPF/DKIM).",
+      "replyTo": "Reply-to address",
+      "replyToHint": "Defaults to the support e-mail.",
+      "bccAddress": "Blind copy (BCC) of every e-mail",
+      "bccAddressHint": "Optional archive mailbox.",
+      "test": {
+        "title": "Send a test e-mail",
+        "description": "Uses the saved settings – save your changes first.",
+        "recipient": "Recipient",
+        "language": "Language",
+        "send": "Send test e-mail",
+        "sending": "Sending…",
+        "success": "The mail server accepted the test e-mail for {to}.",
+        "failed": "The test e-mail could not be sent:"
+      }
+    },
+    "customerAccounts": {
+      "title": "Customer accounts",
+      "description": "Optional accounts in addition to guest checkout.",
+      "enabled": "Customer accounts",
+      "enabledHint": "Customers can register to see their orders and download tickets and invoices. Switched off, the sign-in and registration buttons disappear from the shop header and the checkout. Single events can hide them in their “Sales” tab.",
+      "guestCheckoutEnabled": "Guest checkout",
+      "guestCheckoutEnabledHint": "Buying without an account remains possible.",
+      "loginLinkEnabled": "Sign-in link by e-mail",
+      "loginLinkEnabledHint": "Customers can sign in with a one-time link instead of a password.",
+      "sessionTtlDays": "Stay signed in (days)",
+      "passwordMinLength": "Minimum password length",
+      "emailVerificationTtlHours": "Verification link valid (hours)",
+      "passwordResetTtlMinutes": "Password reset link valid (minutes)"
+    },
+    "tabs": {
+      "label": "Settings areas",
+      "general": "General",
+      "appearance": "Appearance",
+      "organizer": "Organiser",
+      "checkout": "Checkout",
+      "payments": "Payments",
+      "invoicing": "Invoices",
+      "email": "E-mail",
+      "accounts": "Customer accounts"
     }
   },
   "symbols": {

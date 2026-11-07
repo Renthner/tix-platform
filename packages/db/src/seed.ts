@@ -1,13 +1,15 @@
 import { BUILTIN_SYMBOLS, PUBLIC_SETTING_KEYS, defaultSetting } from '@tix/shared';
 import { count, isNull, sql } from 'drizzle-orm';
 import type { Database } from './client';
-import { queueConfigs, svgSymbols, systemSettings, taxRates } from './schema';
+import { defaultEmailTemplates } from './email-templates';
+import { emailTemplates, queueConfigs, svgSymbols, systemSettings, taxRates } from './schema';
 
 /**
  * Idempotent bootstrap of reference data. Safe to run on every deployment:
  *  - settings: inserts missing keys with their registry defaults, never overwrites,
  *  - tax rates: only when the table is empty (admins may rename/delete them later),
- *  - global waiting-room config: only when absent.
+ *  - global waiting-room config: only when absent,
+ *  - e-mail templates: missing key/locale defaults inserted, admin edits never overwritten.
  * All values are initial defaults and fully editable in the Admin Portal afterwards.
  */
 export async function seedReferenceData(
@@ -73,6 +75,17 @@ export async function seedReferenceData(
     } else {
       log('[seed] global queue config present, skipped');
     }
+
+    const templates = defaultEmailTemplates();
+    const insertedTemplates = await tx
+      .insert(emailTemplates)
+      .values(templates.map((t) => ({ ...t, eventId: null })))
+      // (key, event_id, locale) is unique NULLS NOT DISTINCT – existing rows stay untouched.
+      .onConflictDoNothing()
+      .returning({ id: emailTemplates.id });
+    log(
+      `[seed] e-mail templates: ${insertedTemplates.length} inserted, ${templates.length - insertedTemplates.length} kept`,
+    );
 
     const symbols = await tx
       .insert(svgSymbols)

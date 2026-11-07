@@ -417,6 +417,14 @@ export interface EventSalesValues {
   bestAvailableEnabled: boolean | null;
   orphanSeatRuleEnabled: boolean;
   companionRequiresWheelchair: boolean | null;
+  paypalEnabled: boolean | null;
+  bankTransferEnabled: boolean | null;
+  bankTransferPaymentTermDays: number | null;
+  bankTransferReminderAfterDays: number | null;
+  bankTransferCancelAfterDays: number | null;
+  bankTransferDisableDaysBeforeEvent: number | null;
+  /** false = no sign-in / registration in the checkout of this event; null = global. */
+  customerAccountsEnabled: boolean | null;
 }
 
 export interface GlobalCheckoutDefaults {
@@ -428,6 +436,13 @@ export interface GlobalCheckoutDefaults {
   manualSeatSelectionEnabled: boolean;
   bestAvailableEnabled: boolean;
   companionRequiresWheelchair: boolean;
+  paypalEnabled: boolean;
+  bankTransferEnabled: boolean;
+  bankTransferPaymentTermDays: number;
+  bankTransferReminderAfterDays: number;
+  bankTransferCancelAfterDays: number;
+  bankTransferDisableDaysBeforeEvent: number;
+  customerAccountsEnabled: boolean;
 }
 
 export function EventSalesForm({
@@ -445,6 +460,7 @@ export function EventSalesForm({
   const tf = useTranslations('admin.events.fields');
   const tcm = useTranslations('admin.common');
   const tc = useTranslations('common.actions');
+  const tp = useTranslations('orders.eventPayments');
   const [state, formAction] = useActionState(action, IDLE);
   const err = (name: string) => errorOf(state, name);
   const inherit = (value: string | number | null) =>
@@ -455,9 +471,10 @@ export function EventSalesForm({
     name: keyof GlobalCheckoutDefaults & keyof EventSalesValues,
     min: number,
     max: number,
+    label: string = t(name as never),
   ) => (
     <Field
-      label={t(name)}
+      label={label}
       htmlFor={name}
       error={err(name)}
       hint={inherit(globals[name] as number | null)}
@@ -475,9 +492,15 @@ export function EventSalesForm({
   );
 
   const triField = (
-    name: 'manualSeatSelectionEnabled' | 'bestAvailableEnabled' | 'companionRequiresWheelchair',
+    name:
+      | 'manualSeatSelectionEnabled'
+      | 'bestAvailableEnabled'
+      | 'companionRequiresWheelchair'
+      | 'paypalEnabled'
+      | 'bankTransferEnabled',
+    label: string = t(name as never),
   ) => (
-    <Field label={t(name)} htmlFor={name}>
+    <Field label={label} htmlFor={name}>
       <NativeSelect
         id={name}
         name={name}
@@ -573,6 +596,40 @@ export function EventSalesForm({
             <span className="block text-muted-foreground">{tf('orphanSeatRuleHint')}</span>
           </span>
         </label>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-medium">{tp('title')}</h3>
+        <p className="text-xs text-muted-foreground">{tp('hint')}</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {triField('paypalEnabled', tp('paypalEnabled'))}
+          {triField('bankTransferEnabled', tp('bankTransferEnabled'))}
+          {numberField('bankTransferPaymentTermDays', 1, 60, tp('paymentTermDays'))}
+          {numberField('bankTransferReminderAfterDays', 1, 60, tp('reminderAfterDays'))}
+          {numberField('bankTransferCancelAfterDays', 1, 90, tp('cancelAfterDays'))}
+          {numberField('bankTransferDisableDaysBeforeEvent', 0, 90, tp('disableDaysBeforeEvent'))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-medium">{t('accounts')}</h3>
+        <p className="text-xs text-muted-foreground">{t('accountsHint')}</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label={t('customerAccountsEnabled')} htmlFor="customerAccountsEnabled">
+            <NativeSelect
+              id="customerAccountsEnabled"
+              name="customerAccountsEnabled"
+              defaultValue={initial.customerAccountsEnabled === false ? 'off' : 'inherit'}
+            >
+              <option value="inherit">
+                {inherit(
+                  globals.customerAccountsEnabled ? t('accountsShown') : t('accountsHidden'),
+                )}
+              </option>
+              <option value="off">{t('accountsHideForEvent')}</option>
+            </NativeSelect>
+          </Field>
+        </div>
       </section>
       <SubmitButton>{tc('save')}</SubmitButton>
     </ActionForm>

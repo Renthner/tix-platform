@@ -14,7 +14,7 @@ import {
 } from '@tix/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { DomainError, type CoreContext } from './context';
-import { effectiveCheckoutConfig, type EventRow } from './events';
+import { effectiveCheckoutConfig, getEventCached, type EventRow } from './events';
 import { ensureInventory } from './inventory';
 import { publishSeatDelta } from './realtime';
 import { getPublicSeatMap } from './seatmaps/public';
@@ -131,8 +131,8 @@ async function freshCartExpiry(
   return now + ttlSeconds * 1000;
 }
 
-/** Moves the whole cart (all events, seats and standing spots) to the new expiry. */
-async function restartCartTimer(ctx: CoreContext, sessionId: string, exp: number): Promise<void> {
+/** Moves the whole cart (all events, seats and standing spots) to a new expiry. */
+async function setCartExpiry(ctx: CoreContext, sessionId: string, exp: number): Promise<void> {
   const key = ctx.keys.cart(sessionId);
   await ctx.redis
     .multi()
@@ -142,6 +142,71 @@ async function restartCartTimer(ctx: CoreContext, sessionId: string, exp: number
   for (const eventId of await cartEventIds(ctx, sessionId)) {
     await ctx.seats.extendCart(eventId, sessionId, exp);
   }
+}
+
+/** New seats were added: restart the timer and re-arm the payment grace period. */
+async function restartCartTimer(ctx: CoreContext, sessionId: string, exp: number): Promise<void> {
+  await ctx.redis.hdel(ctx.keys.cart(sessionId), 'grace');
+  await setCartExpiry(ctx, sessionId, exp);
+}
+
+/**
+ * Two-stage lock TTL: when the customer enters the checkout, the whole cart is extended ONCE
+ * by the payment grace period (largest `paymentGraceSeconds` of the events in the cart), so
+ * seats never run out while the buyer fills in the form or pays. Adding seats afterwards
+ * restarts the normal timer and re-arms the grace period. Returns the (new) expiry.
+ */
+export async function extendCartForCheckout(
+  ctx: CoreContext,
+  sessionId: string,
+): Promise<number | null> {
+  const key = ctx.keys.cart(sessionId);
+  const current = await cartExpiry(ctx, sessionId);
+  if (!current || current <= Date.now()) return null;
+  const eventIds = await cartEventIds(ctx, sessionId);
+  if (eventIds.length === 0) return current;
+  // HSETNX makes the extension one-shot, also for parallel requests.
+  if (!(await ctx.redis.hsetnx(key, 'grace', '1'))) return current;
+  const graceSeconds = await cartGraceSeconds(ctx, sessionId);
+  if (graceSeconds === 0) return current;
+  const next = current + graceSeconds * 1000;
+  await setCartExpiry(ctx, sessionId, next);
+  return next;
+}
+
+/** Payment grace period of the cart: the largest effective value of its events (seconds). */
+export async function cartGraceSeconds(ctx: CoreContext, sessionId: string): Promise<number> {
+  let graceSeconds = 0;
+  for (const eventId of await cartEventIds(ctx, sessionId)) {
+    const config = await effectiveCheckoutConfig(ctx, await getEventCached(ctx, eventId));
+    graceSeconds = Math.max(graceSeconds, config.paymentGraceSeconds);
+  }
+  return graceSeconds;
+}
+
+/** Keeps all locks of the cart alive at least until `until` (order creation in progress). */
+export async function holdCartUntil(
+  ctx: CoreContext,
+  sessionId: string,
+  until: number,
+): Promise<void> {
+  const current = await cartExpiry(ctx, sessionId);
+  if (current && current < until) await setCartExpiry(ctx, sessionId, until);
+}
+
+/**
+ * Forgets the cart after its seats became an order. The seat locks were already turned into
+ * reservations by the checkout, so nothing is released or broadcast here.
+ */
+export async function clearCartAfterOrder(
+  ctx: CoreContext,
+  sessionId: string,
+  eventIds: string[],
+): Promise<void> {
+  await ctx.redis.del(
+    ctx.keys.cart(sessionId),
+    ...eventIds.map((eventId) => ctx.keys.cartSeats(eventId, sessionId)),
+  );
 }
 
 async function cartEventIds(ctx: CoreContext, sessionId: string): Promise<string[]> {

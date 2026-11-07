@@ -1,0 +1,198 @@
+{
+  "status": {
+    "PENDING": "Zahlung ausstehend",
+    "AWAITING_PAYMENT": "Überweisung ausstehend",
+    "PAID": "Bezahlt",
+    "CANCELLED": "Storniert",
+    "EXPIRED": "Abgelaufen",
+    "REFUNDED": "Erstattet",
+    "PARTIALLY_REFUNDED": "Teilweise erstattet"
+  },
+  "method": {
+    "PAYPAL": "PayPal",
+    "BANK_TRANSFER": "Überweisung",
+    "CASH": "Bar",
+    "CARD": "Karte",
+    "COMPLIMENTARY": "Freikarte"
+  },
+  "paymentStatus": {
+    "CREATED": "Gestartet",
+    "APPROVED": "Freigegeben / in Prüfung",
+    "CAPTURED": "Eingegangen",
+    "FAILED": "Fehlgeschlagen",
+    "CANCELLED": "Abgebrochen",
+    "REFUNDED": "Erstattet",
+    "PARTIALLY_REFUNDED": "Teilweise erstattet"
+  },
+  "errors": {
+    "ORDER_NOT_OPEN": "Nur unbezahlte Bestellungen können reserviert gehalten werden.",
+    "ORDER_NOT_CANCELLABLE": "Hier können nur unbezahlte Bestellungen storniert werden. Bezahlte Bestellungen brauchen eine Erstattung (kommt mit den Kassenfunktionen).",
+    "ORDER_NOT_PAYABLE": "Diese Bestellung ist storniert oder abgelaufen und kann keine Zahlungen mehr erhalten.",
+    "NOTHING_TO_SEND": "Für den aktuellen Status dieser Bestellung gibt es keine E-Mail.",
+    "INVALID_AMOUNT": "Bitte gib einen positiven Betrag ein.",
+    "CURRENCY_MISMATCH": "Die Währung passt nicht zur Bestellung."
+  },
+  "admin": {
+    "title": "Bestellungen",
+    "description": "Bestellungen suchen, Zahlungsstatus prüfen und offene Überweisungen bearbeiten.",
+    "searchPlaceholder": "Bestellnummer, Name, E-Mail oder Verwendungszweck",
+    "filters": {
+      "status": "Status",
+      "allStatuses": "Alle Status",
+      "method": "Zahlungsart",
+      "allMethods": "Alle Zahlungsarten",
+      "event": "Veranstaltung",
+      "allEvents": "Alle Veranstaltungen",
+      "overdue": "Nur überfällige Überweisungen",
+      "apply": "Filtern"
+    },
+    "empty": "Keine Bestellungen gefunden.",
+    "columns": {
+      "number": "Bestellung",
+      "date": "Datum",
+      "customer": "Kunde",
+      "method": "Zahlung",
+      "tickets": "Tickets",
+      "total": "Summe",
+      "status": "Status"
+    },
+    "keptReserved": "reserviert gehalten",
+    "overdue": "überfällig",
+    "total": "{count, plural, one {# Bestellung} other {# Bestellungen}}",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "page": "Seite {page} von {pages}",
+    "detailTitle": "Bestellung",
+    "detailHeading": "Bestellung {number}",
+    "customerView": "Kundenansicht",
+    "backToList": "Alle Bestellungen",
+    "buyer": {
+      "title": "Käufer",
+      "note": "Nachricht des Käufers"
+    },
+    "payment": {
+      "title": "Zahlung",
+      "method": "Zahlungsart",
+      "total": "Summe",
+      "paid": "Bezahlt",
+      "outstanding": "Offen",
+      "reference": "Verwendungszweck",
+      "dueAt": "Fällig",
+      "autoCancelAt": "Auto-Storno",
+      "keptReserved": "reserviert gehalten",
+      "reminders": "Erinnerungen",
+      "paidAt": "Bezahlt am",
+      "reason": "Grund"
+    },
+    "items": {
+      "title": "Tickets",
+      "place": "Platz",
+      "category": "Kategorie",
+      "tariff": "Tarif",
+      "status": "Status",
+      "price": "Preis",
+      "rowSeat": "Reihe {row}, Platz {seat}",
+      "standing": "Stehplatz",
+      "total": "Summe",
+      "tax": "{rate} % MwSt. (netto + Steuer)"
+    },
+    "itemStatus": {
+      "PENDING": "Reserviert",
+      "CONFIRMED": "Verkauft",
+      "CANCELLED": "Storniert",
+      "REFUNDED": "Erstattet"
+    },
+    "payments": {
+      "title": "Zahlungen",
+      "empty": "Noch keine Zahlungen.",
+      "date": "Datum",
+      "method": "Zahlungsart",
+      "status": "Status",
+      "reference": "Referenz",
+      "amount": "Betrag",
+      "bank": "Bankumsatz"
+    },
+    "documents": {
+      "title": "Rechnungen"
+    },
+    "history": {
+      "title": "Verlauf",
+      "types": {
+        "created": "Bestellung aufgegeben",
+        "status_changed": "Status geändert",
+        "payment_received": "Zahlung eingegangen",
+        "payment_partial": "Teilzahlung eingegangen",
+        "payment_failed": "Zahlung fehlgeschlagen",
+        "reminder_sent": "Zahlungserinnerung gesendet",
+        "keep_reserved_changed": "„Reserviert halten“ geändert",
+        "email_resent": "E-Mail erneut gesendet",
+        "late_payment_refunded": "Verspätete Zahlung automatisch erstattet",
+        "external_refund_notice": "Erstattung vom Zahlungsanbieter gemeldet",
+        "shortfall_written_off": "Geringe Unterzahlung ausgebucht (innerhalb der Zuordnungstoleranz)",
+        "invoice_issued": "Rechnung erstellt"
+      },
+      "actors": {
+        "SYSTEM": "System",
+        "ADMIN": "Admin",
+        "CUSTOMER": "Kunde",
+        "WEBHOOK": "Zahlungsanbieter",
+        "DEVICE": "Scanner"
+      }
+    },
+    "feedback": {
+      "keepReservedOn": "Die Bestellung bleibt reserviert und wird nicht automatisch storniert.",
+      "keepReservedOff": "„Reserviert halten“ entfernt – die automatische Frist gilt wieder.",
+      "cancelled": "Die Bestellung wurde storniert und die Plätze freigegeben.",
+      "paymentRecorded": "Zahlung erfasst – die Bestellung ist bezahlt.",
+      "paymentPartial": "Teilzahlung erfasst – es ist noch ein Betrag offen.",
+      "emailQueued": "Die E-Mail wurde in den Versand gegeben.",
+      "noteSaved": "Notiz gespeichert."
+    },
+    "actions": {
+      "keepReserved": {
+        "title": "Reserviert halten",
+        "description": "Unbezahlte Vorkasse-Bestellungen werden nach Fristablauf automatisch storniert. Halte diese Bestellung reserviert, z. B. wenn der Kunde eine spätere Zahlung angekündigt hat.",
+        "label": "Nie automatisch stornieren",
+        "reason": "Grund (optional)",
+        "save": "Speichern"
+      },
+      "payment": {
+        "title": "Zahlung erfassen",
+        "description": "Für Zahlungen, die nicht automatisch zugeordnet wurden (z. B. Überweisung ohne Verwendungszweck, Barzahlung).",
+        "amount": "Betrag",
+        "date": "Eingegangen am",
+        "method": "Zahlungsart",
+        "note": "Notiz (optional)",
+        "submit": "Zahlung erfassen"
+      },
+      "cancel": {
+        "title": "Bestellung stornieren",
+        "description": "Storniert die unbezahlte Bestellung und gibt die Plätze sofort frei.",
+        "reason": "Grund (intern, optional)",
+        "notify": "Kunden per E-Mail informieren",
+        "confirm": "Ja, diese Bestellung stornieren",
+        "submit": "Stornieren"
+      },
+      "resend": {
+        "title": "E-Mail erneut senden",
+        "description": "Sendet die zum aktuellen Status passende E-Mail erneut (Zahlungsinformationen, Bestätigung oder Stornierung).",
+        "submit": "Erneut senden"
+      },
+      "note": {
+        "title": "Interne Notiz",
+        "description": "Nur für Admins sichtbar.",
+        "submit": "Notiz speichern"
+      }
+    }
+  },
+  "eventPayments": {
+    "title": "Zahlungsarten & Vorkasse-Fristen",
+    "hint": "Leer / „erben“ nutzt die globale Einstellung. Bei Bestellungen mit mehreren Veranstaltungen gelten die strengsten Fristen.",
+    "paypalEnabled": "PayPal",
+    "bankTransferEnabled": "Überweisung (Vorkasse)",
+    "paymentTermDays": "Zahlungsfrist (Tage)",
+    "reminderAfterDays": "Erinnerung nach (Tagen)",
+    "cancelAfterDays": "Unbezahlte Bestellungen stornieren nach (Tagen)",
+    "disableDaysBeforeEvent": "Keine Vorkasse mehr ab (Tage vor der Veranstaltung)"
+  }
+}

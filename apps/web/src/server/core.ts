@@ -1,5 +1,6 @@
 import 'server-only';
-import { createCoreContext, type CoreContext } from '@tix/core';
+import { JobQueues, createCoreContext, objectStorageFromEnv, type CoreContext } from '@tix/core';
+import { createSecretBox, parseKeyRing } from '@tix/shared/server';
 import { getDb } from './db';
 import { getEnv } from './env';
 import { getRedis } from './redis';
@@ -10,13 +11,17 @@ const globalForCore = globalThis as typeof globalThis & { __tixCore?: CoreContex
 export function getCore(): CoreContext {
   if (!globalForCore.__tixCore) {
     const env = getEnv();
-    const { connections } = getRedis();
+    const { connections, keys } = getRedis();
     globalForCore.__tixCore = createCoreContext({
       db: getDb(),
       redis: connections.command,
       publisher: connections.publisher,
       keyPrefix: env.REDIS_KEY_PREFIX,
       sessionSecret: env.SESSION_SECRET,
+      appUrl: env.APP_URL,
+      secrets: createSecretBox(parseKeyRing(env.APP_ENCRYPTION_KEYS)),
+      storage: objectStorageFromEnv(env),
+      jobs: new JobQueues(connections.bullmq, keys.bullPrefix()),
     });
   }
   return globalForCore.__tixCore;

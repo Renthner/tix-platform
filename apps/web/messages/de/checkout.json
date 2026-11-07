@@ -1,0 +1,143 @@
+{
+  "title": "Kasse",
+  "loginRequired": "Bitte melde dich an oder lege ein Kundenkonto an, um deine Bestellung abzuschließen.",
+  "login": "Anmelden",
+  "register": "Konto anlegen",
+  "backToCart": "Zurück zum Warenkorb",
+  "optional": "optional",
+  "contact": {
+    "title": "Deine Angaben",
+    "firstName": "Vorname",
+    "lastName": "Nachname",
+    "email": "E-Mail-Adresse",
+    "emailHint": "An diese Adresse schicken wir deine Bestätigung und deine Tickets.",
+    "phone": "Telefon",
+    "note": "Nachricht an den Veranstalter"
+  },
+  "address": {
+    "toggle": "Rechnungsadresse angeben (z. B. für eine Rechnung an eine Firma)",
+    "company": "Firma",
+    "street": "Straße und Hausnummer",
+    "line2": "Adresszusatz",
+    "postalCode": "PLZ",
+    "city": "Ort",
+    "country": "Land"
+  },
+  "payment": {
+    "title": "Zahlungsart",
+    "noneAvailable": "Für die Tickets in deinem Warenkorb ist keine Zahlungsart verfügbar. Bitte wende dich an den Veranstalter.",
+    "feesIncluded": "inkl. {amount} Gebühren",
+    "methods": {
+      "PAYPAL": {
+        "label": "PayPal",
+        "description": "Bezahle sicher mit deinem PayPal-Konto, per Karte oder mit anderen von PayPal angebotenen Methoden. Deine Tickets sind sofort bestätigt."
+      },
+      "BANK_TRANSFER": {
+        "label": "Überweisung (Vorkasse)",
+        "description": "Deine Plätze werden für dich reserviert. Bankverbindung und deinen persönlichen Verwendungszweck erhältst du direkt nach der Bestellung."
+      }
+    },
+    "unavailable": {
+      "DISABLED": "Derzeit nicht verfügbar.",
+      "NOT_CONFIGURED": "Derzeit nicht verfügbar.",
+      "TOO_CLOSE_TO_EVENT": "Nicht mehr verfügbar, da die Veranstaltung bald beginnt.",
+      "EVENT_DISABLED": "Für eine Veranstaltung in deinem Warenkorb nicht angeboten."
+    }
+  },
+  "summary": {
+    "title": "Deine Bestellung",
+    "reservedFor": "Reserviert für",
+    "total": "Gesamt",
+    "vat": "inkl. {rate} % MwSt.",
+    "graceNote": "Deine Reservierung wurde für den Bestellvorgang einmalig um {minutes} Minuten verlängert."
+  },
+  "terms": "Ich akzeptiere die <terms>AGB</terms> und habe die <privacy>Datenschutzerklärung</privacy> gelesen.",
+  "submit": "Zahlungspflichtig bestellen",
+  "submitPayPal": "Zahlungspflichtig bestellen und mit PayPal bezahlen",
+  "submitHintPayPal": "Du wirst zu PayPal weitergeleitet, um die Zahlung abzuschließen.",
+  "submitHintBankTransfer": "Die Zahlungsdaten erhältst du auf der nächsten Seite und per E-Mail.",
+  "item": {
+    "row": "Reihe {label}",
+    "seat": "Platz {label}",
+    "standing": "Stehplatz",
+    "proof": "Nachweis erforderlich"
+  },
+  "proofNote": "Ermäßigte Tickets: Bitte bring deinen Nachweis mit – er wird am Einlass geprüft.",
+  "order": {
+    "metaTitle": "Deine Bestellung",
+    "title": "Bestellung {number}",
+    "placedAt": "Bestellt am {date}",
+    "status": {
+      "PENDING": "Zahlung ausstehend",
+      "AWAITING_PAYMENT": "Überweisung ausstehend",
+      "PAID": "Bezahlt",
+      "CANCELLED": "Storniert",
+      "EXPIRED": "Abgelaufen",
+      "REFUNDED": "Erstattet",
+      "PARTIALLY_REFUNDED": "Teilweise erstattet"
+    },
+    "paypalNotice": {
+      "pending": "PayPal bearbeitet deine Zahlung noch. Sobald sie abgeschlossen ist, bestätigen wir deine Bestellung per E-Mail.",
+      "cancelled": "Die PayPal-Zahlung wurde abgebrochen. Deine Plätze sind weiterhin reserviert – du kannst es unten erneut versuchen.",
+      "failed": "Die PayPal-Zahlung konnte nicht abgeschlossen werden. Bitte versuche es erneut oder wähle bei PayPal eine andere Zahlungsquelle.",
+      "expired": "Das Zahlungsfenster dieser Bestellung ist abgelaufen, die Plätze wurden freigegeben. Falls Geld abgebucht wurde, wird es automatisch erstattet.",
+      "unavailable": "PayPal ist vorübergehend nicht erreichbar. Deine Plätze sind reserviert – bitte versuche es gleich noch einmal."
+    },
+    "paid": {
+      "title": "Vielen Dank – deine Zahlung ist eingegangen.",
+      "text": "Deine Bestellung ist bestätigt. Deine Tickets schicken wir an {email}."
+    },
+    "closed": {
+      "CANCELLED": "Diese Bestellung wurde storniert.",
+      "EXPIRED": "Diese Bestellung ist abgelaufen.",
+      "text": "Die Plätze wurden freigegeben. Wenn du dabei sein möchtest, gib bitte eine neue Bestellung auf."
+    },
+    "bankTransfer": {
+      "title": "Bitte überweise den Betrag",
+      "intro": "Deine Plätze sind reserviert. Bitte überweise den Betrag bis spätestens {date} und gib den Verwendungszweck genau so an, wie er hier steht.",
+      "amount": "Betrag",
+      "reference": "Verwendungszweck",
+      "holder": "Kontoinhaber",
+      "bank": "Bank",
+      "noAccount": "Die Bankverbindung erhältst du per E-Mail.",
+      "hint": "Nur mit dem exakten Verwendungszweck können wir deine Überweisung automatisch zuordnen. Unbezahlte Bestellungen werden nach Fristablauf storniert und die Plätze freigegeben."
+    },
+    "paypal": {
+      "title": "Schließe deine Zahlung ab",
+      "intro": "Deine Plätze sind bis {time} Uhr reserviert. Bezahle mit PayPal, um deine Bestellung zu bestätigen.",
+      "processing": "Deine Zahlung wird verarbeitet.",
+      "pay": "Mit PayPal bezahlen",
+      "cancel": "Bestellung abbrechen",
+      "cancelTitle": "Bestellung abbrechen?",
+      "cancelText": "Deine reservierten Plätze werden sofort freigegeben und können von anderen gekauft werden.",
+      "keep": "Bestellung behalten",
+      "cancelConfirm": "Bestellung abbrechen",
+      "cancelled": "Deine Bestellung wurde abgebrochen."
+    },
+    "items": {
+      "title": "Tickets",
+      "row": "Reihe {label}",
+      "seat": "Platz {label}",
+      "standing": "Stehplatz",
+      "total": "Gesamt",
+      "vat": "inkl. {rate} % MwSt.",
+      "paid": "Bezahlt"
+    },
+    "documents": {
+      "title": "Dokumente",
+      "invoice": "Rechnung {number} (PDF)",
+      "creditNote": "Gutschrift {number} (PDF)"
+    },
+    "contact": "Fragen zu deiner Bestellung? Antworte einfach auf die Bestätigungs-E-Mail an {email}.",
+    "copy": "Kopieren",
+    "copyFailed": "Kopieren in die Zwischenablage nicht möglich."
+  },
+  "account": {
+    "title": "Schneller bestellen mit Kundenkonto",
+    "text": "Melde dich an, damit deine Daten automatisch ausgefüllt werden und du alle Bestellungen und Tickets an einem Ort findest. Ohne Konto bestellst du einfach unten als Gast weiter.",
+    "login": "Anmelden",
+    "register": "Konto erstellen",
+    "signedInAs": "Angemeldet als {name} ({email})",
+    "myAccount": "Mein Konto"
+  }
+}
