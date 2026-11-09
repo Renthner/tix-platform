@@ -2,6 +2,7 @@ import {
   effectiveCheckoutConfig,
   effectiveQueueConfig,
   getEventWithVenueBySlug,
+  getMediaAsset,
   getSetting,
   symbolsByIds,
   type VenueRow,
@@ -54,7 +55,13 @@ export async function generateMetadata({ params }: Params) {
   if (!found) return {};
   const description =
     found.event.subtitle ?? richTextToPlain(found.event.description).slice(0, 160);
-  return { title: found.event.title, description: description || undefined };
+  return {
+    title: found.event.title,
+    description: description || undefined,
+    ...(found.event.heroImageAssetId && {
+      openGraph: { images: [`/api/media/${found.event.heroImageAssetId}`] },
+    }),
+  };
 }
 
 export default async function EventPage({ params }: Params) {
@@ -63,7 +70,7 @@ export default async function EventPage({ params }: Params) {
   if (!found) notFound();
   const { event, venue } = found;
   const core = getCore();
-  const [checkout, queue, format, t, announcements, seatDisplay] = await Promise.all([
+  const [checkout, queue, format, t, announcements, seatDisplay, cover] = await Promise.all([
     effectiveCheckoutConfig(core, event),
     effectiveQueueConfig(core, event.id),
     getFormatter(),
@@ -80,6 +87,7 @@ export default async function EventPage({ params }: Params) {
       .orderBy(desc(queueAnnouncements.publishedAt))
       .limit(5),
     getSetting(core, 'seatDisplay'),
+    event.heroImageAssetId ? getMediaAsset(core, event.heroImageAssetId) : null,
   ]);
   const infoBoxes = event.infoBoxes.filter((b) => b.title || b.content);
   const boxSymbols = new Map(
@@ -169,6 +177,21 @@ export default async function EventPage({ params }: Params) {
 
   /** Content of one block (layout set by the admin; empty blocks render nothing). */
   function renderBlock(ref: PageBlockRef, shared: boolean): ReactNode {
+    if (ref === 'COVER') {
+      if (!cover) return null;
+      // Any format: natural aspect ratio (no layout shift), shown in full, height capped;
+      // scales down inside a narrow column.
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/api/media/${cover.id}`}
+          alt={cover.altText ?? ''}
+          width={cover.width ?? 1600}
+          height={cover.height ?? 900}
+          className="mx-auto h-auto max-h-[32rem] w-full rounded-xl border bg-muted/30 object-contain"
+        />
+      );
+    }
     if (ref === 'DESCRIPTION') {
       if (!descriptionHtml) return null;
       return (

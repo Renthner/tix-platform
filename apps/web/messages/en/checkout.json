@@ -12,7 +12,8 @@
     "email": "E-mail address",
     "emailHint": "Your confirmation and tickets are sent to this address.",
     "phone": "Phone",
-    "note": "Note for the organiser"
+    "note": "Note for the organiser",
+    "phoneHint": "Please enter a valid phone number (digits, spaces and + ( ) / - .)."
   },
   "address": {
     "toggle": "Add a billing address (e.g. for an invoice to a company)",
@@ -83,9 +84,18 @@
       "expired": "The payment window of this order has expired and the seats were released. If money was taken, it is refunded automatically.",
       "unavailable": "PayPal is temporarily unavailable. Your seats are reserved – please try again in a moment."
     },
+    "walletNotice": {
+      "unavailable": "Adding to the wallet did not work just now. Please try again later or use the PDF ticket."
+    },
     "paid": {
       "title": "Thank you – your payment has been received.",
       "text": "Your order is confirmed. Your tickets are sent to {email}."
+    },
+    "preparing": {
+      "title": "Your tickets are being created …",
+      "text": "This only takes a moment. The page updates automatically.",
+      "timeoutTitle": "Still working on your tickets",
+      "timeoutText": "Your tickets and invoice are not ready yet. Please reload this page in a few minutes – we will also send them to your e-mail address."
     },
     "closed": {
       "CANCELLED": "This order has been cancelled.",
@@ -100,7 +110,8 @@
       "holder": "Account holder",
       "bank": "Bank",
       "noAccount": "You will receive the bank details by e-mail.",
-      "hint": "Only the exact payment reference lets us assign your transfer automatically. Unpaid orders are cancelled after the deadline and the seats are released."
+      "hint": "Only the exact payment reference lets us assign your transfer automatically. Unpaid orders are cancelled after the deadline and the seats are released.",
+      "hintNoCancel": "Only the exact payment reference lets us assign your transfer automatically."
     },
     "paypal": {
       "title": "Complete your payment",
@@ -130,7 +141,16 @@
     },
     "contact": "Questions about your order? Simply reply to the confirmation e-mail sent to {email}.",
     "copy": "Copy",
-    "copyFailed": "Could not copy to the clipboard."
+    "copyFailed": "Could not copy to the clipboard.",
+    "tickets": {
+      "title": "Your tickets",
+      "intro": "Show the QR code on your ticket at the entrance – printed, as a PDF on your phone or in your wallet. The code below helps if your ticket has to be looked up manually.",
+      "downloadAll": "All tickets (PDF)",
+      "downloadOne": "Ticket PDF",
+      "downloadOneLabel": "Download ticket {code} as PDF",
+      "addApple": "Add to Apple Wallet",
+      "addGoogle": "Add to Google Wallet"
+    }
   },
   "account": {
     "title": "Order faster with a customer account",

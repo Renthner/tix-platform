@@ -8,10 +8,18 @@ import {
   orderItems,
   orders,
   payments,
+  tickets,
   venues,
 } from '@tix/db';
-import type { OrderItemStatus, OrderStatus, PaymentMethod } from '@tix/shared';
+import type {
+  CheckInState,
+  OrderItemStatus,
+  OrderStatus,
+  PaymentMethod,
+  TicketStatus,
+} from '@tix/shared';
 import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { placeOrderBy } from '../tickets/order';
 import type { CoreContext } from '../context';
 import { getSetting } from '../settings';
 
@@ -39,6 +47,16 @@ export interface OrderEventView {
   }[];
 }
 
+/** Ticket summary for order pages (never the signed QR payload). */
+export interface OrderTicketView {
+  id: string;
+  orderItemId: string;
+  ticketCode: string;
+  status: TicketStatus;
+  checkInState: CheckInState;
+  attendeeName: string | null;
+}
+
 export interface OrderView {
   order: OrderRecord;
   events: OrderEventView[];
@@ -50,6 +68,8 @@ export interface OrderView {
     totalGross: number;
   }[];
   taxes: { rateBasisPoints: number; net: number; tax: number }[];
+  /** All tickets of the order, issued ones first (REPLACED history included). */
+  tickets: OrderTicketView[];
   invoices: { id: string; type: string; invoiceNumber: string; issuedAt: string }[];
   /** Receiving account for Vorkasse (null when none is configured). */
   bankAccount: {
@@ -67,7 +87,7 @@ export interface OrderView {
 export async function getOrderView(ctx: CoreContext, orderId: string): Promise<OrderView | null> {
   const [order] = await ctx.db.select().from(orders).where(eq(orders.id, orderId));
   if (!order) return null;
-  const [itemRows, feeRows, invoiceRows, account, paypalSettings] = await Promise.all([
+  const [itemRows, feeRows, invoiceRows, ticketRows, account, paypalSettings] = await Promise.all([
     ctx.db
       .select({
         item: orderItems,
@@ -84,12 +104,7 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
       .innerJoin(events, eq(events.id, orderItems.eventId))
       .innerJoin(venues, eq(venues.id, events.venueId))
       .where(eq(orderItems.orderId, orderId))
-      .orderBy(
-        asc(events.startsAt),
-        asc(orderItems.sectionLabel),
-        asc(orderItems.rowLabel),
-        asc(orderItems.seatLabel),
-      ),
+      .orderBy(...placeOrderBy()),
     ctx.db
       .select()
       .from(orderFees)
@@ -105,6 +120,20 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
       .from(invoices)
       .where(eq(invoices.orderId, orderId))
       .orderBy(asc(invoices.issuedAt)),
+    ctx.db
+      .select({
+        id: tickets.id,
+        orderItemId: tickets.orderItemId,
+        ticketCode: tickets.ticketCode,
+        status: tickets.status,
+        checkInState: tickets.checkInState,
+        attendeeName: tickets.attendeeName,
+      })
+      .from(tickets)
+      .innerJoin(orderItems, eq(orderItems.id, tickets.orderItemId))
+      .innerJoin(events, eq(events.id, orderItems.eventId))
+      .where(eq(tickets.orderId, orderId))
+      .orderBy(...placeOrderBy(), asc(tickets.issuedAt), asc(tickets.ticketCode)),
     order.paymentMethod === 'BANK_TRANSFER'
       ? ctx.db
           .select({
@@ -179,6 +208,7 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
     taxes: [...taxes.entries()]
       .sort((a, b) => b[0] - a[0])
       .map(([rateBasisPoints, v]) => ({ rateBasisPoints, ...v })),
+    tickets: ticketRows,
     invoices: invoiceRows.map((i) => ({ ...i, issuedAt: i.issuedAt.toISOString() })),
     bankAccount: account[0] ?? null,
     paypal: {

@@ -5,11 +5,13 @@ import {
   CalendarDays,
   Hourglass,
   Landmark,
+  Mail,
   LayoutDashboard,
   Percent,
   ReceiptText,
   Settings,
   Shapes,
+  Ticket,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -22,6 +24,8 @@ export const NAV_ITEMS = {
   orders: { href: '/admin/orders', icon: ReceiptText, exact: false },
   banking: { href: '/admin/banking', icon: Landmark, exact: false },
   fees: { href: '/admin/fees', icon: Percent, exact: false },
+  emailTemplates: { href: '/admin/email-templates', icon: Mail, exact: false },
+  ticketTemplates: { href: '/admin/ticket-templates', icon: Ticket, exact: false },
   venues: { href: '/admin/venues', icon: Building2, exact: false },
   symbols: { href: '/admin/symbols', icon: Shapes, exact: false },
   waitingRoom: { href: '/admin/waiting-room', icon: Hourglass, exact: false },

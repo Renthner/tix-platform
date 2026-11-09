@@ -1,6 +1,6 @@
-import { bankAccounts, customers, invoices, type Executor } from '@tix/db';
+import { bankAccounts, customers, invoices, tickets, type Executor } from '@tix/db';
 import type { PaymentMethod } from '@tix/shared';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { CoreContext } from '../context';
 import {
   describeOrderItem,
@@ -10,8 +10,10 @@ import {
 } from '../documents/order-data';
 import { formatDate, formatDateTime, formatIban, formatMoney, formatTime } from '../format';
 import { mailTranslator, type MailTranslator } from '../i18n/mail-messages';
-import { orderUrl } from '../orders/access';
+import { orderAccessToken, orderUrl } from '../orders/access';
 import { getSetting } from '../settings';
+import { ticketLinksVariable } from '../tickets/email-links';
+import { walletLinksVariable } from '../wallet/links';
 import { escapeHtml, trustedHtml, type TemplateVariables } from './template';
 
 /**
@@ -53,6 +55,7 @@ export const EMAIL_VARIABLES = {
     'paymentMethod',
     'paymentReference',
     'paymentDueDate',
+    'autoCancelDate',
     'bankAccountHolder',
     'iban',
     'bic',
@@ -68,6 +71,14 @@ export const EMAIL_VARIABLES = {
     'cancellationReason',
     'invoiceNumber',
   ],
+  /** Passed by the refund flow as extra variables (REFUND_CONFIRMATION). */
+  refund: ['refundAmount', 'creditNoteNumber'],
+  /**
+   * PAYMENT_RECEIVED_TICKETS / TICKETS_RESENT: `walletLinks` is generated HTML (empty when wallet passes are off),
+   * `ticketLinks` one block per valid ticket (single PDF + wallet buttons), `ticketsPdfUrl` the combined tickets PDF
+   * download (empty without valid tickets), `ticketsAttached` "yes" when the tickets PDF is attached (set on delivery).
+   */
+  tickets: ['walletLinks', 'ticketLinks', 'ticketsPdfUrl', 'ticketsAttached'],
   account: ['verificationUrl', 'resetUrl', 'loginUrl', 'expiresAt'],
   smtpTest: ['sentAt'],
 } as const;
@@ -166,6 +177,10 @@ export async function orderVariables(
     paymentDueDate: order.paymentDueAt
       ? formatDate(order.paymentDueAt, locale, shop.timeZone)
       : null,
+    /** Empty when the order is not cancelled automatically (use `{{#if autoCancelDate}}`). */
+    autoCancelDate: order.autoCancelAt
+      ? formatDate(order.autoCancelAt, locale, shop.timeZone)
+      : null,
     bankAccountHolder: bank?.accountHolder ?? null,
     iban: bank ? formatIban(bank.iban) : null,
     bic: bank?.bic ?? null,
@@ -180,6 +195,9 @@ export async function orderVariables(
     reminderCount: order.reminderCount,
     cancellationReason: order.cancellationReason,
     invoiceNumber: invoiceNumbers.map((i) => i.number).join(', ') || null,
+    walletLinks: await walletLinksVariable(ctx, order.id, locale),
+    ticketLinks: await ticketLinksVariable(ctx, order.id, locale),
+    ticketsPdfUrl: await ticketsPdfUrl(ctx, order.id),
   };
 }
 
@@ -238,9 +256,13 @@ function itemsTable(
   }
   const fees = data.fees.filter((f) => f.totalGross > 0);
   if (fees.length > 0) {
+    // Subtotal before fees, so subtotal + fees visibly add up to the total.
+    const subtotal = order.totalGross - fees.reduce((sum, f) => sum + f.totalGross, 0);
     html.push(
+      `<tr><td style="padding:8px 0;border-top:1px solid #a1a1aa;font-weight:600">${escapeHtml(t('items.subtotal'))}</td><td align="right" style="padding:8px 0;border-top:1px solid #a1a1aa;font-weight:600;white-space:nowrap">${escapeHtml(money(subtotal))}</td></tr>`,
       `<tr><td colspan="2" style="padding:14px 0 2px;font-weight:600;font-size:15px">${escapeHtml(t('items.fees'))}</td></tr>`,
     );
+    text.push(`${t('items.subtotal')}: ${money(subtotal)}`, '');
     text.push(t('items.fees'));
     for (const fee of fees) {
       const event = fee.eventId ? data.eventById.get(fee.eventId) : undefined;
@@ -294,3 +316,15 @@ export async function customerVariables(
 }
 
 export { loadOrderDocumentData };
+
+/** Absolute download link of the tickets PDF of an order; null without `appUrl` or valid tickets. */
+async function ticketsPdfUrl(ctx: CoreContext, orderId: string): Promise<string | null> {
+  if (!ctx.appUrl) return null;
+  const [valid] = await ctx.db
+    .select({ id: tickets.id })
+    .from(tickets)
+    .where(and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID')))
+    .limit(1);
+  if (!valid) return null;
+  return `${ctx.appUrl}/api/orders/${orderId}/tickets?t=${encodeURIComponent(orderAccessToken(ctx, orderId))}`;
+}

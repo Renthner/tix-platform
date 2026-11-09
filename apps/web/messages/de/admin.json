@@ -10,7 +10,9 @@
     "waitingRoom": "Warteraum",
     "symbols": "Symbolbibliothek",
     "settings": "Einstellungen",
-    "fees": "Gebühren & Steuern"
+    "fees": "Gebühren & Steuern",
+    "emailTemplates": "E-Mail-Vorlagen",
+    "ticketTemplates": "Ticket-Designs"
   },
   "login": {
     "title": "Admin-Anmeldung",
@@ -183,7 +185,20 @@
       "confirm": "Endgültig löschen"
     }
   },
+  "shopOrder": {
+    "title": "Shop-Reihenfolge",
+    "description": "Reihenfolge, in der die Veranstaltungen auf der Shop-Startseite erscheinen.",
+    "back": "Alle Veranstaltungen",
+    "rule": "Platzierte Veranstaltungen erscheinen zuerst in dieser Reihenfolge; noch nicht platzierte (oder nach einem Zurücksetzen) folgen nach Datum sortiert. Angezeigt werden nur veröffentlichte, bevorstehende Veranstaltungen.",
+    "empty": "Aktuell sind keine Veranstaltungen im Shop gelistet.",
+    "save": "Reihenfolge speichern",
+    "saving": "Speichern…",
+    "reset": "Nach Datum sortieren",
+    "moveUp": "„{title}“ nach oben",
+    "moveDown": "„{title}“ nach unten"
+  },
   "events": {
+    "shopOrder": "Shop-Reihenfolge",
     "title": "Veranstaltungen",
     "description": "Vorstellungen, Verkaufszeiträume, Preise und Zugang.",
     "new": "Neue Veranstaltung",
@@ -208,6 +223,8 @@
     "fields": {
       "title": "Titel",
       "subtitle": "Untertitel",
+      "cover": "Titelbild",
+      "coverHint": "Wird auf der Veranstaltungsseite und in der Veranstaltungsliste angezeigt. Jedes Format funktioniert (quer, quadratisch oder hoch) und wird vollständig angezeigt; für die Veranstaltungsliste passt 16:9 (z. B. 1600 × 900 px) am besten. PNG, JPEG oder WebP, max. 10 MB.",
       "description": "Beschreibung",
       "slug": "URL-Kurzname",
       "slugHint": "Teil der Shop-URL. Kleinbuchstaben, Ziffern und Bindestriche.",
@@ -234,7 +251,9 @@
       "waitingRoom": "Warteraum",
       "accessCodes": "Zugangscodes",
       "page": "Shop-Seite",
-      "fees": "Gebühren"
+      "fees": "Gebühren",
+      "ticket": "Ticket",
+      "wallet": "Wallet"
     },
     "details": {
       "title": "Details der Veranstaltung"
@@ -295,10 +314,11 @@
       "title": "Shop-Seite",
       "description": "Ordne die Event-Seite an und füge Infoboxen hinzu – z. B. akzeptierte Ermäßigungsnachweise oder Hinweise für Menschen mit Beeinträchtigung.",
       "layoutTitle": "Aufbau der Seite",
-      "layoutHint": "Ziehe einen Baustein auf die linke oder rechte Hälfte eines anderen, um ihn daneben zu platzieren (bis zu {max} pro Zeile), oder auf eine Lücke zwischen den Zeilen für eine eigene Zeile. Der Saalplan nutzt immer die volle Breite. Der Kopfbereich mit Titel, Datum und Ort bleibt oben.",
+      "layoutHint": "Ziehe einen Baustein auf die linke oder rechte Hälfte eines anderen, um ihn daneben zu platzieren (bis zu {max} pro Zeile), oder auf eine Lücke zwischen den Zeilen für eine eigene Zeile. Der Saalplan nutzt immer die volle Breite. Das Titelbild kann überall stehen, z. B. links neben der Beschreibung. Der Kopfbereich mit Titel, Datum und Ort bleibt oben.",
       "header": "Kopfbereich – Titel, Datum, Ort",
       "headerFixed": "immer oben",
       "blocks": {
+        "COVER": "Titelbild",
         "DESCRIPTION": "Beschreibung",
         "SHOP": "Saalplan & Platzauswahl"
       },
@@ -581,6 +601,23 @@
     "deactivateTitle": "Code deaktivieren?",
     "activateTitle": "Code aktivieren?"
   },
+  "media": {
+    "dropHint": "Bild hierher ziehen oder klicken zum Hochladen",
+    "upload": "Bild hochladen",
+    "replace": "Bild ersetzen",
+    "remove": "Entfernen",
+    "uploading": "Wird hochgeladen…",
+    "errors": {
+      "generic": "Der Upload ist fehlgeschlagen. Bitte versuche es erneut.",
+      "MEDIA_EMPTY": "Die Datei ist leer.",
+      "MEDIA_TOO_LARGE": "Das Bild ist zu groß (max. 10 MB).",
+      "MEDIA_UNSUPPORTED_TYPE": "Es werden nur PNG-, JPEG- und WebP-Bilder unterstützt.",
+      "MEDIA_DIMENSIONS": "Die Bildmaße werden nicht unterstützt (max. 12.000 px pro Seite).",
+      "FILE_REQUIRED": "Wähle eine Bilddatei aus.",
+      "KIND_INVALID": "Dieser Bildtyp kann hier nicht hochgeladen werden.",
+      "FORBIDDEN": "Du darfst keine Bilder hochladen."
+    }
+  },
   "richText": {
     "toolbar": "Textformatierung",
     "bold": "Fett",
@@ -667,6 +704,10 @@
       "orphanSeatRuleHint": "Vorbelegung beim Anlegen von Veranstaltungen; jede Veranstaltung entscheidet selbst.",
       "requireTermsAcceptance": "Zustimmung zu den AGB an der Kasse verlangen",
       "requireTermsAcceptanceHint": "Kunden müssen ein Kästchen mit Link zur AGB-URL ankreuzen.",
+      "requirePhone": "Telefonnummer an der Kasse verlangen",
+      "requirePhoneHint": "Kunden müssen eine Telefonnummer angeben.",
+      "requireBillingAddress": "Rechnungsadresse an der Kasse verlangen",
+      "requireBillingAddressHint": "Kunden müssen ihre Adresse angeben, damit die Rechnung korrekt ausgestellt werden kann. Ist die Option aus, bleibt die Adresse freiwillig.",
       "companionSeatsRequireWheelchair": "Begleitplätze nur zusammen mit dem zugehörigen Rollstuhlplatz",
       "companionSeatsRequireWheelchairHint": "Ein Begleitplatz ist nur buchbar, wenn sein Rollstuhlplatz (benachbart oder im Saalplan-Editor zugeordnet) in derselben Bestellung ist. Geprüft bei „Weiter zum Warenkorb“.",
       "timeline": {
@@ -759,7 +800,7 @@
       "reminderAfterDays": "Erinnerung nach (Tagen)",
       "reminderAfterDaysHint": "Nach so vielen Tagen wird einmalig eine Zahlungserinnerung gesendet.",
       "cancelAfterDays": "Stornierung nach (Tagen)",
-      "cancelAfterDaysHint": "Unbezahlte Bestellungen werden storniert und die Plätze freigegeben (außer „Reservierung halten“ ist an der Bestellung gesetzt).",
+      "cancelAfterDaysHint": "Unbezahlte Bestellungen werden storniert und die Plätze freigegeben (außer „Reservierung halten“ ist an der Bestellung gesetzt). Leer lassen = keine automatische Stornierung – die Bestellungen bleiben dann reserviert, bis sie manuell storniert werden.",
       "disableDaysBeforeEvent": "Nicht verfügbar ab (Tage vor der Veranstaltung)",
       "disableDaysBeforeEventHint": "0 = bis zum Veranstaltungsbeginn verfügbar.",
       "autoMatchTolerance": "Toleranz bei der Zuordnung",
@@ -843,6 +884,8 @@
       "replyToHint": "Standardmäßig die Support-E-Mail.",
       "bccAddress": "Blindkopie (BCC) jeder E-Mail",
       "bccAddressHint": "Optionales Archiv-Postfach.",
+      "maxMessageSizeMb": "Maximale E-Mail-Größe (MB)",
+      "maxMessageSizeMbHint": "Wird eine Ticket-Mail mit Anhängen größer, wird sie ohne Ticket-PDF verschickt – die Tickets bleiben über die Download-Links in der Mail erreichbar. Viele Anbieter erlauben 25 MB.",
       "test": {
         "title": "Test-E-Mail senden",
         "description": "Verwendet die gespeicherten Einstellungen – Änderungen bitte zuerst speichern.",
@@ -877,7 +920,8 @@
       "payments": "Zahlungen",
       "invoicing": "Rechnungen",
       "email": "E-Mail",
-      "accounts": "Kundenkonten"
+      "accounts": "Kundenkonten",
+      "wallet": "Wallet"
     }
   },
   "symbols": {
@@ -906,5 +950,131 @@
     "deleteTitle": "Symbol löschen?",
     "deleteUsed": "„{name}“ wird {count, plural, one {# Mal} other {# Mal}} verwendet. Plätze erhalten wieder die Standardform, Symbole werden aus Elementen entfernt.",
     "deleteUnused": "„{name}“ wird nirgends verwendet."
+  },
+  "wallet": {
+    "title": "Wallet-Pässe",
+    "description": "Optionale Schaltflächen \"Zu Apple Wallet hinzufügen\" und \"Zu Google Wallet hinzufügen\" für Tickets.",
+    "optionalNote": "Beide Wallets sind optional und bleiben inaktiv, bis Sie sie mit vollständigen Zugangsdaten aktivieren. Ohne sie funktionieren Bestellung, Ticket-PDFs und E-Mails wie bisher. Die QR-Codes in den Pässen sind dieselben signierten Codes wie auf den PDF-Tickets.",
+    "loadFile": "Aus Datei laden…",
+    "apple": {
+      "title": "Apple Wallet",
+      "description": "Signierte .pkpass-Dateien, eine pro Ticket. Erfordert einen Apple-Developer-Account.",
+      "enabled": "Apple Wallet anbieten",
+      "enabledHint": "Erfordert Pass-Typ, Team-ID und die Zertifikate unten.",
+      "passTypeIdentifier": "Pass-Type-Identifier",
+      "passTypeIdentifierHint": "Die bei Apple registrierte Pass-Type-ID, z. B. pass.com.example.tickets.",
+      "teamIdentifier": "Team-ID",
+      "teamIdentifierHint": "10 Zeichen, zu finden in den Mitgliedschaftsdetails Ihres Apple-Developer-Kontos.",
+      "organizationName": "Organisationsname auf dem Pass",
+      "organizationNameHint": "Optional; Standard ist der Shop-Name.",
+      "signerCertificate": "Pass-Signaturzertifikat (PEM)",
+      "pemHint": "PEM-Text einfügen oder Datei laden. Verschlüsselt gespeichert, wird nie wieder angezeigt.",
+      "signerKey": "Privater Schlüssel (PEM)",
+      "keyHint": "Der zum Zertifikat gehörende Schlüssel (entsteht zusammen mit der Signieranforderung).",
+      "wwdrCertificate": "Apple-WWDR-Zertifikat (PEM)",
+      "wwdrHint": "Apple Worldwide Developer Relations Zwischenzertifikat (G4).",
+      "signerKeyPassphrase": "Passphrase des Schlüssels",
+      "passphraseHint": "Nur, wenn der private Schlüssel verschlüsselt ist.",
+      "clearCertificates": "Gespeicherte Zertifikate und Schlüssel entfernen",
+      "guide": {
+        "title": "Schritt-für-Schritt-Einrichtung",
+        "intro": "Sie benötigen eine kostenpflichtige Mitgliedschaft im Apple Developer Program. Planen Sie etwa 20 Minuten ein.",
+        "steps": {
+          "account": "Treten Sie dem <link>Apple Developer Program</link> (kostenpflichtig, jährlich) mit der Apple-ID Ihrer Organisation bei.",
+          "passType": "Registrieren Sie unter <b>Certificates, Identifiers & Profiles → Identifiers</b> eine neue <b>Pass Type ID</b>, z. B. <code>pass.com.example.tickets</code>, und tragen Sie sie oben ein.",
+          "certificate": "Erzeugen Sie auf Ihrem Rechner eine Signieranforderung: <code>openssl req -new -newkey rsa:2048 -nodes -keyout pass.key -out pass.csr -subj \"/CN=Tickets\"</code>. Öffnen Sie die Pass Type ID, klicken Sie auf <b>Create Certificate</b>, laden Sie <code>pass.csr</code> hoch und laden Sie <code>pass.cer</code> herunter.",
+          "export": "Wandeln Sie das Zertifikat in PEM um: <code>openssl x509 -inform DER -in pass.cer -out pass.pem</code>. Fügen Sie <code>pass.pem</code> als Zertifikat und <code>pass.key</code> als privaten Schlüssel ein.",
+          "wwdr": "Laden Sie das Zertifikat <b>Worldwide Developer Relations - G4</b> bei Apple herunter (apple.com/certificateauthority) und wandeln Sie es um: <code>openssl x509 -inform DER -in AppleWWDRCAG4.cer -out wwdr.pem</code>. Fügen Sie es als WWDR-Zertifikat ein.",
+          "upload": "Tragen Sie Ihre 10-stellige <b>Team-ID</b> ein, aktivieren Sie Apple Wallet und speichern Sie.",
+          "test": "Klicken Sie auf <b>Konfiguration prüfen</b>, geben Sie dann eine Testbestellung auf und öffnen Sie die Bestellseite auf einem iPhone: Die Schaltfläche <b>Zu Apple Wallet hinzufügen</b> installiert den Pass. Zertifikate laufen nach einem Jahr ab - die Prüfung warnt 30 Tage vorher."
+        }
+      }
+    },
+    "google": {
+      "title": "Google Wallet",
+      "description": "\"In Google Wallet speichern\"-Links. Ein Google-Pay-&-Wallet-Aussteller-Konto ist kostenlos.",
+      "enabled": "Google Wallet anbieten",
+      "enabledHint": "Erfordert Aussteller-ID und den Dienstkonto-Schlüssel unten.",
+      "issuerId": "Aussteller-ID (Issuer ID)",
+      "issuerIdHint": "Wird in der Google Pay & Wallet Console angezeigt.",
+      "classPrefix": "ID-Präfix",
+      "classPrefixHint": "Präfix der erzeugten Klassen- und Objekt-IDs (Buchstaben, Ziffern, - und _). Nach Ausgabe von Pässen nicht mehr ändern.",
+      "serviceAccountJson": "Dienstkonto-Schlüssel (JSON)",
+      "serviceAccountHint": "JSON-Schlüsseldatei einfügen oder laden. Verschlüsselt gespeichert, wird nie wieder angezeigt.",
+      "clearCredentials": "Gespeicherten Dienstkonto-Schlüssel entfernen",
+      "guide": {
+        "title": "Schritt-für-Schritt-Einrichtung",
+        "intro": "Kostenlos; planen Sie etwa 15 Minuten ein. Bilder in Google-Pässen stammen vom Veranstaltungsbild und vom Shop-Logo und funktionieren nur, wenn der Shop über öffentliches https erreichbar ist.",
+        "steps": {
+          "console": "Öffnen Sie die <link>Google Pay & Wallet Console</link>, melden Sie sich an, legen Sie ein Geschäftsprofil an und akzeptieren Sie die Nutzungsbedingungen der Google Wallet API.",
+          "issuer": "Kopieren Sie die <b>Issuer ID</b> (Bereich Google Wallet API der Console) in das Feld oben.",
+          "project": "Erstellen Sie in der Google Cloud Console ein Projekt und aktivieren Sie dort die <b>Google Wallet API</b>.",
+          "serviceAccount": "Erstellen Sie in diesem Projekt ein <b>Dienstkonto</b> und fügen Sie ihm einen <b>JSON-Schlüssel</b> hinzu. Laden Sie die Schlüsseldatei herunter.",
+          "access": "Laden Sie in der Wallet Console unter <b>Users</b> die E-Mail-Adresse des Dienstkontos mit der Rolle <b>Developer</b> ein.",
+          "upload": "Fügen Sie den JSON-Schlüssel oben ein, tragen Sie die Issuer ID ein, aktivieren Sie Google Wallet und speichern Sie.",
+          "test": "Klicken Sie auf <b>Konfiguration prüfen</b>. Neue Aussteller starten im Demo-Modus: Pässe sind als Test gekennzeichnet und können nur von in der Console eingetragenen Testnutzern gespeichert werden. Beantragen Sie dort die Veröffentlichung, bevor Sie live gehen."
+        }
+      }
+    },
+    "check": {
+      "title": "Konfiguration prüfen",
+      "description": "Prüft die gespeicherten Einstellungen (Zertifikate und Ablauf bei Apple, Token-Anfrage und Aussteller-Zugriff bei Google). Speichern Sie Änderungen zuerst.",
+      "button": "Konfiguration prüfen",
+      "running": "Prüfe…",
+      "ok": "Die Konfiguration ist gültig.",
+      "failed": "Die Konfiguration hat Probleme.",
+      "details": {
+        "subject": "Zertifikat-Subjekt",
+        "signerExpires": "Zertifikat gültig bis",
+        "wwdrExpires": "WWDR gültig bis",
+        "serviceAccount": "Dienstkonto"
+      },
+      "issues": {
+        "passTypeMissing": "Pass-Type-Identifier fehlt.",
+        "teamMissing": "Team-Identifier fehlt.",
+        "certificatesMissing": "Zertifikat, Schlüssel und WWDR-Zertifikat sind noch nicht gespeichert.",
+        "certificatesUnreadable": "Die Zertifikate können nicht gelesen werden",
+        "certExpired": "Das {cert, select, signer {Signatur-} other {WWDR-}}Zertifikat ist abgelaufen.",
+        "certNotYetValid": "Das {cert, select, signer {Signatur-} other {WWDR-}}Zertifikat ist noch nicht gültig.",
+        "certExpiresSoon": "Das {cert, select, signer {Signatur-} other {WWDR-}}Zertifikat läuft innerhalb von 30 Tagen ab.",
+        "passTypeMismatch": "Das Zertifikat gehört zum Pass-Typ „{actual}“, nicht zu „{expected}“.",
+        "wwdrMismatch": "Das Signaturzertifikat wurde nicht vom angegebenen WWDR-Zertifikat ausgestellt.",
+        "issuerMissing": "Issuer-ID fehlt.",
+        "serviceAccountMissing": "Der Service-Account-Schlüssel ist noch nicht gespeichert.",
+        "serviceAccountInvalid": "Der Service-Account-Schlüssel ist ungültig",
+        "privateKeyUnusable": "Der private Schlüssel des Service-Accounts kann nicht verwendet werden.",
+        "tokenFailed": "Token-Anfrage fehlgeschlagen",
+        "issuerNoAccess": "Der Service-Account hat keinen Zugriff auf den Issuer {issuerId}. Füge ihn in der Google Pay & Wallet Console als Benutzer hinzu.",
+        "apiError": "Google-Wallet-API-Fehler",
+        "requestFailed": "Anfrage fehlgeschlagen",
+        "appUrlNotHttps": "Die Shop-URL ist kein öffentliches https: Logo und Hero-Bild werden in Google-Pässen weggelassen."
+      }
+    },
+    "design": {
+      "title": "Pass-Design (alle Veranstaltungen)",
+      "description": "Farben, Logotext und Bilder der Wallet-Pässe. Einzelne Veranstaltungen können das Design im Reiter Wallet überschreiben.",
+      "eventTitle": "Wallet-Pass-Design",
+      "eventDescription": "Überschreibt das globale Design für diese Veranstaltung.",
+      "inheriting": "Diese Veranstaltung nutzt derzeit das globale Design. Beim Speichern entsteht ein eigenes Design für diese Veranstaltung.",
+      "removeOverride": "Wieder das globale Design verwenden",
+      "backgroundColor": "Hintergrundfarbe",
+      "foregroundColor": "Textfarbe",
+      "labelColor": "Beschriftungsfarbe",
+      "previewLabel": "VERANSTALTUNG",
+      "previewValue": "Beispiel-Musical",
+      "logoText": "Logotext",
+      "logoTextHint": "Wird bei Apple-Pässen neben dem Logo angezeigt. Optional.",
+      "descriptionField": "Beschreibung für Barrierefreiheit",
+      "descriptionHint": "Kurzbeschreibung für Screenreader; Standard ist der Veranstaltungstitel.",
+      "imagesHint": "Apple Wallet akzeptiert nur PNG-Bilder; andere Formate werden ignoriert. Ohne Icon wird ein neutrales Quadrat in der Hintergrundfarbe erzeugt. Google-Pässe verwenden stattdessen Veranstaltungsbild und Shop-Logo.",
+      "images": {
+        "logo": "Logo",
+        "logoHint": "PNG, z. B. 160 x 50 px (dient auch als Icon, wenn keines gesetzt ist).",
+        "icon": "Icon",
+        "iconHint": "PNG, 58 x 58 px oder größer (Sperrbildschirm).",
+        "strip": "Streifenbild",
+        "stripHint": "PNG, z. B. 750 x 196 px, Banner hinter dem Veranstaltungstitel."
+      }
+    }
   }
 }

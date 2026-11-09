@@ -16,3 +16,12 @@ export const RICH_TEXT_CLASS = [
   '[&_hr]:my-4 [&_hr]:border-border',
   '[&_code]:rounded [&_code]:bg-muted [&_code]:px-1',
 ].join(' ');
+
+/** Shop footer text (rich text from Settings → Appearance): compact, links in the muted colour. */
+export const FOOTER_RICH_TEXT_CLASS = [
+  'leading-relaxed',
+  '[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
+  '[&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_li>p]:my-0',
+  '[&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-foreground',
+  '[&_strong]:font-semibold',
+].join(' ');

@@ -78,6 +78,7 @@ export default async function EventSalesPage({
             bankTransferPaymentTermDays: event.bankTransferPaymentTermDays,
             bankTransferReminderAfterDays: event.bankTransferReminderAfterDays,
             bankTransferCancelAfterDays: event.bankTransferCancelAfterDays,
+            bankTransferAutoCancel: event.bankTransferAutoCancel,
             bankTransferDisableDaysBeforeEvent: event.bankTransferDisableDaysBeforeEvent,
             customerAccountsEnabled: event.customerAccountsEnabled,
           }}

@@ -1,0 +1,156 @@
+{
+  "title": "E-Mail-Vorlagen",
+  "description": "Texte der Transaktions-E-Mails pro Sprache. Eine Veranstaltung kann eine Vorlage mit einem eigenen Text überschreiben.",
+  "columns": {
+    "template": "Vorlage",
+    "english": "Englisch",
+    "german": "Deutsch",
+    "overrides": "Veranstaltungs-Überschreibungen"
+  },
+  "status": {
+    "default": "Standardtext",
+    "customized": "Angepasst",
+    "inactive": "Inaktiv",
+    "missing": "Fehlt (Standard wird verwendet)"
+  },
+  "edit": "Bearbeiten",
+  "noOverrides": "Keine",
+  "keys": {
+    "ORDER_CONFIRMATION_BANK_TRANSFER": {
+      "name": "Bestellbestätigung (Vorkasse)",
+      "description": "Wird nach der Bestellung mit Vorkasse gesendet: Bankverbindung und Verwendungszweck."
+    },
+    "PAYMENT_RECEIVED_TICKETS": {
+      "name": "Zahlung erhalten & Tickets",
+      "description": "Wird bei vollständiger Bezahlung gesendet: Rechnung und Ticket-PDFs im Anhang."
+    },
+    "PAYMENT_REMINDER": {
+      "name": "Zahlungserinnerung",
+      "description": "Mahnung für unbezahlte Vorkasse-Bestellungen."
+    },
+    "ORDER_CANCELLED": {
+      "name": "Bestellung storniert",
+      "description": "Wird gesendet, wenn eine Bestellung storniert wird oder abläuft."
+    },
+    "REFUND_CONFIRMATION": {
+      "name": "Erstattungsbestätigung",
+      "description": "Wird gesendet, wenn eine Erstattung oder Gutschrift erstellt wurde."
+    },
+    "TICKETS_RESENT": {
+      "name": "Tickets erneut gesendet",
+      "description": "Wird gesendet, wenn ein Admin oder der Kunde die Tickets erneut anfordert."
+    },
+    "CUSTOMER_EMAIL_VERIFICATION": {
+      "name": "Kundenkonto: E-Mail bestätigen",
+      "description": "Link zur Bestätigung der E-Mail-Adresse eines Kundenkontos."
+    },
+    "CUSTOMER_PASSWORD_RESET": {
+      "name": "Kundenkonto: Passwort zurücksetzen",
+      "description": "Link zum Festlegen eines neuen Passworts."
+    },
+    "CUSTOMER_LOGIN_LINK": {
+      "name": "Kundenkonto: Anmeldelink",
+      "description": "Einmal-Link zur Anmeldung ohne Passwort."
+    },
+    "SMTP_TEST": {
+      "name": "SMTP-Testnachricht",
+      "description": "Wird über „Test-E-Mail senden“ in den E-Mail-Einstellungen gesendet."
+    }
+  },
+  "page": {
+    "back": "Alle Vorlagen",
+    "global": "Globale Vorlage",
+    "overrideFor": "Überschreibung für Veranstaltung: {event}",
+    "overrideHint": "Dieser Text wird für Bestellungen dieser Veranstaltung anstelle der globalen Vorlage verwendet.",
+    "languages": "Sprache",
+    "noOverrideYet": "Diese Veranstaltung hat für diese Vorlage noch keinen eigenen Text. Legen Sie eine Überschreibung an – sie beginnt als Kopie der globalen Vorlage.",
+    "createOverride": "Überschreibung anlegen",
+    "deleteOverride": "Überschreibung löschen",
+    "deleteOverrideTitle": "Diese Überschreibung löschen?",
+    "deleteOverrideDescription": "Für diese Veranstaltung gilt wieder die globale Vorlage. Der Text der Überschreibung geht verloren.",
+    "overridesTitle": "Veranstaltungs-Überschreibungen",
+    "overridesDescription": "Geben Sie einzelnen Veranstaltungen einen eigenen Text für diese Vorlage und Sprache.",
+    "chooseEvent": "Veranstaltung wählen …",
+    "noEvents": "Es gibt keine Veranstaltungen ohne Überschreibung.",
+    "openOverride": "Überschreibung bearbeiten"
+  },
+  "editor": {
+    "subject": "Betreff",
+    "subjectHint": "Platzhalter wie {example} sind erlaubt.",
+    "active": "Vorlage aktiv",
+    "activeHint": "Inaktive Vorlagen werden übersprungen; stattdessen gilt eine andere Sprache oder die globale Vorlage.",
+    "body": "Nachricht",
+    "modeVisual": "Visuell",
+    "modeSource": "HTML-Quelltext",
+    "visualLabel": "E-Mail-Inhalt",
+    "visualScope": "Der visuelle Editor bearbeitet den Nachrichtentext. Kopf- und Fußbereich des Layouts ändern Sie im HTML-Quelltext.",
+    "sourceLabel": "HTML-Quelltext",
+    "sourceHint": "Vollständiges HTML-Dokument. Tabellen und Inline-Styles sind der zuverlässigste Weg, E-Mails zu gestalten. Unsichere Elemente (Skripte, Formulare, Frames, externe Styles) werden beim Speichern entfernt.",
+    "lossy": "Der visuelle Editor kann diese Nachricht nicht exakt darstellen (zum Beispiel ungewöhnliche Tabellen oder unbekanntes Markup). Du kannst im HTML-Quelltext weiterarbeiten oder den visuellen Editor trotzdem öffnen – nicht unterstütztes Markup wird dann beim Bearbeiten dort möglicherweise vereinfacht.",
+    "lossyAnyway": "Visuellen Editor trotzdem öffnen",
+    "noVisual": "Dieses Dokument hat ein eigenes Layout – bitte im HTML-Quelltext bearbeiten.",
+    "linkAsButton": "Link als Button darstellen",
+    "linkHint": "https://…, mailto:…, tel:… oder ein Platzhalter wie {example}.",
+    "plainText": "Nur-Text-Version",
+    "plainTextHint": "Wird von Mailprogrammen angezeigt, die kein HTML darstellen. Leer lassen, um sie automatisch aus dem HTML zu erzeugen.",
+    "generateText": "Aus HTML erzeugen",
+    "save": "Vorlage speichern",
+    "resetToDefault": "Auf Standard zurücksetzen",
+    "resetTitle": "Auf den Standardtext zurücksetzen?",
+    "resetDescription": "Betreff und Text werden durch den mitgelieferten Standard ersetzt. Ihre Änderungen gehen verloren.",
+    "resetConfirm": "Zurücksetzen",
+    "isDefault": "Dies ist der unveränderte Standardtext.",
+    "customized": "Dieser Text wurde angepasst.",
+    "unsaved": "Ungespeicherte Änderungen",
+    "savedWarnings": "Gespeichert. Bitte beachten Sie die Hinweise unten."
+  },
+  "placeholders": {
+    "title": "Platzhalter",
+    "hint": "Klicken, um an der Cursorposition einzufügen. Werte werden automatisch maskiert.",
+    "html": "generierter Block",
+    "helpersTitle": "Bedingungen",
+    "helpersHint": "Text nur anzeigen, wenn ein Wert vorhanden ist: {ifExample}, oder nur wenn er leer ist: {unlessExample}.",
+    "groups": {
+      "shop": "Shop & Veranstalter",
+      "customer": "Kunde",
+      "order": "Bestellung",
+      "tickets": "Tickets",
+      "account": "Konto-Links",
+      "smtpTest": "Test"
+    }
+  },
+  "preview": {
+    "title": "Vorschau",
+    "hint": "Mit Beispieldaten einer Bestellung gerendert.",
+    "html": "HTML",
+    "text": "Nur Text",
+    "subject": "Betreff",
+    "loading": "Aktualisiere …",
+    "unavailable": "Keine Vorschau, solange die Vorlage Fehler enthält.",
+    "sendTest": "Test-E-Mail senden",
+    "sendTestHint": "Sendet den aktuellen (ungespeicherten) Text mit Beispieldaten an {email}.",
+    "testSent": "Test-E-Mail an {to} gesendet.",
+    "testFailed": "Die Test-E-Mail konnte nicht gesendet werden: {message}",
+    "testInvalid": "Die Vorlage kann noch nicht gesendet werden. Bitte zuerst die Fehler beheben.",
+    "emptyText": "Die Nur-Text-Version wird beim Versand aus dem HTML erzeugt."
+  },
+  "issues": {
+    "errorsTitle": "Die Vorlage kann nicht gespeichert werden",
+    "warningsTitle": "Hinweise",
+    "syntax": "{field}: {detail}",
+    "unknownPlaceholder": "{field}: „{placeholder}“ ist in dieser Vorlage nicht verfügbar und bleibt leer.",
+    "unavailablePlaceholder": "{field}: „{placeholder}“ ist hier nicht verfügbar.",
+    "fields": {
+      "subject": "Betreff",
+      "bodyHtml": "HTML",
+      "bodyText": "Nur Text"
+    },
+    "syntaxErrors": {
+      "emptyPlaceholder": "Leerer Platzhalter an Position {offset}.",
+      "missingName": "„{keyword}“ benötigt einen Variablennamen.",
+      "unexpectedElse": "Unerwartetes '{{'else'}}' ohne offene Bedingung.",
+      "unexpectedClose": "Unerwartetes '{{'{keyword}'}}' ohne passenden Anfang.",
+      "unclosedSection": "Nicht geschlossenes '{{'#{kind} …'}}' – das schließende Tag fehlt."
+    }
+  }
+}

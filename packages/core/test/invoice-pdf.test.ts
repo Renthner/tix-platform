@@ -1,4 +1,3 @@
-import { inflateSync } from 'node:zlib';
 import { PDFDocument } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 import {
@@ -12,6 +11,7 @@ import {
   type OrderItemRow,
   type OrderRow,
 } from '../src';
+import { extractPdfText } from './pdf-extract';
 
 const EVENT_START = new Date('2026-12-12T18:30:00Z');
 
@@ -134,24 +134,6 @@ describe('invoice calculation', () => {
   });
 });
 
-/** Decompressed content streams of a PDF (to look for drawn text). */
-function contentStreams(bytes: Uint8Array): string {
-  const raw = Buffer.from(bytes).toString('latin1');
-  let out = '';
-  for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
-    const data = Buffer.from(match[1]!, 'latin1');
-    try {
-      out += inflateSync(data).toString('latin1');
-    } catch {
-      out += data.toString('latin1');
-    }
-  }
-  return out;
-}
-
-/** pdf-lib draws standard-font text as hex strings of WinAnsi codes. */
-const hex = (text: string) => `<${Buffer.from(text, 'latin1').toString('hex').toUpperCase()}>`;
-
 describe('invoice PDF', () => {
   const lines = Array.from({ length: 40 }, (_, i) => ({
     position: i + 1,
@@ -209,11 +191,11 @@ describe('invoice PDF', () => {
     expect(Math.round(height)).toBe(842);
     expect(doc.getTitle()).toBe('Rechnung RE-2026-000042');
     expect(doc.getCreationDate()?.toISOString()).toBe('2026-11-05T10:00:00.000Z');
-    const content = contentStreams(bytes);
+    const texts = await extractPdfText(bytes);
     for (const text of ['Jürgen Müller', 'Rechnung RE-2026-000042', 'Gesamtbetrag', 'AT']) {
-      expect(content, text).toContain(hex(text));
+      expect(texts, text).toContain(text);
     }
-    expect(content).toContain(hex(`Seite 2 von ${doc.getPageCount()}`));
+    expect(texts).toContain(`Seite 2 von ${doc.getPageCount()}`);
   });
 
   it('is deterministic (re-rendering reproduces the archived document)', async () => {
@@ -234,8 +216,8 @@ describe('invoice PDF', () => {
       },
       mailTranslator('en'),
     );
-    const content = contentStreams(bytes);
-    expect(content).toContain(hex('Credit note GS-2026-000001'));
-    expect(content).toContain(hex('RE-2026-000042'));
+    const texts = await extractPdfText(bytes);
+    expect(texts).toContain('Credit note GS-2026-000001');
+    expect(texts).toContain('RE-2026-000042');
   });
 });

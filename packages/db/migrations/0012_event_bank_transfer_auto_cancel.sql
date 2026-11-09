@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "bank_transfer_auto_cancel" boolean;

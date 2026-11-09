@@ -59,6 +59,7 @@ export function RichTextEditor({
   id,
   ariaLabel,
   invalid,
+  compact,
 }: {
   /** Name of the hidden input that carries the HTML on form submit. */
   name: string;
@@ -66,6 +67,8 @@ export function RichTextEditor({
   id?: string;
   ariaLabel?: string;
   invalid?: boolean;
+  /** Short texts (e.g. the shop footer): no headings / quotes, smaller editing area. */
+  compact?: boolean;
 }) {
   const [html, setHtml] = useState(defaultValue);
   const editor = useEditor({
@@ -96,7 +99,7 @@ export function RichTextEditor({
         ...(ariaLabel ? { 'aria-label': ariaLabel } : {}),
         role: 'textbox',
         'aria-multiline': 'true',
-        class: cn('min-h-40 px-3 py-2 outline-none', RICH_TEXT_CLASS),
+        class: cn(compact ? 'min-h-24' : 'min-h-40', 'px-3 py-2 outline-none', RICH_TEXT_CLASS),
       },
     },
     onUpdate: ({ editor: e }) => setHtml(e.isEmpty ? '' : e.getHTML()),
@@ -110,13 +113,13 @@ export function RichTextEditor({
       )}
     >
       <input type="hidden" name={name} value={html} />
-      {editor ? <Toolbar editor={editor} /> : <div className="h-10 border-b" />}
+      {editor ? <Toolbar editor={editor} compact={compact} /> : <div className="h-10 border-b" />}
       <EditorContent editor={editor} />
     </div>
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, compact }: { editor: Editor; compact?: boolean }) {
   const t = useTranslations('admin.richText');
   const [linkOpen, setLinkOpen] = useState(false);
   const state = useEditorState({
@@ -177,20 +180,24 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Strikethrough />
       </ToolButton>
       <Divider />
-      <ToolButton
-        label={t('heading2')}
-        active={state.h2}
-        onClick={() => chain().toggleHeading({ level: 2 }).run()}
-      >
-        <Heading2 />
-      </ToolButton>
-      <ToolButton
-        label={t('heading3')}
-        active={state.h3}
-        onClick={() => chain().toggleHeading({ level: 3 }).run()}
-      >
-        <Heading3 />
-      </ToolButton>
+      {!compact && (
+        <>
+          <ToolButton
+            label={t('heading2')}
+            active={state.h2}
+            onClick={() => chain().toggleHeading({ level: 2 }).run()}
+          >
+            <Heading2 />
+          </ToolButton>
+          <ToolButton
+            label={t('heading3')}
+            active={state.h3}
+            onClick={() => chain().toggleHeading({ level: 3 }).run()}
+          >
+            <Heading3 />
+          </ToolButton>
+        </>
+      )}
       <ToolButton
         label={t('bulletList')}
         active={state.bullet}
@@ -205,13 +212,15 @@ function Toolbar({ editor }: { editor: Editor }) {
       >
         <ListOrdered />
       </ToolButton>
-      <ToolButton
-        label={t('blockquote')}
-        active={state.quote}
-        onClick={() => chain().toggleBlockquote().run()}
-      >
-        <Quote />
-      </ToolButton>
+      {!compact && (
+        <ToolButton
+          label={t('blockquote')}
+          active={state.quote}
+          onClick={() => chain().toggleBlockquote().run()}
+        >
+          <Quote />
+        </ToolButton>
+      )}
       <Divider />
       <ToolButton
         label={state.link ? t('editLink') : t('addLink')}

@@ -22,7 +22,10 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   typedRoutes: true,
   transpilePackages: ['@tix/shared', '@tix/db', '@tix/redis', '@tix/core'],
-  serverExternalPackages: ['pg', 'ioredis'],
+  serverExternalPackages: ['pg', 'ioredis', 'sharp'],
+  // Noto Sans for invoice/ticket PDFs is read from disk at runtime; make sure the standalone
+  // output ships it (packages/core/assets/fonts, resolved relative to the server's cwd).
+  outputFileTracingIncludes: { '/**': ['../../packages/core/assets/fonts/**'] },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

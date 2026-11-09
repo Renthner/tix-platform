@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { IDLE, type ActionState } from '@/lib/action-state';
 import { slugify } from '@/lib/slug';
+import { MediaPicker, type MediaPickerAsset } from './media-picker';
 import { RichTextEditor } from './rich-text-editor';
 import { cn } from '@/lib/utils';
 import {
@@ -228,6 +229,8 @@ export interface EventDetailsValues {
   timeZone: string;
   currency: string;
   taxRateId: string;
+  /** Cover image (events.hero_image_asset_id) with the meta needed for the preview. */
+  cover: MediaPickerAsset | null;
 }
 
 export function EventDetailsForm({
@@ -269,6 +272,20 @@ export function EventDetailsForm({
             name="subtitle"
             defaultValue={initial.subtitle ?? ''}
             maxLength={300}
+          />
+        </Field>
+        <Field
+          label={t('fields.cover')}
+          error={err('heroImageAssetId')}
+          hint={t('fields.coverHint')}
+          className="md:col-span-2"
+        >
+          <MediaPicker
+            name="heroImageAssetId"
+            kind="EVENT_IMAGE"
+            initialAsset={initial.cover}
+            fit="contain"
+            previewClassName="max-w-md"
           />
         </Field>
         <Field
@@ -422,6 +439,8 @@ export interface EventSalesValues {
   bankTransferPaymentTermDays: number | null;
   bankTransferReminderAfterDays: number | null;
   bankTransferCancelAfterDays: number | null;
+  /** false = never auto-cancel unpaid Vorkasse orders of this event; null = days override / global. */
+  bankTransferAutoCancel: boolean | null;
   bankTransferDisableDaysBeforeEvent: number | null;
   /** false = no sign-in / registration in the checkout of this event; null = global. */
   customerAccountsEnabled: boolean | null;
@@ -440,7 +459,8 @@ export interface GlobalCheckoutDefaults {
   bankTransferEnabled: boolean;
   bankTransferPaymentTermDays: number;
   bankTransferReminderAfterDays: number;
-  bankTransferCancelAfterDays: number;
+  /** Null = the global setting has no automatic cancellation. */
+  bankTransferCancelAfterDays: number | null;
   bankTransferDisableDaysBeforeEvent: number;
   customerAccountsEnabled: boolean;
 }
@@ -463,6 +483,13 @@ export function EventSalesForm({
   const tp = useTranslations('orders.eventPayments');
   const [state, formAction] = useActionState(action, IDLE);
   const err = (name: string) => errorOf(state, name);
+  const [cancelMode, setCancelMode] = useState<'inherit' | 'custom' | 'off'>(
+    initial.bankTransferAutoCancel === false
+      ? 'off'
+      : initial.bankTransferCancelAfterDays !== null
+        ? 'custom'
+        : 'inherit',
+  );
   const inherit = (value: string | number | null) =>
     tcm('inherit', { value: value === null ? tcm('unlimited') : String(value) });
   const onOff = (v: boolean) => (v ? tcm('on') : tcm('off'));
@@ -606,7 +633,45 @@ export function EventSalesForm({
           {triField('bankTransferEnabled', tp('bankTransferEnabled'))}
           {numberField('bankTransferPaymentTermDays', 1, 60, tp('paymentTermDays'))}
           {numberField('bankTransferReminderAfterDays', 1, 60, tp('reminderAfterDays'))}
-          {numberField('bankTransferCancelAfterDays', 1, 90, tp('cancelAfterDays'))}
+          <Field
+            label={tp('cancelMode')}
+            htmlFor="bankTransferCancelMode"
+            error={err('bankTransferCancelMode')}
+          >
+            <NativeSelect
+              id="bankTransferCancelMode"
+              name="bankTransferCancelMode"
+              value={cancelMode}
+              onChange={(e) => setCancelMode(e.target.value as 'inherit' | 'custom' | 'off')}
+            >
+              <option value="inherit">
+                {tcm('inherit', {
+                  value:
+                    globals.bankTransferCancelAfterDays === null
+                      ? tp('cancelNone')
+                      : tp('cancelDays', { days: globals.bankTransferCancelAfterDays }),
+                })}
+              </option>
+              <option value="custom">{tp('cancelCustom')}</option>
+              <option value="off">{tp('cancelNone')}</option>
+            </NativeSelect>
+          </Field>
+          <Field
+            label={tp('cancelAfterDays')}
+            htmlFor="bankTransferCancelAfterDays"
+            error={err('bankTransferCancelAfterDays')}
+            hint={tp('cancelAfterDaysHint')}
+          >
+            <Input
+              id="bankTransferCancelAfterDays"
+              name="bankTransferCancelAfterDays"
+              type="number"
+              min={1}
+              max={90}
+              disabled={cancelMode !== 'custom'}
+              defaultValue={initial.bankTransferCancelAfterDays ?? ''}
+            />
+          </Field>
           {numberField('bankTransferDisableDaysBeforeEvent', 0, 90, tp('disableDaysBeforeEvent'))}
         </div>
       </section>

@@ -18,6 +18,7 @@ import {
   keepReservedAction,
   recordPaymentAction,
   resendEmailAction,
+  resendTicketsAction,
   type OrderActionState,
 } from '@/server/admin/orders';
 
@@ -54,9 +55,12 @@ export function OrderAdminActions(props: {
   return (
     <>
       {open && props.status === 'AWAITING_PAYMENT' && <KeepReservedCard {...props} />}
-      {props.canRecordPayment && (open || props.status === 'PAID') && <PaymentCard {...props} />}
+      {props.canRecordPayment && (open || (props.status === 'PAID' && props.outstanding > 0)) && (
+        <PaymentCard {...props} />
+      )}
       {open && <CancelCard orderId={props.orderId} />}
       {props.canResend && <ResendCard orderId={props.orderId} />}
+      {props.status === 'PAID' && <ResendTicketsCard orderId={props.orderId} />}
       <NoteCard orderId={props.orderId} note={props.internalNote} />
     </>
   );
@@ -207,6 +211,27 @@ function CancelCard({ orderId }: { orderId: string }) {
 function ResendCard({ orderId }: { orderId: string }) {
   const t = useTranslations('orders.admin.actions.resend');
   const [state, action] = useActionState(resendEmailAction.bind(null, orderId), IDLE);
+  useFeedback(state);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t('title')}</CardTitle>
+        <CardDescription>{t('description')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ActionForm action={action}>
+          <SubmitButton size="sm" variant="outline">
+            {t('submit')}
+          </SubmitButton>
+        </ActionForm>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ResendTicketsCard({ orderId }: { orderId: string }) {
+  const t = useTranslations('orders.admin.actions.resendTickets');
+  const [state, action] = useActionState(resendTicketsAction.bind(null, orderId), IDLE);
   useFeedback(state);
   return (
     <Card>

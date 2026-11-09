@@ -27,6 +27,7 @@ import {
   seatMaps,
   taxRates,
   ticketTypes,
+  tickets,
   venues,
   type DbHandle,
 } from '@tix/db';
@@ -287,6 +288,8 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('invoices & e-mail (integ
   afterAll(async () => {
     for (const key of storedKeys) await ctx?.storage?.delete('documents', key).catch(() => {});
     await purgeTestObjects(`invoices/${year}/${tag}-`);
+    // ticket PDFs written by the payment mails of this suite (orders are numbered `<tag>-…`)
+    await purgeTestObjects(`tickets/${new Date().getUTCFullYear()}/${tag}-`);
     await jobs?.close();
     await handle?.close();
     if (redis) {
@@ -549,7 +552,7 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('invoices & e-mail (integ
     expect(de.locale).toBe('de');
     expect(de.to).toBe(stored!.email);
     expect(de.subject).toBe(
-      `Ihre Bestellung ${stored!.orderNumber} – bitte überweisen Sie ${formatMoney(3210, 'EUR', 'de')}`,
+      `Deine Bestellung ${stored!.orderNumber} – bitte überweise ${formatMoney(3210, 'EUR', 'de')}`,
     );
     expect(de.html).toContain('Hallo &lt;Jürgen&gt;,');
     expect(de.html).not.toContain('<Jürgen>');
@@ -596,7 +599,7 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('invoices & e-mail (integ
       key: 'ORDER_CONFIRMATION_BANK_TRANSFER',
       orderId: order.id,
     });
-    expect(inactive.subject).toMatch(/^Ihre Bestellung/);
+    expect(inactive.subject).toMatch(/^Deine Bestellung/);
   });
 
   it('fulfils a paid order once: invoice + payment e-mail with the PDF attached', async () => {
@@ -609,7 +612,12 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('invoices & e-mail (integ
     expect(first.messageId).toBeTruthy();
     const job = await jobs.queue('email').getJob(`email-${first.messageId}`);
     expect(job?.data).toEqual({ messageId: first.messageId });
+    expect(first.ticketCount).toBe(1);
     const second = await processPaidOrder(ctx, order.id);
+    expect(second.ticketCount).toBe(1);
+    expect(
+      await handle.db.select().from(tickets).where(eq(tickets.orderId, order.id)),
+    ).toHaveLength(1);
     expect(second).toMatchObject({ invoiceId: first.invoiceId, messageId: null });
     const messages = await handle.db
       .select()
@@ -626,13 +634,18 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('invoices & e-mail (integ
       .where(eq(invoices.id, first.invoiceId!));
     storedKeys.add(invoice!.pdfObjectKey!);
     const mail = sender.sent[0]!;
-    expect(mail.subject).toBe(`Zahlung erhalten – Ihre Bestellung ${tag}-O${orderSeq}`);
-    expect(String(mail.html)).toContain(`Ihre Rechnung ${invoice!.invoiceNumber}`);
+    expect(mail.subject).toBe(`Zahlung erhalten – deine Bestellung ${tag}-O${orderSeq}`);
+    expect(String(mail.html)).toContain(`Deine Rechnung ${invoice!.invoiceNumber}`);
     expect(mail.headers).toMatchObject({ 'Auto-Submitted': 'auto-generated' });
     const attachments = mail.attachments as { filename: string; contentType: string }[];
     expect(attachments).toEqual([
       expect.objectContaining({
         filename: `Rechnung-${invoice!.invoiceNumber}.pdf`,
+        contentType: 'application/pdf',
+      }),
+      // the ticket PDF (one page per ticket) follows the invoice
+      expect.objectContaining({
+        filename: expect.stringMatching(/^Tickets-.+\.pdf$/),
         contentType: 'application/pdf',
       }),
     ]);

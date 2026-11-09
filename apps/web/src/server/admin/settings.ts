@@ -14,6 +14,7 @@ import type { ActionState, FieldErrorCode } from '@/lib/action-state';
 import { parseMoneyToCents } from '@/lib/money';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { sanitizeRichText } from '@/server/rich-text';
 import { audit } from './audit';
 import { fieldError, flag, success, text, zodFieldErrors } from './form';
 
@@ -36,6 +37,18 @@ type Errors = Partial<Record<string, FieldErrorCode>>;
  * Required integer field: empty → "required" (instead of silently applying the schema default).
  * Returns undefined when invalid; the error is collected.
  */
+/** Optional integer: an empty field yields null (no value), garbage is rejected. */
+function optionalIntOrNull(fd: FormData, name: string, errors: Errors): number | null {
+  const raw = text(fd, name);
+  if (raw === undefined) return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n)) {
+    errors[name] = 'invalid';
+    return null;
+  }
+  return n;
+}
+
 function requiredInt(fd: FormData, name: string, errors: Errors): number | undefined {
   const raw = text(fd, name);
   if (raw === undefined) {
@@ -85,7 +98,7 @@ async function readInput(
           imprintUrl: text(fd, 'imprintUrl'),
           privacyUrl: text(fd, 'privacyUrl'),
           termsUrl: text(fd, 'termsUrl'),
-          footerText: text(fd, 'footerText'),
+          footerText: sanitizeRichText(text(fd, 'footerText')) || undefined,
         },
       };
     }
@@ -108,6 +121,8 @@ async function readInput(
           orphanSeatRuleEnabled: flag(fd, 'orphanSeatRuleEnabled'),
           companionSeatsRequireWheelchair: flag(fd, 'companionSeatsRequireWheelchair'),
           requireTermsAcceptance: flag(fd, 'requireTermsAcceptance'),
+          requirePhone: flag(fd, 'requirePhone'),
+          requireBillingAddress: flag(fd, 'requireBillingAddress'),
         },
       };
     }
@@ -163,7 +178,7 @@ async function readInput(
           countBusinessDaysOnly: flag(fd, 'countBusinessDaysOnly'),
           holidayRegion: region ?? null,
           reminderAfterDays: requiredInt(fd, 'reminderAfterDays', errors),
-          cancelAfterDays: requiredInt(fd, 'cancelAfterDays', errors),
+          cancelAfterDays: optionalIntOrNull(fd, 'cancelAfterDays', errors),
           disableDaysBeforeEvent: requiredInt(fd, 'disableDaysBeforeEvent', errors),
           autoMatchToleranceCents: toleranceCents ?? undefined,
         },
@@ -199,6 +214,7 @@ async function readInput(
           fromEmail: text(fd, 'fromEmail'),
           replyTo: text(fd, 'replyTo'),
           bccAddress: text(fd, 'bccAddress'),
+          maxMessageSizeMb: requiredInt(fd, 'maxMessageSizeMb', errors),
         },
         secret: {
           key: 'smtp.credentials',

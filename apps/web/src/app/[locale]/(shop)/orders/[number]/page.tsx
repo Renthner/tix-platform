@@ -1,10 +1,20 @@
-import { findOrderIdByNumber, getOrderView, type OrderView } from '@tix/core';
+import {
+  findOrderIdByNumber,
+  getSetting,
+  getOrderView,
+  walletAvailability,
+  walletTicketPath,
+  type OrderView,
+} from '@tix/core';
+import { formatTicketCode } from '@tix/shared';
 import { CheckCircle2, Clock, Download, Info, XCircle } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { CopyValue, OrderPaymentActions } from '@/components/shop/order-actions';
+import { OrderAutoRefresh } from '@/components/shop/order-auto-refresh';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
@@ -27,6 +37,8 @@ const PAYPAL_NOTICES = [
 ] as const;
 type PayPalNotice = (typeof PAYPAL_NOTICES)[number];
 
+const PREPARING_WINDOW_MS = 10 * 60 * 1000;
+
 const groupIban = (iban: string) => iban.replace(/(.{4})(?=.)/g, '$1 ');
 
 export default async function OrderPage({
@@ -34,23 +46,53 @@ export default async function OrderPage({
   searchParams,
 }: {
   params: Promise<{ locale: string; number: string }>;
-  searchParams: Promise<{ t?: string; paypal?: string }>;
+  searchParams: Promise<{ t?: string; paypal?: string; wallet?: string }>;
 }) {
   await resolveLocale(params);
   const { number } = await params;
-  const { t: token, paypal } = await searchParams;
+  const { t: token, paypal, wallet: walletParam } = await searchParams;
   const core = getCore();
   const orderId = await findOrderIdByNumber(core, decodeURIComponent(number));
   // Unknown order and missing access look the same (no enumeration of order numbers).
   if (!orderId || !(await canAccessOrder(orderId, token))) notFound();
   const view = (await getOrderView(core, orderId))!;
   const { order } = view;
+  const wallet = await walletAvailability(core);
   const [t, format] = await Promise.all([getTranslations('checkout.order'), getFormatter()]);
   const money = (cents: number) =>
     format.number(cents / 100, { style: 'currency', currency: order.currency });
   const notice = (PAYPAL_NOTICES as readonly string[]).includes(paypal ?? '')
     ? (paypal as PayPalNotice)
     : null;
+  const walletFailed = walletParam === 'unavailable';
+  const issuedTickets = view.tickets.filter((ticket) => ticket.status === 'VALID');
+  const placeByItem = new Map(
+    view.events.flatMap((event) =>
+      event.items.map((item) => [
+        item.id,
+        item.kind === 'SEAT'
+          ? [
+              item.sectionLabel,
+              item.rowLabel ? t('items.row', { label: item.rowLabel }) : null,
+              t('items.seat', { label: item.seatLabel ?? '' }),
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : `${item.sectionLabel} · ${t('items.standing')}`,
+      ]),
+    ),
+  );
+  const invoicing = await getSetting(core, 'invoicing');
+  const expectsTickets = view.events.some((event) =>
+    event.items.some((item) => item.status === 'CONFIRMED'),
+  );
+  const recentlyPaid = !!order.paidAt && Date.now() - order.paidAt.getTime() < PREPARING_WINDOW_MS;
+  // Only wait for what will actually be produced, and only shortly after payment.
+  const preparing =
+    order.status === 'PAID' &&
+    recentlyPaid &&
+    ((expectsTickets && issuedTickets.length === 0) ||
+      (invoicing.issueInvoices && view.invoices.length === 0));
   const tokenQuery = token ? `?t=${encodeURIComponent(token)}` : '';
 
   return (
@@ -78,7 +120,16 @@ export default async function OrderPage({
         </Alert>
       )}
 
+      {walletFailed && (
+        <Alert variant="destructive">
+          <Info className="size-4" />
+          <AlertDescription>{t('walletNotice.unavailable')}</AlertDescription>
+        </Alert>
+      )}
+
       <StatusCard view={view} money={money} token={token ?? null} format={format} t={t} />
+
+      {preparing && <OrderAutoRefresh />}
 
       <Card>
         <CardHeader>
@@ -170,6 +221,67 @@ export default async function OrderPage({
           </div>
         </CardContent>
       </Card>
+
+      {issuedTickets.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('tickets.title')}</CardTitle>
+            <p className="text-sm text-muted-foreground">{t('tickets.intro')}</p>
+            <div className="pt-1" data-slot="ticket-downloads-all">
+              <Button asChild variant="outline" size="sm">
+                <a href={`/api/orders/${order.id}/tickets${tokenQuery}`}>
+                  <Download className="size-4" />
+                  {t('tickets.downloadAll')}
+                </a>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y text-sm">
+              {issuedTickets.map((ticket) => (
+                <li key={ticket.id} className="flex flex-wrap justify-between gap-3 py-2">
+                  <div>
+                    <div className="font-mono font-medium tracking-wider">
+                      {formatTicketCode(ticket.ticketCode)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {placeByItem.get(ticket.orderItemId) ?? ''}
+                      {ticket.attendeeName ? ` · ${ticket.attendeeName}` : ''}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2" data-slot="ticket-downloads">
+                    <Button asChild variant="ghost" size="sm">
+                      <a
+                        href={`/api/orders/${order.id}/tickets/${ticket.id}${tokenQuery}`}
+                        aria-label={t('tickets.downloadOneLabel', {
+                          code: formatTicketCode(ticket.ticketCode),
+                        })}
+                      >
+                        <Download className="size-4" />
+                        {t('tickets.downloadOne')}
+                      </a>
+                    </Button>
+                    {wallet.apple && (
+                      <Button asChild variant="ghost" size="sm">
+                        <a href={walletTicketPath(order.id, ticket.id, 'pkpass', token)}>
+                          {t('tickets.addApple')}
+                        </a>
+                      </Button>
+                    )}
+                    {wallet.google && (
+                      <Button asChild variant="ghost" size="sm">
+                        <a href={walletTicketPath(order.id, ticket.id, 'google', token)}>
+                          {t('tickets.addGoogle')}
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {view.invoices.length > 0 && (
         <Card>
@@ -293,7 +405,9 @@ function StatusCard({
           ) : (
             <p className="text-sm">{t('bankTransfer.noAccount')}</p>
           )}
-          <p className="mt-4 text-xs text-muted-foreground">{t('bankTransfer.hint')}</p>
+          <p className="mt-4 text-xs text-muted-foreground">
+            {t(order.autoCancelAt ? 'bankTransfer.hint' : 'bankTransfer.hintNoCancel')}
+          </p>
         </CardContent>
       </Card>
     );

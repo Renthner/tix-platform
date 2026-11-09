@@ -18,3 +18,8 @@ export * from './seating/appearance';
 export * from './payments/reference';
 export * from './payments/business-days';
 export * from './banking/iban';
+export * from './tickets/qr';
+export * from './tickets/default-layout';
+export * from './media';
+export * from './email-template-editor';
+export * from './shop-order';

@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "shop_sort_order" integer;

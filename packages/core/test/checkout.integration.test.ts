@@ -96,6 +96,13 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
       email,
       firstName: 'Erika',
       lastName: 'Example',
+      phone: '+49 6134 123456',
+      address: {
+        street: 'Hauptstrasse 1',
+        postalCode: '65462',
+        city: 'Ginsheim',
+        country: 'DE',
+      },
       acceptTerms: true,
       expectedTotalGross,
       locale: 'de',
@@ -317,6 +324,29 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
     expect(await extendCartForCheckout(ctx, session)).toBe(extended);
     const lockExpiry = await redis.zscore(ctx.keys.seatLockExpiries(event.id), seatIds[2]!);
     expect(Number(lockExpiry)).toBe(extended);
+  });
+
+  it('requires phone and billing address unless the settings allow omitting them', async () => {
+    // Empty cart: the mandatory-field checks run first, so no spots are consumed.
+    const session = sid();
+    const full = buyer('BANK_TRANSFER', 3150);
+    await expect(
+      placeOrder(ctx, { sessionId: session, input: { ...full, phone: undefined } }),
+    ).rejects.toMatchObject({ code: 'PHONE_REQUIRED', status: 422 });
+    await expect(
+      placeOrder(ctx, { sessionId: session, input: { ...full, address: undefined } }),
+    ).rejects.toMatchObject({ code: 'ADDRESS_REQUIRED', status: 422 });
+    await saveSetting(ctx, 'checkout', { requirePhone: false, requireBillingAddress: false }, null);
+    try {
+      await expect(
+        placeOrder(ctx, {
+          sessionId: session,
+          input: { ...full, phone: undefined, address: undefined },
+        }),
+      ).rejects.toMatchObject({ code: 'CART_EMPTY' });
+    } finally {
+      await saveSetting(ctx, 'checkout', {}, null);
+    }
   });
 
   it('creates a Vorkasse order: reference with check digit, due dates, reservation, outbox mail', async () => {

@@ -367,6 +367,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1161.0
         version: 3.1161.0
+      '@pdf-lib/fontkit':
+        specifier: ^1.1.1
+        version: 1.1.1
       '@tix/db':
         specifier: workspace:*
         version: link:../db
@@ -397,15 +400,24 @@ importers:
       mailparser:
         specifier: ^3.14.2
         version: 3.14.2
+      node-forge:
+        specifier: ^1.4.3
+        version: 1.4.3
       nodemailer:
         specifier: ^10.3.1
         version: 10.3.1
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
+      qrcode-generator:
+        specifier: ^2.0.4
+        version: 2.0.4
       sanitize-html:
         specifier: ^2.18.1
         version: 2.18.1
+      sharp:
+        specifier: ^0.35.5
+        version: 0.35.5(@types/node@24.19.2)
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -416,6 +428,9 @@ importers:
       '@types/node':
         specifier: ^24.10.0
         version: 24.19.2
+      '@types/node-forge':
+        specifier: ^1.3.14
+        version: 1.3.14
       '@types/nodemailer':
         specifier: ^8.0.2
         version: 8.0.2
@@ -425,6 +440,9 @@ importers:
       '@types/sanitize-html':
         specifier: ^2.16.2
         version: 2.16.2
+      jsqr:
+        specifier: ^1.4.0
+        version: 1.4.0
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -1591,6 +1609,9 @@ packages:
   '@parcel/watcher@2.6.0':
     resolution: {integrity: sha512-7FNeNl8NCE7aINx7WXiKQrPYZWC/hvrTsmk6zmxbI7LTXE7hVek/n8AfVgpe2y82zl3w0HvCHN0bVKMBoJcC0w==}
     engines: {node: '>= 10.0.0'}
+
+  '@pdf-lib/fontkit@1.1.1':
+    resolution: {integrity: sha512-KjMd7grNapIWS/Dm0gvfHEilSyAmeLvrEGVcqLGi0VYebuqqzTbgF29efCx7tvx+IEbG3zQciRSWl3GkUSvjZg==}
 
   '@pdf-lib/standard-fonts@1.0.0':
     resolution: {integrity: sha512-hU30BK9IUN/su0Mn9VdlVKsWBS6GyhVfqjwl1FjZN4TxP6cCw0jP2w7V3Hf5uX7M0AZJ16vey9yE0ny7Sa59ZA==}
@@ -2817,6 +2838,9 @@ packages:
   '@types/mailparser@3.9.0':
     resolution: {integrity: sha512-YnhrRiRVDiEAphFvd72hKa1n8y2b9Q3rgSQiONZQyhQz67h5g4MZHNApET3XWXVEFdInWtHqDHKEwnyjxU3QVw==}
 
+  '@types/node-forge@1.3.14':
+    resolution: {integrity: sha512-mhVF2BnD4BO+jtOp7z1CdzaK4mbuK0LLQYAvdOLqHTavxFNq4zA1EmYkpnFjP8HOUzedfQkRnp0E2ulSAYSzAw==}
+
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
 
@@ -3301,6 +3325,9 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
+  jsqr@1.4.0:
+    resolution: {integrity: sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==}
+
   konva@10.9.1:
     resolution: {integrity: sha512-m49x+GatSxEUSvqahYhxpTjgKbtrLtw4P4o4B4iux953ZFpceaK52Ea+CFsAsd7W4I0Y5u6mMoRUsY/eltNZmw==}
     peerDependencies:
@@ -3511,6 +3538,10 @@ packages:
   node-addon-api@7.1.1:
     resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
 
+  node-forge@1.4.3:
+    resolution: {integrity: sha512-P6wzfh6t70avmV8FrVEAd/36sOPJQ+hkaJVX1Laap9J/77m7M0eyozDvc8SwnDf4P7MP94gwbAAo0rg3YVXT+g==}
+    engines: {node: '>= 6.13.0'}
+
   node-gyp-build-optional-packages@5.2.2:
     resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==}
     hasBin: true
@@ -3685,6 +3716,9 @@ packages:
   punycode.js@2.3.1:
     resolution: {integrity: sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA==}
     engines: {node: '>=6'}
+
+  qrcode-generator@2.0.4:
+    resolution: {integrity: sha512-mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g==}
 
   quick-format-unescaped@4.0.4:
     resolution: {integrity: sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg==}
@@ -4643,8 +4677,7 @@ snapshots:
     dependencies:
       '@formatjs/fast-memoize': 3.1.7
 
-  '@img/colour@1.1.0':
-    optional: true
+  '@img/colour@1.1.0': {}
 
   '@img/sharp-darwin-arm64@0.35.5':
     optionalDependencies:
@@ -4874,6 +4907,10 @@ snapshots:
       '@parcel/watcher-linux-x64-musl': 2.6.0
       '@parcel/watcher-win32-arm64': 2.6.0
       '@parcel/watcher-win32-x64': 2.6.0
+
+  '@pdf-lib/fontkit@1.1.1':
+    dependencies:
+      pako: 1.0.11
 
   '@pdf-lib/standard-fonts@1.0.0':
     dependencies:
@@ -6078,6 +6115,10 @@ snapshots:
       '@types/node': 24.19.2
       iconv-lite: 0.6.3
 
+  '@types/node-forge@1.3.14':
+    dependencies:
+      '@types/node': 24.19.2
+
   '@types/node@24.19.2':
     dependencies:
       undici-types: 7.24.6
@@ -6554,6 +6595,8 @@ snapshots:
 
   jiti@2.7.0: {}
 
+  jsqr@1.4.0: {}
+
   konva@10.9.1: {}
 
   launder@1.7.2:
@@ -6741,6 +6784,8 @@ snapshots:
   node-abort-controller@3.1.1: {}
 
   node-addon-api@7.1.1: {}
+
+  node-forge@1.4.3: {}
 
   node-gyp-build-optional-packages@5.2.2:
     dependencies:
@@ -6954,6 +6999,8 @@ snapshots:
 
   punycode.js@2.3.1: {}
 
+  qrcode-generator@2.0.4: {}
+
   quick-format-unescaped@4.0.4: {}
 
   radix-ui@1.8.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
@@ -7126,8 +7173,7 @@ snapshots:
 
   semver@7.8.5: {}
 
-  semver@7.8.6:
-    optional: true
+  semver@7.8.6: {}
 
   server-only@0.0.1: {}
 
@@ -7163,7 +7209,6 @@ snapshots:
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
       '@types/node': 24.19.2
-    optional: true
 
   smart-buffer@4.2.0: {}
 

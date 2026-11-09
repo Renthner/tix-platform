@@ -1,6 +1,6 @@
 import { computeSaleState } from '@tix/core';
-import { events, priceCategories, venues } from '@tix/db';
-import { and, asc, eq, gt, inArray, min } from 'drizzle-orm';
+import { events, mediaAssets, priceCategories, venues } from '@tix/db';
+import { and, eq, inArray, min } from 'drizzle-orm';
 import { CalendarDays, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Badge } from '@/components/ui/badge';
@@ -9,8 +9,17 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
+import { shopOrderBy, shopVisibleCondition } from '@/server/shop-events';
 
 export const dynamic = 'force-dynamic';
+
+/** Narrowest card image ratio (w/h = 3:4). Taller portrait covers are cropped slightly
+ *  (object-cover, centred) so they don't produce huge cards. Without stored size: 16:9. */
+const MIN_COVER_ASPECT = 3 / 4;
+function coverAspect(width: number | null, height: number | null): number {
+  if (!width || !height) return 16 / 9;
+  return Math.max(width / height, MIN_COVER_ASPECT);
+}
 
 export async function generateMetadata() {
   const t = await getTranslations('shop.home');
@@ -22,11 +31,16 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const { db } = getCore();
   const [t, format] = await Promise.all([getTranslations('shop'), getFormatter()]);
   const rows = await db
-    .select({ event: events, venue: { name: venues.name, city: venues.city } })
+    .select({
+      event: events,
+      venue: { name: venues.name, city: venues.city },
+      cover: { id: mediaAssets.id, width: mediaAssets.width, height: mediaAssets.height },
+    })
     .from(events)
     .innerJoin(venues, eq(venues.id, events.venueId))
-    .where(and(inArray(events.status, ['PUBLISHED', 'POSTPONED']), gt(events.startsAt, new Date())))
-    .orderBy(asc(events.startsAt))
+    .leftJoin(mediaAssets, eq(mediaAssets.id, events.heroImageAssetId))
+    .where(shopVisibleCondition())
+    .orderBy(...shopOrderBy())
     .limit(100);
   const prices = rows.length
     ? await db
@@ -49,12 +63,31 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t('home.title')}</h1>
       {rows.length === 0 && <p className="text-muted-foreground">{t('home.empty')}</p>}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {rows.map(({ event, venue }) => {
+      <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map(({ event, venue, cover }) => {
           const state = computeSaleState(event);
           const price = fromPrice.get(event.id);
           return (
-            <Card key={event.id} className="flex flex-col">
+            <Card key={event.id} className="flex flex-col overflow-hidden">
+              {cover?.id && (
+                <Link
+                  href={`/events/${event.slug}`}
+                  tabIndex={-1}
+                  aria-hidden
+                  className="-mt-6 block overflow-hidden bg-muted"
+                  style={{ aspectRatio: coverAspect(cover.width, cover.height) }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/media/${cover.id}`}
+                    alt=""
+                    width={cover.width ?? 1600}
+                    height={cover.height ?? 900}
+                    loading="lazy"
+                    className="size-full object-cover"
+                  />
+                </Link>
+              )}
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-lg">{event.title}</CardTitle>

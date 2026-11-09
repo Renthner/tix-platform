@@ -97,6 +97,8 @@ export default async function CheckoutPage({ params }: { params: Promise<{ local
         methods={options.methods}
         expiresAt={expiresAt}
         requireTerms={checkout.requireTermsAcceptance}
+        requirePhone={checkout.requirePhone}
+        requireAddress={checkout.requireBillingAddress}
         termsUrl={branding.termsUrl ?? null}
         privacyUrl={branding.privacyUrl ?? null}
         accountsEnabled={accountsOffered}

@@ -87,6 +87,8 @@ export const events = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     startsAt: tstz('starts_at').notNull(),
+    /** Manual position in the shop listing (ascending); NULL = not placed, sorted by date after the placed ones. */
+    shopSortOrder: integer('shop_sort_order'),
     endsAt: tstz('ends_at'),
     doorsOpenAt: tstz('doors_open_at'),
     timeZone: text('time_zone').notNull(),
@@ -130,6 +132,8 @@ export const events = pgTable(
     bankTransferPaymentTermDays: integer('bank_transfer_payment_term_days'),
     bankTransferReminderAfterDays: integer('bank_transfer_reminder_after_days'),
     bankTransferCancelAfterDays: integer('bank_transfer_cancel_after_days'),
+    /** FALSE = unpaid Vorkasse orders of this event are never cancelled automatically. NULL = use the days override / global. */
+    bankTransferAutoCancel: boolean('bank_transfer_auto_cancel'),
     bankTransferDisableDaysBeforeEvent: integer('bank_transfer_disable_days_before_event'),
 
     // ── Documents & wallet ─────────────────────────────────────────────────

@@ -1,0 +1,156 @@
+{
+  "title": "E-mail templates",
+  "description": "Texts of the transactional e-mails per language. An event can override a template with its own text.",
+  "columns": {
+    "template": "Template",
+    "english": "English",
+    "german": "German",
+    "overrides": "Event overrides"
+  },
+  "status": {
+    "default": "Default text",
+    "customized": "Customised",
+    "inactive": "Inactive",
+    "missing": "Missing (default is used)"
+  },
+  "edit": "Edit",
+  "noOverrides": "None",
+  "keys": {
+    "ORDER_CONFIRMATION_BANK_TRANSFER": {
+      "name": "Order confirmation (bank transfer)",
+      "description": "Sent after ordering with Vorkasse: bank details and payment reference."
+    },
+    "PAYMENT_RECEIVED_TICKETS": {
+      "name": "Payment received & tickets",
+      "description": "Sent when an order is paid: invoice and ticket PDFs attached."
+    },
+    "PAYMENT_REMINDER": {
+      "name": "Payment reminder",
+      "description": "Dunning e-mail for unpaid bank-transfer orders."
+    },
+    "ORDER_CANCELLED": {
+      "name": "Order cancelled",
+      "description": "Sent when an order is cancelled or expires."
+    },
+    "REFUND_CONFIRMATION": {
+      "name": "Refund confirmation",
+      "description": "Sent when a refund or credit note was issued."
+    },
+    "TICKETS_RESENT": {
+      "name": "Tickets resent",
+      "description": "Sent when an admin or the customer requests the tickets again."
+    },
+    "CUSTOMER_EMAIL_VERIFICATION": {
+      "name": "Customer account: confirm e-mail",
+      "description": "Link to verify the e-mail address of a customer account."
+    },
+    "CUSTOMER_PASSWORD_RESET": {
+      "name": "Customer account: reset password",
+      "description": "Link to choose a new password."
+    },
+    "CUSTOMER_LOGIN_LINK": {
+      "name": "Customer account: sign-in link",
+      "description": "One-time link to sign in without a password."
+    },
+    "SMTP_TEST": {
+      "name": "SMTP test message",
+      "description": "Sent by “Send test e-mail” in the e-mail settings."
+    }
+  },
+  "page": {
+    "back": "All templates",
+    "global": "Global template",
+    "overrideFor": "Override for event: {event}",
+    "overrideHint": "This text is used instead of the global template for orders of this event.",
+    "languages": "Language",
+    "noOverrideYet": "This event has no own text for this template yet. Create an override – it starts as a copy of the global template.",
+    "createOverride": "Create override",
+    "deleteOverride": "Delete override",
+    "deleteOverrideTitle": "Delete this override?",
+    "deleteOverrideDescription": "The global template is used for this event again. The text of the override is lost.",
+    "overridesTitle": "Event overrides",
+    "overridesDescription": "Give single events their own text for this template and language.",
+    "chooseEvent": "Choose an event…",
+    "noEvents": "There are no events without an override.",
+    "openOverride": "Edit override"
+  },
+  "editor": {
+    "subject": "Subject",
+    "subjectHint": "Placeholders such as {example} are allowed.",
+    "active": "Template active",
+    "activeHint": "Inactive templates are skipped; another language or the global template is used instead.",
+    "body": "Message",
+    "modeVisual": "Visual",
+    "modeSource": "HTML source",
+    "visualLabel": "E-mail content",
+    "visualScope": "The visual editor edits the message content. Header and footer of the layout are changed in the HTML source.",
+    "sourceLabel": "HTML source",
+    "sourceHint": "Full HTML document. Tables and inline styles are the most reliable way to build e-mails. Unsafe elements (scripts, forms, frames, external styles) are removed when saving.",
+    "lossy": "The visual editor cannot show this message exactly (for example unusual tables or markup it does not know). You can keep editing in the HTML source, or open the visual editor anyway – unsupported markup may then be simplified as soon as you edit there.",
+    "lossyAnyway": "Open visual editor anyway",
+    "noVisual": "This document has a custom layout – edit it in the HTML source.",
+    "linkAsButton": "Show link as button",
+    "linkHint": "https://…, mailto:…, tel:… or a placeholder such as {example}.",
+    "plainText": "Plain-text version",
+    "plainTextHint": "Shown by mail programs that cannot display HTML. Leave empty to generate it from the HTML automatically.",
+    "generateText": "Generate from HTML",
+    "save": "Save template",
+    "resetToDefault": "Reset to default",
+    "resetTitle": "Reset to the default text?",
+    "resetDescription": "Subject and body are replaced by the shipped default. Your changes are lost.",
+    "resetConfirm": "Reset",
+    "isDefault": "This is the unchanged default text.",
+    "customized": "This text was changed.",
+    "unsaved": "Unsaved changes",
+    "savedWarnings": "Saved. Please check the notes below."
+  },
+  "placeholders": {
+    "title": "Placeholders",
+    "hint": "Click to insert at the cursor. Values are escaped automatically.",
+    "html": "generated block",
+    "helpersTitle": "Conditions",
+    "helpersHint": "Show text only when a value exists: {ifExample}, or only when it is empty: {unlessExample}.",
+    "groups": {
+      "shop": "Shop & organiser",
+      "customer": "Customer",
+      "order": "Order",
+      "tickets": "Tickets",
+      "account": "Account links",
+      "smtpTest": "Test"
+    }
+  },
+  "preview": {
+    "title": "Preview",
+    "hint": "Rendered with sample order data.",
+    "html": "HTML",
+    "text": "Plain text",
+    "subject": "Subject",
+    "loading": "Updating…",
+    "unavailable": "No preview while the template has errors.",
+    "sendTest": "Send test e-mail",
+    "sendTestHint": "Sends the current (unsaved) text with sample data to {email}.",
+    "testSent": "Test e-mail sent to {to}.",
+    "testFailed": "The test e-mail could not be sent: {message}",
+    "testInvalid": "The template cannot be sent yet. Fix the errors first.",
+    "emptyText": "The plain-text version is generated from the HTML when the e-mail is sent."
+  },
+  "issues": {
+    "errorsTitle": "The template cannot be saved",
+    "warningsTitle": "Notes",
+    "syntax": "{field}: {detail}",
+    "unknownPlaceholder": "{field}: “{placeholder}” is not available in this template and will be empty.",
+    "unavailablePlaceholder": "{field}: “{placeholder}” is not available here.",
+    "fields": {
+      "subject": "Subject",
+      "bodyHtml": "HTML",
+      "bodyText": "Plain text"
+    },
+    "syntaxErrors": {
+      "emptyPlaceholder": "Empty placeholder at position {offset}.",
+      "missingName": "“{keyword}” needs a variable name.",
+      "unexpectedElse": "Unexpected '{{'else'}}' without an open condition.",
+      "unexpectedClose": "Unexpected '{{'{keyword}'}}' without a matching opening tag.",
+      "unclosedSection": "Unclosed '{{'#{kind} …'}}' – the closing tag is missing."
+    }
+  }
+}

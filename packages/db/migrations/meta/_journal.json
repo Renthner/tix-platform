@@ -85,6 +85,20 @@
       "when": 1794039438019,
       "tag": "0011_event_customer_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794175289471,
+      "tag": "0012_event_bank_transfer_auto_cancel",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794178667037,
+      "tag": "0013_event_shop_sort_order",
+      "breakpoints": true
     }
   ]
 }

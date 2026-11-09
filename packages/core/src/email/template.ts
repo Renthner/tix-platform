@@ -23,8 +23,19 @@ export const trustedHtml = (html: string, text: string) => new TrustedHtml(html,
 export type TemplateValue = string | number | boolean | TrustedHtml | null | undefined;
 export type TemplateVariables = Record<string, TemplateValue>;
 
+export type TemplateSyntaxCode =
+  'emptyPlaceholder' | 'missingName' | 'unexpectedElse' | 'unexpectedClose' | 'unclosedSection';
+
 export class TemplateSyntaxError extends Error {
   override name = 'TemplateSyntaxError';
+  constructor(
+    message: string,
+    /** Stable code + params so the admin UI can translate the message. */
+    readonly code: TemplateSyntaxCode,
+    readonly params: Record<string, string | number> = {},
+  ) {
+    super(message);
+  }
 }
 
 type Node =
@@ -50,12 +61,22 @@ export function parseTemplate(source: string): Node[] {
     const [, keyword, name] = match;
     switch (keyword) {
       case undefined:
-        if (!name) throw new TemplateSyntaxError(`Empty placeholder at offset ${index}`);
+        if (!name)
+          throw new TemplateSyntaxError(
+            `Empty placeholder at offset ${index}`,
+            'emptyPlaceholder',
+            {
+              offset: index,
+            },
+          );
         target().push({ type: 'var', name });
         break;
       case '#if':
       case '#unless': {
-        if (!name) throw new TemplateSyntaxError(`${keyword} without a variable name`);
+        if (!name)
+          throw new TemplateSyntaxError(`${keyword} without a variable name`, 'missingName', {
+            keyword,
+          });
         const node: Extract<Node, { type: 'section' }> = {
           type: 'section',
           name,
@@ -69,7 +90,8 @@ export function parseTemplate(source: string): Node[] {
       }
       case 'else': {
         const top = stack.at(-1);
-        if (!top || top.inElse) throw new TemplateSyntaxError(`Unexpected {{else}}`);
+        if (!top || top.inElse)
+          throw new TemplateSyntaxError(`Unexpected {{else}}`, 'unexpectedElse');
         top.inElse = true;
         break;
       }
@@ -78,7 +100,9 @@ export function parseTemplate(source: string): Node[] {
         const top = stack.pop();
         const expected = keyword === '/if' ? false : true;
         if (!top || top.node.negate !== expected) {
-          throw new TemplateSyntaxError(`Unexpected {{${keyword}}}`);
+          throw new TemplateSyntaxError(`Unexpected {{${keyword}}}`, 'unexpectedClose', {
+            keyword,
+          });
         }
         break;
       }
@@ -87,7 +111,8 @@ export function parseTemplate(source: string): Node[] {
   if (last < source.length) target().push({ type: 'text', value: source.slice(last) });
   const open = stack.at(-1);
   if (open) {
-    throw new TemplateSyntaxError(`Unclosed {{#${open.node.negate ? 'unless' : 'if'} …}}`);
+    const kind = open.node.negate ? 'unless' : 'if';
+    throw new TemplateSyntaxError(`Unclosed {{#${kind} …}}`, 'unclosedSection', { kind });
   }
   return root;
 }
@@ -206,7 +231,7 @@ export function htmlToText(html: string): string {
         .trim();
       const target = decodeEntities(String(href));
       if (!inner || decodeEntities(inner) === target) return target;
-      return /^(mailto:|https?:)/i.test(target)
+      return /^(mailto:|https?:|\{\{)/i.test(target)
         ? `${inner} (${target.replace(/^mailto:/i, '')})`
         : inner;
     })

@@ -1,8 +1,10 @@
 import { emailMessages } from '@tix/db';
 import { and, eq, lt, or, sql } from 'drizzle-orm';
 import type { SendMailOptions } from 'nodemailer';
-import { requireCapability, type CoreContext } from '../context';
+import { DomainError, requireCapability, type CoreContext } from '../context';
+import { renderOrderTicketsPdf } from '../tickets/render';
 import { loadInvoicePdf } from '../invoices';
+import { getSetting } from '../settings';
 import { EmailTemplateMissingError, renderEmail } from './render';
 import {
   EMAIL_VARIABLES_CONTEXT,
@@ -10,6 +12,7 @@ import {
   type EmailAttachment,
   type StoredEmailRequest,
 } from './request';
+import { estimateMessageBytes, exceedsMaxMessageSize } from './size';
 import { TemplateSyntaxError } from './template';
 import { isPermanentSmtpError, smtpSender, type MailSender } from './transport';
 
@@ -93,18 +96,38 @@ export async function deliverEmailMessage(
     const invoiceIds = payload.attachments.flatMap((a) =>
       a.type === 'invoice' ? [a.invoiceId] : [],
     );
-    const rendered = await renderEmail(ctx, {
-      key: message.templateKey,
-      orderId: message.orderId,
-      customerId: payload.customerId,
-      eventId: payload.eventId,
-      locale: payload.locale,
-      to: message.toEmail,
-      variables,
-      invoiceIds,
-    });
+    const allFiles = await resolveAttachments(ctx, payload.attachments);
+    const renderWith = (attached: boolean) =>
+      renderEmail(ctx, {
+        key: message.templateKey!,
+        orderId: message.orderId,
+        customerId: payload.customerId,
+        eventId: payload.eventId,
+        locale: payload.locale,
+        to: message.toEmail,
+        variables: { ...variables, ticketsAttached: attached ? 'yes' : '' },
+        invoiceIds,
+      });
+    let files = allFiles;
+    let ticketsOmitted = false;
+    let rendered = await renderWith(allFiles.some((f) => f.isTickets));
+    if (allFiles.some((f) => f.isTickets)) {
+      const { maxMessageSizeMb } = await getSetting(ctx, 'smtp');
+      const estimate = estimateMessageBytes(
+        allFiles.map((f) => f.bytes.byteLength),
+        Buffer.byteLength(rendered.html) + Buffer.byteLength(rendered.text),
+      );
+      if (exceedsMaxMessageSize(estimate, maxMessageSizeMb)) {
+        // Too large for the mail server: send without the tickets PDF (they stay downloadable).
+        console.warn(
+          `[email] message ${messageId} would be ~${Math.round(estimate / 1024 / 1024)} MB (limit ${maxMessageSizeMb} MB): sending without the tickets PDF`,
+        );
+        files = allFiles.filter((f) => !f.isTickets);
+        ticketsOmitted = true;
+        rendered = await renderWith(false);
+      }
+    }
     subject = rendered.subject;
-    const files = await resolveAttachments(ctx, payload.attachments);
     const sender = options.sender ?? (await smtpSender(ctx));
     const mail: SendMailOptions = {
       from: sender.from,
@@ -124,6 +147,7 @@ export async function deliverEmailMessage(
     const info = (await sender.transporter.sendMail(mail)) as { messageId?: string };
     const sentPayload: StoredEmailRequest = {
       ...payload,
+      ...(ticketsOmitted ? { ticketsOmitted: true } : {}),
       sentFiles: files.map((f) => ({
         fileName: f.fileName,
         contentType: f.contentType,
@@ -168,6 +192,8 @@ interface ResolvedFile {
   fileName: string;
   contentType: string;
   bytes: Uint8Array;
+  /** The order's tickets PDF (the only file dropped when the message gets too large). */
+  isTickets?: boolean;
 }
 
 async function resolveAttachments(
@@ -179,6 +205,19 @@ async function resolveAttachments(
     if (attachment.type === 'invoice') {
       const pdf = await loadInvoicePdf(ctx, attachment.invoiceId);
       files.push({ fileName: pdf.fileName, contentType: pdf.contentType, bytes: pdf.bytes });
+    } else if (attachment.type === 'tickets') {
+      try {
+        const pdf = await renderOrderTicketsPdf(ctx, attachment.orderId);
+        files.push({
+          fileName: pdf.fileName,
+          contentType: 'application/pdf',
+          bytes: pdf.bytes,
+          isTickets: true,
+        });
+      } catch (err) {
+        // Tickets voided since the mail was queued (cancelled order): send without the PDF.
+        if (!(err instanceof DomainError && err.code === 'NO_TICKETS')) throw err;
+      }
     } else {
       const object = await requireCapability(ctx, 'storage').get('documents', attachment.objectKey);
       files.push({

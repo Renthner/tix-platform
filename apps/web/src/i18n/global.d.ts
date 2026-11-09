@@ -5,11 +5,13 @@ import type cart from '../../messages/en/cart.json';
 import type checkout from '../../messages/en/checkout.json';
 import type common from '../../messages/en/common.json';
 import type editor from '../../messages/en/editor.json';
+import type emailTemplates from '../../messages/en/emailTemplates.json';
 import type fees from '../../messages/en/fees.json';
 import type mail from '../../messages/en/mail.json';
 import type orders from '../../messages/en/orders.json';
 import type queue from '../../messages/en/queue.json';
 import type shop from '../../messages/en/shop.json';
+import type ticketDesigner from '../../messages/en/ticketDesigner.json';
 import type { routing } from './routing';
 
 declare module 'next-intl' {
@@ -28,6 +30,8 @@ declare module 'next-intl' {
       banking: typeof banking;
       mail: typeof mail;
       fees: typeof fees;
+      emailTemplates: typeof emailTemplates;
+      ticketDesigner: typeof ticketDesigner;
     };
   }
 }

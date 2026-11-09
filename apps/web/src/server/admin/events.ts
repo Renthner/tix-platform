@@ -4,6 +4,7 @@ import { DomainError, cloneSeatMap, deleteArchivedEvent, getSetting } from '@tix
 import {
   events,
   isUniqueViolation,
+  mediaAssets,
   seatMaps,
   taxRates,
   ticketTypes,
@@ -213,11 +214,26 @@ export async function updateEventDetailsAction(
     endsAt: dates.endsAt,
     doorsOpenAt: dates.doorsOpenAt,
   };
+  // Cover image: the picker submits the asset id (empty = no cover). Only event images count.
+  const coverRaw = text(fd, 'heroImageAssetId');
+  let heroImageAssetId: string | null = null;
+  if (coverRaw) {
+    const id = z.string().uuid().safeParse(coverRaw);
+    const [asset] = id.success
+      ? await getCore()
+          .db.select({ kind: mediaAssets.kind })
+          .from(mediaAssets)
+          .where(eq(mediaAssets.id, id.data))
+      : [];
+    if (!id.success || asset?.kind !== 'EVENT_IMAGE')
+      return fieldError({ heroImageAssetId: 'invalid' });
+    heroImageAssetId = id.data;
+  }
   const { db } = getCore();
   try {
     const updated = await db
       .update(events)
-      .set(values)
+      .set({ ...values, heroImageAssetId })
       .where(eq(events.id, eventId))
       .returning({ id: events.id });
     if (updated.length === 0) return formError('notFound');
@@ -225,7 +241,7 @@ export async function updateEventDetailsAction(
     if (isUniqueViolation(err, 'events_slug_uq')) return fieldError({ slug: 'slugTaken' });
     throw err;
   }
-  await audit(db, session, 'event.update', 'event', eventId, values);
+  await audit(db, session, 'event.update', 'event', eventId, { ...values, heroImageAssetId });
   revalidatePath('/', 'layout');
   return success('saved');
 }
@@ -304,6 +320,7 @@ export async function updateEventSalesAction(
   const session = await requireAdmin(['EVENT_MANAGER']);
   const row = await getEventWithVenue(eventId);
   if (!row) return formError('notFound');
+  const cancelMode = text(fd, 'bankTransferCancelMode') ?? 'inherit';
   const parsed = salesSchema.safeParse({
     maxTicketsPerOrder: text(fd, 'maxTicketsPerOrder'),
     maxTicketsPerCustomer: text(fd, 'maxTicketsPerCustomer'),
@@ -311,7 +328,8 @@ export async function updateEventSalesAction(
     paymentGraceSeconds: text(fd, 'paymentGraceSeconds'),
     bankTransferPaymentTermDays: text(fd, 'bankTransferPaymentTermDays'),
     bankTransferReminderAfterDays: text(fd, 'bankTransferReminderAfterDays'),
-    bankTransferCancelAfterDays: text(fd, 'bankTransferCancelAfterDays'),
+    bankTransferCancelAfterDays:
+      cancelMode === 'custom' ? text(fd, 'bankTransferCancelAfterDays') : undefined,
     bankTransferDisableDaysBeforeEvent: text(fd, 'bankTransferDisableDaysBeforeEvent'),
   });
   const errors: Partial<Record<string, FieldErrorCode>> = parsed.success
@@ -322,9 +340,18 @@ export async function updateEventSalesAction(
     const bank = await getSetting(getCore(), 'bankTransfer');
     const term = parsed.data.bankTransferPaymentTermDays ?? bank.paymentTermDays;
     const reminder = parsed.data.bankTransferReminderAfterDays ?? bank.reminderAfterDays;
-    const cancel = parsed.data.bankTransferCancelAfterDays ?? bank.cancelAfterDays;
-    if (cancel < term) errors.bankTransferCancelAfterDays = 'dunningOrder';
-    if (reminder >= cancel) errors.bankTransferReminderAfterDays = 'dunningOrder';
+    // Disabled auto-cancel (own setting or inherited empty global) has no deadline to compare.
+    const cancel =
+      cancelMode === 'off'
+        ? null
+        : (parsed.data.bankTransferCancelAfterDays ?? bank.cancelAfterDays);
+    if (cancelMode === 'custom' && parsed.data.bankTransferCancelAfterDays === undefined) {
+      errors.bankTransferCancelAfterDays = 'required';
+    }
+    if (cancel !== null) {
+      if (cancel < term) errors.bankTransferCancelAfterDays = 'dunningOrder';
+      if (reminder >= cancel) errors.bankTransferReminderAfterDays = 'dunningOrder';
+    }
   }
   const dates = readDates(
     fd,
@@ -345,6 +372,7 @@ export async function updateEventSalesAction(
 
   const values = {
     ...parsed.data,
+    bankTransferAutoCancel: cancelMode === 'off' ? false : null,
     presaleStartsAt: dates.presaleStartsAt,
     publicSaleStartsAt: dates.publicSaleStartsAt,
     saleEndsAt: dates.saleEndsAt,

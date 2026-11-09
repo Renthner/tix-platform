@@ -30,6 +30,21 @@ describe('settings registry', () => {
     ).toThrow(/reminderAfterDays/);
   });
 
+  it('allows no automatic cancellation (null) and keeps legacy settings parseable', () => {
+    const none = parseSetting('bankTransfer', {
+      paymentTermDays: 10,
+      reminderAfterDays: 9,
+      cancelAfterDays: null,
+    });
+    expect(none.cancelAfterDays).toBeNull();
+    expect(
+      parseSetting('bankTransfer', { paymentTermDays: 5, cancelAfterDays: 8 }).cancelAfterDays,
+    ).toBe(8);
+    // Stored settings without the key fall back to the default.
+    expect(parseSetting('bankTransfer', {}).cancelAfterDays).toBe(8);
+    expect(() => parseSetting('bankTransfer', { cancelAfterDays: 0 })).toThrow();
+  });
+
   it('requires a {SEQ} token in number patterns', () => {
     expect(() => parseSetting('invoicing', { invoiceNumberPattern: 'RE-{YYYY}' })).toThrow(/SEQ/);
     expect(

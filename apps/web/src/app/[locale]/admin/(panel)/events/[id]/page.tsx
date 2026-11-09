@@ -1,4 +1,4 @@
-import { eventHasOrders } from '@tix/core';
+import { eventHasOrders, getMediaAsset } from '@tix/core';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { EventDangerZone } from '@/components/admin/event-danger-zone';
@@ -32,11 +32,12 @@ export default async function EventDetailsPage({
   const row = await getEventWithVenue(id);
   if (!row) notFound();
   const { event } = row;
-  const [t, taxRates, checklist, hasOrders] = await Promise.all([
+  const [t, taxRates, checklist, hasOrders, cover] = await Promise.all([
     getTranslations('admin.events'),
     listTaxRates(),
     publishChecklist(event),
     eventHasOrders(getCore(), event.id),
+    event.heroImageAssetId ? getMediaAsset(getCore(), event.heroImageAssetId) : null,
   ]);
   const tz = event.timeZone;
 
@@ -62,6 +63,14 @@ export default async function EventDetailsPage({
               timeZone: tz,
               currency: event.currency,
               taxRateId: event.taxRateId,
+              cover: cover
+                ? {
+                    id: cover.id,
+                    fileName: cover.fileName,
+                    width: cover.width,
+                    height: cover.height,
+                  }
+                : null,
             }}
           />
         </CardContent>

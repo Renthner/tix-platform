@@ -4,4 +4,6 @@ export * from './client';
 export * from './errors';
 export * from './transaction';
 export * from './email-templates';
+export * from './email-template-history';
+export * from './email-template-upgrade';
 export { loadRootEnv } from './env';

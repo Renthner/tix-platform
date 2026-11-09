@@ -26,8 +26,8 @@ export const INFO_BOX_ICON_PX: Record<InfoBoxSize, number> = { S: 24, M: 40, L: 
 
 // ─── Page layout (rows × columns) ───────────────────────────────────────────
 
-/** A block of the event page: the description, the seating plan / shop or one info box. */
-export type PageBlockRef = 'DESCRIPTION' | 'SHOP' | `box:${string}`;
+/** A block of the event page: the cover image, the description, the seating plan / shop or one info box. */
+export type PageBlockRef = 'COVER' | 'DESCRIPTION' | 'SHOP' | `box:${string}`;
 export interface PageLayoutItem {
   ref: PageBlockRef;
   /** Relative width within its row (1 = normal, 2 = double). */
@@ -44,11 +44,12 @@ export const boxRef = (id: string): PageBlockRef => `box:${id}`;
 /**
  * Brings a stored layout into shape: every block exactly once (unknown / deleted boxes
  * dropped, missing blocks appended as own rows), the seating plan alone in its row, at most
- * MAX_ITEMS_PER_ROW items per row, no empty rows. Also converts the earlier flat format
+ * MAX_ITEMS_PER_ROW items per row, no empty rows. Layouts stored before the cover block existed
+ * get it as an own first row (cover on top, as before). Also converts the earlier flat format
  * (["SHOP", "DESCRIPTION", "INFO_BOXES"]): info boxes then sit two per row.
  */
 export function normalizePageLayout(raw: unknown, boxIds: readonly string[]): PageLayout {
-  const valid = new Set<string>(['DESCRIPTION', 'SHOP', ...boxIds.map(boxRef)]);
+  const valid = new Set<string>(['COVER', 'DESCRIPTION', 'SHOP', ...boxIds.map(boxRef)]);
   let rows: { ref: string; span?: unknown }[][] = [];
   if (Array.isArray(raw) && raw.every((entry) => typeof entry === 'string')) {
     for (const block of raw as string[]) {
@@ -97,11 +98,13 @@ export function normalizePageLayout(raw: unknown, boxIds: readonly string[]): Pa
   for (const ref of ['SHOP', 'DESCRIPTION', ...boxIds.map(boxRef)] as PageBlockRef[]) {
     if (!seen.has(ref)) result.push([{ ref, span: 1 }]);
   }
+  if (!seen.has('COVER')) result.unshift([{ ref: 'COVER', span: 1 }]);
   return result;
 }
 
-/** Default layout of new events: seating plan, then the description. */
+/** Default layout of new events: cover, seating plan, then the description. */
 export const DEFAULT_PAGE_LAYOUT: PageLayout = [
+  [{ ref: 'COVER', span: 1 }],
   [{ ref: 'SHOP', span: 1 }],
   [{ ref: 'DESCRIPTION', span: 1 }],
 ];

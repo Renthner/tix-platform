@@ -1,4 +1,4 @@
-import { customers, emailMessages, invoices, orders, type Executor } from '@tix/db';
+import { customers, emailMessages, invoices, orders, tickets, type Executor } from '@tix/db';
 import type { EmailTemplateKey } from '@tix/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -23,6 +23,8 @@ export interface EmailRequest {
 export type EmailAttachment =
   /** Invoice / credit note PDF – rendered on demand if it does not exist yet. */
   | { type: 'invoice'; invoiceId: string }
+  /** The order's tickets as one PDF (rendered when the mail is sent, so retries re-render). */
+  | { type: 'tickets'; orderId: string }
   /** Any stored object (bucket "documents"). */
   | { type: 'object'; objectKey: string; filename: string; contentType: string };
 
@@ -40,6 +42,8 @@ export interface StoredEmailRequest {
   /** SecretBox envelope of the JSON `variables` (null when none). */
   variables: string | null;
   /** Files attached when the message was sent (delivery log). */
+  /** The tickets PDF was left out because the message would exceed the maximum mail size. */
+  ticketsOmitted?: boolean;
   sentFiles?: { fileName: string; contentType: string; size: number }[];
 }
 
@@ -52,6 +56,15 @@ export const EMAIL_JOB_OPTIONS = {
 } as const;
 
 const emailAddress = z.email();
+
+async function hasValidTickets(db: Executor, orderId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: tickets.id })
+    .from(tickets)
+    .where(and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID')))
+    .limit(1);
+  return Boolean(row);
+}
 
 export function parseStoredEmailRequest(raw: unknown): StoredEmailRequest {
   if (raw && typeof raw === 'object' && !Array.isArray(raw) && (raw as { v?: unknown }).v === 1) {
@@ -109,7 +122,17 @@ export async function createEmailMessage(
       .where(and(eq(invoices.orderId, request.orderId), eq(invoices.type, 'INVOICE')))
       .orderBy(desc(invoices.issuedAt))
       .limit(1);
-    attachments = invoice ? [{ type: 'invoice', invoiceId: invoice.id }] : [];
+    attachments = [
+      ...(invoice ? [{ type: 'invoice' as const, invoiceId: invoice.id }] : []),
+      ...((await hasValidTickets(db, request.orderId))
+        ? [{ type: 'tickets' as const, orderId: request.orderId }]
+        : []),
+    ];
+  }
+  if (attachments === undefined && request.key === 'TICKETS_RESENT' && request.orderId) {
+    attachments = (await hasValidTickets(db, request.orderId))
+      ? [{ type: 'tickets', orderId: request.orderId }]
+      : [];
   }
   const payload: StoredEmailRequest = {
     v: 1,

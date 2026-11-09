@@ -14,6 +14,15 @@ const optionalText = (max: number) =>
     .optional()
     .transform((v) => (v ? v : undefined));
 
+/** Phone number: 5-50 characters, digits and + ( ) / - . space only; empty = not given. */
+export const PHONE_PATTERN = /^[0-9+()/.\- ]{5,50}$/;
+const optionalPhone = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v ? v : undefined))
+  .pipe(z.string().regex(PHONE_PATTERN).optional());
+
 /** Buyer data + payment choice submitted with "Place order". */
 export const checkoutInputSchema = z.object({
   method: z.enum(ONLINE_PAYMENT_METHODS),
@@ -21,8 +30,8 @@ export const checkoutInputSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   company: optionalText(200),
-  phone: optionalText(50),
-  /** Billing address is optional (B2C tickets); either complete or omitted. */
+  phone: optionalPhone,
+  /** Billing address: complete or omitted (mandatory when `requireBillingAddress` is on). */
   address: postalAddressSchema.optional(),
   customerNote: optionalText(1_000),
   acceptTerms: z.boolean(),

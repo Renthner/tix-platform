@@ -31,6 +31,7 @@
     "minutes": "{count, plural, one {# minute} other {# minutes}}"
   },
   "errors": {
+    "WALLET_UNAVAILABLE": "Wallet is currently unavailable. Please try again later or use the PDF ticket.",
     "SEAT_UNAVAILABLE": "This seat is no longer available.",
     "SEAT_LOCKED": "Someone else just selected this seat.",
     "CART_EXPIRED": "Your reservation time expired. Please select your seats again.",
@@ -58,6 +59,8 @@
     "PAYMENT_METHOD_UNAVAILABLE": "This payment method is not available for your order.",
     "LOGIN_REQUIRED": "Please sign in to complete your order.",
     "TERMS_NOT_ACCEPTED": "Please accept the terms and conditions.",
+    "PHONE_REQUIRED": "Please enter your phone number.",
+    "ADDRESS_REQUIRED": "Please enter your billing address.",
     "EVENT_NOT_ON_SALE": "Tickets for “{event}” are not on sale at the moment.",
     "SELECTION_INVALID": "Your seat selection for “{event}” is not allowed (single seats left free or companion seats without wheelchair space). Please adjust it in the cart.",
     "COMPANION_OWNER_MISMATCH": "This companion seat can only be booked by the person who bought the matching wheelchair space – please use the same e-mail address.",

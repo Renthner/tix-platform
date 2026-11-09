@@ -16,6 +16,7 @@ import {
 } from '@tix/db';
 import { and, asc, count, desc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
 import { getCore } from '@/server/core';
+import { shopOrderBy, shopVisibleCondition } from '@/server/shop-events';
 
 export type EventRow = typeof events.$inferSelect;
 export type VenueRow = typeof venues.$inferSelect;
@@ -95,6 +96,24 @@ export async function listEvents(
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(filter.upcomingOnly ? asc(events.startsAt) : desc(events.startsAt))
     .limit(500);
+}
+
+/** Events currently listed in the shop, in shop order. */
+export async function listShopVisibleEvents() {
+  return getCore()
+    .db.select({
+      id: events.id,
+      title: events.title,
+      startsAt: events.startsAt,
+      timeZone: events.timeZone,
+      shopSortOrder: events.shopSortOrder,
+      venueName: venues.name,
+    })
+    .from(events)
+    .innerJoin(venues, eq(venues.id, events.venueId))
+    .where(shopVisibleCondition())
+    .orderBy(...shopOrderBy())
+    .limit(200);
 }
 
 export async function getEventWithVenue(

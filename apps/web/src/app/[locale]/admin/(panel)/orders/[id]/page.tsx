@@ -1,4 +1,5 @@
 import { getOrderAdminView, orderUrl, resendableEmail } from '@tix/core';
+import { formatTicketCode } from '@tix/shared';
 import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -264,6 +265,81 @@ export default async function OrderDetailPage({
             </CardContent>
           </Card>
 
+          {view.tickets.length > 0 && (
+            <Card>
+              <CardHeader className="flex-row items-center justify-between gap-3">
+                <CardTitle>{t('tickets.title')}</CardTitle>
+                {view.tickets.some((ticket) => ticket.status === 'VALID') && (
+                  <Button asChild variant="outline" size="sm">
+                    <a href={`/api/admin/orders/${order.id}/tickets`}>
+                      <Download className="size-4" />
+                      {t('tickets.downloadAll')}
+                    </a>
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('tickets.code')}</TableHead>
+                      <TableHead>{t('items.place')}</TableHead>
+                      <TableHead>{t('tickets.attendee')}</TableHead>
+                      <TableHead>{t('tickets.status')}</TableHead>
+                      <TableHead>
+                        <span className="sr-only">{t('tickets.download')}</span>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {view.tickets.map((ticket) => {
+                      const item = view.events
+                        .flatMap((event) => event.items)
+                        .find((candidate) => candidate.id === ticket.orderItemId);
+                      return (
+                        <TableRow
+                          key={ticket.id}
+                          className={
+                            ticket.status === 'VALID' ? undefined : 'text-muted-foreground'
+                          }
+                        >
+                          <TableCell className="font-mono tracking-wider">
+                            {formatTicketCode(ticket.ticketCode)}
+                          </TableCell>
+                          <TableCell>
+                            {item
+                              ? `${item.sectionLabel}${
+                                  item.kind === 'SEAT'
+                                    ? ` · ${t('items.rowSeat', { row: item.rowLabel ?? '–', seat: item.seatLabel ?? '–' })}`
+                                    : ` · ${t('items.standing')}`
+                                }`
+                              : '–'}
+                          </TableCell>
+                          <TableCell>{ticket.attendeeName ?? '–'}</TableCell>
+                          <TableCell>
+                            {t(`tickets.statuses.${ticket.status}`)}
+                            {ticket.checkInState !== 'NONE' &&
+                              ` · ${t(`tickets.checkIn.${ticket.checkInState}`)}`}
+                          </TableCell>
+                          <TableCell className="text-right" data-slot="ticket-downloads">
+                            {ticket.status === 'VALID' && (
+                              <Button asChild variant="ghost" size="sm">
+                                <a href={`/api/admin/orders/${order.id}/tickets/${ticket.id}`}>
+                                  <Download className="size-4" />
+                                  {t('tickets.pdf')}
+                                </a>
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>{t('payments.title')}</CardTitle>
@@ -370,7 +446,7 @@ export default async function OrderDetailPage({
             status={order.status}
             keepReserved={order.keepReserved}
             keepReservedReason={order.keepReservedReason}
-            outstanding={open ? view.outstanding : 0}
+            outstanding={open || order.status === 'PAID' ? Math.max(view.outstanding, 0) : 0}
             currency={order.currency}
             internalNote={order.internalNote}
             canRecordPayment={hasRole(session, ['FINANCE'])}

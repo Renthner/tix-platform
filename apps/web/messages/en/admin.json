@@ -10,7 +10,9 @@
     "waitingRoom": "Waiting room",
     "symbols": "Symbol library",
     "settings": "Settings",
-    "fees": "Fees & taxes"
+    "fees": "Fees & taxes",
+    "emailTemplates": "E-mail templates",
+    "ticketTemplates": "Ticket designs"
   },
   "login": {
     "title": "Admin sign-in",
@@ -183,7 +185,20 @@
       "confirm": "Delete permanently"
     }
   },
+  "shopOrder": {
+    "title": "Shop order",
+    "description": "Order in which events appear on the shop home page.",
+    "back": "All events",
+    "rule": "Placed events appear first in this order; events not placed yet (or after a reset) follow sorted by date. Only published, upcoming events are shown here.",
+    "empty": "No events are currently listed in the shop.",
+    "save": "Save order",
+    "saving": "Saving…",
+    "reset": "Sort by date",
+    "moveUp": "Move \"{title}\" up",
+    "moveDown": "Move \"{title}\" down"
+  },
   "events": {
+    "shopOrder": "Shop order",
     "title": "Events",
     "description": "Performances, sales windows, pricing and access.",
     "new": "New event",
@@ -208,6 +223,8 @@
     "fields": {
       "title": "Title",
       "subtitle": "Subtitle",
+      "cover": "Cover image",
+      "coverHint": "Shown on the event page and in the event list. Any format works (landscape, square or portrait) and is shown in full; 16:9 (e.g. 1600 × 900 px) suits the event list best. PNG, JPEG or WebP, max. 10 MB.",
       "description": "Description",
       "slug": "URL slug",
       "slugHint": "Part of the shop URL. Lowercase letters, digits and hyphens.",
@@ -234,7 +251,9 @@
       "waitingRoom": "Waiting room",
       "accessCodes": "Access codes",
       "page": "Shop page",
-      "fees": "Fees"
+      "fees": "Fees",
+      "ticket": "Ticket",
+      "wallet": "Wallet"
     },
     "details": {
       "title": "Event details"
@@ -295,10 +314,11 @@
       "title": "Shop page",
       "description": "Arrange the event page and add info boxes – e.g. accepted proofs of reduction or notes for people with disabilities.",
       "layoutTitle": "Page layout",
-      "layoutHint": "Drag a block onto the left or right half of another block to place it next to it (up to {max} per row), or onto a gap between rows to give it a row of its own. The seating plan always uses the full width. The header with title, date and venue stays at the top.",
+      "layoutHint": "Drag a block onto the left or right half of another block to place it next to it (up to {max} per row), or onto a gap between rows to give it a row of its own. The seating plan always uses the full width. The cover image block can sit anywhere, e.g. left of the description. The header with title, date and venue stays at the top.",
       "header": "Header – title, date, venue",
       "headerFixed": "always at the top",
       "blocks": {
+        "COVER": "Cover image",
         "DESCRIPTION": "Description",
         "SHOP": "Seating plan & seat selection"
       },
@@ -581,6 +601,23 @@
     "deactivateTitle": "Deactivate code?",
     "activateTitle": "Activate code?"
   },
+  "media": {
+    "dropHint": "Drop an image here or click to upload",
+    "upload": "Upload image",
+    "replace": "Replace image",
+    "remove": "Remove",
+    "uploading": "Uploading…",
+    "errors": {
+      "generic": "The upload failed. Please try again.",
+      "MEDIA_EMPTY": "The file is empty.",
+      "MEDIA_TOO_LARGE": "The image is too large (max. 10 MB).",
+      "MEDIA_UNSUPPORTED_TYPE": "Only PNG, JPEG and WebP images are supported.",
+      "MEDIA_DIMENSIONS": "The image dimensions are not supported (max. 12,000 px per side).",
+      "FILE_REQUIRED": "Choose an image file.",
+      "KIND_INVALID": "This image type cannot be uploaded here.",
+      "FORBIDDEN": "You are not allowed to upload images."
+    }
+  },
   "richText": {
     "toolbar": "Text formatting",
     "bold": "Bold",
@@ -667,6 +704,10 @@
       "orphanSeatRuleHint": "Pre-selected when creating events; each event decides individually.",
       "requireTermsAcceptance": "Require acceptance of the terms at checkout",
       "requireTermsAcceptanceHint": "Customers must tick a checkbox linking to the terms URL.",
+      "requirePhone": "Require phone number at checkout",
+      "requirePhoneHint": "Customers must enter a phone number.",
+      "requireBillingAddress": "Require billing address at checkout",
+      "requireBillingAddressHint": "Customers must enter their address so the invoice can be issued correctly. When off, the address stays optional.",
       "companionSeatsRequireWheelchair": "Companion seats only together with their wheelchair space",
       "companionSeatsRequireWheelchairHint": "A companion seat can only be booked when its wheelchair space (adjacent or assigned in the seating editor) is in the same order. Checked on “Continue to cart”.",
       "timeline": {
@@ -759,7 +800,7 @@
       "reminderAfterDays": "Reminder after (days)",
       "reminderAfterDaysHint": "A payment reminder is sent once after this many days.",
       "cancelAfterDays": "Cancel after (days)",
-      "cancelAfterDaysHint": "Unpaid orders are cancelled and the seats released (unless “keep reserved” is set on the order).",
+      "cancelAfterDaysHint": "Unpaid orders are cancelled and the seats released (unless “keep reserved” is set on the order). Leave empty for no automatic cancellation – orders then stay reserved until cancelled manually.",
       "disableDaysBeforeEvent": "Not available within (days before the event)",
       "disableDaysBeforeEventHint": "0 = available until the event starts.",
       "autoMatchTolerance": "Matching tolerance",
@@ -843,6 +884,8 @@
       "replyToHint": "Defaults to the support e-mail.",
       "bccAddress": "Blind copy (BCC) of every e-mail",
       "bccAddressHint": "Optional archive mailbox.",
+      "maxMessageSizeMb": "Maximum e-mail size (MB)",
+      "maxMessageSizeMbHint": "If a ticket e-mail with attachments would be larger, it is sent without the ticket PDF – the tickets stay available through the download links in the e-mail. Many providers allow 25 MB.",
       "test": {
         "title": "Send a test e-mail",
         "description": "Uses the saved settings – save your changes first.",
@@ -877,7 +920,8 @@
       "payments": "Payments",
       "invoicing": "Invoices",
       "email": "E-mail",
-      "accounts": "Customer accounts"
+      "accounts": "Customer accounts",
+      "wallet": "Wallet"
     }
   },
   "symbols": {
@@ -906,5 +950,131 @@
     "deleteTitle": "Delete symbol?",
     "deleteUsed": "“{name}” is used {count, plural, one {# time} other {# times}}. Seats fall back to the default shape and icons are removed from elements.",
     "deleteUnused": "“{name}” is not used anywhere."
+  },
+  "wallet": {
+    "title": "Wallet passes",
+    "description": "Optional \"Add to Apple Wallet\" and \"Add to Google Wallet\" buttons for tickets.",
+    "optionalNote": "Both wallets are optional and stay inactive until you enable them with complete credentials. Without them, ordering, ticket PDFs and e-mails work exactly as before. QR codes in the passes are the same signed codes as on the PDF tickets.",
+    "loadFile": "Load from file…",
+    "apple": {
+      "title": "Apple Wallet",
+      "description": "Signed .pkpass files, one per ticket. Requires an Apple Developer account.",
+      "enabled": "Offer Apple Wallet",
+      "enabledHint": "Requires pass type, team ID and the certificates below.",
+      "passTypeIdentifier": "Pass type identifier",
+      "passTypeIdentifierHint": "The Pass Type ID registered at Apple, e.g. pass.com.example.tickets.",
+      "teamIdentifier": "Team ID",
+      "teamIdentifierHint": "10 characters, shown in your Apple Developer membership details.",
+      "organizationName": "Organisation name on the pass",
+      "organizationNameHint": "Optional; defaults to the shop name.",
+      "signerCertificate": "Pass signing certificate (PEM)",
+      "pemHint": "Paste the PEM text or load the file. Stored encrypted, never shown again.",
+      "signerKey": "Private key (PEM)",
+      "keyHint": "The key that belongs to the certificate (created together with the signing request).",
+      "wwdrCertificate": "Apple WWDR certificate (PEM)",
+      "wwdrHint": "Apple Worldwide Developer Relations intermediate certificate (G4).",
+      "signerKeyPassphrase": "Key passphrase",
+      "passphraseHint": "Only if the private key is encrypted.",
+      "clearCertificates": "Remove stored certificates and key",
+      "guide": {
+        "title": "Step-by-step setup guide",
+        "intro": "You need a paid Apple Developer Program membership. Allow about 20 minutes.",
+        "steps": {
+          "account": "Join the <link>Apple Developer Program</link> (paid, per year) with the Apple ID of your organisation.",
+          "passType": "Under <b>Certificates, Identifiers & Profiles → Identifiers</b> register a new <b>Pass Type ID</b>, for example <code>pass.com.example.tickets</code>, and enter it above.",
+          "certificate": "Create a signing request on your computer: <code>openssl req -new -newkey rsa:2048 -nodes -keyout pass.key -out pass.csr -subj \"/CN=Tickets\"</code>. Open the Pass Type ID, click <b>Create Certificate</b>, upload <code>pass.csr</code> and download <code>pass.cer</code>.",
+          "export": "Convert the certificate to PEM: <code>openssl x509 -inform DER -in pass.cer -out pass.pem</code>. Paste <code>pass.pem</code> as certificate and <code>pass.key</code> as private key.",
+          "wwdr": "Download the <b>Worldwide Developer Relations - G4</b> certificate from Apple (apple.com/certificateauthority) and convert it: <code>openssl x509 -inform DER -in AppleWWDRCAG4.cer -out wwdr.pem</code>. Paste it as WWDR certificate.",
+          "upload": "Enter your 10-character <b>Team ID</b>, switch Apple Wallet on and save.",
+          "test": "Click <b>Check configuration</b>, then place a test order and open the order page on an iPhone: the <b>Add to Apple Wallet</b> button installs the pass. Certificates expire after a year - the check warns 30 days before."
+        }
+      }
+    },
+    "google": {
+      "title": "Google Wallet",
+      "description": "\"Save to Google Wallet\" links. A Google Pay & Wallet issuer account is free.",
+      "enabled": "Offer Google Wallet",
+      "enabledHint": "Requires issuer ID and the service account key below.",
+      "issuerId": "Issuer ID",
+      "issuerIdHint": "Shown in the Google Pay & Wallet Console.",
+      "classPrefix": "ID prefix",
+      "classPrefixHint": "Prefix of the generated class and object IDs (letters, digits, - and _). Keep it unchanged once passes exist.",
+      "serviceAccountJson": "Service account key (JSON)",
+      "serviceAccountHint": "Paste the JSON key file or load it. Stored encrypted, never shown again.",
+      "clearCredentials": "Remove stored service account key",
+      "guide": {
+        "title": "Step-by-step setup guide",
+        "intro": "Free of charge; allow about 15 minutes. Images in Google passes are taken from the event image and the shop logo and only work when the shop is reachable via public https.",
+        "steps": {
+          "console": "Open the <link>Google Pay & Wallet Console</link>, sign in, create a business profile and accept the Google Wallet API terms.",
+          "issuer": "Copy the <b>Issuer ID</b> (Google Wallet API area of the console) into the field above.",
+          "project": "In the Google Cloud console create a project and enable the <b>Google Wallet API</b> there.",
+          "serviceAccount": "Create a <b>service account</b> in that project and add a <b>JSON key</b> to it. Download the key file.",
+          "access": "In the Wallet Console under <b>Users</b> invite the service account e-mail address with the role <b>Developer</b>.",
+          "upload": "Paste the JSON key above, enter the issuer ID, switch Google Wallet on and save.",
+          "test": "Click <b>Check configuration</b>. New issuers start in demo mode: passes are labelled test-only and can only be saved by test users added in the console. Request publishing access there before going live."
+        }
+      }
+    },
+    "check": {
+      "title": "Check configuration",
+      "description": "Verifies the stored settings (certificates and expiry for Apple, token request and issuer access for Google). Save your changes first.",
+      "button": "Check configuration",
+      "running": "Checking…",
+      "ok": "The configuration is valid.",
+      "failed": "The configuration has problems.",
+      "details": {
+        "subject": "Certificate subject",
+        "signerExpires": "Certificate valid until",
+        "wwdrExpires": "WWDR valid until",
+        "serviceAccount": "Service account"
+      },
+      "issues": {
+        "passTypeMissing": "Pass type identifier is missing.",
+        "teamMissing": "Team identifier is missing.",
+        "certificatesMissing": "Certificate, key and WWDR certificate are not stored yet.",
+        "certificatesUnreadable": "The certificates cannot be read",
+        "certExpired": "The {cert, select, signer {signing} other {WWDR}} certificate has expired.",
+        "certNotYetValid": "The {cert, select, signer {signing} other {WWDR}} certificate is not valid yet.",
+        "certExpiresSoon": "The {cert, select, signer {signing} other {WWDR}} certificate expires within 30 days.",
+        "passTypeMismatch": "The certificate belongs to the pass type “{actual}”, not “{expected}”.",
+        "wwdrMismatch": "The signing certificate was not issued by the given WWDR certificate.",
+        "issuerMissing": "Issuer ID is missing.",
+        "serviceAccountMissing": "The service account key is not stored yet.",
+        "serviceAccountInvalid": "The service account key is invalid",
+        "privateKeyUnusable": "The private key of the service account cannot be used.",
+        "tokenFailed": "Token request failed",
+        "issuerNoAccess": "The service account has no access to issuer {issuerId}. Add it as a user in the Google Pay & Wallet Console.",
+        "apiError": "Google Wallet API error",
+        "requestFailed": "Request failed",
+        "appUrlNotHttps": "The shop URL is not public https: logo and hero images are omitted from Google passes."
+      }
+    },
+    "design": {
+      "title": "Pass design (all events)",
+      "description": "Colours, logo text and images of wallet passes. Individual events can override the design on their Wallet tab.",
+      "eventTitle": "Wallet pass design",
+      "eventDescription": "Overrides the global design for this event.",
+      "inheriting": "This event currently uses the global design. Saving creates a dedicated design for this event.",
+      "removeOverride": "Use the global design again",
+      "backgroundColor": "Background colour",
+      "foregroundColor": "Text colour",
+      "labelColor": "Label colour",
+      "previewLabel": "EVENT",
+      "previewValue": "Sample Musical",
+      "logoText": "Logo text",
+      "logoTextHint": "Shown next to the logo on Apple passes. Optional.",
+      "descriptionField": "Accessibility description",
+      "descriptionHint": "Short description read by screen readers; defaults to the event title.",
+      "imagesHint": "Apple Wallet only accepts PNG images; other formats are ignored. Without an icon a neutral square in the background colour is generated. Google passes use the event image and shop logo instead.",
+      "images": {
+        "logo": "Logo",
+        "logoHint": "PNG, e.g. 160 x 50 px (also used as icon when none is set).",
+        "icon": "Icon",
+        "iconHint": "PNG, 58 x 58 px or larger (shown on the lock screen).",
+        "strip": "Strip image",
+        "stripHint": "PNG, e.g. 750 x 196 px banner behind the event title."
+      }
+    }
   }
 }

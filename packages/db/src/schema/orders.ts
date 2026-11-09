@@ -415,7 +415,7 @@ export const tickets = pgTable(
     signingKeyId: uuid('signing_key_id')
       .notNull()
       .references((): AnyPgColumn => eventSigningKeys.id, { onDelete: 'restrict' }),
-    /** Full signed QR content: tix://v1/{eventId}.{ticketId}.{seatInfo}.{signature}. */
+    /** Full signed QR content, see docs/TICKETS.md (tix://v1/{keyId}.{eventId}.{ticketId}.{seatInfo}.{signature}). */
     qrPayload: text('qr_payload').notNull(),
     attendeeName: text('attendee_name'),
     pdfObjectKey: text('pdf_object_key'),

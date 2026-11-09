@@ -1,8 +1,8 @@
 import type { InvoiceType, PartySnapshot, TaxBreakdownEntry } from '@tix/shared';
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
+import { PDFDocument, rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
 import { formatDate, formatMoney, formatPercent } from '../format';
 import type { MailTranslator } from '../i18n/mail-messages';
-import { toWinAnsi } from './pdf-text';
+import { embedPdfFonts, toPdfText } from '../pdf/fonts';
 
 /**
  * Fixed, clean A4 invoice layout (DIN 5008-like address window, item table with automatic
@@ -112,7 +112,7 @@ class Canvas {
   text(value: string, x: number, y: number, options: TextOptions = {}): void {
     const font = options.font ?? this.fonts.regular;
     const size = options.size ?? 9;
-    const text = toWinAnsi(value);
+    const text = toPdfText(value, font);
     const width = font.widthOfTextAtSize(text, size);
     this.page.drawText(text, {
       x: options.align === 'right' ? x - width : x,
@@ -130,7 +130,7 @@ class Canvas {
   /** Word-wrapped lines (explicit newlines kept, over-long words split). */
   wrap(value: string, maxWidth: number, size = 9, font = this.fonts.regular): string[] {
     const out: string[] = [];
-    for (const paragraph of toWinAnsi(value).split('\n')) {
+    for (const paragraph of toPdfText(value, font).split('\n')) {
       let line = '';
       for (const word of paragraph.split(/ +/)) {
         const candidate = line ? `${line} ${word}` : word;
@@ -204,14 +204,11 @@ export async function renderInvoicePdfDocument(
   const isCredit = input.type === 'CREDIT_NOTE';
 
   const doc = await PDFDocument.create({ updateMetadata: false });
-  const fonts: Fonts = {
-    regular: await doc.embedFont(StandardFonts.Helvetica),
-    bold: await doc.embedFont(StandardFonts.HelveticaBold),
-  };
+  const fonts: Fonts = await embedPdfFonts(doc);
   const title = isCredit ? t('invoice.creditNoteTitle') : t('invoice.title');
-  doc.setTitle(toWinAnsi(`${title} ${input.invoiceNumber}`));
-  doc.setAuthor(toWinAnsi(input.seller.name));
-  doc.setSubject(toWinAnsi(`${t('invoice.orderNumber')} ${input.orderNumber}`));
+  doc.setTitle(`${title} ${input.invoiceNumber}`);
+  doc.setAuthor(input.seller.name);
+  doc.setSubject(`${t('invoice.orderNumber')} ${input.orderNumber}`);
   doc.setProducer('tix-platform');
   doc.setCreator('tix-platform');
   doc.setLanguage(locale);

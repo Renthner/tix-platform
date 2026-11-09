@@ -119,7 +119,7 @@ PostgreSQL and managed in the Admin Portal.
 
 1. Architecture, database schema & Docker foundation ✓
 2. Visual seating editor, Redis locking & waiting room ✓
-3. **Checkout, PayPal & bank-transfer reconciliation engine** ← current
-4. PDF ticket designer, Apple/Google Wallet & e-mail worker
+3. Checkout, PayPal & bank-transfer reconciliation engine ✓
+4. **PDF ticket designer, Apple/Google Wallet & e-mail worker** ← current
 5. Admin Portal completion & box office
 6. Offline-first Android check-in app & pairing API

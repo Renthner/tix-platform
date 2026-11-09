@@ -65,6 +65,9 @@ interface Props {
   methods: PaymentMethodOption[];
   expiresAt: number | null;
   requireTerms: boolean;
+  /** Phone number / billing address are mandatory (checkout setting). */
+  requirePhone: boolean;
+  requireAddress: boolean;
   termsUrl: string | null;
   privacyUrl: string | null;
   /** Sign-in / registration offered (global setting and no event of the cart hides it). */
@@ -95,7 +98,9 @@ export function CheckoutForm(props: Props) {
     phone: props.customer?.phone ?? '',
     customerNote: '',
   });
-  const [withAddress, setWithAddress] = useState(Boolean(props.customer?.address));
+  const [withAddress, setWithAddress] = useState(
+    props.requireAddress || Boolean(props.customer?.address),
+  );
   const [address, setAddress] = useState<PostalAddress>(
     props.customer?.address ?? {
       street: '',
@@ -129,9 +134,10 @@ export function CheckoutForm(props: Props) {
         json: {
           method,
           ...form,
-          address: withAddress
-            ? { ...address, addressLine2: address.addressLine2 || undefined }
-            : undefined,
+          address:
+            withAddress || props.requireAddress
+              ? { ...address, addressLine2: address.addressLine2 || undefined }
+              : undefined,
           acceptTerms,
           expectedTotalGross: quote.totalGross,
           locale: props.locale,
@@ -228,27 +234,39 @@ export function CheckoutForm(props: Props) {
                 onChange={set('email')}
               />
             </FieldBox>
-            <FieldBox id="co-phone" label={t('contact.phone')} optional={t('optional')}>
+            <FieldBox
+              id="co-phone"
+              label={t('contact.phone')}
+              optional={props.requirePhone ? undefined : t('optional')}
+              error={error?.code === 'PHONE_REQUIRED' ? error.message : undefined}
+            >
               <Input
                 id="co-phone"
                 type="tel"
                 autoComplete="tel"
+                required={props.requirePhone}
+                aria-invalid={error?.code === 'PHONE_REQUIRED' || undefined}
                 maxLength={50}
+                // Mirrors PHONE_PATTERN (escaped for the browser's `v`-flag pattern syntax).
+                pattern="[0-9+\(\)\/.\- ]{5,50}"
+                title={t('contact.phoneHint')}
                 value={form.phone}
                 onChange={set('phone')}
               />
             </FieldBox>
-            <div className="flex items-center gap-2 sm:col-span-2">
-              <Checkbox
-                id="co-address"
-                checked={withAddress}
-                onCheckedChange={(v) => setWithAddress(v === true)}
-              />
-              <Label htmlFor="co-address" className="font-normal">
-                {t('address.toggle')}
-              </Label>
-            </div>
-            {withAddress && (
+            {!props.requireAddress && (
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <Checkbox
+                  id="co-address"
+                  checked={withAddress}
+                  onCheckedChange={(v) => setWithAddress(v === true)}
+                />
+                <Label htmlFor="co-address" className="font-normal">
+                  {t('address.toggle')}
+                </Label>
+              </div>
+            )}
+            {(withAddress || props.requireAddress) && (
               <>
                 <FieldBox id="co-company" label={t('address.company')} optional={t('optional')}>
                   <Input
@@ -259,9 +277,14 @@ export function CheckoutForm(props: Props) {
                     onChange={set('company')}
                   />
                 </FieldBox>
-                <FieldBox id="co-street" label={t('address.street')}>
+                <FieldBox
+                  id="co-street"
+                  label={t('address.street')}
+                  error={error?.code === 'ADDRESS_REQUIRED' ? error.message : undefined}
+                >
                   <Input
                     id="co-street"
+                    required
                     autoComplete="address-line1"
                     maxLength={200}
                     value={address.street}
@@ -281,6 +304,7 @@ export function CheckoutForm(props: Props) {
                   <FieldBox id="co-zip" label={t('address.postalCode')}>
                     <Input
                       id="co-zip"
+                      required
                       autoComplete="postal-code"
                       maxLength={20}
                       value={address.postalCode}
@@ -290,6 +314,7 @@ export function CheckoutForm(props: Props) {
                   <FieldBox id="co-city" label={t('address.city')}>
                     <Input
                       id="co-city"
+                      required
                       autoComplete="address-level2"
                       maxLength={120}
                       value={address.city}
@@ -455,12 +480,14 @@ function FieldBox({
   label,
   optional,
   hint,
+  error,
   children,
 }: {
   id: string;
   label: string;
   optional?: string;
   hint?: string;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -471,6 +498,7 @@ function FieldBox({
       </Label>
       {children}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

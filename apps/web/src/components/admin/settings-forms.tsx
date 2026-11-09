@@ -7,7 +7,6 @@ import { useActionState, useState, type ReactNode } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import { IDLE, type ActionState } from '@/lib/action-state';
 import {
   ActionForm,
@@ -17,6 +16,7 @@ import {
   SubmitButton,
   errorOf,
 } from './form-controls';
+import { RichTextEditor } from './rich-text-editor';
 import { TimeZoneOptions } from './venue-form';
 
 export type Action = (state: ActionState, fd: FormData) => Promise<ActionState>;
@@ -262,12 +262,12 @@ export function BrandingSettingsForm({
           error={err('footerText')}
           className="md:col-span-2"
         >
-          <Textarea
+          <RichTextEditor
             id="footerText"
             name="footerText"
-            rows={3}
-            maxLength={2000}
+            compact
             defaultValue={initial.footerText ?? ''}
+            invalid={!!err('footerText')}
           />
         </Field>
       </div>
@@ -289,6 +289,8 @@ export interface CheckoutValues {
   orphanSeatRuleEnabled: boolean;
   companionSeatsRequireWheelchair: boolean;
   requireTermsAcceptance: boolean;
+  requirePhone: boolean;
+  requireBillingAddress: boolean;
 }
 
 export function CheckoutSettingsForm({
@@ -430,6 +432,18 @@ export function CheckoutSettingsForm({
           defaultChecked={initial.requireTermsAcceptance}
           label={t('requireTermsAcceptance')}
           hint={t('requireTermsAcceptanceHint')}
+        />
+        <SwitchRow
+          name="requirePhone"
+          defaultChecked={initial.requirePhone}
+          label={t('requirePhone')}
+          hint={t('requirePhoneHint')}
+        />
+        <SwitchRow
+          name="requireBillingAddress"
+          defaultChecked={initial.requireBillingAddress}
+          label={t('requireBillingAddress')}
+          hint={t('requireBillingAddressHint')}
         />
       </div>
       <SubmitButton>{tc('save')}</SubmitButton>

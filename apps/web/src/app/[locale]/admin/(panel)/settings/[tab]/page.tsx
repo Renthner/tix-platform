@@ -1,4 +1,4 @@
-import { getSetting, hasSecretSetting } from '@tix/core';
+import { getSecretSetting, getSetting, hasSecretSetting } from '@tix/core';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import {
@@ -19,12 +19,27 @@ import {
   SettingsSection,
 } from '@/components/admin/settings-forms';
 import { SettingsTabs } from '@/components/admin/settings-tabs';
+import {
+  AppleWalletForm,
+  GoogleWalletForm,
+  WalletCheck,
+  WalletDesignForm,
+} from '@/components/admin/wallet-settings-forms';
 import { resolveLocale } from '@/i18n/locale';
 import { SETTINGS_TABS, type SettingsTab } from '@/lib/settings-tabs';
 import { requireAdmin } from '@/server/auth';
 import { saveSettingsAction, sendTestEmailAction } from '@/server/admin/settings';
+import {
+  checkAppleWalletAction,
+  checkGoogleWalletAction,
+  saveAppleWalletAction,
+  saveGoogleWalletAction,
+  saveWalletDesignAction,
+} from '@/server/admin/wallet';
+import { loadWalletDesignValues } from '@/server/admin/wallet-design';
 import { getCore } from '@/server/core';
 import { getEnv } from '@/server/env';
+import { descriptionToHtml } from '@/server/rich-text';
 
 export async function generateMetadata({ params }: { params: Promise<{ tab: string }> }) {
   const { tab } = await params;
@@ -103,7 +118,7 @@ async function TabContent({
                 imprintUrl: branding.imprintUrl,
                 privacyUrl: branding.privacyUrl,
                 termsUrl: branding.termsUrl,
-                footerText: branding.footerText,
+                footerText: descriptionToHtml(branding.footerText),
               }}
             />,
           )}
@@ -223,6 +238,103 @@ async function TabContent({
             defaultLocale={locale}
           />
         </SettingsSection>
+      );
+    }
+    case 'wallet': {
+      const [apple, google, certsStored, credsStored, design, tw] = await Promise.all([
+        getSetting(core, 'wallet.apple'),
+        getSetting(core, 'wallet.google'),
+        hasSecretSetting(core, 'wallet.apple.certificates'),
+        hasSecretSetting(core, 'wallet.google.credentials'),
+        loadWalletDesignValues(null),
+        getTranslations('admin.wallet'),
+      ]);
+      const applePassphraseStored = certsStored
+        ? Boolean(
+            (await getSecretSetting(core, 'wallet.apple.certificates').catch(() => null))
+              ?.signerKeyPassphrase,
+          )
+        : false;
+      const rich = {
+        b: (chunks: React.ReactNode) => <strong>{chunks}</strong>,
+        code: (chunks: React.ReactNode) => <code className="font-mono text-xs">{chunks}</code>,
+      };
+      const guide = (kind: 'apple' | 'google', steps: readonly string[], href: string) => (
+        <details className="mb-4 rounded-md border bg-muted/40 p-3 text-sm [&[open]>summary]:mb-3">
+          <summary className="cursor-pointer font-medium">{tw(`${kind}.guide.title`)}</summary>
+          <p className="mb-2 text-muted-foreground">{tw(`${kind}.guide.intro`)}</p>
+          <ol className="list-decimal space-y-2 pl-5">
+            {steps.map((step) => (
+              <li key={step}>
+                {tw.rich(`${kind}.guide.steps.${step}` as 'apple.guide.steps.account', {
+                  ...rich,
+                  link: (chunks) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="underline">
+                      {chunks}
+                    </a>
+                  ),
+                })}
+              </li>
+            ))}
+          </ol>
+        </details>
+      );
+      return (
+        <>
+          <SettingsSection id="walletIntro" title={tw('title')} description={tw('description')}>
+            <p className="text-sm text-muted-foreground">{tw('optionalNote')}</p>
+          </SettingsSection>
+          <SettingsSection
+            id="walletApple"
+            title={tw('apple.title')}
+            description={tw('apple.description')}
+          >
+            {guide(
+              'apple',
+              ['account', 'passType', 'certificate', 'export', 'wwdr', 'upload', 'test'],
+              'https://developer.apple.com/account/resources/identifiers/list/passTypeId',
+            )}
+            <AppleWalletForm
+              action={saveAppleWalletAction}
+              initial={apple}
+              certificatesStored={certsStored}
+              passphraseStored={applePassphraseStored}
+            />
+            <div className="mt-4">
+              <WalletCheck action={checkAppleWalletAction} />
+            </div>
+          </SettingsSection>
+          <SettingsSection
+            id="walletGoogle"
+            title={tw('google.title')}
+            description={tw('google.description')}
+          >
+            {guide(
+              'google',
+              ['console', 'issuer', 'project', 'serviceAccount', 'access', 'upload', 'test'],
+              'https://pay.google.com/business/console',
+            )}
+            <GoogleWalletForm
+              action={saveGoogleWalletAction}
+              initial={google}
+              credentialsStored={credsStored}
+            />
+            <div className="mt-4">
+              <WalletCheck action={checkGoogleWalletAction} />
+            </div>
+          </SettingsSection>
+          <SettingsSection
+            id="walletDesign"
+            title={tw('design.title')}
+            description={tw('design.description')}
+          >
+            <WalletDesignForm
+              action={saveWalletDesignAction.bind(null, null)}
+              initial={design.values}
+              isOverride={design.isOverride}
+            />
+          </SettingsSection>
+        </>
       );
     }
     case 'accounts':

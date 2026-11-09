@@ -3,6 +3,7 @@ import type { EmailTemplateKey } from '@tix/shared';
 import { and, eq, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { enqueueEmail } from '../email';
+import { listOrderTickets } from '../tickets/issue';
 import { cancelOrder, recordPayment, type RecordPaymentResult } from './fulfillment';
 
 /** Admin / customer actions on single orders (box office features follow in phase 5). */
@@ -120,6 +121,29 @@ export async function resendOrderEmail(
     data: { template: key },
   });
   return key;
+}
+
+/** Sends the tickets (PDF attached) of a PAID order again (TICKETS_RESENT). */
+export async function resendOrderTickets(
+  ctx: CoreContext,
+  params: { orderId: string; userId: string },
+): Promise<void> {
+  const order = await loadOrder(ctx, params.orderId);
+  if (order.status !== 'PAID') {
+    throw new DomainError('ORDER_NOT_PAID', 'Tickets exist for paid orders only', 409);
+  }
+  const issued = await listOrderTickets(ctx, order.id);
+  if (issued.length === 0) {
+    throw new DomainError('NO_TICKETS', 'The order has no valid tickets yet', 409);
+  }
+  await enqueueEmail(ctx, { key: 'TICKETS_RESENT', orderId: order.id });
+  await ctx.db.insert(orderHistory).values({
+    orderId: order.id,
+    type: 'tickets_resent',
+    actorType: 'ADMIN',
+    actorUserId: params.userId,
+    data: { tickets: issued.length },
+  });
 }
 
 export async function updateInternalNote(

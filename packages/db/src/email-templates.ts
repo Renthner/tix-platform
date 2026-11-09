@@ -3,7 +3,8 @@ import { EMAIL_TEMPLATE_KEYS, type EmailTemplateKey } from '@tix/shared';
 /**
  * Default transactional e-mail templates (English + German), seeded into `email_templates`
  * once per key/locale and from then on edited in the Admin Portal – the seed never
- * overwrites existing rows. Placeholders: `{{name}}` (escaped), `{{#if name}}…{{else}}…{{/if}}`,
+ * overwrites edited rows (unedited rows of an earlier default are upgraded, see
+ * `email-template-history.ts`). Placeholders: `{{name}}` (escaped), `{{#if name}}…{{else}}…{{/if}}`,
  * `{{#unless name}}…{{/unless}}`; `{{itemsTable}}` / `{{eventList}}` are generated HTML.
  * Texts are brand-neutral: shop, organizer and bank data come from the settings.
  */
@@ -46,13 +47,13 @@ const COMMON = {
   },
   de: {
     hello: 'Hallo{{#if firstName}} {{firstName}}{{/if}},',
-    regards: 'Herzliche Grüße<br>Ihr Team von {{shopName}}',
-    regardsText: 'Herzliche Grüße\nIhr Team von {{shopName}}',
+    regards: 'Herzliche Grüße<br>dein Team von {{shopName}}',
+    regardsText: 'Herzliche Grüße\ndein Team von {{shopName}}',
     viewOrder: 'Bestellung ansehen',
     buttonFallback:
-      'Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link in Ihren Browser:',
-    questions: 'Fragen? Antworten Sie einfach auf diese E-Mail',
-    questionsWrite: 'oder schreiben Sie an',
+      'Falls der Button nicht funktioniert, kopiere bitte diesen Link in deinen Browser:',
+    questions: 'Fragen? Antworte einfach auf diese E-Mail',
+    questionsWrite: 'oder schreib an',
     imprint: 'Impressum',
     privacy: 'Datenschutz',
     holder: 'Kontoinhaber',
@@ -60,7 +61,7 @@ const COMMON = {
     amount: 'Betrag',
     reference: 'Verwendungszweck',
     due: 'Zahlbar bis',
-    noBank: 'Die Bankverbindung für Ihre Überweisung senden wir Ihnen gesondert zu.',
+    noBank: 'Die Bankverbindung für deine Überweisung senden wir dir gesondert zu.',
   },
 } as const;
 
@@ -76,21 +77,65 @@ function button(locale: Locale, urlVar: string, label: string): string {
 <p style="margin:0 0 16px;font-size:12px;${MUTED}">${COMMON[locale].buttonFallback}<br><a href="{{${urlVar}}}" style="color:#52525b;word-break:break-all">{{${urlVar}}}</a></p>{{/if}}`;
 }
 
+const TICKET_TEXT = {
+  en: {
+    individually: 'Your tickets:',
+    all: 'All tickets in one PDF',
+  },
+  de: {
+    individually: 'Deine Tickets einzeln:',
+    all: 'Alle Tickets in einem PDF',
+  },
+} as const;
+
+/**
+ * Per-ticket downloads: `{{ticketLinks}}` is generated HTML (caption + PDF / wallet buttons per
+ * valid ticket, empty without appUrl or tickets); `ticketsPdfUrl` the combined PDF as a small
+ * secondary link. The `{{#if}}` sits between block elements.
+ */
+function ticketLinksBlock(locale: Locale): string {
+  const c = TICKET_TEXT[locale];
+  return `{{#if ticketLinks}}${paragraph(c.individually)}
+{{ticketLinks}}{{/if}}{{#if ticketsPdfUrl}}<p style="margin:0 0 16px;font-size:13px"><a href="{{ticketsPdfUrl}}" style="color:#52525b">${c.all}</a></p>{{/if}}`;
+}
+
+function ticketLinksText(locale: Locale): string {
+  const c = TICKET_TEXT[locale];
+  return `{{#if ticketLinks}}${c.individually}
+{{ticketLinks}}
+
+{{/if}}{{#if ticketsPdfUrl}}${c.all}: {{ticketsPdfUrl}}
+
+{{/if}}`;
+}
+
+/** Attachment sentence, or – when the PDF had to be left out (mail too large) – the download hint. */
+const ticketsSentence = (attached: string, download: string) =>
+  `{{#if ticketsAttached}}${attached}{{else}}${download}{{/if}}`;
+
+/**
+ * Bank details as a stacked list (small grey label, bold value underneath) inside one grey box.
+ * No side-by-side columns, so nothing is squeezed on phones, and every `{{#if}}` sits between
+ * paragraphs (never inside table rows) – which keeps the visual editor able to show it.
+ */
 function bankDetails(locale: Locale): { html: string; text: string } {
   const c = COMMON[locale];
-  const row = (label: string, value: string) =>
-    `<tr><td style="padding:2px 16px 2px 0;${MUTED};white-space:nowrap">${label}</td><td style="padding:2px 0">${value}</td></tr>`;
+  const MONO = 'font-family:Consolas,Menlo,Monaco,monospace';
+  const label = (text: string) =>
+    `<p style="margin:0;font-size:12px;line-height:1.4;color:#71717a">${text}</p>`;
+  const value = (inner: string, style = '') =>
+    `<p style="margin:0 0 12px;font-size:15px;line-height:1.4;word-break:break-word${style}">${inner}</p>`;
+  const detail = (text: string, inner: string, style = '') => `${label(text)}
+${value(inner, style)}`;
   const html = `{{#if iban}}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;border-radius:6px;margin:0 0 16px">
-<tr><td style="padding:14px 16px">
-<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.6">
-${row(c.holder, '<strong>{{bankAccountHolder}}</strong>')}
-${row('IBAN', '<strong style="font-family:Consolas,Menlo,monospace">{{iban}}</strong>')}
-{{#if bic}}${row('BIC', '{{bic}}')}{{/if}}
-{{#if bankName}}${row(c.bank, '{{bankName}}')}{{/if}}
-${row(c.amount, '<strong>{{amountDue}}</strong>')}
-${row(c.reference, '<strong style="font-family:Consolas,Menlo,monospace;font-size:16px">{{paymentReference}}</strong>')}
-{{#if paymentDueDate}}${row(c.due, '<strong>{{paymentDueDate}}</strong>')}{{/if}}
-</table>
+<tr><td style="padding:14px 16px 2px">
+${detail(c.holder, '<strong>{{bankAccountHolder}}</strong>')}
+${detail('IBAN', '<strong>{{iban}}</strong>', `;${MONO};font-size:16px;letter-spacing:0.5px`)}
+{{#if bic}}${detail('BIC', '{{bic}}')}{{/if}}
+{{#if bankName}}${detail(c.bank, '{{bankName}}')}{{/if}}
+${detail(c.amount, '<strong>{{amountDue}}</strong>')}
+${detail(c.reference, '<strong>{{paymentReference}}</strong>', `;${MONO};font-size:18px`)}
+{{#if paymentDueDate}}${detail(c.due, '<strong>{{paymentDueDate}}</strong>')}{{/if}}
 </td></tr>
 </table>{{else}}${paragraph(c.noBank)}{{/if}}`;
   const text = `{{#if iban}}${c.holder}: {{bankAccountHolder}}
@@ -149,7 +194,7 @@ ${c.questions}{{#if supportEmail}} ${c.questionsWrite} {{supportEmail}}{{/if}}.
 }
 
 const orderLink = (locale: Locale) =>
-  `{{#if orderUrl}}${locale === 'de' ? 'Ihre Bestellung' : 'Your order'}: {{orderUrl}}\n\n{{/if}}`;
+  `{{#if orderUrl}}${locale === 'de' ? 'Deine Bestellung' : 'Your order'}: {{orderUrl}}\n\n{{/if}}`;
 
 const CONTENT: Record<EmailTemplateKey, Record<Locale, () => Content>> = {
   ORDER_CONFIRMATION_BANK_TRANSFER: {
@@ -160,11 +205,11 @@ const CONTENT: Record<EmailTemplateKey, Record<Locale, () => Content>> = {
         html: [
           paragraph(COMMON.en.hello),
           paragraph(
-            'thank you for your order at {{shopName}}! Your seats are reserved for you. Please transfer the amount below{{#if paymentDueDate}} by <strong>{{paymentDueDate}}</strong>{{/if}} – as soon as your payment has arrived, we will confirm it and send you your tickets.',
+            'thank you for your order at {{shopName}}! Your seats are reserved for you. Please transfer the amount below{{#if paymentDueDate}} by <strong>{{paymentDueDate}}</strong>{{/if}} – as soon as your payment has arrived, we will confirm it and send you your tickets.{{#if autoCancelDate}} Unpaid orders are cancelled automatically on <strong>{{autoCancelDate}}</strong> and the seats are released.{{/if}}',
           ),
           bank.html,
           paragraph(
-            '<strong>Important:</strong> please enter only <strong>{{paymentReference}}</strong> as the payment reference so that we can assign your transfer automatically. Seats that have not been paid for in time may be released again.',
+            '<strong>Important:</strong> please enter only <strong>{{paymentReference}}</strong> as the payment reference so that we can assign your transfer automatically.',
           ),
           `<h2 style="margin:24px 0 4px;font-size:16px">Order {{orderNumber}} of {{orderDate}}</h2>`,
           '{{itemsTable}}',
@@ -174,10 +219,10 @@ const CONTENT: Record<EmailTemplateKey, Record<Locale, () => Content>> = {
         ].join('\n'),
         text: `Hello{{#if firstName}} {{firstName}}{{/if}},
 
-thank you for your order at {{shopName}}! Your seats are reserved for you. Please transfer the amount below{{#if paymentDueDate}} by {{paymentDueDate}}{{/if}} – as soon as your payment has arrived, we will confirm it and send you your tickets.
+thank you for your order at {{shopName}}! Your seats are reserved for you. Please transfer the amount below{{#if paymentDueDate}} by {{paymentDueDate}}{{/if}} – as soon as your payment has arrived, we will confirm it and send you your tickets.{{#if autoCancelDate}} Unpaid orders are cancelled automatically on {{autoCancelDate}} and the seats are released.{{/if}}
 
 ${bank.text}
-Important: please enter only {{paymentReference}} as the payment reference so that we can assign your transfer automatically. Seats that have not been paid for in time may be released again.
+Important: please enter only {{paymentReference}} as the payment reference so that we can assign your transfer automatically.
 
 Order {{orderNumber}} of {{orderDate}}
 
@@ -191,34 +236,34 @@ ${COMMON.en.regardsText}`,
     de: () => {
       const bank = bankDetails('de');
       return {
-        subject: 'Ihre Bestellung {{orderNumber}} – bitte überweisen Sie {{amountDue}}',
+        subject: 'Deine Bestellung {{orderNumber}} – bitte überweise {{amountDue}}',
         html: [
           paragraph(COMMON.de.hello),
           paragraph(
-            'vielen Dank für Ihre Bestellung bei {{shopName}}! Ihre Plätze sind für Sie reserviert. Bitte überweisen Sie den folgenden Betrag{{#if paymentDueDate}} bis zum <strong>{{paymentDueDate}}</strong>{{/if}} – sobald Ihre Zahlung eingegangen ist, bestätigen wir sie und senden Ihnen Ihre Tickets.',
+            'vielen Dank für deine Bestellung bei {{shopName}}! Deine Plätze sind für dich reserviert. Bitte überweise den folgenden Betrag{{#if paymentDueDate}} bis zum <strong>{{paymentDueDate}}</strong>{{/if}} – sobald deine Zahlung eingegangen ist, bestätigen wir sie und senden dir deine Tickets.{{#if autoCancelDate}} Unbezahlte Bestellungen werden am <strong>{{autoCancelDate}}</strong> automatisch storniert und die Plätze freigegeben.{{/if}}',
           ),
           bank.html,
           paragraph(
-            '<strong>Wichtig:</strong> Bitte geben Sie als Verwendungszweck ausschließlich <strong>{{paymentReference}}</strong> an, damit wir Ihre Überweisung automatisch zuordnen können. Nicht fristgerecht bezahlte Plätze können wieder freigegeben werden.',
+            '<strong>Wichtig:</strong> Bitte gib als Verwendungszweck ausschließlich <strong>{{paymentReference}}</strong> an, damit wir deine Überweisung automatisch zuordnen können.',
           ),
           `<h2 style="margin:24px 0 4px;font-size:16px">Bestellung {{orderNumber}} vom {{orderDate}}</h2>`,
           '{{itemsTable}}',
           button('de', 'orderUrl', COMMON.de.viewOrder),
-          paragraph('Wir freuen uns auf Ihren Besuch!'),
+          paragraph('Wir freuen uns auf deinen Besuch!'),
           paragraph(COMMON.de.regards),
         ].join('\n'),
         text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-vielen Dank für Ihre Bestellung bei {{shopName}}! Ihre Plätze sind für Sie reserviert. Bitte überweisen Sie den folgenden Betrag{{#if paymentDueDate}} bis zum {{paymentDueDate}}{{/if}} – sobald Ihre Zahlung eingegangen ist, bestätigen wir sie und senden Ihnen Ihre Tickets.
+vielen Dank für deine Bestellung bei {{shopName}}! Deine Plätze sind für dich reserviert. Bitte überweise den folgenden Betrag{{#if paymentDueDate}} bis zum {{paymentDueDate}}{{/if}} – sobald deine Zahlung eingegangen ist, bestätigen wir sie und senden dir deine Tickets.{{#if autoCancelDate}} Unbezahlte Bestellungen werden am {{autoCancelDate}} automatisch storniert und die Plätze freigegeben.{{/if}}
 
 ${bank.text}
-Wichtig: Bitte geben Sie als Verwendungszweck ausschließlich {{paymentReference}} an, damit wir Ihre Überweisung automatisch zuordnen können. Nicht fristgerecht bezahlte Plätze können wieder freigegeben werden.
+Wichtig: Bitte gib als Verwendungszweck ausschließlich {{paymentReference}} an, damit wir deine Überweisung automatisch zuordnen können.
 
 Bestellung {{orderNumber}} vom {{orderDate}}
 
 {{itemsTable}}
 
-${orderLink('de')}Wir freuen uns auf Ihren Besuch!
+${orderLink('de')}Wir freuen uns auf deinen Besuch!
 
 ${COMMON.de.regardsText}`,
       };
@@ -237,8 +282,12 @@ ${COMMON.de.regardsText}`,
           paragraph('Your invoice {{invoiceNumber}} is attached to this e-mail.') +
           '{{/if}}',
         paragraph(
-          'Your tickets will be sent to you separately and will also appear in your order as soon as they are ready.',
+          ticketsSentence(
+            'Your tickets are attached to this e-mail as PDF. You can also download them at any time on your order page.',
+            'You can download your tickets individually below or at any time on your order page.',
+          ),
         ),
+        ticketLinksBlock('en'),
         '{{itemsTable}}',
         button('en', 'orderUrl', COMMON.en.viewOrder),
         paragraph('We are looking forward to seeing you!'),
@@ -250,43 +299,47 @@ we have received your payment of {{amount}} – thank you very much! Your order 
 
 {{#if invoiceNumber}}Your invoice {{invoiceNumber}} is attached to this e-mail.
 
-{{/if}}Your tickets will be sent to you separately and will also appear in your order as soon as they are ready.
+{{/if}}${ticketsSentence('Your tickets are attached to this e-mail as PDF. You can also download them at any time on your order page.', 'You can download your tickets individually below or at any time on your order page.')}
 
-{{itemsTable}}
+${ticketLinksText('en')}{{itemsTable}}
 
 ${orderLink('en')}We are looking forward to seeing you!
 
 ${COMMON.en.regardsText}`,
     }),
     de: () => ({
-      subject: 'Zahlung erhalten – Ihre Bestellung {{orderNumber}}',
+      subject: 'Zahlung erhalten – deine Bestellung {{orderNumber}}',
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          'wir haben Ihre Zahlung über <strong>{{amount}}</strong> erhalten – herzlichen Dank! Ihre Bestellung {{orderNumber}} ist vollständig bezahlt und Ihre Plätze sind fest gebucht.',
+          'wir haben deine Zahlung über <strong>{{amount}}</strong> erhalten – herzlichen Dank! Deine Bestellung {{orderNumber}} ist vollständig bezahlt und deine Plätze sind fest gebucht.',
         ),
         '{{#if invoiceNumber}}' +
-          paragraph('Ihre Rechnung {{invoiceNumber}} finden Sie im Anhang dieser E-Mail.') +
+          paragraph('Deine Rechnung {{invoiceNumber}} findest du im Anhang dieser E-Mail.') +
           '{{/if}}',
         paragraph(
-          'Ihre Tickets senden wir Ihnen gesondert zu; sie erscheinen außerdem in Ihrer Bestellung, sobald sie bereitstehen.',
+          ticketsSentence(
+            'Deine Tickets findest du als PDF im Anhang dieser E-Mail. Du kannst sie außerdem jederzeit auf der Seite deiner Bestellung herunterladen.',
+            'Du kannst deine Tickets unten einzeln oder jederzeit auf der Seite deiner Bestellung herunterladen.',
+          ),
         ),
+        ticketLinksBlock('de'),
         '{{itemsTable}}',
         button('de', 'orderUrl', COMMON.de.viewOrder),
-        paragraph('Wir freuen uns auf Sie!'),
+        paragraph('Wir freuen uns auf dich!'),
         paragraph(COMMON.de.regards),
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-wir haben Ihre Zahlung über {{amount}} erhalten – herzlichen Dank! Ihre Bestellung {{orderNumber}} ist vollständig bezahlt und Ihre Plätze sind fest gebucht.
+wir haben deine Zahlung über {{amount}} erhalten – herzlichen Dank! Deine Bestellung {{orderNumber}} ist vollständig bezahlt und deine Plätze sind fest gebucht.
 
-{{#if invoiceNumber}}Ihre Rechnung {{invoiceNumber}} finden Sie im Anhang dieser E-Mail.
+{{#if invoiceNumber}}Deine Rechnung {{invoiceNumber}} findest du im Anhang dieser E-Mail.
 
-{{/if}}Ihre Tickets senden wir Ihnen gesondert zu; sie erscheinen außerdem in Ihrer Bestellung, sobald sie bereitstehen.
+{{/if}}${ticketsSentence('Deine Tickets findest du als PDF im Anhang dieser E-Mail. Du kannst sie außerdem jederzeit auf der Seite deiner Bestellung herunterladen.', 'Du kannst deine Tickets unten einzeln oder jederzeit auf der Seite deiner Bestellung herunterladen.')}
 
-{{itemsTable}}
+${ticketLinksText('de')}{{itemsTable}}
 
-${orderLink('de')}Wir freuen uns auf Sie!
+${orderLink('de')}Wir freuen uns auf dich!
 
 ${COMMON.de.regardsText}`,
     }),
@@ -303,7 +356,7 @@ ${COMMON.de.regardsText}`,
             'we are still holding your seats for order {{orderNumber}} of {{orderDate}}, but we have not yet been able to find your payment. If your transfer has crossed with this e-mail, please simply disregard it.',
           ),
           paragraph(
-            'Otherwise, please transfer the outstanding amount as soon as possible so that your reservation is not cancelled automatically:',
+            'Otherwise, please transfer the outstanding amount as soon as possible so that your reservation is not lost.{{#if autoCancelDate}} Unpaid orders are cancelled automatically on <strong>{{autoCancelDate}}</strong> and the seats are released.{{/if}}',
           ),
           bank.html,
           paragraph(
@@ -317,7 +370,7 @@ ${COMMON.de.regardsText}`,
 
 we are still holding your seats for order {{orderNumber}} of {{orderDate}}, but we have not yet been able to find your payment. If your transfer has crossed with this e-mail, please simply disregard it.
 
-Otherwise, please transfer the outstanding amount as soon as possible so that your reservation is not cancelled automatically:
+Otherwise, please transfer the outstanding amount as soon as possible so that your reservation is not lost.{{#if autoCancelDate}} Unpaid orders are cancelled automatically on {{autoCancelDate}} and the seats are released.{{/if}}
 
 ${bank.text}
 Please enter only {{paymentReference}} as the payment reference so that we can assign your transfer automatically.
@@ -330,18 +383,18 @@ ${orderLink('en')}${COMMON.en.regardsText}`,
     de: () => {
       const bank = bankDetails('de');
       return {
-        subject: 'Zahlungserinnerung zu Ihrer Bestellung {{orderNumber}}',
+        subject: 'Zahlungserinnerung zu deiner Bestellung {{orderNumber}}',
         html: [
           paragraph(COMMON.de.hello),
           paragraph(
-            'Ihre Plätze aus der Bestellung {{orderNumber}} vom {{orderDate}} halten wir weiterhin für Sie bereit, konnten Ihre Zahlung aber noch nicht finden. Sollte sich Ihre Überweisung mit dieser E-Mail überschnitten haben, betrachten Sie sie bitte als gegenstandslos.',
+            'deine Plätze aus der Bestellung {{orderNumber}} vom {{orderDate}} halten wir weiterhin für dich bereit, konnten deine Zahlung aber noch nicht finden. Hat sich deine Überweisung mit dieser E-Mail überschnitten, betrachte sie bitte als gegenstandslos.',
           ),
           paragraph(
-            'Andernfalls überweisen Sie den offenen Betrag bitte möglichst bald, damit Ihre Reservierung nicht automatisch storniert wird:',
+            'Andernfalls überweise den offenen Betrag bitte möglichst bald, damit deine Reservierung nicht verloren geht.{{#if autoCancelDate}} Unbezahlte Bestellungen werden am <strong>{{autoCancelDate}}</strong> automatisch storniert und die Plätze freigegeben.{{/if}}',
           ),
           bank.html,
           paragraph(
-            'Bitte geben Sie als Verwendungszweck ausschließlich <strong>{{paymentReference}}</strong> an, damit wir Ihre Überweisung automatisch zuordnen können.',
+            'Bitte gib als Verwendungszweck ausschließlich <strong>{{paymentReference}}</strong> an, damit wir deine Überweisung automatisch zuordnen können.',
           ),
           '{{itemsTable}}',
           button('de', 'orderUrl', COMMON.de.viewOrder),
@@ -349,12 +402,12 @@ ${orderLink('en')}${COMMON.en.regardsText}`,
         ].join('\n'),
         text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-Ihre Plätze aus der Bestellung {{orderNumber}} vom {{orderDate}} halten wir weiterhin für Sie bereit, konnten Ihre Zahlung aber noch nicht finden. Sollte sich Ihre Überweisung mit dieser E-Mail überschnitten haben, betrachten Sie sie bitte als gegenstandslos.
+deine Plätze aus der Bestellung {{orderNumber}} vom {{orderDate}} halten wir weiterhin für dich bereit, konnten deine Zahlung aber noch nicht finden. Hat sich deine Überweisung mit dieser E-Mail überschnitten, betrachte sie bitte als gegenstandslos.
 
-Andernfalls überweisen Sie den offenen Betrag bitte möglichst bald, damit Ihre Reservierung nicht automatisch storniert wird:
+Andernfalls überweise den offenen Betrag bitte möglichst bald, damit deine Reservierung nicht verloren geht.{{#if autoCancelDate}} Unbezahlte Bestellungen werden am {{autoCancelDate}} automatisch storniert und die Plätze freigegeben.{{/if}}
 
 ${bank.text}
-Bitte geben Sie als Verwendungszweck ausschließlich {{paymentReference}} an, damit wir Ihre Überweisung automatisch zuordnen können.
+Bitte gib als Verwendungszweck ausschließlich {{paymentReference}} an, damit wir deine Überweisung automatisch zuordnen können.
 
 {{itemsTable}}
 
@@ -396,35 +449,35 @@ We would be delighted to welcome you at one of our next events.
 ${COMMON.en.regardsText}`,
     }),
     de: () => ({
-      subject: 'Ihre Bestellung {{orderNumber}} wurde storniert',
+      subject: 'Deine Bestellung {{orderNumber}} wurde storniert',
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          'Ihre Bestellung {{orderNumber}} vom {{orderDate}} wurde storniert und die reservierten Plätze wurden wieder freigegeben.',
+          'deine Bestellung {{orderNumber}} vom {{orderDate}} wurde storniert und die reservierten Plätze wurden wieder freigegeben.',
         ),
         '{{#if cancellationReason}}' +
           paragraph(`<span style="${MUTED}">Grund:</span> {{cancellationReason}}`) +
           '{{/if}}',
         paragraph(
-          'Falls Sie für diese Bestellung bereits Geld überwiesen haben, melden Sie sich bitte bei uns – Sie erhalten es selbstverständlich zurück.',
+          'Falls du für diese Bestellung bereits Geld überwiesen hast, melde dich bitte bei uns – du bekommst es selbstverständlich zurück.',
         ),
         '{{itemsTable}}',
         paragraph(
-          'Wir würden uns freuen, Sie bei einer unserer nächsten Veranstaltungen begrüßen zu dürfen.',
+          'Wir würden uns freuen, dich bei einer unserer nächsten Veranstaltungen begrüßen zu dürfen.',
         ),
         paragraph(COMMON.de.regards),
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-Ihre Bestellung {{orderNumber}} vom {{orderDate}} wurde storniert und die reservierten Plätze wurden wieder freigegeben.
+deine Bestellung {{orderNumber}} vom {{orderDate}} wurde storniert und die reservierten Plätze wurden wieder freigegeben.
 
 {{#if cancellationReason}}Grund: {{cancellationReason}}
 
-{{/if}}Falls Sie für diese Bestellung bereits Geld überwiesen haben, melden Sie sich bitte bei uns – Sie erhalten es selbstverständlich zurück.
+{{/if}}Falls du für diese Bestellung bereits Geld überwiesen hast, melde dich bitte bei uns – du bekommst es selbstverständlich zurück.
 
 {{itemsTable}}
 
-Wir würden uns freuen, Sie bei einer unserer nächsten Veranstaltungen begrüßen zu dürfen.
+Wir würden uns freuen, dich bei einer unserer nächsten Veranstaltungen begrüßen zu dürfen.
 
 ${COMMON.de.regardsText}`,
     }),
@@ -453,15 +506,15 @@ ${COMMON.de.regardsText}`,
 {{/if}}${orderLink('en')}${COMMON.en.regardsText}`,
     }),
     de: () => ({
-      subject: 'Erstattung zu Ihrer Bestellung {{orderNumber}}',
+      subject: 'Erstattung zu deiner Bestellung {{orderNumber}}',
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          '{{#if refundAmount}}wir haben Ihnen <strong>{{refundAmount}}</strong> erstattet{{else}}wir haben eine Erstattung veranlasst{{/if}} (Bestellung {{orderNumber}}). Das Geld erhalten Sie über Ihre ursprüngliche Zahlungsart ({{paymentMethod}}) zurück; je nach Bank kann die Gutschrift einige Tage dauern.',
+          '{{#if refundAmount}}wir haben dir <strong>{{refundAmount}}</strong> erstattet{{else}}wir haben eine Erstattung veranlasst{{/if}} (Bestellung {{orderNumber}}). Das Geld bekommst du über deine ursprüngliche Zahlungsart ({{paymentMethod}}) zurück; je nach Bank kann die Gutschrift einige Tage dauern.',
         ),
         '{{#if creditNoteNumber}}' +
           paragraph(
-            'Ihre Rechnungskorrektur {{creditNoteNumber}} finden Sie im Anhang dieser E-Mail.',
+            'Deine Rechnungskorrektur {{creditNoteNumber}} findest du im Anhang dieser E-Mail.',
           ) +
           '{{/if}}',
         button('de', 'orderUrl', COMMON.de.viewOrder),
@@ -469,9 +522,9 @@ ${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-{{#if refundAmount}}wir haben Ihnen {{refundAmount}} erstattet{{else}}wir haben eine Erstattung veranlasst{{/if}} (Bestellung {{orderNumber}}). Das Geld erhalten Sie über Ihre ursprüngliche Zahlungsart ({{paymentMethod}}) zurück; je nach Bank kann die Gutschrift einige Tage dauern.
+{{#if refundAmount}}wir haben dir {{refundAmount}} erstattet{{else}}wir haben eine Erstattung veranlasst{{/if}} (Bestellung {{orderNumber}}). Das Geld bekommst du über deine ursprüngliche Zahlungsart ({{paymentMethod}}) zurück; je nach Bank kann die Gutschrift einige Tage dauern.
 
-{{#if creditNoteNumber}}Ihre Rechnungskorrektur {{creditNoteNumber}} finden Sie im Anhang dieser E-Mail.
+{{#if creditNoteNumber}}Deine Rechnungskorrektur {{creditNoteNumber}} findest du im Anhang dieser E-Mail.
 
 {{/if}}${orderLink('de')}${COMMON.de.regardsText}`,
     }),
@@ -483,8 +536,13 @@ ${COMMON.de.regardsText}`,
       html: [
         paragraph(COMMON.en.hello),
         paragraph(
-          'as requested, here are the details of your order {{orderNumber}} once again. You can open your order and your tickets at any time using the button below.',
+          'as requested, here are the details of your order {{orderNumber}} once again. ' +
+            ticketsSentence(
+              'Your tickets are attached to this e-mail as PDF and can also be downloaded at any time on your order page.',
+              'You can download your tickets individually below or at any time on your order page.',
+            ),
         ),
+        ticketLinksBlock('en'),
         '{{itemsTable}}',
         button('en', 'orderUrl', COMMON.en.viewOrder),
         paragraph('We are looking forward to seeing you!'),
@@ -492,33 +550,38 @@ ${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hello{{#if firstName}} {{firstName}}{{/if}},
 
-as requested, here are the details of your order {{orderNumber}} once again. You can open your order and your tickets at any time using the link below.
+as requested, here are the details of your order {{orderNumber}} once again. {{#if ticketsAttached}}Your tickets are attached to this e-mail as PDF and can also be downloaded at any time on your order page.{{else}}You can download your tickets individually below or at any time on your order page.{{/if}}
 
-{{itemsTable}}
+${ticketLinksText('en')}{{itemsTable}}
 
 ${orderLink('en')}We are looking forward to seeing you!
 
 ${COMMON.en.regardsText}`,
     }),
     de: () => ({
-      subject: 'Ihre Tickets zur Bestellung {{orderNumber}}',
+      subject: 'Deine Tickets zur Bestellung {{orderNumber}}',
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          'wie gewünscht senden wir Ihnen die Angaben zu Ihrer Bestellung {{orderNumber}} noch einmal. Über den Button unten können Sie Ihre Bestellung und Ihre Tickets jederzeit aufrufen.',
+          'wie gewünscht senden wir dir die Angaben zu deiner Bestellung {{orderNumber}} noch einmal. ' +
+            ticketsSentence(
+              'Deine Tickets findest du als PDF im Anhang dieser E-Mail; du kannst sie außerdem jederzeit auf der Seite deiner Bestellung herunterladen.',
+              'Du kannst deine Tickets unten einzeln oder jederzeit auf der Seite deiner Bestellung herunterladen.',
+            ),
         ),
+        ticketLinksBlock('de'),
         '{{itemsTable}}',
         button('de', 'orderUrl', COMMON.de.viewOrder),
-        paragraph('Wir freuen uns auf Sie!'),
+        paragraph('Wir freuen uns auf dich!'),
         paragraph(COMMON.de.regards),
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-wie gewünscht senden wir Ihnen die Angaben zu Ihrer Bestellung {{orderNumber}} noch einmal. Über den folgenden Link können Sie Ihre Bestellung und Ihre Tickets jederzeit aufrufen.
+wie gewünscht senden wir dir die Angaben zu deiner Bestellung {{orderNumber}} noch einmal. {{#if ticketsAttached}}Deine Tickets findest du als PDF im Anhang dieser E-Mail; du kannst sie außerdem jederzeit auf der Seite deiner Bestellung herunterladen.{{else}}Du kannst deine Tickets unten einzeln oder jederzeit auf der Seite deiner Bestellung herunterladen.{{/if}}
 
-{{itemsTable}}
+${ticketLinksText('de')}{{itemsTable}}
 
-${orderLink('de')}Wir freuen uns auf Sie!
+${orderLink('de')}Wir freuen uns auf dich!
 
 ${COMMON.de.regardsText}`,
     }),
@@ -553,29 +616,29 @@ thank you for creating a customer account at {{shopName}}. Please confirm your e
 ${COMMON.en.regardsText}`,
     }),
     de: () => ({
-      subject: 'Bitte bestätigen Sie Ihre E-Mail-Adresse',
+      subject: 'Bitte bestätige deine E-Mail-Adresse',
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          'vielen Dank, dass Sie ein Kundenkonto bei {{shopName}} angelegt haben. Bitte bestätigen Sie Ihre E-Mail-Adresse – danach finden Sie alle Ihre Bestellungen in Ihrem Konto.',
+          'vielen Dank, dass du ein Kundenkonto bei {{shopName}} angelegt hast. Bitte bestätige deine E-Mail-Adresse – danach findest du alle deine Bestellungen in deinem Konto.',
         ),
         button('de', 'verificationUrl', 'E-Mail-Adresse bestätigen'),
         '{{#if expiresAt}}' +
           paragraph(`<span style="${MUTED}">Der Link ist gültig bis {{expiresAt}}.</span>`) +
           '{{/if}}',
         paragraph(
-          `<span style="${MUTED}">Falls Sie kein Konto angelegt haben, können Sie diese E-Mail einfach ignorieren.</span>`,
+          `<span style="${MUTED}">Falls du kein Konto angelegt hast, kannst du diese E-Mail einfach ignorieren.</span>`,
         ),
         paragraph(COMMON.de.regards),
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-vielen Dank, dass Sie ein Kundenkonto bei {{shopName}} angelegt haben. Bitte bestätigen Sie Ihre E-Mail-Adresse über den folgenden Link – danach finden Sie alle Ihre Bestellungen in Ihrem Konto:
+vielen Dank, dass du ein Kundenkonto bei {{shopName}} angelegt hast. Bitte bestätige deine E-Mail-Adresse über den folgenden Link – danach findest du alle deine Bestellungen in deinem Konto:
 
 {{verificationUrl}}
 
 {{#if expiresAt}}Der Link ist gültig bis {{expiresAt}}.
-{{/if}}Falls Sie kein Konto angelegt haben, können Sie diese E-Mail einfach ignorieren.
+{{/if}}Falls du kein Konto angelegt hast, kannst du diese E-Mail einfach ignorieren.
 
 ${COMMON.de.regardsText}`,
     }),
@@ -616,7 +679,7 @@ ${COMMON.en.regardsText}`,
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          'wir haben eine Anfrage erhalten, das Passwort Ihres Kundenkontos zurückzusetzen. Über den Button unten können Sie ein neues Passwort festlegen.',
+          'wir haben eine Anfrage erhalten, das Passwort deines Kundenkontos zurückzusetzen. Über den Button unten kannst du ein neues Passwort festlegen.',
         ),
         button('de', 'resetUrl', 'Neues Passwort festlegen'),
         '{{#if expiresAt}}' +
@@ -625,18 +688,18 @@ ${COMMON.en.regardsText}`,
           ) +
           '{{/if}}',
         paragraph(
-          `<span style="${MUTED}">Falls Sie das nicht angefordert haben, können Sie diese E-Mail ignorieren – Ihr Passwort bleibt unverändert.</span>`,
+          `<span style="${MUTED}">Falls du das nicht angefordert hast, kannst du diese E-Mail ignorieren – dein Passwort bleibt unverändert.</span>`,
         ),
         paragraph(COMMON.de.regards),
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-wir haben eine Anfrage erhalten, das Passwort Ihres Kundenkontos zurückzusetzen. Über den folgenden Link können Sie ein neues Passwort festlegen:
+wir haben eine Anfrage erhalten, das Passwort deines Kundenkontos zurückzusetzen. Über den folgenden Link kannst du ein neues Passwort festlegen:
 
 {{resetUrl}}
 
 {{#if expiresAt}}Der Link ist gültig bis {{expiresAt}} und kann nur einmal verwendet werden.
-{{/if}}Falls Sie das nicht angefordert haben, können Sie diese E-Mail ignorieren – Ihr Passwort bleibt unverändert.
+{{/if}}Falls du das nicht angefordert hast, kannst du diese E-Mail ignorieren – dein Passwort bleibt unverändert.
 
 ${COMMON.de.regardsText}`,
     }),
@@ -667,25 +730,25 @@ The link can only be used once{{#if expiresAt}} and is valid until {{expiresAt}}
 ${COMMON.en.regardsText}`,
     }),
     de: () => ({
-      subject: 'Ihr Anmeldelink für {{shopName}}',
+      subject: 'Dein Anmeldelink für {{shopName}}',
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          'hier ist Ihr persönlicher Link, mit dem Sie sich ohne Passwort in Ihrem Kundenkonto anmelden können.',
+          'hier ist dein persönlicher Link, mit dem du dich ohne Passwort in deinem Kundenkonto anmelden kannst.',
         ),
         button('de', 'loginUrl', 'Jetzt anmelden'),
         paragraph(
-          `<span style="${MUTED}">Der Link kann nur einmal verwendet werden{{#if expiresAt}} und ist gültig bis {{expiresAt}}{{/if}}. Falls Sie ihn nicht angefordert haben, können Sie diese E-Mail ignorieren.</span>`,
+          `<span style="${MUTED}">Der Link kann nur einmal verwendet werden{{#if expiresAt}} und ist gültig bis {{expiresAt}}{{/if}}. Falls du ihn nicht angefordert hast, kannst du diese E-Mail ignorieren.</span>`,
         ),
         paragraph(COMMON.de.regards),
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-hier ist Ihr persönlicher Link, mit dem Sie sich ohne Passwort in Ihrem Kundenkonto anmelden können:
+hier ist dein persönlicher Link, mit dem du dich ohne Passwort in deinem Kundenkonto anmelden kannst:
 
 {{loginUrl}}
 
-Der Link kann nur einmal verwendet werden{{#if expiresAt}} und ist gültig bis {{expiresAt}}{{/if}}. Falls Sie ihn nicht angefordert haben, können Sie diese E-Mail ignorieren.
+Der Link kann nur einmal verwendet werden{{#if expiresAt}} und ist gültig bis {{expiresAt}}{{/if}}. Falls du ihn nicht angefordert hast, kannst du diese E-Mail ignorieren.
 
 ${COMMON.de.regardsText}`,
     }),
@@ -720,7 +783,7 @@ ${COMMON.en.regardsText}`,
           'dies ist eine Test-E-Mail aus dem Admin-Portal von {{shopName}}{{#if sentAt}}, gesendet am {{sentAt}}{{/if}} an {{recipientEmail}}.',
         ),
         paragraph(
-          'Wenn Sie diese Nachricht lesen können, ist Ihr Postausgangsserver richtig eingerichtet.',
+          'Wenn du diese Nachricht lesen kannst, ist dein Postausgangsserver richtig eingerichtet.',
         ),
         paragraph(COMMON.de.regards),
       ].join('\n'),
@@ -728,7 +791,7 @@ ${COMMON.en.regardsText}`,
 
 dies ist eine Test-E-Mail aus dem Admin-Portal von {{shopName}}{{#if sentAt}}, gesendet am {{sentAt}}{{/if}} an {{recipientEmail}}.
 
-Wenn Sie diese Nachricht lesen können, ist Ihr Postausgangsserver richtig eingerichtet.
+Wenn du diese Nachricht lesen kannst, ist dein Postausgangsserver richtig eingerichtet.
 
 ${COMMON.de.regardsText}`,
     }),

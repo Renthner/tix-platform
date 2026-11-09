@@ -31,6 +31,7 @@
     "minutes": "{count, plural, one {# Minute} other {# Minuten}}"
   },
   "errors": {
+    "WALLET_UNAVAILABLE": "Wallet ist gerade nicht verfügbar. Bitte versuche es später erneut oder nutze das PDF-Ticket.",
     "SEAT_UNAVAILABLE": "Dieser Platz ist nicht mehr verfügbar.",
     "SEAT_LOCKED": "Jemand anderes hat diesen Platz gerade ausgewählt.",
     "CART_EXPIRED": "Deine Reservierungszeit ist abgelaufen. Bitte wähle deine Plätze erneut.",
@@ -58,6 +59,8 @@
     "PAYMENT_METHOD_UNAVAILABLE": "Diese Zahlungsart ist für deine Bestellung nicht verfügbar.",
     "LOGIN_REQUIRED": "Bitte melde dich an, um deine Bestellung abzuschließen.",
     "TERMS_NOT_ACCEPTED": "Bitte akzeptiere die AGB.",
+    "PHONE_REQUIRED": "Bitte gib deine Telefonnummer an.",
+    "ADDRESS_REQUIRED": "Bitte gib deine Rechnungsadresse an.",
     "EVENT_NOT_ON_SALE": "Für „{event}“ werden derzeit keine Tickets verkauft.",
     "SELECTION_INVALID": "Deine Platzauswahl für „{event}“ ist so nicht möglich (einzelne freie Plätze oder Begleitplätze ohne Rollstuhlplatz). Bitte passe sie im Warenkorb an.",
     "COMPANION_OWNER_MISMATCH": "Dieser Begleitplatz kann nur von der Person gebucht werden, die den zugehörigen Rollstuhlplatz gekauft hat – bitte verwende dieselbe E-Mail-Adresse.",

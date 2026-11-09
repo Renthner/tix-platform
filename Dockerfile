@@ -35,7 +35,8 @@ COPY packages ./packages
 COPY apps ./apps
 RUN pnpm --filter @tix/worker build \
  && pnpm --filter @tix/realtime build \
- && pnpm --filter @tix/web build
+ && pnpm --filter @tix/web build \
+ && node -p "require('/repo/packages/core/node_modules/sharp/package.json').version" > /sharp-version
 
 # ─── Runtime: web (Next.js standalone server) ───────────────────────────────
 FROM ${NODE_IMAGE} AS web
@@ -56,6 +57,10 @@ FROM ${NODE_IMAGE} AS worker
 ENV NODE_ENV=production \
     MIGRATIONS_DIR=/app/migrations
 WORKDIR /app
+# `sharp` is native and therefore external to the bundle: install the exact version the
+# lockfile resolved (recorded in the build stage) so import('sharp') resolves from /app.
+COPY --from=build /sharp-version /tmp/sharp-version
+RUN npm install --omit=dev --no-save --no-audit --no-fund --ignore-scripts=false       "sharp@$(cat /tmp/sharp-version)"  && npm cache clean --force  && rm -rf /tmp/sharp-version /root/.npm  && chown -R node:node /app
 COPY --from=build --chown=node:node /repo/apps/worker/dist ./dist
 COPY --from=build --chown=node:node /repo/packages/db/migrations ./migrations
 USER node

@@ -29,7 +29,15 @@ export default async function AdminPanelLayout({
   ]);
   return (
     <NextIntlClientProvider
-      messages={await pickMessages(['common', 'admin', 'editor', 'orders', 'fees'])}
+      messages={await pickMessages([
+        'common',
+        'admin',
+        'editor',
+        'orders',
+        'fees',
+        'emailTemplates',
+        'ticketDesigner',
+      ])}
     >
       <div className="flex min-h-dvh">
         <aside className="hidden w-60 shrink-0 flex-col border-r bg-muted/30 p-4 md:flex">

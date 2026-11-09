@@ -3,11 +3,14 @@ import { and, eq, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage, type EmailAttachment } from '../email';
 import { issueInvoice } from '../invoices';
+import { ensureOrderTickets } from '../tickets/issue';
 
 export interface PaidOrderResult {
   invoiceId: string | null;
   /** Business reason why no invoice could be issued (order data inconsistent). */
   invoiceError: string | null;
+  /** Number of VALID tickets of the order after issuance. */
+  ticketCount?: number;
   /** The payment confirmation; null when it was queued by an earlier run. */
   messageId: string | null;
   skipped?: 'ORDER_NOT_FOUND' | 'NOT_PAID';
@@ -18,7 +21,7 @@ const PERMANENT_INVOICE_ERRORS = new Set(['INVOICE_EMPTY', 'INVOICE_TOTAL_MISMAT
 
 /**
  * Fulfilment after an order became PAID (`documents` job `order-paid`): issues the invoice
- * (if enabled) and queues the PAYMENT_RECEIVED_TICKETS e-mail with the invoice attached.
+ * (if enabled), issues the signed tickets and queues the PAYMENT_RECEIVED_TICKETS e-mail with the invoice and the ticket PDF attached.
  * Idempotent – a retried job never creates a second invoice or a second e-mail.
  */
 export async function processPaidOrder(
@@ -44,7 +47,15 @@ export async function processPaidOrder(
     invoiceError = `${err.code}: ${err.message}`;
   }
 
-  const attachments: EmailAttachment[] = invoiceId ? [{ type: 'invoice', invoiceId }] : [];
+  // Tickets before the mail: all-or-nothing and idempotent, a failure retries the whole job.
+  const ticketCount = (await ensureOrderTickets(ctx, orderId)).length;
+
+  // The ticket PDF is rendered by the e-mail job when it sends (a failure retries with the
+  // job's back-off instead of blocking fulfilment; the admin can resend after a final failure).
+  const attachments: EmailAttachment[] = [
+    ...(invoiceId ? [{ type: 'invoice' as const, invoiceId }] : []),
+    ...(ticketCount > 0 ? [{ type: 'tickets' as const, orderId }] : []),
+  ];
   const messageId = await withTransaction(ctx.db, async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`order-paid-mail:${orderId}`}))`);
     const [existing] = await tx
@@ -65,5 +76,5 @@ export async function processPaidOrder(
     });
   });
   if (messageId) await dispatchEmailMessage(ctx, messageId);
-  return { invoiceId, invoiceError, messageId };
+  return { invoiceId, invoiceError, ticketCount, messageId };
 }

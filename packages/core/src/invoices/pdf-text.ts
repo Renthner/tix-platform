@@ -1,5 +1,5 @@
 /**
- * The PDF standard fonts (Helvetica) only cover WinAnsi (Windows-1252): all of Latin-1 incl.
+ * Text sanitising for PDF rendering. The PDF standard fonts (Helvetica) only cover WinAnsi (Windows-1252): all of Latin-1 incl.
  * German umlauts and ß, plus € „ “ ” ‚ ‘ ’ – — … • ™ Š š Ž ž Œ œ Ÿ ƒ ˆ ˜ † ‡ ‰ ‹ ›.
  * Everything else is transliterated (é → e is not needed – é is Latin-1 – but ł → l,
  * č → c, narrow no-break space → space) or replaced by "?" so rendering never fails.
@@ -43,12 +43,16 @@ const REPLACEMENTS: Record<string, string> = {
   '♿': '',
 };
 
-/** Text that can be drawn with a WinAnsi standard font. */
-export function toWinAnsi(input: string): string {
+/**
+ * Text that can be drawn with a font supporting exactly the code points accepted by
+ * `supports`: supported characters stay, others are transliterated (ł -> l), stripped of
+ * diacritics, dropped (control/format characters) or replaced by "?" so rendering never fails.
+ */
+export function toFontText(input: string, supports: (codePoint: number) => boolean): string {
   let out = '';
   for (const ch of input.normalize('NFC')) {
     const cp = ch.codePointAt(0)!;
-    if (isWinAnsi(cp)) {
+    if (supports(cp)) {
       out += ch;
       continue;
     }
@@ -57,10 +61,16 @@ export function toWinAnsi(input: string): string {
       out += mapped;
       continue;
     }
+    if (/[\p{Cc}\p{Cf}]/u.test(ch)) continue;
     // Strip diacritics (NFD): c-caron -> c
-    const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const base = ch.normalize('NFD').replace(/[̀-ͯ]/g, '');
     if (base === '') continue; // lone combining mark
-    out += [...base].every((c) => isWinAnsi(c.codePointAt(0)!)) ? base : '?';
+    out += [...base].every((c) => supports(c.codePointAt(0)!)) ? base : '?';
   }
   return out;
+}
+
+/** Text that can be drawn with a WinAnsi standard font. */
+export function toWinAnsi(input: string): string {
+  return toFontText(input, isWinAnsi);
 }

@@ -1,4 +1,4 @@
-import { DomainError, processPaidOrder, renderInvoicePdf } from '@tix/core';
+import { DomainError, backfillMissingTickets, processPaidOrder, renderInvoicePdf } from '@tix/core';
 import { QUEUE_NAMES } from '@tix/redis';
 import { UnrecoverableError, type Job } from 'bullmq';
 import type { ProcessorRegistration, WorkerDeps } from './index';
@@ -8,7 +8,16 @@ export const DOCUMENT_JOBS = {
   orderPaid: 'order-paid',
   /** `{ invoiceId }` – renders and archives the invoice PDF. */
   renderInvoice: 'render-invoice',
+  /**
+   * Scheduled safety net / backfill: orders paid in the last 48 h without confirmation mail are
+   * re-enqueued as `order-paid`; older PAID orders get tickets silently (no e-mails); VALID
+   * tickets of REVOKED keys are re-issued.
+   */
+  ensureMissingTickets: 'ensure-missing-tickets',
 } as const;
+
+/** Interval of the ticket backfill scheduler (also runs shortly after worker start). */
+export const ENSURE_TICKETS_INTERVAL_MS = 10 * 60 * 1000;
 
 function stringField(job: Job, field: string): string {
   const value = (job.data as Record<string, unknown>)[field];
@@ -38,6 +47,20 @@ export function createDocumentsProcessor(deps: WorkerDeps) {
           deps.logger.info({ invoiceId, ...result }, 'invoice PDF stored');
           return result;
         }
+        case DOCUMENT_JOBS.ensureMissingTickets: {
+          const result = await backfillMissingTickets(deps.core, {
+            log: (message, data) => deps.logger.error(data, message),
+          });
+          if (
+            result.orders > 0 ||
+            result.failed > 0 ||
+            result.requeued > 0 ||
+            result.reissued > 0
+          ) {
+            deps.logger.info({ ...result }, 'ticket backfill finished');
+          }
+          return result;
+        }
         default:
           deps.logger.warn({ job: job.name }, 'unknown documents job');
           return null;
@@ -57,5 +80,6 @@ export function documentsRegistration(deps: WorkerDeps): ProcessorRegistration {
     queue: QUEUE_NAMES.documents,
     concurrency: 2,
     processor: createDocumentsProcessor(deps),
+    schedulers: [{ name: DOCUMENT_JOBS.ensureMissingTickets, everyMs: ENSURE_TICKETS_INTERVAL_MS }],
   };
 }

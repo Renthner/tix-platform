@@ -1,6 +1,6 @@
 import { computeSaleState } from '@tix/core';
 import { EVENT_STATUSES, type EventStatus } from '@tix/shared';
-import { Plus } from 'lucide-react';
+import { ArrowUpDown, Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { PageHeader } from '@/components/admin/form-controls';
@@ -52,11 +52,18 @@ export default async function EventsPage({
         title={t('title')}
         description={t('description')}
         actions={
-          <Button asChild>
-            <Link href="/admin/events/new">
-              <Plus /> {t('new')}
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link href="/admin/events/shop-order">
+                <ArrowUpDown /> {t('shopOrder')}
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/admin/events/new">
+                <Plus /> {t('new')}
+              </Link>
+            </Button>
+          </div>
         }
       />
       <div className="space-y-4 p-6">

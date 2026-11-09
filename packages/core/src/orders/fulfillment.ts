@@ -13,6 +13,7 @@ import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
 import { QUEUE_NAMES } from '../job-queues';
 import { publishSeatDelta } from '../realtime';
+import { voidTicketsForItems } from '../tickets/issue';
 
 /**
  * Order state transitions that move money or inventory:
@@ -297,11 +298,18 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
         and(eq(orderItems.orderId, order.id), inArray(orderItems.status, ['PENDING', 'CONFIRMED'])),
       )
       .returning({
+        id: orderItems.id,
         seatId: orderItems.seatId,
         eventId: orderItems.eventId,
         sectionId: orderItems.sectionId,
         kind: orderItems.kind,
       });
+    // Unpaid orders normally have no tickets; void any that exist so they can never be scanned.
+    await voidTicketsForItems(
+      tx,
+      items.map((i) => i.id),
+      'CANCELLED',
+    );
     // Standing areas: give the spots back to the DB capacity counter.
     const gaBySection = new Map<string, number>();
     for (const item of items) {

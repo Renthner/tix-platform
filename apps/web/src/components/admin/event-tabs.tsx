@@ -9,6 +9,8 @@ const TABS = [
   { segment: '/sales', key: 'sales' },
   { segment: '/pricing', key: 'pricing' },
   { segment: '/fees', key: 'fees' },
+  { segment: '/ticket', key: 'ticket' },
+  { segment: '/wallet', key: 'wallet' },
   { segment: '/shop-page', key: 'page' },
   { segment: '/seating', key: 'seating' },
   { segment: '/waiting-room', key: 'waitingRoom' },

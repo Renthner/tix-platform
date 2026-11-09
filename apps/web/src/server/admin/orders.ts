@@ -5,6 +5,7 @@ import {
   adminCancelOrder,
   recordManualPayment,
   resendOrderEmail,
+  resendOrderTickets,
   setKeepReserved,
   updateInternalNote,
 } from '@tix/core';
@@ -127,6 +128,20 @@ export async function resendEmailAction(
     const key = await resendOrderEmail(core, { orderId, userId: session.userId });
     await audit(core.db, session, 'order.email_resent', 'order', orderId, { template: key });
     return ok('emailQueued');
+  });
+}
+
+export async function resendTicketsAction(
+  orderId: string,
+  _prev: OrderActionState,
+  _fd: FormData,
+): Promise<OrderActionState> {
+  const session = await requireAdmin(['FINANCE', 'EVENT_MANAGER']);
+  return run(orderId, async () => {
+    const core = getCore();
+    await resendOrderTickets(core, { orderId, userId: session.userId });
+    await audit(core.db, session, 'order.tickets_resent', 'order', orderId, {});
+    return ok('ticketsQueued');
   });
 }
 

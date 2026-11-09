@@ -17,6 +17,7 @@ import {
   ArrowUp,
   FileText,
   GripVertical,
+  ImageIcon,
   Info,
   Lock,
   Plus,
@@ -109,6 +110,7 @@ export function EventPageEditor({
   const full = boxes.length >= MAX_EVENT_INFO_BOXES;
 
   const labelOf = (ref: PageBlockRef) => {
+    if (ref === 'COVER') return t('blocks.COVER');
     if (ref === 'DESCRIPTION') return t('blocks.DESCRIPTION');
     if (ref === 'SHOP') return t('blocks.SHOP');
     const index = boxes.findIndex((b) => boxRef(b.id) === ref);
@@ -116,7 +118,7 @@ export function EventPageEditor({
     return t('blockBox', { title: box?.title || t('boxNumber', { n: index + 1 }) });
   };
   const iconOf = (ref: PageBlockRef) =>
-    ref === 'DESCRIPTION' ? FileText : ref === 'SHOP' ? Ticket : Info;
+    ref === 'COVER' ? ImageIcon : ref === 'DESCRIPTION' ? FileText : ref === 'SHOP' ? Ticket : Info;
 
   const endDrag = () => {
     setDragging(null);

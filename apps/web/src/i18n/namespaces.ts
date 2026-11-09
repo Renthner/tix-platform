@@ -12,5 +12,7 @@ export const MESSAGE_NAMESPACES = [
   'banking',
   'mail',
   'fees',
+  'emailTemplates',
+  'ticketDesigner',
 ] as const;
 export type MessageNamespace = (typeof MESSAGE_NAMESPACES)[number];

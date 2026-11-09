@@ -30,7 +30,10 @@
     "ORDER_NOT_PAYABLE": "Diese Bestellung ist storniert oder abgelaufen und kann keine Zahlungen mehr erhalten.",
     "NOTHING_TO_SEND": "Für den aktuellen Status dieser Bestellung gibt es keine E-Mail.",
     "INVALID_AMOUNT": "Bitte gib einen positiven Betrag ein.",
-    "CURRENCY_MISMATCH": "Die Währung passt nicht zur Bestellung."
+    "CURRENCY_MISMATCH": "Die Währung passt nicht zur Bestellung.",
+    "ORDER_NOT_PAID": "Tickets gibt es nur für bezahlte Bestellungen.",
+    "NO_TICKETS": "Diese Bestellung hat noch keine gültigen Tickets.",
+    "TICKET_NOT_FOUND": "Ticket nicht gefunden."
   },
   "admin": {
     "title": "Bestellungen",
@@ -126,6 +129,7 @@
         "reminder_sent": "Zahlungserinnerung gesendet",
         "keep_reserved_changed": "„Reserviert halten“ geändert",
         "email_resent": "E-Mail erneut gesendet",
+        "tickets_resent": "Tickets erneut gesendet",
         "late_payment_refunded": "Verspätete Zahlung automatisch erstattet",
         "external_refund_notice": "Erstattung vom Zahlungsanbieter gemeldet",
         "shortfall_written_off": "Geringe Unterzahlung ausgebucht (innerhalb der Zuordnungstoleranz)",
@@ -146,7 +150,8 @@
       "paymentRecorded": "Zahlung erfasst – die Bestellung ist bezahlt.",
       "paymentPartial": "Teilzahlung erfasst – es ist noch ein Betrag offen.",
       "emailQueued": "Die E-Mail wurde in den Versand gegeben.",
-      "noteSaved": "Notiz gespeichert."
+      "noteSaved": "Notiz gespeichert.",
+      "ticketsQueued": "Die Tickets wurden in den Versand gegeben."
     },
     "actions": {
       "keepReserved": {
@@ -182,7 +187,31 @@
         "title": "Interne Notiz",
         "description": "Nur für Admins sichtbar.",
         "submit": "Notiz speichern"
+      },
+      "resendTickets": {
+        "title": "Tickets erneut senden",
+        "description": "Sendet die Tickets dieser bezahlten Bestellung erneut mit dem Ticket-PDF im Anhang.",
+        "submit": "Tickets senden"
       }
+    },
+    "tickets": {
+      "title": "Ausgestellte Tickets",
+      "code": "Code",
+      "attendee": "Teilnehmer",
+      "status": "Status",
+      "statuses": {
+        "VALID": "Gültig",
+        "CANCELLED": "Storniert",
+        "REFUNDED": "Erstattet",
+        "REPLACED": "Ersetzt"
+      },
+      "checkIn": {
+        "CHECKED_IN": "eingecheckt",
+        "CHECKED_OUT": "ausgecheckt"
+      },
+      "downloadAll": "Alle Tickets (PDF)",
+      "download": "Herunterladen",
+      "pdf": "PDF"
     }
   },
   "eventPayments": {
@@ -192,6 +221,11 @@
     "bankTransferEnabled": "Überweisung (Vorkasse)",
     "paymentTermDays": "Zahlungsfrist (Tage)",
     "reminderAfterDays": "Erinnerung nach (Tagen)",
+    "cancelMode": "Automatische Stornierung unbezahlter Bestellungen",
+    "cancelCustom": "Eigene Tageszahl",
+    "cancelNone": "Keine automatische Stornierung",
+    "cancelDays": "{days} Tage",
+    "cancelAfterDaysHint": "Wird nur bei „Eigene Tageszahl“ verwendet.",
     "cancelAfterDays": "Unbezahlte Bestellungen stornieren nach (Tagen)",
     "disableDaysBeforeEvent": "Keine Vorkasse mehr ab (Tage vor der Veranstaltung)"
   }

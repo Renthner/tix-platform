@@ -45,7 +45,7 @@ const textElementSchema = z.object({
   width: mm,
   height: mm,
   rotation: z.number().min(-360).max(360).default(0),
-  fontFamily: z.string().min(1).max(100).default('Helvetica'),
+  fontFamily: z.string().min(1).max(100).default('Noto Sans'),
   fontSize: z.number().positive().max(200).default(10),
   fontWeight: z.enum(['normal', 'bold']).default('normal'),
   color: hexColorSchema.default('#000000'),
@@ -65,6 +65,19 @@ const imageElementSchema = z.object({
   width: mm,
   height: mm,
   rotation: z.number().min(-360).max(360).default(0),
+  opacity: z.number().min(0).max(1).default(1),
+});
+
+/** The event's cover image (events.hero_image_asset_id), placed as a band / badge. */
+const coverElementSchema = z.object({
+  kind: z.literal('cover'),
+  id,
+  x: mm,
+  y: mm,
+  width: mm,
+  height: mm,
+  /** `cover` crops to fill the box, `contain` letterboxes. */
+  fit: z.enum(['cover', 'contain']).default('cover'),
   opacity: z.number().min(0).max(1).default(1),
 });
 
@@ -97,8 +110,75 @@ export const ticketLayoutSchema = z.object({
   qr: ticketQrSchema,
   elements: z
     .array(
-      z.discriminatedUnion('kind', [textElementSchema, imageElementSchema, shapeElementSchema]),
+      z.discriminatedUnion('kind', [
+        textElementSchema,
+        imageElementSchema,
+        coverElementSchema,
+        shapeElementSchema,
+      ]),
     )
     .max(200),
 });
 export type TicketLayout = z.infer<typeof ticketLayoutSchema>;
+
+export type TicketLayoutElement = TicketLayout['elements'][number];
+export type TicketTextElement = Extract<TicketLayoutElement, { kind: 'text' }>;
+
+/**
+ * Fonts available to ticket text: the bundled Noto Sans (Latin, Latin Extended, Greek,
+ * Cyrillic). Layouts saved earlier may still name Helvetica, Times or Courier; any family
+ * name is accepted and prints in Noto Sans.
+ */
+export const TICKET_FONT_FAMILIES = ['Noto Sans'] as const;
+
+/** Input shape of a template save (page size + layout + background). */
+export const ticketTemplateInputSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(500).nullish(),
+  pageWidthMm: z.number().min(20).max(2000),
+  pageHeightMm: z.number().min(20).max(2000),
+  backgroundAssetId: z.uuid().nullish(),
+  layout: ticketLayoutSchema,
+});
+export type TicketTemplateInput = z.infer<typeof ticketTemplateInputSchema>;
+
+/** Placeholder name (`{{name}}`) holding the value of each field; STATIC_TEXT has none. */
+export const TICKET_FIELD_VARIABLES = {
+  EVENT_TITLE: 'eventTitle',
+  EVENT_SUBTITLE: 'eventSubtitle',
+  EVENT_DATE: 'eventDate',
+  EVENT_TIME: 'eventTime',
+  DOORS_TIME: 'doorsTime',
+  VENUE_NAME: 'venueName',
+  VENUE_ADDRESS: 'venueAddress',
+  SECTION: 'section',
+  ROW: 'row',
+  SEAT: 'seat',
+  SEAT_FULL: 'seatFull',
+  ENTRANCE: 'entrance',
+  PRICE_CATEGORY: 'priceCategory',
+  TICKET_TYPE: 'ticketType',
+  PRICE: 'price',
+  BUYER_NAME: 'buyerName',
+  ATTENDEE_NAME: 'attendeeName',
+  ORDER_NUMBER: 'orderNumber',
+  TICKET_CODE: 'ticketCode',
+  ORGANIZER_NAME: 'organizerName',
+} as const satisfies Record<Exclude<TicketFieldKey, 'STATIC_TEXT'>, string>;
+
+/** Label placeholders (`{{label.date}}` …) localized by the renderer. */
+export const TICKET_LABEL_KEYS = [
+  'date',
+  'time',
+  'doors',
+  'venue',
+  'seat',
+  'block',
+  'row',
+  'entrance',
+  'order',
+  'ticket',
+  'category',
+  'price',
+  'name',
+] as const;

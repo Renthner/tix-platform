@@ -98,10 +98,17 @@ export function ActionForm({
   }, [resetOnSuccess]);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    // Submit events of forms rendered in a portal (e.g. confirm dialogs) bubble through the React
+    // tree to this form; they belong to their own ActionForm.
+    if (event.target !== event.currentTarget) return;
     event.preventDefault();
     if (pending) return;
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
-    const formData = new FormData(event.currentTarget, submitter);
+    const owned =
+      submitter instanceof HTMLElement &&
+      'form' in submitter &&
+      submitter.form === event.currentTarget;
+    const formData = new FormData(event.currentTarget, owned ? (submitter as HTMLElement) : null);
     startTransition(() => action(formData));
   };
 

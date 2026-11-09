@@ -9,6 +9,8 @@ const ACCESS: [NavKey, AdminRole[]][] = [
   ['orders', ['FINANCE', 'EVENT_MANAGER']],
   ['banking', ['FINANCE']],
   ['fees', ['FINANCE', 'EVENT_MANAGER']],
+  ['emailTemplates', ['SUPER_ADMIN']],
+  ['ticketTemplates', ['EVENT_MANAGER']],
   ['venues', ['EVENT_MANAGER']],
   ['symbols', ['EVENT_MANAGER']],
   ['waitingRoom', ['EVENT_MANAGER']],

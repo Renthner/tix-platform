@@ -7,6 +7,7 @@ export const SETTINGS_TABS = [
   'payments',
   'invoicing',
   'email',
+  'wallet',
   'accounts',
 ] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];

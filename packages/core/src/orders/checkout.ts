@@ -29,6 +29,7 @@ import { nextNumber } from '../numbering';
 import { publishSeatDelta } from '../realtime';
 import { getSetting } from '../settings';
 import { orderAccessToken } from './access';
+import { resolveCancelDays } from './cancel-terms';
 import { mirrorSeats } from './fulfillment';
 import { quoteForMethod, type CheckoutQuote } from './pricing';
 
@@ -95,6 +96,13 @@ export async function placeOrder(ctx: CoreContext, params: PlaceOrderParams): Pr
   ]);
   if (checkoutSettings.requireTermsAcceptance && !input.acceptTerms) {
     throw new DomainError('TERMS_NOT_ACCEPTED', 'Please accept the terms and conditions', 422);
+  }
+
+  if (checkoutSettings.requirePhone && !input.phone) {
+    throw new DomainError('PHONE_REQUIRED', 'Please enter your phone number', 422);
+  }
+  if (checkoutSettings.requireBillingAddress && !input.address) {
+    throw new DomainError('ADDRESS_REQUIRED', 'Please enter your billing address', 422);
   }
 
   const { quote, events: eventRows, maps } = await quoteForMethod(ctx, sessionId, input.method);
@@ -355,10 +363,7 @@ async function createOrderRows(
     Math.min(...eventList.map((e) => pick(e) ?? global));
   const termDays = strictest((e) => e.bankTransferPaymentTermDays, bank.paymentTermDays);
   const reminderDays = strictest((e) => e.bankTransferReminderAfterDays, bank.reminderAfterDays);
-  const cancelDays = Math.max(
-    termDays,
-    strictest((e) => e.bankTransferCancelAfterDays, bank.cancelAfterDays),
-  );
+  const cancelDays = resolveCancelDays(eventList, bank.cancelAfterDays, termDays);
   const capAtEvent = (d: Date) => new Date(Math.min(d.getTime(), firstEventStart));
   const isBankTransfer = input.method === 'BANK_TRANSFER';
   const dayOptions = {
@@ -378,15 +383,18 @@ async function createOrderRows(
       String(randomInt(10 ** (REFERENCE_DIGITS - 1), 10 ** REFERENCE_DIGITS)),
     );
     paymentDueAt = capAtEvent(endOfDayInZone(addPaymentDays(now, termDays, dayOptions), timeZone));
-    autoCancelAt = capAtEvent(
-      endOfDayInZone(addPaymentDays(now, cancelDays, dayOptions), timeZone),
-    );
-    // Reminder on the morning after day X (end of day X + 9 h ≈ 09:00 local time).
+    if (cancelDays !== null) {
+      autoCancelAt = capAtEvent(
+        endOfDayInZone(addPaymentDays(now, cancelDays, dayOptions), timeZone),
+      );
+    }
+    // Reminder on the morning after day X (end of day X + 9 h ≈ 09:00 local time). It must fall
+    // before the auto-cancel (if any) or, without auto-cancel, before the event starts.
     const reminder = new Date(
       endOfDayInZone(addPaymentDays(now, reminderDays, dayOptions), timeZone).getTime() +
         9 * 3600_000,
     );
-    nextReminderAt = reminder < autoCancelAt ? reminder : null;
+    nextReminderAt = reminder < (autoCancelAt ?? new Date(firstEventStart)) ? reminder : null;
   }
   const free = c.quote.totalGross === 0;
   const status: OrderStatus = free ? 'PAID' : isBankTransfer ? 'AWAITING_PAYMENT' : 'PENDING';
@@ -506,8 +514,9 @@ async function createOrderRows(
 }
 
 /**
- * One customer record per e-mail address. Guest data refreshes the record; the profile of
- * a customer account is never overwritten by checkout input.
+ * One customer record per e-mail address. Guest data refreshes the record; name and
+ * company of a customer account are never overwritten by checkout input. A newly entered
+ * phone / address wins (the invoice needs them) but stored values are never blanked out.
  */
 async function upsertCustomer(tx: Transaction, input: CheckoutInput): Promise<string> {
   const address = input.address ? JSON.stringify(input.address) : null;
@@ -519,8 +528,8 @@ async function upsertCustomer(tx: Transaction, input: CheckoutInput): Promise<st
       first_name = CASE WHEN ${customers.passwordHash} IS NULL THEN EXCLUDED.first_name ELSE ${customers.firstName} END,
       last_name  = CASE WHEN ${customers.passwordHash} IS NULL THEN EXCLUDED.last_name ELSE ${customers.lastName} END,
       company    = CASE WHEN ${customers.passwordHash} IS NULL THEN EXCLUDED.company ELSE ${customers.company} END,
-      phone      = COALESCE(${customers.phone}, EXCLUDED.phone),
-      address    = COALESCE(${customers.address}, EXCLUDED.address),
+      phone      = COALESCE(EXCLUDED.phone, ${customers.phone}),
+      address    = COALESCE(EXCLUDED.address, ${customers.address}),
       locale     = EXCLUDED.locale,
       updated_at = now()
     RETURNING id`);

@@ -12,7 +12,8 @@
     "email": "E-Mail-Adresse",
     "emailHint": "An diese Adresse schicken wir deine Bestätigung und deine Tickets.",
     "phone": "Telefon",
-    "note": "Nachricht an den Veranstalter"
+    "note": "Nachricht an den Veranstalter",
+    "phoneHint": "Bitte gib eine gültige Telefonnummer an (Ziffern, Leerzeichen und + ( ) / - .)."
   },
   "address": {
     "toggle": "Rechnungsadresse angeben (z. B. für eine Rechnung an eine Firma)",
@@ -83,9 +84,18 @@
       "expired": "Das Zahlungsfenster dieser Bestellung ist abgelaufen, die Plätze wurden freigegeben. Falls Geld abgebucht wurde, wird es automatisch erstattet.",
       "unavailable": "PayPal ist vorübergehend nicht erreichbar. Deine Plätze sind reserviert – bitte versuche es gleich noch einmal."
     },
+    "walletNotice": {
+      "unavailable": "Das Hinzufügen zur Wallet hat gerade nicht geklappt. Bitte versuch es später noch einmal oder nutze das PDF-Ticket."
+    },
     "paid": {
       "title": "Vielen Dank – deine Zahlung ist eingegangen.",
       "text": "Deine Bestellung ist bestätigt. Deine Tickets schicken wir an {email}."
+    },
+    "preparing": {
+      "title": "Deine Tickets werden gerade erstellt …",
+      "text": "Das dauert nur einen Moment. Die Seite aktualisiert sich automatisch.",
+      "timeoutTitle": "Deine Tickets sind noch in Arbeit",
+      "timeoutText": "Deine Tickets und die Rechnung sind noch nicht fertig. Bitte lade diese Seite in ein paar Minuten neu – wir schicken sie dir außerdem per E-Mail."
     },
     "closed": {
       "CANCELLED": "Diese Bestellung wurde storniert.",
@@ -100,7 +110,8 @@
       "holder": "Kontoinhaber",
       "bank": "Bank",
       "noAccount": "Die Bankverbindung erhältst du per E-Mail.",
-      "hint": "Nur mit dem exakten Verwendungszweck können wir deine Überweisung automatisch zuordnen. Unbezahlte Bestellungen werden nach Fristablauf storniert und die Plätze freigegeben."
+      "hint": "Nur mit dem exakten Verwendungszweck können wir deine Überweisung automatisch zuordnen. Unbezahlte Bestellungen werden nach Fristablauf storniert und die Plätze freigegeben.",
+      "hintNoCancel": "Nur mit dem exakten Verwendungszweck können wir deine Überweisung automatisch zuordnen."
     },
     "paypal": {
       "title": "Schließe deine Zahlung ab",
@@ -130,7 +141,16 @@
     },
     "contact": "Fragen zu deiner Bestellung? Antworte einfach auf die Bestätigungs-E-Mail an {email}.",
     "copy": "Kopieren",
-    "copyFailed": "Kopieren in die Zwischenablage nicht möglich."
+    "copyFailed": "Kopieren in die Zwischenablage nicht möglich.",
+    "tickets": {
+      "title": "Deine Tickets",
+      "intro": "Zeig am Einlass den QR-Code auf deinem Ticket – ausgedruckt, als PDF auf dem Handy oder in deiner Wallet. Der Code darunter hilft, falls dein Ticket manuell gesucht werden muss.",
+      "downloadAll": "Alle Tickets (PDF)",
+      "downloadOne": "Ticket-PDF",
+      "downloadOneLabel": "Ticket {code} als PDF herunterladen",
+      "addApple": "Zu Apple Wallet hinzufügen",
+      "addGoogle": "Zu Google Wallet hinzufügen"
+    }
   },
   "account": {
     "title": "Schneller bestellen mit Kundenkonto",

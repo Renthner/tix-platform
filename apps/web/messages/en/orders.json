@@ -30,7 +30,10 @@
     "ORDER_NOT_PAYABLE": "This order is cancelled or expired and cannot receive payments.",
     "NOTHING_TO_SEND": "There is no e-mail for the current state of this order.",
     "INVALID_AMOUNT": "Please enter a positive amount.",
-    "CURRENCY_MISMATCH": "The currency does not match the order."
+    "CURRENCY_MISMATCH": "The currency does not match the order.",
+    "ORDER_NOT_PAID": "Tickets exist for paid orders only.",
+    "NO_TICKETS": "This order has no valid tickets yet.",
+    "TICKET_NOT_FOUND": "Ticket not found."
   },
   "admin": {
     "title": "Orders",
@@ -126,6 +129,7 @@
         "reminder_sent": "Payment reminder sent",
         "keep_reserved_changed": "“Keep reserved” changed",
         "email_resent": "E-mail sent again",
+        "tickets_resent": "Tickets sent again",
         "late_payment_refunded": "Late payment refunded automatically",
         "external_refund_notice": "Refund reported by the payment provider",
         "shortfall_written_off": "Small underpayment written off (within the matching tolerance)",
@@ -146,7 +150,8 @@
       "paymentRecorded": "Payment recorded – the order is paid.",
       "paymentPartial": "Partial payment recorded – the order still has an outstanding amount.",
       "emailQueued": "The e-mail has been queued.",
-      "noteSaved": "Note saved."
+      "noteSaved": "Note saved.",
+      "ticketsQueued": "The tickets have been queued for sending."
     },
     "actions": {
       "keepReserved": {
@@ -182,7 +187,31 @@
         "title": "Internal note",
         "description": "Only visible to admins.",
         "submit": "Save note"
+      },
+      "resendTickets": {
+        "title": "Send tickets again",
+        "description": "Sends the tickets of this paid order again with the ticket PDF attached.",
+        "submit": "Send tickets"
       }
+    },
+    "tickets": {
+      "title": "Issued tickets",
+      "code": "Code",
+      "attendee": "Attendee",
+      "status": "Status",
+      "statuses": {
+        "VALID": "Valid",
+        "CANCELLED": "Cancelled",
+        "REFUNDED": "Refunded",
+        "REPLACED": "Replaced"
+      },
+      "checkIn": {
+        "CHECKED_IN": "checked in",
+        "CHECKED_OUT": "checked out"
+      },
+      "downloadAll": "All tickets (PDF)",
+      "download": "Download",
+      "pdf": "PDF"
     }
   },
   "eventPayments": {
@@ -192,6 +221,11 @@
     "bankTransferEnabled": "Bank transfer (prepayment)",
     "paymentTermDays": "Payment term (days)",
     "reminderAfterDays": "Reminder after (days)",
+    "cancelMode": "Auto-cancel of unpaid orders",
+    "cancelCustom": "Use own number of days",
+    "cancelNone": "No automatic cancellation",
+    "cancelDays": "{days} days",
+    "cancelAfterDaysHint": "Only used with “own number of days”.",
     "cancelAfterDays": "Cancel unpaid orders after (days)",
     "disableDaysBeforeEvent": "No bank transfer within (days before the event)"
   }

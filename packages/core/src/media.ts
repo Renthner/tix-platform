@@ -1,0 +1,266 @@
+import { createHash } from 'node:crypto';
+import { mediaAssets, type Executor } from '@tix/db';
+import {
+  MEDIA_ACCEPTED_MIME,
+  MEDIA_MAX_BYTES,
+  MEDIA_MAX_DIMENSION,
+  MEDIA_MAX_PIXELS,
+  type MediaAssetKind,
+} from '@tix/shared';
+import { and, eq, sql } from 'drizzle-orm';
+import { DomainError, requireCapability, type CoreContext } from './context';
+
+/**
+ * Media pipeline: validated raster uploads (PNG, JPEG, WebP) into the `assets` bucket plus the
+ * `media_assets` catalogue. The real type is detected from magic bytes (the declared MIME type
+ * and file extension are never trusted), dimensions come from a dependency-free header parser,
+ * and identical files of the same kind are stored once (sha256 de-duplication). SVG is not
+ * accepted here – it needs the sanitiser of the symbol library and no media kind requires it.
+ */
+
+export type MediaAssetRow = typeof mediaAssets.$inferSelect;
+export type MediaMime = (typeof MEDIA_ACCEPTED_MIME)[number];
+
+export interface ImageInfo {
+  mime: MediaMime;
+  ext: 'png' | 'jpg' | 'webp';
+  width: number;
+  height: number;
+}
+
+const u16be = (b: Uint8Array, o: number) => ((b[o] ?? 0) << 8) | (b[o + 1] ?? 0);
+const u32be = (b: Uint8Array, o: number) => u16be(b, o) * 65536 + u16be(b, o + 2);
+const u16le = (b: Uint8Array, o: number) => (b[o] ?? 0) | ((b[o + 1] ?? 0) << 8);
+const u24le = (b: Uint8Array, o: number) => u16le(b, o) | ((b[o + 2] ?? 0) << 16);
+const ascii = (b: Uint8Array, o: number, len: number) =>
+  String.fromCharCode(...b.subarray(o, o + len));
+
+function pngInfo(b: Uint8Array): { width: number; height: number } | null {
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (b.length < 33 || sig.some((v, i) => b[i] !== v)) return null;
+  if (ascii(b, 12, 4) !== 'IHDR') return null;
+  return { width: u32be(b, 16), height: u32be(b, 20) };
+}
+
+function jpegInfo(b: Uint8Array): { width: number; height: number } | null {
+  if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8 || b[2] !== 0xff) return null;
+  let o = 2;
+  while (o + 4 <= b.length) {
+    if (b[o] !== 0xff) return null;
+    let marker = b[o + 1]!;
+    while (marker === 0xff && o + 2 < b.length) {
+      o += 1;
+      marker = b[o + 1]!;
+    }
+    // Standalone markers without a length.
+    if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      o += 2;
+      continue;
+    }
+    if (marker === 0xd9 || marker === 0xda) return null; // end / scan before any frame header
+    const length = u16be(b, o + 2);
+    if (length < 2) return null;
+    const isFrame =
+      marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+    if (isFrame) {
+      if (o + 9 > b.length) return null;
+      return { height: u16be(b, o + 5), width: u16be(b, o + 7) };
+    }
+    o += 2 + length;
+  }
+  return null;
+}
+
+function webpInfo(b: Uint8Array): { width: number; height: number } | null {
+  if (b.length < 25 || ascii(b, 0, 4) !== 'RIFF' || ascii(b, 8, 4) !== 'WEBP') return null;
+  const chunk = ascii(b, 12, 4);
+  if (chunk === 'VP8 ') {
+    if (b.length < 30) return null;
+    if (b[23] !== 0x9d || b[24] !== 0x01 || b[25] !== 0x2a) return null;
+    return { width: u16le(b, 26) & 0x3fff, height: u16le(b, 28) & 0x3fff };
+  }
+  if (chunk === 'VP8L') {
+    if (b[20] !== 0x2f) return null;
+    const b0 = b[21]!;
+    const b1 = b[22]!;
+    const b2 = b[23]!;
+    const b3 = b[24]!;
+    return {
+      width: 1 + (b0 | ((b1 & 0x3f) << 8)),
+      height: 1 + ((b1 >> 6) | (b2 << 2) | ((b3 & 0x0f) << 10)),
+    };
+  }
+  if (chunk === 'VP8X' && b.length >= 30)
+    return { width: 1 + u24le(b, 24), height: 1 + u24le(b, 27) };
+  return null;
+}
+
+/** Detects PNG / JPEG / WebP from the magic bytes and reads the pixel size; null otherwise. */
+export function detectImage(bytes: Uint8Array): ImageInfo | null {
+  const png = pngInfo(bytes);
+  if (png) return { mime: 'image/png', ext: 'png', ...png };
+  const jpeg = jpegInfo(bytes);
+  if (jpeg) return { mime: 'image/jpeg', ext: 'jpg', ...jpeg };
+  const webp = webpInfo(bytes);
+  if (webp) return { mime: 'image/webp', ext: 'webp', ...webp };
+  return null;
+}
+
+function safeFileName(name: string, ext: string): string {
+  const base = name
+    .replace(/[\\/]/g, '_')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+    .slice(0, 150);
+  return base || `image.${ext}`;
+}
+
+export interface UploadMediaInput {
+  kind: MediaAssetKind;
+  bytes: Uint8Array;
+  fileName: string;
+  /** Browser-reported type; informational only, the detected type wins. */
+  declaredMime?: string;
+  altText?: string | null;
+  userId: string | null;
+}
+
+export async function uploadMediaAsset(
+  ctx: CoreContext,
+  input: UploadMediaInput,
+): Promise<MediaAssetRow> {
+  const { bytes } = input;
+  if (bytes.byteLength === 0) throw new DomainError('MEDIA_EMPTY', 'The file is empty', 422);
+  if (bytes.byteLength > MEDIA_MAX_BYTES) {
+    throw new DomainError('MEDIA_TOO_LARGE', 'The image is too large (max 10 MB)', 413);
+  }
+  const info = detectImage(bytes);
+  if (!info) {
+    throw new DomainError(
+      'MEDIA_UNSUPPORTED_TYPE',
+      'Only PNG, JPEG and WebP images are supported',
+      422,
+    );
+  }
+  if (
+    info.width < 1 ||
+    info.height < 1 ||
+    info.width > MEDIA_MAX_DIMENSION ||
+    info.height > MEDIA_MAX_DIMENSION ||
+    info.width * info.height > MEDIA_MAX_PIXELS
+  ) {
+    throw new DomainError('MEDIA_DIMENSIONS', 'The image dimensions are not supported', 422);
+  }
+  const storage = requireCapability(ctx, 'storage');
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const altText = input.altText?.trim().slice(0, 300) || null;
+
+  const existing = await findBySha(ctx.db, input.kind, sha256);
+  if (existing) return existing;
+
+  const year = new Date().getUTCFullYear();
+  const objectKey = `media/${input.kind.toLowerCase()}/${year}/${sha256}.${info.ext}`;
+  await storage.put('assets', objectKey, bytes, info.mime);
+  const [row] = await ctx.db
+    .insert(mediaAssets)
+    .values({
+      kind: input.kind,
+      bucket: 'assets',
+      objectKey,
+      fileName: safeFileName(input.fileName, info.ext),
+      mimeType: info.mime,
+      sizeBytes: bytes.byteLength,
+      sha256,
+      width: info.width,
+      height: info.height,
+      altText,
+      uploadedByUserId: input.userId,
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (row) return row;
+  // Lost a race with a concurrent identical upload: reuse the winner.
+  const winner = await findBySha(ctx.db, input.kind, sha256);
+  if (!winner) throw new Error('Media asset insert conflicted but no row was found');
+  return winner;
+}
+
+async function findBySha(
+  db: Executor,
+  kind: MediaAssetKind,
+  sha256: string,
+): Promise<MediaAssetRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(mediaAssets)
+    .where(and(eq(mediaAssets.kind, kind), eq(mediaAssets.sha256, sha256)))
+    .limit(1);
+  return row;
+}
+
+export async function getMediaAsset(ctx: CoreContext, id: string): Promise<MediaAssetRow | null> {
+  const [row] = await ctx.db.select().from(mediaAssets).where(eq(mediaAssets.id, id));
+  return row ?? null;
+}
+
+export interface LoadedMedia {
+  bytes: Uint8Array;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+}
+
+/** Bytes of an asset (for PDF / pass generators and the delivery route). */
+export async function loadMediaBytes(ctx: CoreContext, id: string): Promise<LoadedMedia> {
+  const asset = await getMediaAsset(ctx, id);
+  if (!asset) throw new DomainError('MEDIA_NOT_FOUND', 'Media asset not found', 404);
+  const storage = requireCapability(ctx, 'storage');
+  const object = await storage.get(asset.bucket as 'assets' | 'documents', asset.objectKey);
+  return {
+    bytes: object.body,
+    mimeType: asset.mimeType,
+    width: asset.width,
+    height: asset.height,
+  };
+}
+
+/**
+ * Every column that references `media_assets(id)`, discovered from the catalogue so that
+ * references added later (new tables) are always honoured by the in-use check.
+ */
+async function referencingColumns(db: Executor): Promise<{ table: string; column: string }[]> {
+  const result = await db.execute<{ table: string; column: string }>(sql`
+    SELECT cl.relname AS "table", att.attname AS "column"
+    FROM pg_constraint con
+    JOIN pg_class cl ON cl.oid = con.conrelid
+    JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+    JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY (con.conkey)
+    WHERE con.contype = 'f'
+      AND con.confrelid = 'media_assets'::regclass
+      AND ns.nspname = current_schema()
+  `);
+  return result.rows;
+}
+
+export async function isMediaAssetInUse(ctx: CoreContext, id: string): Promise<boolean> {
+  const columns = await referencingColumns(ctx.db);
+  for (const { table, column } of columns) {
+    const hit = await ctx.db.execute(
+      sql`SELECT 1 FROM ${sql.identifier(table)} WHERE ${sql.identifier(column)} = ${id} LIMIT 1`,
+    );
+    if (hit.rows.length > 0) return true;
+  }
+  return false;
+}
+
+/** Deletes the catalogue row and the object; refuses while any record still references it. */
+export async function deleteMediaAsset(ctx: CoreContext, id: string): Promise<void> {
+  const asset = await getMediaAsset(ctx, id);
+  if (!asset) throw new DomainError('MEDIA_NOT_FOUND', 'Media asset not found', 404);
+  if (await isMediaAssetInUse(ctx, id)) {
+    throw new DomainError('MEDIA_IN_USE', 'The media asset is still in use', 409);
+  }
+  const storage = requireCapability(ctx, 'storage');
+  await ctx.db.delete(mediaAssets).where(eq(mediaAssets.id, id));
+  await storage.delete(asset.bucket as 'assets' | 'documents', asset.objectKey);
+}

@@ -74,7 +74,7 @@ describe('event page layout', () => {
   it('converts the earlier flat format (boxes two per row)', () => {
     expect(
       refs(normalizePageLayout(['SHOP', 'DESCRIPTION', 'INFO_BOXES'], ['a', 'b', 'c'])),
-    ).toEqual([['SHOP'], ['DESCRIPTION'], ['box:a', 'box:b'], ['box:c']]);
+    ).toEqual([['COVER'], ['SHOP'], ['DESCRIPTION'], ['box:a', 'box:b'], ['box:c']]);
   });
   it('keeps boxes next to the description, the plan alone, every block once', () => {
     const layout = normalizePageLayout(
@@ -84,12 +84,35 @@ describe('event page layout', () => {
       ],
       ['a', 'b'],
     );
-    expect(refs(layout)).toEqual([['DESCRIPTION', 'box:a'], ['SHOP'], ['box:b']]);
-    expect(layout[0]![0]!.span).toBe(2);
+    expect(refs(layout)).toEqual([['COVER'], ['DESCRIPTION', 'box:a'], ['SHOP'], ['box:b']]);
+    expect(layout[1]![0]!.span).toBe(2);
+  });
+  it('keeps a stored cover block where the admin put it (e.g. left of the description)', () => {
+    const layout = normalizePageLayout(
+      [
+        [
+          { ref: 'COVER', span: 1 },
+          { ref: 'DESCRIPTION', span: 2 },
+        ],
+        [{ ref: 'SHOP' }],
+      ],
+      [],
+    );
+    expect(refs(layout)).toEqual([['COVER', 'DESCRIPTION'], ['SHOP']]);
+    expect(layout[0]![1]!.span).toBe(2);
+  });
+  it('inserts the cover first when an old layout lacks it', () => {
+    expect(refs(normalizePageLayout([[{ ref: 'SHOP' }], [{ ref: 'DESCRIPTION' }]], []))).toEqual([
+      ['COVER'],
+      ['SHOP'],
+      ['DESCRIPTION'],
+    ]);
+    expect(refs(normalizePageLayout(null, []))[0]).toEqual(['COVER']);
   });
   it('limits rows to three blocks', () => {
     const row = ['DESCRIPTION', 'box:a', 'box:b', 'box:c'].map((ref) => ({ ref }));
     expect(refs(normalizePageLayout([row], ['a', 'b', 'c']))).toEqual([
+      ['COVER'],
       ['DESCRIPTION', 'box:a', 'box:b'],
       ['box:c'],
       ['SHOP'],

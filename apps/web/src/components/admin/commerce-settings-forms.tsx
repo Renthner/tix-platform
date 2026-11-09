@@ -24,6 +24,7 @@ function NumberField({
   min,
   max,
   error,
+  optional,
 }: {
   name: string;
   label: string;
@@ -32,6 +33,8 @@ function NumberField({
   min?: number;
   max?: number;
   error?: Parameters<typeof Field>[0]['error'];
+  /** Empty input is allowed. */
+  optional?: boolean;
 }) {
   return (
     <Field label={label} htmlFor={name} error={error} hint={hint}>
@@ -43,7 +46,7 @@ function NumberField({
         min={min}
         max={max}
         defaultValue={defaultValue}
-        required
+        required={!optional}
       />
     </Field>
   );
@@ -262,7 +265,8 @@ export interface BankTransferValues {
   countBusinessDaysOnly: boolean;
   holidayRegion: string | null;
   reminderAfterDays: number;
-  cancelAfterDays: number;
+  /** Null = no automatic cancellation. */
+  cancelAfterDays: number | null;
   disableDaysBeforeEvent: number;
   autoMatchToleranceCents: number;
 }
@@ -362,7 +366,8 @@ export function BankTransferSettingsForm({
           name="cancelAfterDays"
           label={t('cancelAfterDays')}
           hint={t('cancelAfterDaysHint')}
-          defaultValue={initial.cancelAfterDays}
+          defaultValue={initial.cancelAfterDays ?? ''}
+          optional
           min={1}
           max={90}
           error={err('cancelAfterDays')}
@@ -504,6 +509,7 @@ export interface SmtpValues {
   fromEmail?: string;
   replyTo?: string;
   bccAddress?: string;
+  maxMessageSizeMb: number;
 }
 
 export function SmtpSettingsForm({
@@ -609,6 +615,15 @@ export function SmtpSettingsForm({
           type="email"
           defaultValue={initial.bccAddress}
           error={err('bccAddress')}
+        />
+        <NumberField
+          name="maxMessageSizeMb"
+          label={t('maxMessageSizeMb')}
+          hint={t('maxMessageSizeMbHint')}
+          defaultValue={initial.maxMessageSizeMb}
+          min={1}
+          max={100}
+          error={err('maxMessageSizeMb')}
         />
       </div>
       {passwordStored && (

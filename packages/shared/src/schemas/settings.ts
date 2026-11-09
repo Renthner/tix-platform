@@ -38,7 +38,8 @@ const brandingSchema = z.object({
   imprintUrl: optionalUrl,
   privacyUrl: optionalUrl,
   termsUrl: optionalUrl,
-  footerText: z.string().max(2_000).optional(),
+  /** Sanitised rich-text HTML (legacy values are plain text). */
+  footerText: z.string().max(10_000).optional(),
 });
 
 /** Seller master data printed on invoices (§ 14 UStG). */
@@ -91,6 +92,10 @@ const checkoutSchema = z.object({
   /** Companion seats can only be booked together with their wheelchair space. */
   companionSeatsRequireWheelchair: z.boolean().default(false),
   requireTermsAcceptance: z.boolean().default(true),
+  /** Phone number is mandatory in the online checkout. */
+  requirePhone: z.boolean().default(true),
+  /** Billing address is mandatory in the online checkout (invoice). */
+  requireBillingAddress: z.boolean().default(true),
 });
 
 const bankTransferSchema = z
@@ -107,17 +112,18 @@ const bankTransferSchema = z
     /** Federal state whose regional public holidays are skipped (null = nationwide ones only). */
     holidayRegion: z.enum(GERMAN_STATES).nullable().default(null),
     reminderAfterDays: z.number().int().min(1).max(60).default(4),
-    cancelAfterDays: z.number().int().min(1).max(90).default(8),
+    /** Days until unpaid orders are cancelled automatically. Null = no automatic cancellation. */
+    cancelAfterDays: z.number().int().min(1).max(90).nullable().default(8),
     /** Vorkasse is not offered when the event starts within this many days. */
     disableDaysBeforeEvent: z.number().int().min(0).max(90).default(7),
     /** Tolerated deviation (cents) for automatic matching. 0 = exact amount only. */
     autoMatchToleranceCents: z.number().int().min(0).max(10_000).default(0),
   })
-  .refine((v) => v.cancelAfterDays >= v.paymentTermDays, {
+  .refine((v) => v.cancelAfterDays === null || v.cancelAfterDays >= v.paymentTermDays, {
     message: 'cancelAfterDays must be >= paymentTermDays',
     path: ['cancelAfterDays'],
   })
-  .refine((v) => v.reminderAfterDays < v.cancelAfterDays, {
+  .refine((v) => v.cancelAfterDays === null || v.reminderAfterDays < v.cancelAfterDays, {
     message: 'reminderAfterDays must be < cancelAfterDays',
     path: ['reminderAfterDays'],
   });
@@ -148,6 +154,8 @@ const smtpSchema = z.object({
   replyTo: z.email().optional(),
   /** Blind copy of every outgoing e-mail (archive mailbox). */
   bccAddress: z.email().optional(),
+  /** Mails with ticket PDFs above this size (MB) are sent without the tickets PDF. */
+  maxMessageSizeMb: z.number().int().min(1).max(100).default(25),
 });
 /** SMTP password (the user name is a plain setting so admins can see it). */
 const smtpCredentialsSchema = z.object({
@@ -169,7 +177,13 @@ const appleWalletCertificatesSchema = z.object({
 
 const googleWalletSchema = z.object({
   enabled: z.boolean().default(false),
-  issuerId: z.string().max(64).optional(),
+  issuerId: z.string().trim().max(64).optional(),
+  /** Prefix of class / object ids below the issuer (letters, digits, `_` `-`). */
+  classPrefix: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_-]{1,32}$/)
+    .default('tix'),
 });
 const googleWalletCredentialsSchema = z.object({ serviceAccountJson: z.string().min(1) });
 

@@ -11,6 +11,9 @@ import { resolveLocale } from '@/i18n/locale';
 import { pickMessages } from '@/i18n/messages';
 import { getCore } from '@/server/core';
 import { getCustomerSession } from '@/server/customer-session';
+import { descriptionToHtml } from '@/server/rich-text';
+import { FOOTER_RICH_TEXT_CLASS } from '@/lib/rich-text-styles';
+import { cn } from '@/lib/utils';
 
 export default async function ShopLayout({
   children,
@@ -29,6 +32,7 @@ export default async function ShopLayout({
     getCustomerSession(),
     getTranslations('account.nav'),
   ]);
+  const footerHtml = descriptionToHtml(branding.footerText);
   const legal = [
     { href: branding.imprintUrl, label: t('imprint') },
     { href: branding.privacyUrl, label: t('privacy') },
@@ -68,8 +72,16 @@ export default async function ShopLayout({
           </header>
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
           <footer className="border-t py-6 text-sm text-muted-foreground">
-            <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4">
-              <span>{branding.footerText ?? general.shopName}</span>
+            <div className="mx-auto flex max-w-7xl flex-wrap items-start gap-x-6 gap-y-3 px-4">
+              {footerHtml ? (
+                <div
+                  className={cn('min-w-0 flex-1', FOOTER_RICH_TEXT_CLASS)}
+                  // Sanitised with the rich-text allowlist (also on save).
+                  dangerouslySetInnerHTML={{ __html: footerHtml }}
+                />
+              ) : (
+                <span className="flex-1">{general.shopName}</span>
+              )}
               {legal.map((l) => (
                 <a key={l.label} href={l.href} className="hover:underline" rel="noopener">
                   {l.label}

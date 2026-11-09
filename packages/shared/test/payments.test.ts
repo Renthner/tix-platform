@@ -81,6 +81,16 @@ describe('checkout input', () => {
     expect(parsed.phone).toBeUndefined();
   });
 
+  it('validates the phone number', () => {
+    const parse = (phone: string) =>
+      checkoutInputSchema.safeParse({ ...base, email: 'a@example.org', phone });
+    expect(parse(' +49 (6134) 12-34/56 ').success).toBe(true);
+    expect(parse('1234').success).toBe(false);
+    expect(parse('call me maybe').success).toBe(false);
+    expect(parse('1'.repeat(51)).success).toBe(false);
+    expect(parse('   ').success).toBe(true);
+  });
+
   it('rejects invalid e-mails, unknown methods and negative totals', () => {
     expect(checkoutInputSchema.safeParse({ ...base, email: 'nope' }).success).toBe(false);
     expect(
