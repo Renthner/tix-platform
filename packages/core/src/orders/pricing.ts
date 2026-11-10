@@ -5,13 +5,17 @@ import {
   type FeeScope,
   type OnlinePaymentMethod,
   type PaymentMethod,
+  localizePublicSeatMap,
+  localized,
   type PublicSeatMap,
+  type SalesChannel,
 } from '@tix/shared';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { getCart, type CartView } from '../cart';
 import { DomainError, type CoreContext } from '../context';
 import type { EventRow } from '../events';
-import { getPublicSeatMap } from '../seatmaps/public';
+import { contentLocale } from '../content-locale';
+import { getPublicSeatMap, getSeatMapForChannel } from '../seatmaps/public';
 import { getSecretSetting, getSetting } from '../settings';
 
 export interface QuoteItem {
@@ -67,7 +71,7 @@ export interface QuoteEvent {
 }
 
 export interface CheckoutQuote {
-  method: OnlinePaymentMethod;
+  method: PaymentMethod;
   currency: string;
   events: QuoteEvent[];
   orderFees: QuoteFee[];
@@ -97,15 +101,28 @@ interface PricingContext {
   taxRateById: Map<string, number>;
 }
 
-async function loadPricingContext(ctx: CoreContext, sessionId: string): Promise<PricingContext> {
-  const cart = await getCart(ctx, sessionId);
+async function loadPricingContext(
+  ctx: CoreContext,
+  sessionId: string,
+  locale?: string,
+): Promise<PricingContext> {
+  return loadPricingContextForCart(ctx, await getCart(ctx, sessionId, locale), 'ONLINE', locale);
+}
+
+async function loadPricingContextForCart(
+  ctx: CoreContext,
+  cart: CartView,
+  channel: SalesChannel,
+  locale?: string,
+): Promise<PricingContext> {
+  const { locale: loc, defaultLocale } = await contentLocale(ctx, locale);
   if (cart.itemCount === 0) throw new DomainError('CART_EMPTY', 'Your cart is empty', 409);
   if (cart.currencies.length > 1) {
     throw new DomainError('MIXED_CURRENCIES', 'Events with different currencies', 409);
   }
   const eventIds = cart.events.map((e) => e.eventId);
   const rows = await ctx.db
-    .select({ event: events, venueName: venues.name, rate: taxRates.rateBasisPoints })
+    .select({ event: events, venue: venues, rate: taxRates.rateBasisPoints })
     .from(events)
     .innerJoin(venues, eq(venues.id, events.venueId))
     .innerJoin(taxRates, eq(taxRates.id, events.taxRateId))
@@ -113,15 +130,32 @@ async function loadPricingContext(ctx: CoreContext, sessionId: string): Promise<
   const eventRows = new Map(
     rows.map((r) => [
       r.event.id,
-      { ...r.event, venueName: r.venueName, taxRateBasisPoints: r.rate },
+      {
+        ...r.event,
+        title: localized(r.event, 'title', loc, defaultLocale),
+        venueName: localized(r.venue, 'name', loc, defaultLocale),
+        taxRateBasisPoints: r.rate,
+      },
     ]),
   );
   const maps = new Map<string, PublicSeatMap>();
-  for (const row of eventRows.values()) maps.set(row.id, await getPublicSeatMap(ctx, row));
+  for (const row of eventRows.values()) {
+    maps.set(
+      row.id,
+      localizePublicSeatMap(
+        channel === 'ONLINE'
+          ? await getPublicSeatMap(ctx, row)
+          : await getSeatMapForChannel(ctx, row, channel),
+        loc,
+        defaultLocale,
+      ),
+    );
+  }
   const feeRows = await ctx.db
     .select()
     .from(fees)
     .where(or(isNull(fees.eventId), inArray(fees.eventId, eventIds)));
+  for (const fee of feeRows) fee.name = localized(fee, 'name', loc, defaultLocale);
   const rateRows = await ctx.db
     .select({ id: taxRates.id, rate: taxRates.rateBasisPoints })
     .from(taxRates);
@@ -139,10 +173,11 @@ function effectiveEventFees(
   feeRows: PricingContext['feeRows'],
   eventId: string,
   method: PaymentMethod,
+  channel: SalesChannel,
 ): PricingContext['feeRows'] {
   const applies = (f: PricingContext['feeRows'][number]) =>
     f.isActive &&
-    (!f.channels || f.channels.includes('ONLINE')) &&
+    feeChannels(f).includes(channel) &&
     (!f.paymentMethods || f.paymentMethods.includes(method));
   const overrides = new Map(
     feeRows
@@ -159,6 +194,11 @@ function effectiveEventFees(
     if (applies(own)) result.push(own);
   }
   return result.sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+/** Fees without a channel restriction are charged online only; the box office needs an explicit tick. */
+function feeChannels(fee: { channels: SalesChannel[] | null }): readonly SalesChannel[] {
+  return fee.channels?.length ? fee.channels : ['ONLINE'];
 }
 
 const percentOf = (amount: number, basisPoints: number) =>
@@ -187,7 +227,11 @@ function feeLine(
   };
 }
 
-function buildQuote(pc: PricingContext, method: OnlinePaymentMethod): CheckoutQuote {
+function buildQuote(
+  pc: PricingContext,
+  method: PaymentMethod,
+  channel: SalesChannel = 'ONLINE',
+): CheckoutQuote {
   const quoteEvents: QuoteEvent[] = [];
   for (const cartEvent of pc.cart.events) {
     const event = pc.eventRows.get(cartEvent.eventId);
@@ -231,7 +275,7 @@ function buildQuote(pc: PricingContext, method: OnlinePaymentMethod): CheckoutQu
     });
     const ticketsGross = items.reduce((sum, i) => sum + i.priceGross, 0);
     const eventFees: QuoteFee[] = [];
-    for (const fee of effectiveEventFees(pc.feeRows, event.id, method)) {
+    for (const fee of effectiveEventFees(pc.feeRows, event.id, method, channel)) {
       const feeRate = fee.taxRateId ? (pc.taxRateById.get(fee.taxRateId) ?? rate) : rate;
       if (fee.scope === 'PER_TICKET') {
         const amounts = items.map((i) =>
@@ -265,7 +309,7 @@ function buildQuote(pc: PricingContext, method: OnlinePaymentMethod): CheckoutQu
   const orderFees: QuoteFee[] = [];
   for (const fee of pc.feeRows
     .filter((f) => f.eventId === null && f.scope === 'PER_ORDER' && f.isActive)
-    .filter((f) => !f.channels || f.channels.includes('ONLINE'))
+    .filter((f) => feeChannels(f).includes(channel))
     .filter((f) => !f.paymentMethods || f.paymentMethods.includes(method))
     .sort((a, b) => a.sortOrder - b.sortOrder)) {
     const rate = pc.taxRateById.get(fee.taxRateId!) ?? 0;
@@ -300,6 +344,17 @@ async function paymentAvailability(
   ctx: CoreContext,
   pc: PricingContext,
 ): Promise<Record<OnlinePaymentMethod, PaymentMethodOption['reason'] | null>> {
+  return paymentAvailabilityForEvents(ctx, [...pc.eventRows.values()]);
+}
+
+/** Same rules for any set of events (cart or an existing order, e.g. an additional payment). */
+export async function paymentAvailabilityForEvents(
+  ctx: CoreContext,
+  rows: readonly Pick<
+    EventRow,
+    'startsAt' | 'bankTransferEnabled' | 'bankTransferDisableDaysBeforeEvent' | 'paypalEnabled'
+  >[],
+): Promise<Record<OnlinePaymentMethod, PaymentMethodOption['reason'] | null>> {
   const [bank, paypal, credentials, defaultAccount] = await Promise.all([
     getSetting(ctx, 'bankTransfer'),
     getSetting(ctx, 'paypal'),
@@ -310,7 +365,6 @@ async function paymentAvailability(
       .where(and(eq(bankAccounts.isDefaultForBankTransfer, true), eq(bankAccounts.isActive, true)))
       .limit(1),
   ]);
-  const rows = [...pc.eventRows.values()];
   const now = Date.now();
   let bankReason: PaymentMethodOption['reason'] | null = null;
   if (rows.some((e) => e.bankTransferEnabled === false)) bankReason = 'EVENT_DISABLED';
@@ -338,8 +392,9 @@ async function paymentAvailability(
 export async function getCheckoutOptions(
   ctx: CoreContext,
   sessionId: string,
+  locale?: string,
 ): Promise<{ quotes: Record<OnlinePaymentMethod, CheckoutQuote>; methods: PaymentMethodOption[] }> {
-  const pc = await loadPricingContext(ctx, sessionId);
+  const pc = await loadPricingContext(ctx, sessionId, locale);
   const availability = await paymentAvailability(ctx, pc);
   const quotes = {
     PAYPAL: buildQuote(pc, 'PAYPAL'),
@@ -360,12 +415,13 @@ export async function quoteForMethod(
   ctx: CoreContext,
   sessionId: string,
   method: OnlinePaymentMethod,
+  locale?: string,
 ): Promise<{
   quote: CheckoutQuote;
   events: PricingContext['eventRows'];
   maps: PricingContext['maps'];
 }> {
-  const pc = await loadPricingContext(ctx, sessionId);
+  const pc = await loadPricingContext(ctx, sessionId, locale);
   const availability = await paymentAvailability(ctx, pc);
   if (availability[method] !== null) {
     throw new DomainError(
@@ -378,4 +434,24 @@ export async function quoteForMethod(
     );
   }
   return { quote: buildQuote(pc, method), events: pc.eventRows, maps: pc.maps };
+}
+
+/**
+ * Prices of a box-office / admin order built from explicit lines (no Redis cart): tariffs of
+ * the sales channel, fees of that channel. Complimentary orders carry no fees.
+ */
+export async function quoteChannelCart(
+  ctx: CoreContext,
+  cart: CartView,
+  method: PaymentMethod,
+  channel: SalesChannel,
+  locale?: string,
+): Promise<{
+  quote: CheckoutQuote;
+  events: PricingContext['eventRows'];
+  maps: PricingContext['maps'];
+}> {
+  const pc = await loadPricingContextForCart(ctx, cart, channel, locale);
+  if (method === 'COMPLIMENTARY') pc.feeRows = [];
+  return { quote: buildQuote(pc, method, channel), events: pc.eventRows, maps: pc.maps };
 }

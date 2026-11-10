@@ -1,18 +1,27 @@
 {
   "panelTitle": "Admin portal",
+  "menu": "Menu",
   "logout": "Sign out",
+  "shopLink": "Go to ticket shop",
   "nav": {
     "dashboard": "Dashboard",
     "events": "Events",
     "orders": "Orders",
+    "customers": "Customers",
     "banking": "Bank & payments",
+    "accounting": "Accounting",
     "venues": "Venues & plans",
     "waitingRoom": "Waiting room",
+    "media": "Media library",
     "symbols": "Symbol library",
     "settings": "Settings",
     "fees": "Fees & taxes",
     "emailTemplates": "E-mail templates",
-    "ticketTemplates": "Ticket designs"
+    "ticketTemplates": "Ticket designs",
+    "refunds": "Open refunds",
+    "boxOffice": "Box office",
+    "users": "Users",
+    "backups": "Backups"
   },
   "login": {
     "title": "Admin sign-in",
@@ -61,7 +70,8 @@
       "eventHasOrders": "This event has orders. Orders and invoices must be retained for accounting and cannot be deleted.",
       "eventNotArchived": "Only archived events can be deleted. Set the status to “Archived” first.",
       "builtinSymbol": "Built-in symbols cannot be deleted.",
-      "venueHasEvents": "Events still exist at this venue, so it cannot be deleted."
+      "venueHasEvents": "Events still exist at this venue, so it cannot be deleted.",
+      "mediaInUse": "This image is still in use. Remove it from the places listed first."
     },
     "email": "Enter a valid e-mail address.",
     "fileRequired": "Please choose a file.",
@@ -116,6 +126,77 @@
       "venue": "Venue",
       "status": "Status",
       "sale": "Sale"
+    },
+    "refundsOpen": {
+      "title": "{count, plural, one {# refund is open} other {# refunds are open}}",
+      "text": "Customers are waiting for their money.",
+      "link": "Open refunds"
+    },
+    "live": {
+      "title": "Live overview",
+      "updated": "Updated {time}",
+      "stale": "Connection lost – showing the last known figures.",
+      "kpi": {
+        "revenueToday": "Revenue today",
+        "revenue7d": "Revenue, last 7 days",
+        "revenueEvent": "Revenue of event",
+        "netOfRefunds": "gross, net of refunds",
+        "ordersToday": "Orders today",
+        "ticketsToday": "Tickets sold today",
+        "openVorkasse": "Open bank transfers",
+        "openVorkasseCount": "{count, plural, one {# order} other {# orders}}",
+        "openRefunds": "Open refunds"
+      },
+      "inventory": {
+        "title": "Seats",
+        "capacity": "{count} in total",
+        "sold": "Sold",
+        "reserved": "Reserved (unpaid)",
+        "locked": "In carts",
+        "available": "Available",
+        "blocked": "Blocked",
+        "aria": "Sold {sold}, reserved {reserved}, in carts {locked}, available {available}, blocked {blocked}"
+      },
+      "queue": {
+        "title": "Waiting room",
+        "value": "{active} in the shop right now (live), {waiting} waiting",
+        "lobby": "{count} in lobby"
+      },
+      "payments": {
+        "title": "Payment methods",
+        "none": "No paid tickets yet.",
+        "tickets": "{count, plural, one {# ticket} other {# tickets}}"
+      },
+      "checkIn": {
+        "title": "Check-in"
+      },
+      "overview": {
+        "title": "All events",
+        "events": "{count, plural, one {# event} other {# events}}",
+        "none": "No events match the selected statuses.",
+        "revenue": "Revenue",
+        "revenueHint": "gross, confirmed tickets",
+        "otherCurrency": "{count, plural, one {# event in another currency is} other {# events in other currencies are}} not included in revenue and payment methods.",
+        "statusLabel": "Status filter"
+      },
+      "cards": {
+        "title": "Events",
+        "showing": "Showing {shown} of {total} events.",
+        "handle": "Move card \"{title}\"",
+        "handleHint": "Drag to rearrange, or press the arrow keys.",
+        "moved": "\"{title}\" is now at position {position} of {total}.",
+        "saveFailed": "Could not save the card order."
+      }
+    },
+    "adjustmentsOpen": {
+      "title": "{count, plural, one {# additional payment is unpaid} other {# additional payments are unpaid}}",
+      "text": "The reminder was sent – reset the tariff or cancel the ticket.",
+      "link": "Open list"
+    },
+    "invoiceCorrections": {
+      "title": "{count, plural, one {# invoice has to be corrected} other {# invoices have to be corrected}}",
+      "text": "An additional payment was received, but the invoice was not corrected automatically.",
+      "link": "Open list"
     }
   },
   "venues": {
@@ -152,6 +233,36 @@
       "mapsUrl": "Google Maps link",
       "mapsUrlHint": "Used in the shop for “Show on map”. Empty = a link is generated from the address or coordinates."
     },
+    "import": {
+      "title": "Import seating plan",
+      "description": "Upload a plan file exported from another system (.tixplan.json). It is added as a new master plan; existing plans are never changed.",
+      "file": "Seating plan file",
+      "name": "Name of the new plan",
+      "submit": "Import plan",
+      "summary": {
+        "sections": "{count, plural, one {# block} other {# blocks}}",
+        "rows": "{count, plural, one {# row} other {# rows}}",
+        "seats": "{count, plural, one {# seat} other {# seats}}",
+        "elements": "{count, plural, one {# element} other {# elements}}",
+        "symbols": "{count, plural, one {# custom symbol} other {# custom symbols}}",
+        "background": "Background image included",
+        "noBackground": "No background image"
+      },
+      "categoriesNote": "The file contains the categories {names}. They are created as plan categories; events created from the plan get them as price categories, and prices are entered per event.",
+      "errors": {
+        "GENERIC": "The plan could not be imported.",
+        "SEATMAP_FILE_INVALID": "This is not a valid seating plan file.",
+        "SEATMAP_VERSION_UNSUPPORTED": "This plan file version is not supported.",
+        "SEATMAP_FILE_TOO_LARGE": "The plan file is too large.",
+        "MEDIA_UNSUPPORTED_TYPE": "An image in the file is not a PNG, JPEG or WebP image.",
+        "MEDIA_TOO_LARGE": "An image in the file is too large (max 10 MB).",
+        "MEDIA_DIMENSIONS": "An image in the file has unsupported dimensions.",
+        "SVG_INVALID": "A symbol in the file is not a valid SVG.",
+        "SVG_EMPTY": "A symbol in the file contains no drawable shapes.",
+        "SVG_TOO_LARGE": "A symbol in the file is too large.",
+        "SVG_TOO_COMPLEX": "A symbol in the file is too complex."
+      }
+    },
     "plans": {
       "title": "Master seating plans",
       "description": "Reusable layouts. Each event gets its own editable copy when it is created.",
@@ -161,6 +272,7 @@
       "updated": "Last change",
       "actions": "Actions",
       "openEditor": "Open editor",
+      "export": "Export",
       "rename": "Rename",
       "duplicate": "Duplicate",
       "duplicateTitle": "Duplicate plan?",
@@ -299,6 +411,24 @@
       "accountsHideForEvent": "Hide for this event (guest orders only)"
     },
     "deletedNotice": "The event was deleted permanently.",
+    "duplicate": {
+      "button": "Duplicate",
+      "title": "Duplicate event",
+      "description": "Creates a new draft event with the settings of this event.",
+      "copyTitle": "{title} (copy)",
+      "fields": {
+        "title": "Title",
+        "startsAt": "Start",
+        "slug": "URL slug (optional)"
+      },
+      "startsAtHint": "Doors, end, presale and sale dates are shifted by the same difference. Please change the start.",
+      "slugHint": "Leave empty to derive it from the title.",
+      "copied": "Copied: event settings, seating plan (incl. edits and blocked seats), categories, tariffs, prices, fees, event page, waiting room, ticket templates, wallet design and e-mail overrides.",
+      "notCopied": "Not copied: orders, tickets, check-in data, access codes. The new event gets its own ticket signing key and starts as a draft.",
+      "confirm": "Duplicate",
+      "pending": "Duplicating…",
+      "notice": "The event was duplicated. Review the dates, prices and seating plan before publishing. Access codes were not copied."
+    },
     "danger": {
       "title": "Delete event permanently",
       "description": "Removes the event with its seating plan, prices, tariffs, access codes and waiting-room data. This cannot be undone.",
@@ -683,7 +813,10 @@
       "privacyUrl": "Privacy policy URL",
       "termsUrl": "Terms & conditions URL",
       "footerText": "Footer text",
-      "logoLater": "Logo and favicon upload will be available with the media library."
+      "logo": "Logo",
+      "logoHint": "Shown in the shop header instead of the shop name. PNG, JPEG or WebP.",
+      "favicon": "Favicon",
+      "faviconHint": "Browser tab icon of shop and admin. Square PNG, at least 64 × 64 px."
     },
     "checkout": {
       "title": "Seat selection & cart",
@@ -716,7 +849,9 @@
         "checkout": "Checkout: when the buyer opens the checkout, the remaining time is extended once by {minutes} min (to at most {total} min), so seats don't expire while the buyer enters their details or pays. That is why the timer in the header jumps up at this point.",
         "checkoutNone": "Checkout: no extra time is added – the cart reservation simply continues.",
         "order": "After “Place binding order” the order holds the seats: for bank transfer until the cancellation deadline (Payments → Bank transfer), for PayPal until the approval time limit (Payments → PayPal)."
-      }
+      },
+      "refundFeesByDefault": "Refund fees when cancelling paid orders by default",
+      "refundFeesByDefaultHint": "Pre-selects “Refund fees” in the cancel & refund form of an order. The admin can change it for every cancellation."
     },
     "seatDisplay": {
       "title": "Seating chart colours",
@@ -739,7 +874,10 @@
         "RING": "Ring around the seat",
         "FILL": "Fill the seat with the colour",
         "BOTH": "Fill and ring"
-      }
+      },
+      "seatChangeCurrentColor": "Order seats (unchanged) – seat change",
+      "seatChangeReplacedColor": "Seat being replaced – seat change",
+      "seatChangeNewColor": "New seat – seat change"
     },
     "secret": {
       "stored": "stored",
@@ -781,7 +919,9 @@
       "patternHint": "Tokens: '{YYYY}' year, '{YY}' two-digit year, '{SEQ}' or '{SEQ:6}' sequential counter (zero-padded). With a year token the counter restarts every year.",
       "gapless": "Invoice numbers are assigned without gaps. Issued invoices can never be changed or deleted – corrections are made with credit notes.",
       "invoiceFooter": "Invoice footer",
-      "invoiceFooterHint": "Optional text at the bottom of every invoice page, e.g. bank details or a greeting."
+      "invoiceFooterHint": "Optional text at the bottom of every invoice page, e.g. bank details or a greeting.",
+      "smallAmountInvoiceLimit": "Small-amount invoice limit",
+      "smallAmountInvoiceLimitHint": "Box office: above this gross total an invoice needs the buyer's name and full address (default 250.00, the German Kleinbetragsrechnung limit). Complimentary tickets are exempt."
     },
     "bankTransfer": {
       "title": "Bank transfer (prepayment)",
@@ -824,7 +964,9 @@
         "ST": "Saxony-Anhalt",
         "SH": "Schleswig-Holstein",
         "TH": "Thuringia"
-      }
+      },
+      "adjustmentReminderDays": "Reminder for additional payments (days)",
+      "adjustmentReminderDaysHint": "An unpaid tariff-change request gets one reminder after this many days. It is never cancelled automatically."
     },
     "paypal": {
       "title": "PayPal",
@@ -909,7 +1051,8 @@
       "sessionTtlDays": "Stay signed in (days)",
       "passwordMinLength": "Minimum password length",
       "emailVerificationTtlHours": "Verification link valid (hours)",
-      "passwordResetTtlMinutes": "Password reset link valid (minutes)"
+      "passwordResetTtlMinutes": "Password reset link valid (minutes)",
+      "loginLinkTtlMinutes": "Sign-in link valid (minutes)"
     },
     "tabs": {
       "label": "Settings areas",
@@ -921,8 +1064,96 @@
       "invoicing": "Invoices",
       "email": "E-mail",
       "accounts": "Customer accounts",
-      "wallet": "Wallet"
+      "wallet": "Wallet",
+      "security": "Security",
+      "scanner": "Scanner"
     }
+  },
+  "mediaLibrary": {
+    "title": "Media library",
+    "description": "All uploaded images: see where they are used, rename them and delete old ones.",
+    "toSymbols": "Symbol library",
+    "summary": {
+      "total": "Images",
+      "totalSize": "Storage used",
+      "unused": "Unused images",
+      "unusedSize": "Unused storage"
+    },
+    "uploadTitle": "Upload images",
+    "uploadDescription": "PNG, JPEG or WebP, max. 10 MB each. The type decides where the image is offered in pickers.",
+    "kind": "Type",
+    "kinds": {
+      "EVENT_IMAGE": "Event image",
+      "VENUE_BACKGROUND": "Venue background",
+      "TICKET_BACKGROUND": "Ticket background",
+      "LOGO": "Logo / favicon",
+      "WALLET_IMAGE": "Wallet image",
+      "EMAIL_IMAGE": "E-mail image",
+      "DOCUMENT": "Document",
+      "OTHER": "Other"
+    },
+    "file": "Image files",
+    "fileHint": "You can select several files at once.",
+    "upload": "Upload",
+    "uploading": "Uploading…",
+    "uploadedCount": "{count, plural, one {# image uploaded.} other {# images uploaded.}}",
+    "uploadNetworkError": "Upload failed. Please try again.",
+    "search": "File name",
+    "searchPlaceholder": "Search by name",
+    "usageFilter": "Usage",
+    "filterAll": "All",
+    "filterUsed": "In use",
+    "filterUnused": "Unused",
+    "sort": "Sort by",
+    "sortDate": "Upload date",
+    "sortSize": "File size",
+    "direction": "Order",
+    "dirDesc": "Descending",
+    "dirAsc": "Ascending",
+    "apply": "Apply",
+    "results": "{count, plural, =0 {No images found} one {# image} other {# images}}",
+    "empty": "No images match these filters.",
+    "unused": "Unused",
+    "usedCount": "{count, plural, one {Used in # place} other {Used in # places}}",
+    "usedBy": "Used by",
+    "usage": {
+      "EVENT_COVER": "Event cover",
+      "SERIES_IMAGE": "Event series",
+      "VENUE_IMAGE": "Venue image",
+      "SEAT_MAP_BACKGROUND": "Seating plan background",
+      "SEAT_MAP_IMAGE": "Seating plan image",
+      "TICKET_TEMPLATE_BACKGROUND": "Ticket design background",
+      "TICKET_TEMPLATE_IMAGE": "Ticket design image",
+      "WALLET_DESIGN": "Wallet design",
+      "EMAIL_TEMPLATE": "E-mail template",
+      "SETTING": "Setting",
+      "OTHER": "Other reference"
+    },
+    "dimensions": "Size",
+    "size": "File size",
+    "uploaded": "Uploaded",
+    "name": "Name",
+    "rename": "Rename",
+    "renameHint": "Only the display name changes, not the stored file.",
+    "open": "Open",
+    "download": "Download",
+    "delete": "Delete",
+    "deleteBlocked": "Still in use – remove it from the places listed first.",
+    "deleteTitle": "Delete image?",
+    "deleteDescription": "“{name}” is not used anywhere and will be deleted permanently.",
+    "bulkDelete": "Delete unused…",
+    "bulkTitle": "Delete all unused images?",
+    "bulkDescription": "{count, plural, one {# unused image} other {# unused images}} ({size}) will be deleted permanently. Images that are used in the meantime are skipped.",
+    "bulkCapped": "There are {total, number} unused images in total; the preview lists at most 500. Run the action again afterwards.",
+    "bulkConfirm": "Delete unused",
+    "sweep": "Clean up storage",
+    "sweepTitle": "Clean up storage?",
+    "sweepDescription": "Removes stored image files that no longer belong to any entry (leftovers of failed deletions). Recent uploads are never touched.",
+    "sweepConfirm": "Clean up",
+    "pagination": "Pages",
+    "prev": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {pages}"
   },
   "symbols": {
     "title": "Symbol library",
@@ -949,7 +1180,8 @@
     "delete": "Delete",
     "deleteTitle": "Delete symbol?",
     "deleteUsed": "“{name}” is used {count, plural, one {# time} other {# times}}. Seats fall back to the default shape and icons are removed from elements.",
-    "deleteUnused": "“{name}” is not used anywhere."
+    "deleteUnused": "“{name}” is not used anywhere.",
+    "toMedia": "Media library"
   },
   "wallet": {
     "title": "Wallet passes",

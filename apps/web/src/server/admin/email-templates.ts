@@ -281,7 +281,7 @@ export async function generateTemplateTextAction(bodyHtml: string): Promise<stri
 
 export type TemplateTestResult =
   | { status: 'success'; to: string }
-  | { status: 'error'; code: 'invalid' | 'failed'; message?: string };
+  | { status: 'error'; code: 'invalid' | 'notConfigured' | 'failed'; message?: string };
 
 /** Sends the unsaved draft with sample data to the signed-in admin. */
 export async function sendEmailTemplateTestAction(
@@ -309,5 +309,9 @@ export async function sendEmailTemplateTestAction(
   });
   return result.ok
     ? { status: 'success', to: session.email }
-    : { status: 'error', code: 'failed', message: result.error };
+    : result.reason === 'validation'
+      ? { status: 'error', code: 'invalid' }
+      : result.reason === 'smtpNotConfigured'
+        ? { status: 'error', code: 'notConfigured' }
+        : { status: 'error', code: 'failed', message: result.error };
 }

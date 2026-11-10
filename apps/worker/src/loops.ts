@@ -1,4 +1,9 @@
-import { sweepExpiredLocks, tickWaitingRooms, type CoreContext } from '@tix/core';
+import {
+  createMaintenanceProbe,
+  sweepExpiredLocks,
+  tickWaitingRooms,
+  type CoreContext,
+} from '@tix/core';
 import type { Logger } from './logger';
 
 /**
@@ -28,6 +33,7 @@ export function startLoops(ctx: CoreContext, workerId: string, logger: Logger): 
   let leader = false;
   let running = true;
   let current: Promise<void> = Promise.resolve();
+  const maintenance = createMaintenanceProbe(ctx);
 
   const iteration = async () => {
     try {
@@ -35,6 +41,8 @@ export function startLoops(ctx: CoreContext, workerId: string, logger: Logger): 
       if (acquired !== leader) logger.info({ leader: acquired }, 'loop leadership changed');
       leader = acquired;
       if (!leader) return;
+      // The database is being replaced (restore): the sweepers must not touch it.
+      if (await maintenance()) return;
       const released = await sweepExpiredLocks(ctx);
       if (released > 0) logger.debug({ released }, 'expired seat locks released');
       await tickWaitingRooms(ctx);

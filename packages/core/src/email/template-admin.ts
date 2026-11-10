@@ -19,7 +19,7 @@ import {
   type TemplateValidation,
 } from './editor';
 import type { EmailTemplateRow } from './render';
-import { smtpSender, type MailSender } from './transport';
+import { EmailConfigurationError, smtpSender, type MailSender } from './transport';
 import { shopVariables } from './variables';
 
 /** Admin service of the e-mail template editor (list, edit, override, reset, test send). */
@@ -311,7 +311,9 @@ export async function resetEmailTemplate(
 }
 
 export type DraftTestResult =
-  { ok: true; messageId: string; providerMessageId: string | null } | { ok: false; error: string };
+  | { ok: true; messageId: string; providerMessageId: string | null }
+  /** `reason` lets the UI show a translated message; `error` stays the technical detail. */
+  | { ok: false; error: string; reason: 'validation' | 'smtpNotConfigured' | 'delivery' };
 
 /**
  * Sends the (unsaved) draft with sample data to `to`: subject is prefixed with "[Test]". The
@@ -331,7 +333,11 @@ export async function sendDraftTestEmail(
     baseUrl: ctx.appUrl ?? null,
   });
   if (validation.errors.length > 0) {
-    return { ok: false, error: validation.errors.map((e) => e.detail).join('; ') };
+    return {
+      ok: false,
+      error: validation.errors.map((e) => e.detail).join('; '),
+      reason: 'validation',
+    };
   }
   const { variables: shop } = await shopVariables(ctx, params.locale);
   const rendered = renderTemplateDraft(
@@ -359,7 +365,11 @@ export async function sendDraftTestEmail(
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     await logTest(ctx, params, subject, 'FAILED', null, error);
-    return { ok: false, error };
+    return {
+      ok: false,
+      error,
+      reason: err instanceof EmailConfigurationError ? 'smtpNotConfigured' : 'delivery',
+    };
   }
   const messageId = await logTest(ctx, params, subject, 'SENT', providerMessageId, null);
   return { ok: true, messageId, providerMessageId };

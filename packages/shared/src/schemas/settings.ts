@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SEAT_SELECTION_STYLES } from '../enums';
+import { accountingSchema } from './accounting';
 import { GERMAN_STATES } from '../payments/business-days';
 import {
   countryCodeSchema,
@@ -75,6 +76,8 @@ const invoicingSchema = z.object({
   invoiceNumberPattern: numberPattern.default('RE-{YYYY}-{SEQ:6}'),
   creditNoteNumberPattern: numberPattern.default('GS-{YYYY}-{SEQ:6}'),
   invoiceFooter: z.string().max(4_000).optional(),
+  /** Box office: above this gross total (cents) an invoice needs the buyer's name and address (Kleinbetragsrechnung limit). */
+  smallAmountInvoiceLimit: z.number().int().min(0).max(100_000_000).default(25_000),
 });
 
 const checkoutSchema = z.object({
@@ -96,6 +99,11 @@ const checkoutSchema = z.object({
   requirePhone: z.boolean().default(true),
   /** Billing address is mandatory in the online checkout (invoice). */
   requireBillingAddress: z.boolean().default(true),
+  /**
+   * Cancelling a paid order: pre-selected answer to "refund the service fees as well?" (the admin
+   * can change it per cancellation).
+   */
+  refundFeesByDefault: z.boolean().default(false),
 });
 
 const bankTransferSchema = z
@@ -112,6 +120,8 @@ const bankTransferSchema = z
     /** Federal state whose regional public holidays are skipped (null = nationwide ones only). */
     holidayRegion: z.enum(GERMAN_STATES).nullable().default(null),
     reminderAfterDays: z.number().int().min(1).max(60).default(4),
+    /** Days after which an unpaid additional-payment request (tariff change) gets one reminder. */
+    adjustmentReminderDays: z.number().int().min(1).max(60).default(7),
     /** Days until unpaid orders are cancelled automatically. Null = no automatic cancellation. */
     cancelAfterDays: z.number().int().min(1).max(90).nullable().default(8),
     /** Vorkasse is not offered when the event starts within this many days. */
@@ -199,6 +209,14 @@ const securitySchema = z.object({
   adminSessionTtlHours: z.number().int().min(1).max(720).default(12),
   maxFailedLogins: z.number().int().min(3).max(50).default(5),
   lockoutMinutes: z.number().int().min(1).max(1_440).default(15),
+  /** Minimum length of admin passwords (set / change). */
+  minPasswordLength: z.number().int().min(8).max(128).default(12),
+  /** Every admin must use an authenticator app (TOTP); users without one are forced to set it up. */
+  requireTwoFactor: z.boolean().default(false),
+  /** Validity of the invitation link for new admin users. */
+  inviteTtlHours: z.number().int().min(1).max(720).default(72),
+  /** Validity of the admin password reset link. */
+  passwordResetTtlMinutes: z.number().int().min(5).max(1_440).default(60),
 });
 
 /** How seats are drawn on the public seating chart (colours of the non-free states). */
@@ -215,6 +233,12 @@ const seatDisplaySchema = z.object({
   selectionColor: hexColorSchema.default('#18181B'),
   /** How the customer's own seats are marked: ring around the seat, filled, or both. */
   selectionStyle: z.enum(SEAT_SELECTION_STYLES).default('RING'),
+  /** Seat change editor (admin): the order's seats that stay as they are. */
+  seatChangeCurrentColor: hexColorSchema.default('#2563EB'),
+  /** Seat change editor: a seat that is being replaced once an alternative is picked. */
+  seatChangeReplacedColor: hexColorSchema.default('#DC2626'),
+  /** Seat change editor: the chosen alternative seat. */
+  seatChangeNewColor: hexColorSchema.default('#16A34A'),
 });
 
 /** Optional customer accounts on top of guest checkout. */
@@ -229,6 +253,65 @@ const customerAccountsSchema = z.object({
   passwordResetTtlMinutes: z.number().int().min(5).max(1_440).default(60),
   /** Passwordless sign-in via e-mail link. */
   loginLinkEnabled: z.boolean().default(true),
+  /** Validity of the passwordless sign-in link (default = the former shared reset lifetime). */
+  loginLinkTtlMinutes: z.number().int().min(5).max(1_440).default(60),
+});
+
+export const BACKUP_FREQUENCIES = ['DAILY', 'WEEKLY'] as const;
+export type BackupFrequency = (typeof BACKUP_FREQUENCIES)[number];
+
+/** Scheduled full backups (database + object storage), retention and the optional external S3 target. */
+const backupSchema = z.object({
+  scheduleEnabled: z.boolean().default(false),
+  frequency: z.enum(BACKUP_FREQUENCIES).default('DAILY'),
+  /** Weekly runs only: 0 = Sunday … 6 = Saturday (shop time zone). */
+  weekday: z.number().int().min(0).max(6).default(1),
+  /** Local time of day (shop time zone), HH:MM. */
+  time: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .default('03:00'),
+  /** Scheduled backups kept (oldest are deleted); manual backups are kept until deleted. */
+  keepScheduled: z.number().int().min(1).max(365).default(14),
+  /**
+   * Manual and safety (pre-restore) backups older than this many days are deleted; 0 = keep until
+   * deleted by hand. They contain personal data: GDPR Art. 17 may require a limit. The newest
+   * verified backup is never deleted.
+   */
+  manualMaxAgeDays: z.number().int().min(0).max(3_650).default(0),
+  /** Largest backup file accepted by the upload (counted while streaming). */
+  maxUploadMb: z.number().int().min(1).max(1_048_576).default(20_480),
+  /** Restore needs a second factor (authenticator / recovery code); users without 2FA cannot restore. */
+  restoreRequiresTwoFactor: z.boolean().default(true),
+  externalEnabled: z.boolean().default(false),
+  externalEndpoint: z.url().optional(),
+  externalBucket: z.string().trim().min(3).max(63).optional(),
+  externalRegion: z.string().trim().min(1).max(64).default('us-east-1'),
+  /** Key prefix inside the external bucket (no leading slash). */
+  externalPrefix: z.string().trim().max(200).default(''),
+  externalForcePathStyle: z.boolean().default(true),
+  /** Allow plain http:// endpoints (default: https only). */
+  allowInsecureEndpoint: z.boolean().default(false),
+  /** Allow endpoints resolving to loopback / private / link-local addresses (e.g. a LAN MinIO). */
+  allowPrivateNetwork: z.boolean().default(false),
+  /** A failed scheduled backup is reported to this address (in addition to the dashboard). */
+  alertEmail: z.email().optional(),
+});
+/** Data protection (GDPR): retention periods of personal data outside the accounting records. */
+const privacySchema = z.object({
+  /** Stored e-mail variables / error texts of delivered messages are erased after this many days; 0 = keep. */
+  emailRetentionDays: z.number().int().min(0).max(3_650).default(365),
+  /**
+   * Invoices and credit notes must be kept this many years after the end of the year of issue.
+   * Billing data of anonymised customers stays on their orders until then.
+   */
+  invoiceRetentionYears: z.number().int().min(1).max(30).default(10),
+  /** Personal fields of stored payment webhooks (payer, name, e-mail, address) are erased after this many days; 0 = keep. */
+  webhookRetentionDays: z.number().int().min(0).max(3_650).default(90),
+});
+const backupCredentialsSchema = z.object({
+  accessKeyId: z.string().min(1).max(256),
+  secretAccessKey: z.string().min(1).max(1_024),
 });
 
 export interface SettingDefinition<S extends z.ZodType = z.ZodType> {
@@ -314,7 +397,7 @@ export const SETTINGS = {
   security: define({
     schema: securitySchema,
     secret: false,
-    description: 'Session and lockout policy (admins and customer accounts)',
+    description: 'Admin sessions, lockout, passwords, two-factor and invitations',
   }),
   seatDisplay: define({
     schema: seatDisplaySchema,
@@ -325,6 +408,26 @@ export const SETTINGS = {
     schema: customerAccountsSchema,
     secret: false,
     description: 'Optional customer accounts and guest checkout',
+  }),
+  privacy: define({
+    schema: privacySchema,
+    secret: false,
+    description: 'Data retention periods (GDPR)',
+  }),
+  backup: define({
+    schema: backupSchema,
+    secret: false,
+    description: 'Scheduled backups, retention and external S3 target',
+  }),
+  accounting: define({
+    schema: accountingSchema,
+    secret: false,
+    description: 'Accounting export: chart of accounts, DATEV master data',
+  }),
+  'backup.external.credentials': define({
+    schema: backupCredentialsSchema,
+    secret: true,
+    description: 'Access keys of the external backup target',
   }),
 } as const;
 

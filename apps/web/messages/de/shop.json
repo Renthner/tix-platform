@@ -40,7 +40,10 @@
     "legend": {
       "unavailable": "Verkauft",
       "selected": "Deine Auswahl",
-      "inOtherCart": "In einem anderen Warenkorb"
+      "inOtherCart": "In einem anderen Warenkorb",
+      "blocked": "Nicht verfügbar (gesperrt)",
+      "wheelchair": "Rollstuhlplatz",
+      "companion": "Begleitplatz"
     },
     "bestAvailable": {
       "title": "Bestplatzbuchung",

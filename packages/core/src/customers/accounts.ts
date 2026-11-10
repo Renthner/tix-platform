@@ -12,6 +12,7 @@ import {
 import { rateLimit } from '@tix/redis';
 import {
   SUPPORTED_LOCALES,
+  localized,
   postalAddressSchema,
   type AppLocale,
   type CustomerTokenPurpose,
@@ -19,6 +20,7 @@ import {
   type OrderStatus,
   type PaymentMethod,
   type PostalAddress,
+  normalizeLocale,
 } from '@tix/shared';
 import {
   generateToken,
@@ -129,6 +131,8 @@ export interface CustomerSessionRecord {
   emailVerified: boolean;
   /** False after a passwordless first sign-in (login link) – the customer can set one. */
   hasPassword: boolean;
+  /** Set when the session was created by linking a signed-in admin (see admin-link.ts). */
+  linkedAdminUserId: string | null;
   expiresAt: Date;
 }
 
@@ -227,7 +231,10 @@ export function safeReturnPath(value: unknown): string | null {
   }
   if (url.origin !== 'http://return.invalid') return null;
   const path = `${url.pathname}${url.search}${url.hash}`.replace(localePrefix, '') || '/';
-  return path.startsWith('/') && !path.startsWith('//') ? path : `/${path}`;
+  // "//host" after URL normalisation / locale stripping (e.g. "/en//evil.example", "/.//evil")
+  // would be a protocol-relative URL: reject, never repair.
+  if (path.startsWith('//') || path.includes('\\')) return null;
+  return path.startsWith('/') ? path : `/${path}`;
 }
 
 /** Absolute link to an account page for e-mails, e.g. https://shop.example/de/account/verify?token=… */
@@ -351,8 +358,8 @@ type AccountSettings = Awaited<ReturnType<typeof requireAccounts>>;
 const tokenTtlMs = (settings: AccountSettings, purpose: CustomerTokenPurpose) =>
   purpose === 'EMAIL_VERIFICATION'
     ? settings.emailVerificationTtlHours * 3_600_000
-    : // Login links are sign-in credentials like reset links and share their lifetime.
-      settings.passwordResetTtlMinutes * 60_000;
+    : (purpose === 'LOGIN_LINK' ? settings.loginLinkTtlMinutes : settings.passwordResetTtlMinutes) *
+      60_000;
 
 /**
  * Issues a single-use token and stores the e-mail carrying its link in the outbox – both in
@@ -523,11 +530,18 @@ export async function sendEmailVerification(
 /**
  * Consumes an e-mail verification token. A link opened a second time (or first by a mail
  * scanner) reports `alreadyVerified` instead of an error while the token has not expired.
+ *
+ * First proof of the address: a password set while it was unverified may stem from someone
+ * else, so it is discarded together with all sessions (`passwordCleared`, as in
+ * `consumeLoginLink`) – unless the verifying browser holds a session of this very account
+ * (`sessionToken`, the registrant confirming in the browser they signed in with): then the
+ * password stays and only the other sessions end.
  */
 export async function verifyCustomerEmail(
   ctx: CoreContext,
   token: string,
-): Promise<{ customerId: string; alreadyVerified: boolean }> {
+  options: { sessionToken?: string | null } = {},
+): Promise<{ customerId: string; alreadyVerified: boolean; passwordCleared?: boolean }> {
   await requireAccounts(ctx);
   return withTransaction(ctx.db, async (tx) => {
     const customerId = await consumeToken(tx, token, 'EMAIL_VERIFICATION');
@@ -549,13 +563,42 @@ export async function verifyCustomerEmail(
       if (used?.verifiedAt) return { customerId: used.customerId, alreadyVerified: true };
       throw tokenInvalid();
     }
-    const [updated] = await tx
-      .update(customers)
-      .set({ emailVerifiedAt: verifiedNow })
+    const [customer] = await tx
+      .select({ emailVerifiedAt: customers.emailVerifiedAt, passwordHash: customers.passwordHash })
+      .from(customers)
       .where(and(eq(customers.id, customerId), activeAccount))
-      .returning({ id: customers.id });
-    if (!updated) throw tokenInvalid();
-    return { customerId, alreadyVerified: false };
+      .for('update');
+    if (!customer) throw tokenInvalid();
+    const firstProof = customer.emailVerifiedAt === null;
+    let passwordCleared = false;
+    if (firstProof) {
+      const own = isPlausibleToken(options.sessionToken) ? hashToken(options.sessionToken) : null;
+      const [ownSession] = own
+        ? await tx
+            .select({ tokenHash: customerSessions.tokenHash })
+            .from(customerSessions)
+            .where(
+              and(eq(customerSessions.tokenHash, own), eq(customerSessions.customerId, customerId)),
+            )
+        : [];
+      passwordCleared = customer.passwordHash !== null && !ownSession;
+      await tx
+        .delete(customerSessions)
+        .where(
+          and(
+            eq(customerSessions.customerId, customerId),
+            ownSession && own ? ne(customerSessions.tokenHash, own) : undefined,
+          ),
+        );
+    }
+    await tx
+      .update(customers)
+      .set({
+        emailVerifiedAt: verifiedNow,
+        ...(passwordCleared ? { passwordHash: null, failedLoginCount: 0, lockedUntil: null } : {}),
+      })
+      .where(eq(customers.id, customerId));
+    return { customerId, alreadyVerified: false, passwordCleared };
   });
 }
 
@@ -592,45 +635,142 @@ export async function authenticateCustomer(
     .where(and(byEmail(email), activeAccount));
 
   if (!row?.passwordHash) {
-    const attempt = await rateLimit(
-      ctx.redis,
-      ctx.keys,
-      'customer-login-unknown',
-      hashToken(email).slice(0, 40),
-      security.maxFailedLogins - 1,
-      security.lockoutMinutes * 60_000,
-    );
-    if (attempt.count > security.maxFailedLogins) throw accountLocked(security.lockoutMinutes);
+    const failure = await unknownLoginFailure(ctx, security, email);
     await verifyPassword(await timingDummy(), password);
-    throw attempt.allowed ? invalidCredentials() : accountLocked(security.lockoutMinutes);
+    throw failure;
   }
 
   if (row.locked) throw accountLocked(security.lockoutMinutes);
 
   if (!(await verifyPassword(row.passwordHash, password))) {
-    const reached = sql`${customers.failedLoginCount} + 1 >= ${security.maxFailedLogins}`;
-    const [updated] = await ctx.db
-      .update(customers)
-      .set({
-        failedLoginCount: sql`CASE WHEN ${reached} THEN 0 ELSE ${customers.failedLoginCount} + 1 END`,
-        lockedUntil: sql`CASE WHEN ${reached}
-          THEN now() + make_interval(mins => ${security.lockoutMinutes}::int)
-          ELSE ${customers.lockedUntil} END`,
-      })
-      .where(eq(customers.id, row.id))
-      .returning({ locked: sql<boolean>`coalesce(${customers.lockedUntil} > now(), false)` });
-    throw updated?.locked ? accountLocked(security.lockoutMinutes) : invalidCredentials();
+    throw await passwordLoginFailure(ctx, security, row.id);
   }
 
+  await clearCustomerLoginFailures(ctx, row.id, row.passwordHash, password);
+  return { customerId: row.id };
+}
+
+type SecuritySettings = Awaited<ReturnType<typeof getSecuritySettings>>;
+const getSecuritySettings = (ctx: Pick<CoreContext, 'db'>) => getSetting(ctx, 'security');
+
+/** Unknown address / guest / password-less account: Redis counter, same sequence as a real account. */
+async function unknownLoginFailure(
+  ctx: CoreContext,
+  security: SecuritySettings,
+  email: string,
+): Promise<DomainError> {
+  const attempt = await rateLimit(
+    ctx.redis,
+    ctx.keys,
+    'customer-login-unknown',
+    hashToken(email).slice(0, 40),
+    security.maxFailedLogins - 1,
+    security.lockoutMinutes * 60_000,
+  );
+  if (attempt.count > security.maxFailedLogins) return accountLocked(security.lockoutMinutes);
+  return attempt.allowed ? invalidCredentials() : accountLocked(security.lockoutMinutes);
+}
+
+/** Counts a wrong password of an existing account; returns the error to throw. */
+async function passwordLoginFailure(
+  ctx: CoreContext,
+  security: SecuritySettings,
+  customerId: string,
+): Promise<DomainError> {
+  const reached = sql`${customers.failedLoginCount} + 1 >= ${security.maxFailedLogins}`;
+  const [updated] = await ctx.db
+    .update(customers)
+    .set({
+      failedLoginCount: sql`CASE WHEN ${reached} THEN 0 ELSE ${customers.failedLoginCount} + 1 END`,
+      lockedUntil: sql`CASE WHEN ${reached}
+          THEN now() + make_interval(mins => ${security.lockoutMinutes}::int)
+          ELSE ${customers.lockedUntil} END`,
+    })
+    .where(eq(customers.id, customerId))
+    .returning({ locked: sql<boolean>`coalesce(${customers.lockedUntil} > now(), false)` });
+  return updated?.locked ? accountLocked(security.lockoutMinutes) : invalidCredentials();
+}
+
+async function clearCustomerLoginFailures(
+  ctx: CoreContext,
+  customerId: string,
+  passwordHash: string,
+  password: string,
+): Promise<void> {
   await ctx.db
     .update(customers)
     .set({
       failedLoginCount: 0,
       lockedUntil: null,
-      ...(needsRehash(row.passwordHash) ? { passwordHash: await hashPassword(password) } : {}),
+      ...(needsRehash(passwordHash) ? { passwordHash: await hashPassword(password) } : {}),
     })
-    .where(eq(customers.id, row.id));
-  return { customerId: row.id };
+    // Optimistic guard: a concurrent takeover guard / password change wins.
+    .where(and(eq(customers.id, customerId), eq(customers.passwordHash, passwordHash)));
+}
+
+export type CustomerPasswordCheck =
+  /** Match; `passwordHash` is the verified hash (pass it to `createCustomerSession`). */
+  | { status: 'ok'; customerId: string; passwordHash: string }
+  /** The password is right but the account is locked (not a failure, no session). */
+  | { status: 'locked-match' }
+  | { status: 'invalid' };
+
+/**
+ * Password check WITHOUT counting a failure (shop sign-in shared with admin accounts): the
+ * result for e-mail + password (`invalid` also when customer accounts are disabled). Unknown,
+ * locked and password-less accounts do the same Argon2 work.
+ * A caller that ends up with no match at all counts it via `countCustomerLoginFailure`.
+ */
+export async function checkCustomerPassword(
+  ctx: CoreContext,
+  input: CustomerLoginInput,
+): Promise<CustomerPasswordCheck> {
+  if (!(await customerAccountsEnabled(ctx))) return { status: 'invalid' };
+  const parsed = customerLoginSchema.safeParse(input);
+  if (!parsed.success) return { status: 'invalid' };
+  const { email, password } = parsed.data;
+  const [row] = await ctx.db
+    .select({
+      id: customers.id,
+      passwordHash: customers.passwordHash,
+      locked: sql<boolean>`coalesce(${customers.lockedUntil} > now(), false)`,
+    })
+    .from(customers)
+    .where(and(byEmail(email), activeAccount));
+  if (!row?.passwordHash) {
+    await verifyPassword(await timingDummy(), password);
+    return { status: 'invalid' };
+  }
+  // Locked accounts do the same Argon2 work against the real hash.
+  if (!(await verifyPassword(row.passwordHash, password))) return { status: 'invalid' };
+  if (row.locked) return { status: 'locked-match' };
+  await clearCustomerLoginFailures(ctx, row.id, row.passwordHash, password);
+  return { status: 'ok', customerId: row.id, passwordHash: row.passwordHash };
+}
+
+/**
+ * Counts a failed customer sign-in like `authenticateCustomer` (account row, or the Redis
+ * counter for unknown addresses) and returns the error to show: INVALID_CREDENTIALS or
+ * ACCOUNT_LOCKED. No password work. Customer accounts disabled: always INVALID_CREDENTIALS.
+ */
+export async function countCustomerLoginFailure(
+  ctx: CoreContext,
+  emailInput: string,
+): Promise<DomainError> {
+  const email = customerEmailSchema.safeParse(emailInput);
+  if (!email.success || !(await customerAccountsEnabled(ctx))) return invalidCredentials();
+  const security = await getSetting(ctx, 'security');
+  const [row] = await ctx.db
+    .select({
+      id: customers.id,
+      passwordHash: customers.passwordHash,
+      locked: sql<boolean>`coalesce(${customers.lockedUntil} > now(), false)`,
+    })
+    .from(customers)
+    .where(and(byEmail(email.data), activeAccount));
+  if (!row?.passwordHash) return unknownLoginFailure(ctx, security, email.data);
+  if (row.locked) return accountLocked(security.lockoutMinutes);
+  return passwordLoginFailure(ctx, security, row.id);
 }
 
 // ─── Passwordless login link ──────────────────────────────────────────────────────────
@@ -785,6 +925,15 @@ export async function resetCustomerPassword(
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────────────
 
+export interface SessionOptions {
+  /** Password sign-in: fail (INVALID_CREDENTIALS) unless this hash is still the account's. */
+  requirePasswordHash?: string;
+  /** Session created by linking this admin: revoked with the admin's access. */
+  linkedAdminUserId?: string;
+  /** The session never outlives this moment (the admin session's expiry). */
+  cap?: Date;
+}
+
 /**
  * Opens a session for a customer account. Returns the clear token for the cookie (only its
  * hash is stored) and the cookie lifetime (`customerAccounts.sessionTtlDays`).
@@ -793,18 +942,37 @@ export async function createCustomerSession(
   ctx: CoreContext,
   customerId: string,
   meta: CustomerRequestMeta = {},
+  options: SessionOptions = {},
 ): Promise<{ token: string; expiresAt: Date; maxAgeSeconds: number }> {
   const settings = await requireAccounts(ctx);
-  const maxAgeSeconds = settings.sessionTtlDays * 86_400;
+  let maxAgeSeconds = settings.sessionTtlDays * 86_400;
+  if (options.cap) {
+    maxAgeSeconds = Math.min(
+      maxAgeSeconds,
+      Math.max(1, Math.floor((options.cap.getTime() - Date.now()) / 1_000)),
+    );
+  }
   const expiresAt = new Date(Date.now() + maxAgeSeconds * 1_000);
   const token = generateToken(TOKEN_BYTES);
   await withTransaction(ctx.db, async (tx) => {
     const [customer] = await tx
       .update(customers)
       .set({ lastLoginAt: new Date() })
-      .where(and(eq(customers.id, customerId), activeAccount))
+      .where(
+        and(
+          eq(customers.id, customerId),
+          activeAccount,
+          // Password sign-in: the verified hash must still be current (the admin-link takeover
+          // guard may have removed it meanwhile; the row lock serialises both).
+          options.requirePasswordHash
+            ? eq(customers.passwordHash, options.requirePasswordHash)
+            : undefined,
+        ),
+      )
       .returning({ id: customers.id });
-    if (!customer) throw customerNotFound();
+    if (!customer) {
+      throw options.requirePasswordHash ? invalidCredentials() : customerNotFound();
+    }
     await tx
       .delete(customerSessions)
       .where(
@@ -817,6 +985,7 @@ export async function createCustomerSession(
       tokenHash: hashToken(token),
       customerId,
       expiresAt,
+      linkedAdminUserId: options.linkedAdminUserId ?? null,
       ipAddress: validIp(meta.ipAddress),
       userAgent: meta.userAgent ? meta.userAgent.slice(0, 500) : null,
     });
@@ -848,6 +1017,7 @@ export async function resolveCustomerSession(
       locale: customers.locale,
       emailVerifiedAt: customers.emailVerifiedAt,
       hasPassword: sql<boolean>`${customers.passwordHash} IS NOT NULL`,
+      linkedAdminUserId: customerSessions.linkedAdminUserId,
       expiresAt: customerSessions.expiresAt,
       lastSeenAt: customerSessions.lastSeenAt,
     })
@@ -881,6 +1051,7 @@ export async function resolveCustomerSession(
     locale: row.locale,
     emailVerified: row.emailVerifiedAt !== null,
     hasPassword: row.hasPassword,
+    linkedAdminUserId: row.linkedAdminUserId,
     expiresAt: row.expiresAt,
   };
 }
@@ -1025,7 +1196,10 @@ export async function changeCustomerPassword(
 export async function listCustomerOrders(
   ctx: CoreContext,
   customerId: string,
-  options: { limit?: number } = {},
+  options: {
+    limit?: number;
+    /** Content locale of event texts (default: shop language). */ locale?: string;
+  } = {},
 ): Promise<CustomerOrderSummary[]> {
   await requireAccounts(ctx);
   const [customer] = await ctx.db
@@ -1060,6 +1234,7 @@ export async function listCustomerOrders(
       eventId: events.id,
       title: events.title,
       subtitle: events.subtitle,
+      translations: events.translations,
       startsAt: events.startsAt,
       timeZone: events.timeZone,
       items: sql<number>`count(*)::int`,
@@ -1075,13 +1250,15 @@ export async function listCustomerOrders(
     .groupBy(orderItems.orderId, events.id)
     .orderBy(asc(events.startsAt), asc(events.title));
 
+  const defaultLocale = normalizeLocale((await getSetting(ctx, 'general')).defaultLocale);
   const byOrder = new Map<string, { events: CustomerOrderEvent[]; ticketCount: number }>();
   for (const row of perEvent) {
     const entry = byOrder.get(row.orderId) ?? { events: [], ticketCount: 0 };
     entry.events.push({
       eventId: row.eventId,
-      title: row.title,
-      subtitle: row.subtitle,
+      title: localized(row, 'title', options.locale, defaultLocale),
+      subtitle:
+        row.subtitle === null ? null : localized(row, 'subtitle', options.locale, defaultLocale),
       startsAt: row.startsAt,
       timeZone: row.timeZone,
     });

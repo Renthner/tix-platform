@@ -4,8 +4,11 @@ import { useTranslations } from 'next-intl';
 import {
   createContext,
   useContext,
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
+  useState,
   useTransition,
   type ComponentProps,
   type FormEvent,
@@ -21,6 +24,24 @@ import { cn } from '@/lib/utils';
 
 export function errorOf(state: ActionState, name: string): FieldErrorCode | undefined {
   return state.status === 'error' ? state.fieldErrors?.[name] : undefined;
+}
+
+/**
+ * Submission round of the surrounding <ActionForm>: `round` counts finished submissions, and
+ * `claimFocus` lets the first invalid field of a round take the focus.
+ */
+const ActionFormRound = createContext<{
+  round: number;
+  claimFocus: (element: HTMLElement) => void;
+} | null>(null);
+
+/** The form control a <Field> wraps (by `htmlFor`, else the first control inside). */
+function controlOf(wrapper: HTMLElement | null, id: string | undefined): HTMLElement | null {
+  if (id) {
+    const byId = document.getElementById(id);
+    if (byId) return byId;
+  }
+  return wrapper?.querySelector<HTMLElement>('input, select, textarea, [role="combobox"]') ?? null;
 }
 
 export function Field({
@@ -39,13 +60,44 @@ export function Field({
   children: ReactNode;
 }) {
   const t = useTranslations('admin.errors');
+  const form = useContext(ActionFormRound);
+  const wrapper = useRef<HTMLDivElement>(null);
+  // The error stays (red border + message) until the user edits the field.
+  const [dismissed, setDismissed] = useState(false);
+  const round = form?.round ?? 0;
+  const claimFocus = form?.claimFocus;
+  useEffect(() => setDismissed(false), [error, round]);
+  const shown = error && !dismissed ? error : undefined;
+  useEffect(() => {
+    if (!shown) return;
+    const control = controlOf(wrapper.current, htmlFor);
+    if (!control) return;
+    control.setAttribute('aria-invalid', 'true');
+    claimFocus?.(control);
+    const clear = () => setDismissed(true);
+    control.addEventListener('input', clear);
+    control.addEventListener('change', clear);
+    return () => {
+      control.removeAttribute('aria-invalid');
+      control.removeEventListener('input', clear);
+      control.removeEventListener('change', clear);
+    };
+  }, [shown, round, htmlFor, claimFocus]);
+  // A new submit shows the (same) error again – also in plain forms outside <ActionForm>.
+  useEffect(() => {
+    const formElement = wrapper.current?.closest('form');
+    if (!formElement) return;
+    const show = () => setDismissed(false);
+    formElement.addEventListener('submit', show);
+    return () => formElement.removeEventListener('submit', show);
+  }, []);
   return (
-    <div className={cn('space-y-1.5', className)}>
+    <div ref={wrapper} className={cn('space-y-1.5', className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
-      {error ? (
+      {shown ? (
         <p className="text-xs text-destructive" role="alert">
-          {t(error)}
+          {t(shown)}
         </p>
       ) : hint ? (
         <p className="text-xs text-muted-foreground">{hint}</p>
@@ -89,6 +141,24 @@ export function ActionForm({
 }) {
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  const [round, setRound] = useState(0);
+  const wasPending = useRef(false);
+  const focusedRound = useRef(-1);
+  useEffect(() => {
+    if (wasPending.current && !pending) setRound((r) => r + 1);
+    wasPending.current = pending;
+  }, [pending]);
+  const claimFocus = useCallback(
+    (element: HTMLElement) => {
+      // Fields claim in document order: the first invalid field of a round gets the focus.
+      if (focusedRound.current === round) return;
+      focusedRound.current = round;
+      element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      element.focus({ preventScroll: true });
+    },
+    [round],
+  );
+  const roundValue = useMemo(() => ({ round, claimFocus }), [round, claimFocus]);
   const lastAt = useRef<number | null>(null);
   useEffect(() => {
     if (!resetOnSuccess || resetOnSuccess.status !== 'success') return;
@@ -114,9 +184,11 @@ export function ActionForm({
 
   return (
     <ActionFormPending.Provider value={pending}>
-      <form ref={formRef} {...props} onSubmit={onSubmit}>
-        {children}
-      </form>
+      <ActionFormRound.Provider value={roundValue}>
+        <form ref={formRef} {...props} onSubmit={onSubmit}>
+          {children}
+        </form>
+      </ActionFormRound.Provider>
     </ActionFormPending.Provider>
   );
 }

@@ -1,4 +1,6 @@
 import { getEventFees, listTaxRatesWithUsage, type FeeRow } from '@tix/core';
+import { EventTranslationPane } from '@/components/admin/event-translation-pane';
+import { getEditLocale } from '@/server/admin/edit-locale';
 import { priceCategories } from '@tix/db';
 import { and, eq, min } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
@@ -48,6 +50,10 @@ export default async function EventFeesPage({
   const row = await getEventWithVenue(id);
   if (!row) notFound();
   const { event } = row;
+  const editLocale = await getEditLocale();
+  if (editLocale) {
+    return <EventTranslationPane eventId={event.id} scope="fees" editLocale={editLocale} />;
+  }
   const { db } = getCore();
   const [fees, taxRates, [cheapest]] = await Promise.all([
     getEventFees(db, event.id),

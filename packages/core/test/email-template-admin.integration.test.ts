@@ -17,6 +17,7 @@ import {
 } from '@tix/db';
 import { runMigrations } from '@tix/db/migrate';
 import { seedReferenceData } from '@tix/db/seed';
+import { EMAIL_TEMPLATE_KEYS } from '@tix/shared';
 import { createSecretBox, parseKeyRing } from '@tix/shared/server';
 import { and, eq, isNull } from 'drizzle-orm';
 import { Redis } from 'ioredis';
@@ -121,7 +122,7 @@ describe.skipIf(!adminUrl || !redisUrl)('e-mail template admin (integration)', (
 
   it('lists every key with default status and no overrides', async () => {
     const list = await listEmailTemplates(handle.db);
-    expect(list).toHaveLength(10);
+    expect(list).toHaveLength(EMAIL_TEMPLATE_KEYS.length);
     const entry = list.find((e) => e.key === key)!;
     expect(entry.locales.en).toMatchObject({ exists: true, isActive: true, isDefault: true });
     expect(entry.locales.de.isDefault).toBe(true);
@@ -292,6 +293,6 @@ describe.skipIf(!adminUrl || !redisUrl)('e-mail template admin (integration)', (
       draft: { subject: 'S', bodyHtml: '<p>x</p>', bodyText: null },
       sender: failing,
     });
-    expect(failed).toEqual({ ok: false, error: 'connection refused' });
+    expect(failed).toEqual({ ok: false, error: 'connection refused', reason: 'delivery' });
   });
 });

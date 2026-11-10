@@ -2,8 +2,8 @@
 
 import {
   DomainError,
-  authenticateCustomer,
   changeCustomerPassword,
+  checkSharedLogin,
   consumeLoginLink,
   customerEmailSchema,
   customerProfileSchema,
@@ -16,9 +16,9 @@ import {
   safeReturnPath,
   sendEmailVerification,
   updateCustomerProfile,
+  verifyAdminPassword,
 } from '@tix/core';
 import { DEFAULT_LOCALE, isAppLocale, type AppLocale } from '@tix/shared';
-import { hashToken } from '@tix/shared/server';
 import { getLocale } from 'next-intl/server';
 import { z } from 'zod';
 import { redirect } from '@/i18n/navigation';
@@ -29,12 +29,13 @@ import type {
   AccountFormState,
   AccountFormValues,
 } from '@/lib/account-form';
+import { continueAdminLogin, emailSubject, signOutShop } from '@/server/admin-login';
+import { assertNotInMaintenance } from '@/server/maintenance-assert';
 import { getCore } from '@/server/core';
 import {
   getCustomerSessionRecord,
   readCustomerSessionToken,
   signInCustomer,
-  signOutCustomer,
 } from '@/server/customer-session';
 import { clientIp, enforceRateLimit } from '@/server/http';
 
@@ -65,9 +66,6 @@ const ok = (message: AccountFormMessage, values?: AccountFormValues): AccountFor
   ...(values ? { values } : {}),
   at: Date.now(),
 });
-
-/** Rate-limit subject for an address without putting the address itself into Redis keys. */
-const emailSubject = (email: string) => hashToken(email.trim().toLowerCase()).slice(0, 32);
 
 /** Runs the rate-limit checks; returns a RATE_LIMITED state when one is exceeded. */
 async function limited(
@@ -167,6 +165,7 @@ export async function loginAction(
   _prev: AccountFormState,
   fd: FormData,
 ): Promise<AccountFormState> {
+  await assertNotInMaintenance();
   const next = safeReturnPath(str(fd, 'next'));
   const rawEmail = str(fd, 'email');
   const email = customerEmailSchema.safeParse(rawEmail);
@@ -187,22 +186,40 @@ export async function loginAction(
     } catch (err) {
       return fromError(err);
     }
-    const { passwordResetTtlMinutes } = await getSetting(core, 'customerAccounts');
-    return ok('linkSent', { email: email.data, minutes: passwordResetTtlMinutes });
+    const { loginLinkTtlMinutes } = await getSetting(core, 'customerAccounts');
+    return ok('linkSent', { email: email.data, minutes: loginLinkTtlMinutes });
   }
 
   const password = str(fd, 'password');
   if (!password) return fail('VALIDATION_FAILED', { fieldErrors: { password: 'required' } });
+  // The form also signs in admin accounts, so the admin sign-in limits apply as well.
   const blocked = await limited([
     ['customer-login-ip', ip, 20, 15 * MINUTE],
     ['customer-login-email', emailSubject(email.data), 10, 15 * MINUTE],
+    ['admin-login-ip', ip, 20, 15 * MINUTE],
+    ['admin-login-email', emailSubject(email.data), 10, 15 * MINUTE],
   ]);
   if (blocked) return blocked;
+  let result: Awaited<ReturnType<typeof checkSharedLogin>>;
   try {
-    const { customerId } = await authenticateCustomer(core, { email: email.data, password });
-    await signInCustomer(customerId);
+    result = await checkSharedLogin(
+      core,
+      { email: email.data, password },
+      ip === '0.0.0.0' ? null : ip,
+    );
+    if (result.kind === 'customer') {
+      await signInCustomer(result.customerId, { requirePasswordHash: result.passwordHash });
+    }
   } catch (err) {
     return fromError(err);
+  }
+  if (result.kind === 'invalid') return fromError(result.error);
+  if (result.kind === 'admin') {
+    // Same path as /admin/login: without two-factor this redirects (and opens both sessions);
+    // with two-factor only the pending cookie is set and the code step follows. (Outside the
+    // try block above: the redirect is an exception.)
+    await continueAdminLogin(result.admin, next ?? '/', 'shop');
+    return { status: 'twoFactor', at: Date.now() };
   }
   return redirect({ href: next ?? '/account', locale });
 }
@@ -212,6 +229,7 @@ export async function loginLinkAction(
   _prev: AccountFormState,
   fd: FormData,
 ): Promise<AccountFormState> {
+  await assertNotInMaintenance();
   const next = safeReturnPath(str(fd, 'next'));
   const locale = await currentLocale();
   const blocked = await limited([['customer-token-ip', await clientIp(), 30, 15 * MINUTE]]);
@@ -226,7 +244,7 @@ export async function loginLinkAction(
 }
 
 export async function signOutAction(): Promise<void> {
-  await signOutCustomer();
+  await signOutShop();
   redirect({ href: '/', locale: await currentLocale() });
 }
 
@@ -236,6 +254,7 @@ export async function registerAction(
   _prev: AccountFormState,
   fd: FormData,
 ): Promise<AccountFormState> {
+  await assertNotInMaintenance();
   const input = {
     firstName: str(fd, 'firstName'),
     lastName: str(fd, 'lastName'),
@@ -271,6 +290,7 @@ export async function forgotPasswordAction(
   _prev: AccountFormState,
   fd: FormData,
 ): Promise<AccountFormState> {
+  await assertNotInMaintenance();
   const rawEmail = str(fd, 'email');
   const email = customerEmailSchema.safeParse(rawEmail);
   if (!email.success) {
@@ -298,6 +318,7 @@ export async function resetPasswordAction(
   _prev: AccountFormState,
   fd: FormData,
 ): Promise<AccountFormState> {
+  await assertNotInMaintenance();
   const password = str(fd, 'password');
   const policy = await passwordErrors(password, str(fd, 'passwordConfirm'), 'password');
   if (Object.keys(policy.fieldErrors).length > 0) {
@@ -328,6 +349,7 @@ export async function resendVerificationAction(
   _prev: AccountFormState,
   fd: FormData,
 ): Promise<AccountFormState> {
+  await assertNotInMaintenance();
   const session = await getCustomerSessionRecord();
   if (!session) return fail('SESSION_EXPIRED');
   const blocked = await limited(mailLimits(await clientIp(), session.email));
@@ -349,6 +371,7 @@ export async function updateProfileAction(
   _prev: AccountFormState,
   fd: FormData,
 ): Promise<AccountFormState> {
+  await assertNotInMaintenance();
   const session = await getCustomerSessionRecord();
   if (!session) return fail('SESSION_EXPIRED');
   const address = {
@@ -383,19 +406,35 @@ export async function changePasswordAction(
   _prev: AccountFormState,
   fd: FormData,
 ): Promise<AccountFormState> {
+  await assertNotInMaintenance();
   const session = await getCustomerSessionRecord();
   if (!session) return fail('SESSION_EXPIRED');
   const currentPassword = str(fd, 'currentPassword');
   const newPassword = str(fd, 'newPassword');
   const policy = await passwordErrors(newPassword, str(fd, 'newPasswordConfirm'), 'newPassword');
   const fieldErrors: FieldErrors = { ...policy.fieldErrors };
-  if (session.hasPassword && !currentPassword) fieldErrors.currentPassword = 'required';
+  // A session created by linking an admin has no customer password: setting one needs proof
+  // of ownership (the admin password), otherwise a stolen session could take the account over.
+  const adminConfirm = !session.hasPassword && session.linkedAdminUserId !== null;
+  if ((session.hasPassword || adminConfirm) && !currentPassword) {
+    fieldErrors.currentPassword = 'required';
+  }
   if (Object.keys(fieldErrors).length > 0) {
     return fail('VALIDATION_FAILED', { fieldErrors, values: { min: policy.min } });
   }
   const blocked = await limited([['customer-password', session.customerId, 10, 15 * MINUTE]]);
   if (blocked) return blocked;
   try {
+    if (adminConfirm) {
+      await verifyAdminPassword(getCore(), session.linkedAdminUserId!, currentPassword).catch(
+        (err: unknown) => {
+          if (err instanceof DomainError && err.code === 'WRONG_PASSWORD') {
+            throw new DomainError('CURRENT_PASSWORD_INVALID', 'The password is not correct', 422);
+          }
+          throw err;
+        },
+      );
+    }
     await changeCustomerPassword(
       getCore(),
       session.customerId,

@@ -49,7 +49,7 @@ export function CartView() {
 
   const currency = cart.currencies[0] ?? 'EUR';
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
         {cart.events.map((event) => (
           <CartEventCard key={event.eventId} event={event} onChange={refresh} />

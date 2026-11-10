@@ -99,6 +99,104 @@
       "when": 1794178667037,
       "tag": "0013_event_shop_sort_order",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794243108733,
+      "tag": "0014_refund_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794244639055,
+      "tag": "0015_box_office_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794247927068,
+      "tag": "0016_admin_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794253437499,
+      "tag": "0017_seatmap_category_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794254210259,
+      "tag": "0018_gdpr_order_anonymization",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794256106108,
+      "tag": "0019_retained_erasures",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794262952654,
+      "tag": "0020_admin_dashboard_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794263886677,
+      "tag": "0021_order_adjustments",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794264305913,
+      "tag": "0022_admin_email_verified",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794277167883,
+      "tag": "0023_additional_payment_cancelled",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794299123389,
+      "tag": "0024_additional_payment_received",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794299634987,
+      "tag": "0025_content_translations",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794300262887,
+      "tag": "0026_seat_map_category_translations",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794309022447,
+      "tag": "0027_refund_batches",
+      "breakpoints": true
     }
   ]
 }

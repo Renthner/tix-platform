@@ -65,7 +65,8 @@ import {
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
-const s3Endpoint = process.env.S3_ENDPOINT;
+// The root `.env` targets the running stack: storage tests only run on explicit opt-in.
+const s3Endpoint = process.env.TEST_S3_OPT_IN === '1' ? process.env.S3_ENDPOINT : undefined;
 const uuid = () => randomUUID();
 
 /** Test transport: nodemailer renders the full MIME message as JSON instead of sending it. */

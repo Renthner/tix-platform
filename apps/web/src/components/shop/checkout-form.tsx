@@ -13,7 +13,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -25,12 +25,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Link, useRouter } from '@/i18n/navigation';
 import { apiFetch, errorCode, errorMessage } from '@/lib/api';
+import { useFieldErrors, type FieldMap } from '@/lib/field-errors';
 import { useEventDate, useMoney } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useCart } from './cart-context';
 import { CartCountdown } from './header-cart';
 
-const COUNTRIES = [
+export const COUNTRIES = [
   'DE',
   'AT',
   'CH',
@@ -86,6 +87,7 @@ interface Props {
 export function CheckoutForm(props: Props) {
   const t = useTranslations('checkout');
   const tErr = useTranslations('common.errors');
+  const fe = useFieldErrors(CHECKOUT_FIELDS, tErr('FIELD_INVALID'));
   const router = useRouter();
   const { refresh: refreshCart } = useCart();
   const available = props.methods.filter((m) => m.available);
@@ -128,6 +130,7 @@ export function CheckoutForm(props: Props) {
     if (!method || pending) return;
     setPending(true);
     setError(null);
+    fe.reset();
     try {
       const result = await apiFetch<{ redirect: string }>('/api/checkout', {
         method: 'POST',
@@ -148,6 +151,7 @@ export function CheckoutForm(props: Props) {
     } catch (err) {
       const code = errorCode(err);
       const message = errorMessage(tErr, err);
+      fe.apply(err);
       setError({ code, message });
       toast.error(message);
       // New prices / availability: re-render the server part, the form keeps its input.
@@ -157,293 +161,309 @@ export function CheckoutForm(props: Props) {
   };
 
   return (
-    <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1fr_380px]" noValidate>
-      <div className="space-y-6">
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="size-4" />
-            <AlertDescription className="flex flex-wrap items-center gap-2">
-              {error.message}
-              {CART_ERRORS.has(error.code) && (
-                <Link href="/cart" className="font-medium underline">
-                  {t('backToCart')}
-                </Link>
-              )}
-              {error.code === 'LOGIN_REQUIRED' && (
-                <Link
-                  href={`/account/login?next=${encodeURIComponent('/checkout')}`}
-                  className="font-medium underline"
-                >
-                  {t('login')}
-                </Link>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
+    <FieldErrorsContext.Provider value={fe}>
+      <form
+        onSubmit={submit}
+        onChange={fe.onFormChange}
+        className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]"
+        noValidate
+      >
+        <div className="space-y-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertDescription className="flex flex-wrap items-center gap-2">
+                {error.message}
+                {CART_ERRORS.has(error.code) && (
+                  <Link href="/cart" className="font-medium underline">
+                    {t('backToCart')}
+                  </Link>
+                )}
+                {error.code === 'LOGIN_REQUIRED' && (
+                  <Link
+                    href={`/account/login?next=${encodeURIComponent('/checkout')}`}
+                    className="font-medium underline"
+                  >
+                    {t('login')}
+                  </Link>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {props.accountsEnabled && !props.customer && <AccountBox />}
-        {props.customer && (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-            <UserCheck className="size-5 text-primary" />
-            <span className="flex-1">
-              {t('account.signedInAs', {
-                name: `${props.customer.firstName} ${props.customer.lastName}`,
-                email: props.customer.email,
-              })}
-            </span>
-            <Link href="/account" className="font-medium underline">
-              {t('account.myAccount')}
-            </Link>
-          </div>
-        )}
+          {props.accountsEnabled && !props.customer && <AccountBox />}
+          {props.customer && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+              <UserCheck className="size-5 text-primary" />
+              <span className="flex-1">
+                {t('account.signedInAs', {
+                  name: `${props.customer.firstName} ${props.customer.lastName}`,
+                  email: props.customer.email,
+                })}
+              </span>
+              <Link href="/account" className="font-medium underline">
+                {t('account.myAccount')}
+              </Link>
+            </div>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('contact.title')}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <FieldBox id="co-first" label={t('contact.firstName')}>
-              <Input
-                id="co-first"
-                autoComplete="given-name"
-                required
-                maxLength={100}
-                value={form.firstName}
-                onChange={set('firstName')}
-              />
-            </FieldBox>
-            <FieldBox id="co-last" label={t('contact.lastName')}>
-              <Input
-                id="co-last"
-                autoComplete="family-name"
-                required
-                maxLength={100}
-                value={form.lastName}
-                onChange={set('lastName')}
-              />
-            </FieldBox>
-            <FieldBox id="co-email" label={t('contact.email')} hint={t('contact.emailHint')}>
-              <Input
-                id="co-email"
-                type="email"
-                autoComplete="email"
-                required
-                maxLength={254}
-                readOnly={Boolean(props.customer)}
-                value={form.email}
-                onChange={set('email')}
-              />
-            </FieldBox>
-            <FieldBox
-              id="co-phone"
-              label={t('contact.phone')}
-              optional={props.requirePhone ? undefined : t('optional')}
-              error={error?.code === 'PHONE_REQUIRED' ? error.message : undefined}
-            >
-              <Input
-                id="co-phone"
-                type="tel"
-                autoComplete="tel"
-                required={props.requirePhone}
-                aria-invalid={error?.code === 'PHONE_REQUIRED' || undefined}
-                maxLength={50}
-                // Mirrors PHONE_PATTERN (escaped for the browser's `v`-flag pattern syntax).
-                pattern="[0-9+\(\)\/.\- ]{5,50}"
-                title={t('contact.phoneHint')}
-                value={form.phone}
-                onChange={set('phone')}
-              />
-            </FieldBox>
-            {!props.requireAddress && (
-              <div className="flex items-center gap-2 sm:col-span-2">
-                <Checkbox
-                  id="co-address"
-                  checked={withAddress}
-                  onCheckedChange={(v) => setWithAddress(v === true)}
-                />
-                <Label htmlFor="co-address" className="font-normal">
-                  {t('address.toggle')}
-                </Label>
-              </div>
-            )}
-            {(withAddress || props.requireAddress) && (
-              <>
-                <FieldBox id="co-company" label={t('address.company')} optional={t('optional')}>
-                  <Input
-                    id="co-company"
-                    autoComplete="organization"
-                    maxLength={200}
-                    value={form.company}
-                    onChange={set('company')}
-                  />
-                </FieldBox>
-                <FieldBox
-                  id="co-street"
-                  label={t('address.street')}
-                  error={error?.code === 'ADDRESS_REQUIRED' ? error.message : undefined}
-                >
-                  <Input
-                    id="co-street"
-                    required
-                    autoComplete="address-line1"
-                    maxLength={200}
-                    value={address.street}
-                    onChange={(e) => setAddress((a) => ({ ...a, street: e.target.value }))}
-                  />
-                </FieldBox>
-                <FieldBox id="co-line2" label={t('address.line2')} optional={t('optional')}>
-                  <Input
-                    id="co-line2"
-                    autoComplete="address-line2"
-                    maxLength={200}
-                    value={address.addressLine2 ?? ''}
-                    onChange={(e) => setAddress((a) => ({ ...a, addressLine2: e.target.value }))}
-                  />
-                </FieldBox>
-                <div className="grid grid-cols-[120px_1fr] gap-4">
-                  <FieldBox id="co-zip" label={t('address.postalCode')}>
-                    <Input
-                      id="co-zip"
-                      required
-                      autoComplete="postal-code"
-                      maxLength={20}
-                      value={address.postalCode}
-                      onChange={(e) => setAddress((a) => ({ ...a, postalCode: e.target.value }))}
-                    />
-                  </FieldBox>
-                  <FieldBox id="co-city" label={t('address.city')}>
-                    <Input
-                      id="co-city"
-                      required
-                      autoComplete="address-level2"
-                      maxLength={120}
-                      value={address.city}
-                      onChange={(e) => setAddress((a) => ({ ...a, city: e.target.value }))}
-                    />
-                  </FieldBox>
-                </div>
-                <FieldBox id="co-country" label={t('address.country')}>
-                  <CountrySelect
-                    locale={props.locale}
-                    value={address.country}
-                    onChange={(country) => setAddress((a) => ({ ...a, country }))}
-                  />
-                </FieldBox>
-              </>
-            )}
-            <div className="sm:col-span-2">
-              <FieldBox id="co-note" label={t('contact.note')} optional={t('optional')}>
-                <Textarea
-                  id="co-note"
-                  rows={2}
-                  maxLength={1000}
-                  value={form.customerNote}
-                  onChange={set('customerNote')}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('contact.title')}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <FieldBox id="co-first" label={t('contact.firstName')}>
+                <Input
+                  id="co-first"
+                  aria-invalid={fe.invalid('co-first')}
+                  autoComplete="given-name"
+                  required
+                  maxLength={100}
+                  value={form.firstName}
+                  onChange={set('firstName')}
                 />
               </FieldBox>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('payment.title')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {available.length === 0 && (
-              <Alert variant="destructive">
-                <AlertDescription>{t('payment.noneAvailable')}</AlertDescription>
-              </Alert>
-            )}
-            {props.methods.map((option) => (
-              <MethodCard
-                key={option.method}
-                option={option}
-                quote={props.quotes[option.method]}
-                selected={method === option.method}
-                onSelect={() => setMethod(option.method)}
-              />
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      <aside>
-        <Card className="lg:sticky lg:top-20">
-          <CardHeader>
-            <CardTitle>{t('summary.title')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {props.expiresAt && (
-              <div className="space-y-1 rounded-md bg-muted px-3 py-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span>{t('summary.reservedFor')}</span>
-                  <CartCountdown expiresAt={props.expiresAt} />
-                </div>
-                {props.graceMinutes > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {t('summary.graceNote', { minutes: props.graceMinutes })}
-                  </p>
-                )}
-              </div>
-            )}
-            <QuoteSummary quote={quote} />
-            {props.requireTerms && (
-              <div className="flex items-start gap-2">
-                <Checkbox
-                  id="co-terms"
-                  className="mt-0.5"
-                  checked={acceptTerms}
-                  onCheckedChange={(v) => setAcceptTerms(v === true)}
+              <FieldBox id="co-last" label={t('contact.lastName')}>
+                <Input
+                  id="co-last"
+                  aria-invalid={fe.invalid('co-last')}
+                  autoComplete="family-name"
+                  required
+                  maxLength={100}
+                  value={form.lastName}
+                  onChange={set('lastName')}
                 />
-                <Label htmlFor="co-terms" className="block text-sm leading-snug font-normal">
-                  {t.rich('terms', {
-                    terms: (chunks) =>
-                      props.termsUrl ? (
-                        <a
-                          href={props.termsUrl}
-                          target="_blank"
-                          rel="noopener"
-                          className="underline"
-                        >
-                          {chunks}
-                        </a>
-                      ) : (
-                        chunks
-                      ),
-                    privacy: (chunks) =>
-                      props.privacyUrl ? (
-                        <a
-                          href={props.privacyUrl}
-                          target="_blank"
-                          rel="noopener"
-                          className="underline"
-                        >
-                          {chunks}
-                        </a>
-                      ) : (
-                        chunks
-                      ),
-                  })}
-                </Label>
+              </FieldBox>
+              <FieldBox id="co-email" label={t('contact.email')} hint={t('contact.emailHint')}>
+                <Input
+                  id="co-email"
+                  aria-invalid={fe.invalid('co-email')}
+                  type="email"
+                  autoComplete="email"
+                  required
+                  maxLength={254}
+                  readOnly={Boolean(props.customer)}
+                  value={form.email}
+                  onChange={set('email')}
+                />
+              </FieldBox>
+              <FieldBox
+                id="co-phone"
+                label={t('contact.phone')}
+                optional={props.requirePhone ? undefined : t('optional')}
+                error={error?.code === 'PHONE_REQUIRED' ? error.message : undefined}
+              >
+                <Input
+                  id="co-phone"
+                  type="tel"
+                  autoComplete="tel"
+                  required={props.requirePhone}
+                  aria-invalid={error?.code === 'PHONE_REQUIRED' || fe.invalid('co-phone')}
+                  maxLength={50}
+                  // Mirrors PHONE_PATTERN (escaped for the browser's `v`-flag pattern syntax).
+                  pattern="[0-9+\(\)\/.\- ]{5,50}"
+                  title={t('contact.phoneHint')}
+                  value={form.phone}
+                  onChange={set('phone')}
+                />
+              </FieldBox>
+              {!props.requireAddress && (
+                <div className="flex items-center gap-2 sm:col-span-2">
+                  <Checkbox
+                    id="co-address"
+                    checked={withAddress}
+                    onCheckedChange={(v) => setWithAddress(v === true)}
+                  />
+                  <Label htmlFor="co-address" className="font-normal">
+                    {t('address.toggle')}
+                  </Label>
+                </div>
+              )}
+              {(withAddress || props.requireAddress) && (
+                <>
+                  <FieldBox id="co-company" label={t('address.company')} optional={t('optional')}>
+                    <Input
+                      id="co-company"
+                      aria-invalid={fe.invalid('co-company')}
+                      autoComplete="organization"
+                      maxLength={200}
+                      value={form.company}
+                      onChange={set('company')}
+                    />
+                  </FieldBox>
+                  <FieldBox
+                    id="co-street"
+                    aria-invalid={fe.invalid('co-street')}
+                    label={t('address.street')}
+                    error={error?.code === 'ADDRESS_REQUIRED' ? error.message : undefined}
+                  >
+                    <Input
+                      id="co-street"
+                      required
+                      autoComplete="address-line1"
+                      maxLength={200}
+                      value={address.street}
+                      onChange={(e) => setAddress((a) => ({ ...a, street: e.target.value }))}
+                    />
+                  </FieldBox>
+                  <FieldBox id="co-line2" label={t('address.line2')} optional={t('optional')}>
+                    <Input
+                      id="co-line2"
+                      aria-invalid={fe.invalid('co-line2')}
+                      autoComplete="address-line2"
+                      maxLength={200}
+                      value={address.addressLine2 ?? ''}
+                      onChange={(e) => setAddress((a) => ({ ...a, addressLine2: e.target.value }))}
+                    />
+                  </FieldBox>
+                  <div className="grid grid-cols-[120px_1fr] gap-4">
+                    <FieldBox id="co-zip" label={t('address.postalCode')}>
+                      <Input
+                        id="co-zip"
+                        aria-invalid={fe.invalid('co-zip')}
+                        required
+                        autoComplete="postal-code"
+                        maxLength={20}
+                        value={address.postalCode}
+                        onChange={(e) => setAddress((a) => ({ ...a, postalCode: e.target.value }))}
+                      />
+                    </FieldBox>
+                    <FieldBox id="co-city" label={t('address.city')}>
+                      <Input
+                        id="co-city"
+                        aria-invalid={fe.invalid('co-city')}
+                        required
+                        autoComplete="address-level2"
+                        maxLength={120}
+                        value={address.city}
+                        onChange={(e) => setAddress((a) => ({ ...a, city: e.target.value }))}
+                      />
+                    </FieldBox>
+                  </div>
+                  <FieldBox id="co-country" label={t('address.country')}>
+                    <CountrySelect
+                      locale={props.locale}
+                      value={address.country}
+                      onChange={(country) => setAddress((a) => ({ ...a, country }))}
+                    />
+                  </FieldBox>
+                </>
+              )}
+              <div className="sm:col-span-2">
+                <FieldBox id="co-note" label={t('contact.note')} optional={t('optional')}>
+                  <Textarea
+                    id="co-note"
+                    aria-invalid={fe.invalid('co-note')}
+                    rows={2}
+                    maxLength={1000}
+                    value={form.customerNote}
+                    onChange={set('customerNote')}
+                  />
+                </FieldBox>
               </div>
-            )}
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full"
-              disabled={pending || !method || (props.requireTerms && !acceptTerms)}
-            >
-              {pending && <Loader2 className="size-4 animate-spin" />}
-              {method === 'PAYPAL' ? t('submitPayPal') : t('submit')}
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              {method === 'PAYPAL' ? t('submitHintPayPal') : t('submitHintBankTransfer')}
-            </p>
-          </CardContent>
-        </Card>
-      </aside>
-    </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('payment.title')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {available.length === 0 && (
+                <Alert variant="destructive">
+                  <AlertDescription>{t('payment.noneAvailable')}</AlertDescription>
+                </Alert>
+              )}
+              {props.methods.map((option) => (
+                <MethodCard
+                  key={option.method}
+                  option={option}
+                  quote={props.quotes[option.method]}
+                  selected={method === option.method}
+                  onSelect={() => setMethod(option.method)}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <aside>
+          <Card className="lg:sticky lg:top-20">
+            <CardHeader>
+              <CardTitle>{t('summary.title')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {props.expiresAt && (
+                <div className="space-y-1 rounded-md bg-muted px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span>{t('summary.reservedFor')}</span>
+                    <CartCountdown expiresAt={props.expiresAt} />
+                  </div>
+                  {props.graceMinutes > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {t('summary.graceNote', { minutes: props.graceMinutes })}
+                    </p>
+                  )}
+                </div>
+              )}
+              <QuoteSummary quote={quote} />
+              {props.requireTerms && (
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="co-terms"
+                    className="mt-0.5"
+                    checked={acceptTerms}
+                    onCheckedChange={(v) => setAcceptTerms(v === true)}
+                  />
+                  <Label htmlFor="co-terms" className="block text-sm leading-snug font-normal">
+                    {t.rich('terms', {
+                      terms: (chunks) =>
+                        props.termsUrl ? (
+                          <a
+                            href={props.termsUrl}
+                            target="_blank"
+                            rel="noopener"
+                            className="underline"
+                          >
+                            {chunks}
+                          </a>
+                        ) : (
+                          chunks
+                        ),
+                      privacy: (chunks) =>
+                        props.privacyUrl ? (
+                          <a
+                            href={props.privacyUrl}
+                            target="_blank"
+                            rel="noopener"
+                            className="underline"
+                          >
+                            {chunks}
+                          </a>
+                        ) : (
+                          chunks
+                        ),
+                    })}
+                  </Label>
+                </div>
+              )}
+              <Button
+                type="submit"
+                size="lg"
+                className="h-auto min-h-10 w-full whitespace-normal py-2 text-center"
+                disabled={pending || !method || (props.requireTerms && !acceptTerms)}
+              >
+                {pending && <Loader2 className="size-4 animate-spin" />}
+                {method === 'PAYPAL' ? t('submitPayPal') : t('submit')}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                {method === 'PAYPAL' ? t('submitHintPayPal') : t('submitHintBankTransfer')}
+              </p>
+            </CardContent>
+          </Card>
+        </aside>
+      </form>
+    </FieldErrorsContext.Provider>
   );
 }
 
@@ -475,6 +495,25 @@ function AccountBox() {
   );
 }
 
+/** Field-level validation state of the checkout form (see `useFieldErrors`). */
+const FieldErrorsContext = createContext<ReturnType<typeof useFieldErrors> | null>(null);
+
+/** Zod issue path (checkout API) → control id. */
+const CHECKOUT_FIELDS: FieldMap = {
+  firstName: 'co-first',
+  lastName: 'co-last',
+  email: 'co-email',
+  phone: 'co-phone',
+  company: 'co-company',
+  customerNote: 'co-note',
+  address: 'co-street',
+  'address.street': 'co-street',
+  'address.addressLine2': 'co-line2',
+  'address.postalCode': 'co-zip',
+  'address.city': 'co-city',
+  'address.country': 'co-country',
+};
+
 function FieldBox({
   id,
   label,
@@ -490,6 +529,8 @@ function FieldBox({
   error?: string;
   children: React.ReactNode;
 }) {
+  const fe = useContext(FieldErrorsContext);
+  const fieldMessage = fe?.message(id);
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>
@@ -498,7 +539,11 @@ function FieldBox({
       </Label>
       {children}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {(error ?? fieldMessage) && (
+        <p className="text-xs text-destructive" role="alert">
+          {error ?? fieldMessage}
+        </p>
+      )}
     </div>
   );
 }
@@ -518,7 +563,8 @@ function CountrySelect({
     <select
       id="co-country"
       autoComplete="country"
-      className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
+      aria-invalid={useContext(FieldErrorsContext)?.invalid('co-country')}
+      className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20"
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >

@@ -132,12 +132,15 @@
       "standing": "Stehplatz",
       "total": "Gesamt",
       "vat": "inkl. {rate} % MwSt.",
-      "paid": "Bezahlt"
+      "paid": "Bezahlt",
+      "refundedItem": "erstattet",
+      "refunded": "Erstattet"
     },
     "documents": {
       "title": "Dokumente",
       "invoice": "Rechnung {number} (PDF)",
-      "creditNote": "Gutschrift {number} (PDF)"
+      "creditNote": "Gutschrift {number} (PDF)",
+      "correction": "Rechnungskorrektur {number} zu {invoice} (PDF)"
     },
     "contact": "Fragen zu deiner Bestellung? Antworte einfach auf die Bestätigungs-E-Mail an {email}.",
     "copy": "Kopieren",
@@ -150,6 +153,38 @@
       "downloadOneLabel": "Ticket {code} als PDF herunterladen",
       "addApple": "Zu Apple Wallet hinzufügen",
       "addGoogle": "Zu Google Wallet hinzufügen"
+    },
+    "refunded": {
+      "title": "Diese Bestellung wurde storniert und erstattet.",
+      "text": "Die Tickets sind nicht mehr gültig."
+    },
+    "partiallyRefunded": {
+      "title": "Einzelne Tickets wurden storniert.",
+      "text": "Die stornierten Tickets sind nicht mehr gültig und wurden erstattet; die übrigen Tickets bleiben gültig."
+    },
+    "refundedAmount": "Erstatteter Betrag: {amount}.",
+    "adjustment": {
+      "title": "Nachzahlung erforderlich",
+      "intro": "Der Tarif der folgenden Tickets wurde auf einen höheren Preis geändert.",
+      "reason": "Grund: {reason}",
+      "amount": "Nachzahlung",
+      "ticketsStayValid": "Deine Tickets bleiben gültig, bis die Nachzahlung beglichen ist.",
+      "confirm": "Zahlungspflichtig bestätigen",
+      "confirmHint": "Nach deiner Bestätigung kannst du per PayPal oder Überweisung bezahlen.",
+      "payPaypal": "Mit PayPal bezahlen",
+      "bankTitle": "Per Überweisung bezahlen",
+      "bankHint": "Bitte gib genau diesen Verwendungszweck an, damit wir deine Überweisung zuordnen können.",
+      "noMethod": "Online ist keine Zahlungsart verfügbar. Bitte melde dich bei uns.",
+      "paypalNotice": {
+        "pending": "PayPal verarbeitet deine Zahlung noch. Sobald sie abgeschlossen ist, bestätigen wir sie per E-Mail.",
+        "cancelled": "Die PayPal-Zahlung wurde abgebrochen. Du kannst es unten erneut versuchen.",
+        "failed": "Die PayPal-Zahlung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
+        "expired": "Diese Nachzahlung ist nicht mehr offen. Wurde Geld abgebucht, wird es automatisch erstattet.",
+        "unavailable": "PayPal ist vorübergehend nicht erreichbar. Bitte versuche es gleich noch einmal."
+      },
+      "difference": "Preisdifferenz",
+      "alreadyPaid": "Bereits bezahlt (Überzahlung)",
+      "rest": "Restbetrag"
     }
   },
   "account": {

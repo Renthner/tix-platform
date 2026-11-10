@@ -1,5 +1,6 @@
+import { normalizeLocale } from '@tix/shared';
 import { emailMessages } from '@tix/db';
-import { and, asc, eq, lt } from 'drizzle-orm';
+import { and, asc, eq, lt, sql } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { QUEUE_NAMES } from '../job-queues';
 import { formatDateTime } from '../format';
@@ -56,7 +57,14 @@ export async function retryEmailMessage(ctx: CoreContext, messageId: string): Pr
   const [row] = await ctx.db
     .update(emailMessages)
     .set({ status: 'QUEUED', lastError: null, updatedAt: new Date() })
-    .where(and(eq(emailMessages.id, messageId), eq(emailMessages.status, 'FAILED')))
+    .where(
+      and(
+        eq(emailMessages.id, messageId),
+        eq(emailMessages.status, 'FAILED'),
+        // Variables erased by the retention job / GDPR anonymisation: nothing left to render.
+        sql`NOT coalesce(${emailMessages.attachments} ? 'purgedAt', false)`,
+      ),
+    )
     .returning({ id: emailMessages.id });
   if (!row) throw new DomainError('EMAIL_NOT_RETRYABLE', 'Only failed e-mails can be retried', 409);
   await dispatchEmailMessage(ctx, messageId, `email-${messageId}-${Date.now().toString(36)}`);
@@ -77,7 +85,7 @@ export async function sendTestEmail(
   let messageId: string | null = null;
   try {
     const general = await getSetting(ctx, 'general');
-    const locale = params.locale ?? general.defaultLocale;
+    const locale = params.locale ?? normalizeLocale(general.defaultLocale);
     messageId = await createEmailMessage(ctx, ctx.db, {
       key: 'SMTP_TEST',
       to: params.to,

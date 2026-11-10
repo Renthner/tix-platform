@@ -307,6 +307,8 @@ export const bankTransactionAllocations = pgTable(
     reversedByUserId: uuid('reversed_by_user_id').references(() => adminUsers.id, {
       onDelete: 'set null',
     }),
+    /** Why the allocation was reversed (admin input; the original `note` stays untouched). */
+    reversalReason: text('reversal_reason'),
     createdAt: createdAt(),
   },
   (t) => [

@@ -41,7 +41,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ local
     methods: PaymentMethodOption[];
   };
   try {
-    options = await getCheckoutOptions(core, sid);
+    options = await getCheckoutOptions(core, sid, locale);
   } catch (err) {
     if (err instanceof DomainError && err.status < 500) return redirect({ href: '/cart', locale });
     throw err;

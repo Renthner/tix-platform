@@ -38,6 +38,14 @@ export const BANKING_FORM_ERRORS = [
   'provider',
   'imap',
   'noCredentials',
+  'alreadyReversed',
+  'reversalBlockedRefunds',
+  'reversalBlockedCheckedIn',
+  'reversalBlockedState',
+  'reversalBlockedPaypalOrder',
+  'reversalBlockedEventStarted',
+  'reversalBlockedAdjustment',
+  'adjustmentAmount',
 ] as const;
 export type BankingFormError = (typeof BANKING_FORM_ERRORS)[number];
 
@@ -59,6 +67,8 @@ export const BANKING_MESSAGES = [
   'upToDate',
   'refreshed',
   'imapOk',
+  'reversed',
+  'reversedReopened',
 ] as const;
 export type BankingMessage = (typeof BANKING_MESSAGES)[number];
 

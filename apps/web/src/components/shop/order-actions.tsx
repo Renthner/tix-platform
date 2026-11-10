@@ -43,8 +43,16 @@ export function CopyValue({
     }
   };
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className={cn(strong && 'text-base font-semibold', mono && 'font-mono')}>{value}</span>
+    <span className="inline-flex max-w-full items-center gap-2">
+      <span
+        className={cn(
+          'min-w-0 break-words',
+          strong && 'text-base font-semibold',
+          mono && 'font-mono',
+        )}
+      >
+        {value}
+      </span>
       <Button
         type="button"
         size="icon"

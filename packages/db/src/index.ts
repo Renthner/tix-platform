@@ -7,3 +7,4 @@ export * from './email-templates';
 export * from './email-template-history';
 export * from './email-template-upgrade';
 export { loadRootEnv } from './env';
+export { Client as PgClient } from 'pg';

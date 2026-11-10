@@ -7,7 +7,7 @@ import {
 import { NextResponse } from 'next/server';
 import { adminForApi } from '@/server/auth';
 import { getCore } from '@/server/core';
-import { apiError, handle, uuidParam } from '@/server/http';
+import { apiError, assertSameOrigin, handle, uuidParam } from '@/server/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +32,7 @@ export async function PUT(request: Request, { params }: Params) {
   return handle(async () => {
     const session = await adminForApi(['EVENT_MANAGER']);
     if (!session) return apiError('FORBIDDEN', 'Not allowed', 403);
+    assertSameOrigin(request);
     const id = uuidParam.parse((await params).id);
     const core = getCore();
     if (!(await getSeatMapMeta(core.db, id)))

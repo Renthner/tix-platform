@@ -1,3 +1,4 @@
+import type { Translations } from '../translations';
 import type { SeatFeature, SectionType, SeatMapElementType } from '../enums';
 import type {
   ElementGeometry,
@@ -29,6 +30,7 @@ export interface PublicCategory {
   sortOrder: number;
   /** Max. tickets of this category per order (null = no category limit). */
   maxPerOrder: number | null;
+  tr?: Translations;
 }
 
 export interface PublicTicketType {
@@ -40,6 +42,7 @@ export interface PublicTicketType {
   requiredSeatFeature: SeatFeature | null;
   maxPerOrder: number | null;
   sortOrder: number;
+  tr?: Translations;
   /** Final gross price (cents) per price category id where this tariff is offered. */
   prices: Record<string, number>;
 }
@@ -60,6 +63,7 @@ export interface PublicSection {
   showNameOnMap: boolean;
   /** Whether the ticket label is shown in the cart / printed on tickets. */
   showLabelOnTicket: boolean;
+  tr?: Translations;
 }
 
 export interface PublicRow {
@@ -78,6 +82,7 @@ export interface PublicElement {
   geometry: ElementGeometry;
   style: ElementStyle;
   zIndex: number;
+  tr?: Translations;
 }
 
 export interface PublicEntrance {
@@ -86,14 +91,15 @@ export interface PublicEntrance {
   code: string;
   x: number;
   y: number;
+  tr?: Translations;
 }
 
 /**
  * Version of the PublicSeatMap payload shape. Part of the snapshot cache key – BUMP IT whenever
  * fields are added / changed, otherwise a deploy keeps serving cached snapshots of the old
- * shape for up to an hour. (3: companion seat partners `w`; 4: category `maxPerOrder`.)
+ * shape for up to an hour. (3: companion seat partners `w`; 4: category `maxPerOrder`; 5: content translations `tr`.)
  */
-export const PUBLIC_MAP_FORMAT = 4;
+export const PUBLIC_MAP_FORMAT = 5;
 
 /** Compact seat (thousands per map): short keys keep the payload small. */
 export interface PublicSeat {

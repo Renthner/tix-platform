@@ -26,14 +26,36 @@
   },
   "errors": {
     "ORDER_NOT_OPEN": "Only unpaid orders can be kept reserved.",
-    "ORDER_NOT_CANCELLABLE": "Only unpaid orders can be cancelled here. Paid orders need a refund (coming with the box office features).",
+    "ORDER_NOT_CANCELLABLE": "Only unpaid orders can be cancelled here. Paid orders are cancelled with the refund form.",
     "ORDER_NOT_PAYABLE": "This order is cancelled or expired and cannot receive payments.",
     "NOTHING_TO_SEND": "There is no e-mail for the current state of this order.",
     "INVALID_AMOUNT": "Please enter a positive amount.",
     "CURRENCY_MISMATCH": "The currency does not match the order.",
     "ORDER_NOT_PAID": "Tickets exist for paid orders only.",
     "NO_TICKETS": "This order has no valid tickets yet.",
-    "TICKET_NOT_FOUND": "Ticket not found."
+    "TICKET_NOT_FOUND": "Ticket not found.",
+    "ORDER_NOT_REFUNDABLE": "Only paid orders can be cancelled and refunded.",
+    "ORDER_CHANGED": "The order was changed in the meantime. Please reload the page and check the tickets again.",
+    "ITEMS_NOT_REFUNDABLE": "Some of the selected tickets are not active any more (already cancelled or refunded). Please reload the page.",
+    "REFUND_NOT_FOUND": "Refund not found.",
+    "REFUND_NOT_RETRYABLE": "Only failed automatic refunds can be retried.",
+    "REFUND_NOT_MANUAL": "This refund is executed automatically by the payment provider.",
+    "ADJUSTMENT_NOT_HIGHER": "The new tariff must cost more than the price paid.",
+    "ADJUSTMENT_NOT_POSSIBLE": "Only paid orders can get a tariff change.",
+    "ADJUSTMENT_NOT_POSSIBLE_REFUNDED": "The tariff of a partially refunded order cannot be changed.",
+    "ADJUSTMENT_NOT_POSSIBLE_COMPLIMENTARY": "Complimentary orders cannot get an additional payment.",
+    "ADJUSTMENT_ALREADY_OPEN": "This order already has an open additional payment.",
+    "ADJUSTMENT_NOT_OPEN": "This additional payment is not open any more.",
+    "ADJUSTMENT_NOT_FOUND": "Additional payment not found.",
+    "ADJUSTMENT_NOT_PAYABLE": "This additional payment cannot be paid any more.",
+    "TARIFF_NOT_ALLOWED": "This tariff is not offered for the selected ticket.",
+    "ITEM_NOT_ACTIVE": "Only active tickets can be changed.",
+    "ORDER_ITEM_NOT_FOUND": "Ticket not found.",
+    "ADJUSTMENT_OPEN": "This ticket has an open additional payment (tariff change). Reset the tariff first.",
+    "INVOICE_REPAIR_NOT_POSSIBLE": "The invoice of a refunded order cannot be repaired automatically.",
+    "NO_OVERPAYMENT": "This order has no overpayment to refund.",
+    "CREDIT_REQUIRES_FINANCE": "Only finance can credit an overpayment against a tariff change.",
+    "OVERPAYMENT_CHANGED": "The overpayment changed in the meantime – reload the page."
   },
   "admin": {
     "title": "Orders",
@@ -47,7 +69,9 @@
       "event": "Event",
       "allEvents": "All events",
       "overdue": "Overdue transfers only",
-      "apply": "Filter"
+      "apply": "Filter",
+      "channel": "Sales channel",
+      "allChannels": "All channels"
     },
     "empty": "No orders found.",
     "columns": {
@@ -85,7 +109,8 @@
       "keptReserved": "kept reserved",
       "reminders": "Reminders",
       "paidAt": "Paid on",
-      "reason": "Reason"
+      "reason": "Reason",
+      "refunded": "Refunded"
     },
     "items": {
       "title": "Tickets",
@@ -113,10 +138,14 @@
       "status": "Status",
       "reference": "Reference",
       "amount": "Amount",
-      "bank": "Bank transaction"
+      "bank": "Bank transaction",
+      "reversed": "Assignment reversed by {who} on {when}"
     },
     "documents": {
-      "title": "Invoices"
+      "title": "Invoices",
+      "invoice": "Invoice",
+      "creditNote": "Credit note (refund)",
+      "correction": "Invoice correction for {invoice}"
     },
     "history": {
       "title": "History",
@@ -133,7 +162,25 @@
         "late_payment_refunded": "Late payment refunded automatically",
         "external_refund_notice": "Refund reported by the payment provider",
         "shortfall_written_off": "Small underpayment written off (within the matching tolerance)",
-        "invoice_issued": "Invoice issued"
+        "invoice_issued": "Invoice issued",
+        "paid_order_cancelled": "Paid order cancelled",
+        "credit_note_issued": "Credit note issued",
+        "credit_note_missing": "Credit note missing (issue it manually)",
+        "refund_failed": "Refund failed",
+        "refund_retried": "Refund retried",
+        "refund_completed": "Refund completed",
+        "bank_allocation_reversed": "Bank assignment reversed",
+        "box_office_sale": "Box-office sale",
+        "seats_changed": "Seats changed",
+        "note_changed": "Internal note changed",
+        "adjustment_proposed": "Additional payment requested",
+        "adjustment_confirmed": "Additional payment confirmed by the customer",
+        "adjustment_paid": "Additional payment received – tariff changed",
+        "adjustment_cancelled": "Additional payment cancelled",
+        "adjustment_reminder_sent": "Reminder for the additional payment sent",
+        "invoice_correction_needed": "Invoice must be corrected (finance to-do)",
+        "invoice_corrected": "Invoice corrected",
+        "overpayment_refund_requested": "Overpayment refund requested"
       },
       "actors": {
         "SYSTEM": "System",
@@ -141,6 +188,70 @@
         "CUSTOMER": "Customer",
         "WEBHOOK": "Payment provider",
         "DEVICE": "Scanner"
+      },
+      "place": "{section} · row {row} · seat {seat}",
+      "placeNoRow": "{section} · seat {seat}",
+      "placeStanding": "{section} · standing",
+      "detail": {
+        "amountVia": "{amount} via {method}",
+        "tickets": "{count, plural, one {# ticket} other {# tickets}}",
+        "reference": "Payment reference {reference}",
+        "reason": "Reason: {reason}",
+        "items": "Affected: {items}",
+        "overpayment": "Order was already paid (overpayment)",
+        "outstanding": "Still open: {amount}",
+        "shortfall": "Written off: {amount}",
+        "reminder": "Reminder no. {count}",
+        "keepOn": "Reserved until released manually",
+        "keepOff": "Normal payment deadline applies again",
+        "template": "E-mail: {template}",
+        "error": "Error: {message}",
+        "code": "Reason: {code}",
+        "cancelled": "Cancelled: {items}",
+        "credit": "Credit: {amount}",
+        "refundTotal": "To be refunded: {amount}",
+        "feesRefunded": "Fees refunded",
+        "feesKept": "Fees not refunded",
+        "creditNote": "Credit note {number}",
+        "note": "Note: {note}",
+        "noteRemoved": "Note removed",
+        "reversed": "Assignment of {amount} reversed",
+        "reopened": "Order is unpaid again",
+        "ticketsVoided": "{count, plural, one {# ticket} other {# tickets}} voided",
+        "priceOverrides": "{count, plural, one {# price override} other {# price overrides}}",
+        "blockedSold": "{count, plural, one {# blocked seat sold} other {# blocked seats sold}}",
+        "blockedSeat": "blocked seat",
+        "notified": "Customer notified by e-mail",
+        "notNotified": "Customer not notified",
+        "tariffChange": "{from} → {to} ({prices})",
+        "confirmedByPayment": "Confirmed by the incoming payment",
+        "notMailed": "No e-mail address – nothing was sent",
+        "invoiceNumber": "New invoice {number}",
+        "ticketsReissued": "{count, plural, one {# ticket} other {# tickets}} re-issued",
+        "creditUsed": "Credited from the overpayment: {amount}",
+        "settledByCredit": "Settled with the overpayment – nothing to pay"
+      },
+      "refundKinds": {
+        "AUTOMATIC": "PayPal (automatic)",
+        "MANUAL": "Manual transfer"
+      },
+      "email": {
+        "title": "E-mail: {template}",
+        "unknownTemplate": "Message",
+        "to": "To: {email}",
+        "subject": "Subject: {subject}",
+        "sent": "Sent {time}",
+        "queued": "Queued for sending",
+        "sending": "Being sent",
+        "failed": "Failed after {attempts, plural, one {# attempt} other {# attempts}}: {error}",
+        "noError": "no error message",
+        "retryError": "Last error: {error}",
+        "attachments": "Attachments: {files}",
+        "attachmentKinds": {
+          "invoice": "Invoice",
+          "tickets": "Tickets (PDF)"
+        },
+        "meta": "E-mail"
       }
     },
     "feedback": {
@@ -151,7 +262,22 @@
       "paymentPartial": "Partial payment recorded – the order still has an outstanding amount.",
       "emailQueued": "The e-mail has been queued.",
       "noteSaved": "Note saved.",
-      "ticketsQueued": "The tickets have been queued for sending."
+      "ticketsQueued": "The tickets have been queued for sending.",
+      "paidCancelledAutomatic": "Cancelled. {amount} is being refunded to the customer via PayPal automatically.",
+      "paidCancelledManual": "Cancelled. {amount} must now be refunded manually – see “Open refunds”.",
+      "paidCancelledMixed": "Cancelled. {amount} in total: part is refunded via PayPal automatically, the rest must be refunded manually – see “Open refunds”.",
+      "paidCancelledNoRefund": "Cancelled. There is no money to refund.",
+      "refundRetried": "The refund has been queued again.",
+      "refundCompleted": "The refund has been marked as done.",
+      "refundAlreadyCompleted": "This refund was already marked as done.",
+      "adjustmentProposed": "Additional payment requested. The ticket stays valid until it is paid.",
+      "adjustmentProposedNoMail": "Additional payment requested, but the order has no e-mail address – nothing was sent.",
+      "adjustmentCancelled": "Additional payment cancelled – the tariff stays as it was sold.",
+      "adjustmentPaymentRecorded": "Payment recorded – tariff, tickets and invoice were updated.",
+      "invoiceRepaired": "Invoice corrected: credit note and new invoice issued.",
+      "invoiceUpToDate": "The invoice is already up to date.",
+      "overpaymentRefundRequested": "The overpayment refund was created.",
+      "adjustmentSettledByCredit": "The tariff was changed and settled with the overpayment. The customer was e-mailed the new tickets."
     },
     "actions": {
       "keepReserved": {
@@ -192,6 +318,24 @@
         "title": "Send tickets again",
         "description": "Sends the tickets of this paid order again with the ticket PDF attached.",
         "submit": "Send tickets"
+      },
+      "cancelPaid": {
+        "title": "Cancel & refund",
+        "description": "Cancels the selected tickets of this paid order, releases the seats, voids the tickets and issues a credit note. PayPal payments are refunded automatically; bank transfers must be refunded by hand (“Open refunds”).",
+        "noActiveItems": "There are no active tickets left in this order.",
+        "selectAll": "Select all tickets",
+        "selection": "{count, plural, =0 {No ticket selected} one {# ticket selected} other {# tickets selected}}",
+        "feesNote": "plus fees, if selected",
+        "refundFees": "Refund fees",
+        "reason": "Reason (internal, optional)",
+        "notify": "Inform the customer by e-mail",
+        "confirm": "Yes, cancel the selected tickets and refund them",
+        "submit": "Cancel & refund"
+      },
+      "changeSeats": {
+        "title": "Change seats",
+        "description": "Moves tickets of this order to other seats with the same price. Paid tickets get a new QR code, the old ones become invalid.",
+        "open": "Change seats"
       }
     },
     "tickets": {
@@ -212,6 +356,172 @@
       "downloadAll": "All tickets (PDF)",
       "download": "Download",
       "pdf": "PDF"
+    },
+    "refunds": {
+      "title": "Refunds",
+      "date": "Date",
+      "kind": "Type",
+      "status": "Status",
+      "creditNote": "Credit note",
+      "amount": "Amount",
+      "actions": "Actions",
+      "kinds": {
+        "AUTOMATIC": "PayPal (automatic)",
+        "MANUAL": "Manual transfer"
+      },
+      "statuses": {
+        "PENDING": "Open",
+        "SUCCEEDED": "Done",
+        "FAILED": "Failed",
+        "STUCK": "Stuck"
+      },
+      "retry": "Try again",
+      "markDone": "Mark as refunded",
+      "markDoneSubmit": "Mark as refunded",
+      "note": "Note (optional)",
+      "confirmDone": "The money has been paid back to the customer.",
+      "cancel": "Cancel",
+      "copyIban": "Copy IBAN",
+      "overpaymentRefund": "Overpayment refund",
+      "cancellation": "Cancellation",
+      "stillOpen": "{amount} still open",
+      "overpaymentBadge": "Overpayment",
+      "breakdown": "Breakdown",
+      "partPaypal": "thereof PayPal (automatic) {amount} ({status})",
+      "partTransfer": "thereof bank transfer {amount} ({status})",
+      "confirmDoneBatch": "The money has been paid back to the customer (all open transfers of this cancellation)."
+    },
+    "refundsPage": {
+      "title": "Open refunds",
+      "description": "Refunds that need attention: bank transfers to pay back by hand, and PayPal refunds that failed or are stuck.",
+      "empty": "No open refunds.",
+      "columns": {
+        "order": "Order",
+        "customer": "Customer",
+        "amount": "Amount",
+        "method": "Paid with",
+        "iban": "Payer IBAN",
+        "payer": "Account holder",
+        "created": "Created",
+        "status": "Status",
+        "actions": "Actions"
+      }
+    },
+    "seatChange": {
+      "title": "Change seats",
+      "heading": "Change seats – order {number}",
+      "description": "Choose the event",
+      "back": "Back to order",
+      "chooseEvent": "This order contains several events. Choose the event whose seats you want to change.",
+      "noItems": "This order has no seat tickets that can be moved (cancelled, refunded, standing spots or order not changeable).",
+      "loading": "Loading seating plan …",
+      "howTo": "Select a ticket on the right, then click a free seat on the plan. Click another seat of this order to swap the two tickets. The new seat must have the same price.",
+      "place": "{section} · row {row} · seat {seat}",
+      "placeNoRow": "{section} · seat {seat}",
+      "tickets": "Tickets of the order",
+      "newSeat": "New seat",
+      "noNewSeat": "No new seat selected",
+      "priceOk": "Same price",
+      "priceDiffers": "Price differs ({expected} instead of {current}) – cancel the ticket and sell a new one instead.",
+      "tariffNotAllowed": "This tariff is not available on that seat.",
+      "undo": "Undo",
+      "holdCountdown": "Seats held for {time}",
+      "holdExpired": "The hold expired – the selected new seats were cleared.",
+      "allowBlocked": "Allow blocked seats",
+      "allowBlockedHint": "Press, VIP and technical seats can be selected as well.",
+      "reason": "Reason (internal, shown in the history)",
+      "notify": "Send the new tickets to the customer by e-mail",
+      "noEmail": "The order has no e-mail address – nothing will be sent.",
+      "walletNote": "Apple / Google Wallet passes that were already added keep the old seat. The customer should use the new PDF.",
+      "unpaidNote": "The order is not paid yet: no tickets exist, so no e-mail is sent. The tickets are issued with the new seats after payment.",
+      "confirm": "Change {count, plural, one {# seat} other {# seats}}",
+      "done": "Seats changed. {count, plural, one {# new ticket} other {# new tickets}} issued.",
+      "doneMail": "Seats changed. {count, plural, one {# new ticket} other {# new tickets}} issued and sent to the customer.",
+      "legend": {
+        "current": "Current seats of the order",
+        "replaced": "Seat to be replaced",
+        "new": "Chosen new seat"
+      }
+    },
+    "adjustment": {
+      "title": "Change tariff",
+      "description": "Switch tickets to a higher-priced tariff (e.g. reduced → normal). The customer gets a payment request and must confirm it; the tickets stay valid until the additional payment arrives.",
+      "noOptions": "No higher-priced tariff is available for these tickets.",
+      "keep": "Keep current tariff",
+      "reason": "Reason (shown to the customer)",
+      "reasonHint": "e.g. proof of reduction missing",
+      "notify": "Send the payment request by e-mail",
+      "noEmail": "No e-mail address on the order – nothing will be sent",
+      "summary": "Additional payment: {amount}",
+      "confirm": "I confirm that the selected tickets are switched to the higher tariff and the customer has to pay the difference.",
+      "submit": "Request additional payment",
+      "openTitle": "Open additional payment",
+      "openDescription": "Order and tickets stay unchanged until the money arrives. Reset the tariff to cancel the request, or cancel the ticket on this page.",
+      "status": {
+        "PROPOSED": "Waiting for confirmation",
+        "CONFIRMED": "Confirmed – waiting for payment"
+      },
+      "amount": "Amount",
+      "reference": "Reference",
+      "requested": "Requested",
+      "confirmedAt": "Confirmed",
+      "reminderSent": "Reminder sent",
+      "reasonLabel": "Reason",
+      "record": {
+        "title": "Record payment",
+        "method": "Method",
+        "date": "Received on",
+        "note": "Note (optional)",
+        "submit": "Record {amount} as paid",
+        "overpaymentWarning": "This order already has an overpayment of {amount} (not part of this request). Check that the money is not the same transfer before recording it."
+      },
+      "cancel": {
+        "title": "Reset tariff",
+        "description": "Cancels the request. Nothing else needs undoing – the order was not changed.",
+        "reason": "Reason (optional)",
+        "submit": "Cancel request"
+      },
+      "summaryCredit": "Credited from the overpayment already received: −{credit}",
+      "summaryNothingToPay": "Nothing to pay – the change is applied immediately.",
+      "summaryRest": "Still to pay: {amount}",
+      "difference": "Price difference",
+      "creditApplied": "Credited overpayment",
+      "rest": "Still to pay",
+      "notifyForced": "The customer is always e-mailed (new tickets)",
+      "creditFinanceOnly": "This order has an overpayment of {credit}. Only finance can credit it against a tariff change – ask a finance user."
+    },
+    "adjustmentsPage": {
+      "title": "Open additional payments",
+      "description": "Tariff changes the customer has not paid yet. After the automatic reminder you decide: reset the tariff, cancel the ticket on the order page, or record the payment.",
+      "empty": "No open additional payments.",
+      "columns": {
+        "order": "Order",
+        "customer": "Customer",
+        "amount": "Amount",
+        "status": "Status",
+        "created": "Requested",
+        "actions": "Actions"
+      },
+      "statuses": {
+        "PROPOSED": "Not confirmed",
+        "CONFIRMED": "Confirmed, unpaid"
+      },
+      "reminderSent": "Reminder sent {date}",
+      "reset": "Reset tariff",
+      "openOrder": "Open order",
+      "repairInvoice": "Correct invoice",
+      "corrections": {
+        "title": "Invoices to correct",
+        "description": "The invoice of these orders was not corrected automatically after an additional payment. “Correct invoice” issues a full credit note and a new invoice over the current order."
+      },
+      "creditIncluded": "incl. {credit} credited"
+    },
+    "overpayment": {
+      "title": "Overpayment",
+      "text": "This order is fully paid but {amount} too much was received. Refund it, or it is credited automatically if you change a tariff.",
+      "confirm": "Refund {amount} to the customer (PayPal automatically, otherwise as an open transfer).",
+      "submit": "Refund overpayment",
+      "reserved": "{amount} of the overpayment is used by the open tariff change and is not included here."
     }
   },
   "eventPayments": {
@@ -228,5 +538,93 @@
     "cancelAfterDaysHint": "Only used with “own number of days”.",
     "cancelAfterDays": "Cancel unpaid orders after (days)",
     "disableDaysBeforeEvent": "No bank transfer within (days before the event)"
+  },
+  "boxOffice": {
+    "title": "Box office",
+    "description": "Sell tickets over the counter: pick seats on the plan, take cash or card, or hand out complimentary tickets.",
+    "event": "Event",
+    "chooseEvent": "Choose an event",
+    "clearSelection": "Clear selection",
+    "noEvents": "There are no events to sell tickets for.",
+    "loading": "Loading seating plan …",
+    "selection": "Selection",
+    "empty": "Click seats on the plan or choose standing spots.",
+    "remove": "Remove",
+    "tariff": "Ticket type",
+    "seatLabel": "{section} · Row {row} · Seat {seat}",
+    "seatLabelNoRow": "{section} · Seat {seat}",
+    "priceOverride": "Price (optional)",
+    "priceOverrideHint": "Changes the price of this ticket. A reason is required.",
+    "overrideReason": "Reason for the price change",
+    "standing": "Standing areas",
+    "remaining": "{count} left",
+    "quantity": "Quantity",
+    "decrease": "Fewer",
+    "increase": "More",
+    "allowBlocked": "Release blocked seats",
+    "allowBlockedHint": "Blocked seats (press, VIP, technical) become selectable and keep their cross mark.",
+    "payment": {
+      "title": "Payment",
+      "CASH": "Cash",
+      "CARD": "Card",
+      "COMPLIMENTARY": "Complimentary"
+    },
+    "complimentaryHint": "Complimentary tickets cost nothing, carry no fees and get no invoice.",
+    "buyer": {
+      "title": "Buyer (optional)",
+      "show": "Add buyer data",
+      "hide": "Hide buyer data",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "E-mail",
+      "phone": "Phone",
+      "company": "Company",
+      "note": "Internal note",
+      "address": "Address",
+      "required": "Above {limit} the invoice needs the buyer's name and full address.",
+      "language": "Language of the e-mails"
+    },
+    "sendEmail": "Send tickets by e-mail",
+    "sendEmailNeedsAddress": "Enter an e-mail address first.",
+    "totals": {
+      "subtotal": "Tickets",
+      "discount": "Reductions",
+      "fees": "Fees",
+      "total": "Total",
+      "calculating": "Calculating …"
+    },
+    "cash": {
+      "given": "Cash given",
+      "change": "Change",
+      "missing": "Still missing"
+    },
+    "sellCount": "{count, plural, one {Sell 1 ticket} other {Sell # tickets}}",
+    "selling": "Selling …",
+    "success": {
+      "title": "Sale completed",
+      "order": "Order {number}",
+      "total": "Total {amount}",
+      "tickets": "{count, plural, one {# ticket} other {# tickets}}",
+      "print": "Print tickets (PDF)",
+      "invoice": "Invoice (PDF)",
+      "invoicePending": "Invoice is being created …",
+      "nextSale": "Next sale",
+      "orderDetail": "Open order",
+      "ticketsNotReady": "The tickets are still being created – open the PDF again in a moment.",
+      "emailQueued": "The tickets are sent to {email}."
+    },
+    "hold": {
+      "countdown": "Seats held for {time}",
+      "expired": "The hold expired – the selection was cleared."
+    },
+    "standingTariffs": "Quantity per ticket type"
+  },
+  "channel": {
+    "title": "Sales channel",
+    "ONLINE": "Online",
+    "BOX_OFFICE": "Box office",
+    "ADMIN": "Admin",
+    "soldBy": "Sold by",
+    "all": "All channels"
   }
 }

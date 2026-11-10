@@ -373,5 +373,14 @@
     "downLeft": "Nach links unten",
     "left": "Nach links",
     "upLeft": "Nach links oben"
+  },
+  "planCategories": {
+    "title": "Preiskategorien",
+    "help": "Lege die Kategorien dieses Plans fest und weise sie Blöcken und Plätzen zu. Veranstaltungen, die aus diesem Plan erstellt werden, erhalten sie als Preiskategorien; die Preise werden je Veranstaltung eingetragen.",
+    "name": "Name",
+    "color": "Farbe",
+    "add": "Kategorie hinzufügen",
+    "remove": "Kategorie entfernen",
+    "defaultName": "Kategorie"
   }
 }

@@ -280,6 +280,8 @@ export const MATCH_CANDIDATE_REASONS = [
   'ORDER_NOT_PAYABLE',
   'ALREADY_PAID',
   'CURRENCY',
+  /** The money fits an additional payment (tariff change) of the order, see `adjustmentId`. */
+  'ADJUSTMENT',
 ] as const;
 export type MatchCandidateReason = (typeof MATCH_CANDIDATE_REASONS)[number];
 
@@ -289,5 +291,7 @@ export const matchCandidateSchema = z.object({
   orderNumber: z.string(),
   score: z.number().int().min(0).max(100),
   reasons: z.array(z.enum(MATCH_CANDIDATE_REASONS)).max(10),
+  /** Set when the candidate is an open additional payment of the order (assign to it). */
+  adjustmentId: z.uuid().optional(),
 });
 export type MatchCandidate = z.infer<typeof matchCandidateSchema>;

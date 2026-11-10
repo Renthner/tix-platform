@@ -13,6 +13,7 @@ import {
   refreshFinApiConnection,
   rematchBankTransaction,
   requestBankSync,
+  reverseBankAllocation,
   respondToTanChallenge,
   saveBankAccount,
   saveBankConnection,
@@ -104,6 +105,17 @@ const DOMAIN_TO_FORM: Record<string, BankingFormError> = {
   NOT_SUPPORTED: 'notSupported',
   ADAPTER_CHANGE: 'notSupported',
   NO_QUEUE: 'generic',
+  ALLOCATION_NOT_FOUND: 'notFound',
+  ALLOCATION_ALREADY_REVERSED: 'alreadyReversed',
+  REVERSAL_BLOCKED_REFUNDS: 'reversalBlockedRefunds',
+  REVERSAL_BLOCKED_CHECKED_IN: 'reversalBlockedCheckedIn',
+  REVERSAL_BLOCKED_STATE: 'reversalBlockedState',
+  REVERSAL_BLOCKED_PAYPAL_ORDER: 'reversalBlockedPaypalOrder',
+  REVERSAL_BLOCKED_EVENT_STARTED: 'reversalBlockedEventStarted',
+  REVERSAL_BLOCKED_ADJUSTMENT: 'reversalBlockedAdjustment',
+  ADJUSTMENT_NOT_PAYABLE: 'orderNotPayable',
+  ADJUSTMENT_NOT_FOUND: 'orderNotFound',
+  ADJUSTMENT_AMOUNT_MISMATCH: 'adjustmentAmount',
 };
 
 /** Maps domain / provider errors to an action state (unexpected errors are rethrown). */
@@ -126,6 +138,8 @@ function failure(err: unknown): BankingActionState {
         return fieldErrors({ tan: 'tan' });
       case 'AMOUNT_EXCEEDS':
         return fieldErrors({ amount: 'amount' });
+      case 'REASON_REQUIRED':
+        return fieldErrors({ reason: 'required' });
       default:
         return formError(DOMAIN_TO_FORM[err.code] ?? 'generic', err.message);
     }
@@ -499,6 +513,48 @@ export async function assignTransactionAction(
   }
 }
 
+/** Assigns (the exact amount of) a transfer to the open additional payment of an order. */
+export async function assignAdjustmentAction(
+  transactionId: string,
+  orderId: string,
+  adjustmentId: string,
+  _prev: BankingActionState,
+  fd: FormData,
+): Promise<BankingActionState> {
+  const session = await requireAdmin(ROLES);
+  const core = getCore();
+  const note = text(fd, 'note')?.slice(0, 1000) ?? null;
+  try {
+    const result = await assignBankTransaction(core, {
+      transactionId,
+      orderId,
+      adjustmentId,
+      userId: session.userId,
+      note,
+    });
+    await audit(core.db, session, 'bank.tx.assign_adjustment', 'bank_transaction', transactionId, {
+      orderId,
+      adjustmentId,
+      note,
+    });
+    revalidate();
+    const [tx] = await core.db
+      .select({ currency: bankTransactions.currency })
+      .from(bankTransactions)
+      .where(eq(bankTransactions.id, transactionId));
+    return ok('assignedPaid', {
+      values: {
+        outstanding: 0,
+        overpayment: 0,
+        unassigned: result.unassigned,
+        currency: tx?.currency ?? 'EUR',
+      },
+    });
+  } catch (err) {
+    return failure(err);
+  }
+}
+
 export async function ignoreTransactionAction(
   transactionId: string,
   _prev: BankingActionState,
@@ -537,12 +593,55 @@ export async function rematchTransactionAction(
   return ok('rematched');
 }
 
+/** "Zuordnung aufheben": undoes one allocation (wrong order) – the order awaits payment again. */
+export async function reverseAllocationAction(
+  allocationId: string,
+  _prev: BankingActionState,
+  fd: FormData,
+): Promise<BankingActionState> {
+  const session = await requireAdmin(ROLES);
+  if (!z.uuid().safeParse(allocationId).success) return formError('notFound');
+  const core = getCore();
+  const reason = text(fd, 'reason')?.slice(0, 1000);
+  if (!reason) return fieldErrors({ reason: 'required' });
+  try {
+    const result = await reverseBankAllocation(core, {
+      allocationId,
+      userId: session.userId,
+      reason,
+    });
+    await audit(
+      core.db,
+      session,
+      'bank.allocation.reverse',
+      'bank_transaction',
+      result.bankTransactionId,
+      {
+        allocationId,
+        orderId: result.orderId,
+        orderNumber: result.orderNumber,
+        orderStatus: result.orderStatus,
+        reopened: result.reopened,
+        ticketsVoided: result.ticketsVoided,
+        creditNote: result.creditNote?.number ?? null,
+        reason,
+      },
+    );
+    revalidate();
+    return ok(result.reopened ? 'reversedReopened' : 'reversed', {
+      values: { order: result.orderNumber },
+    });
+  } catch (err) {
+    return failure(err);
+  }
+}
+
 export interface AssignableOrder {
   id: string;
   orderNumber: string;
   status: string;
   name: string;
-  email: string;
+  email: string | null;
   paymentReference: string | null;
   totalGross: number;
   amountPaid: number;

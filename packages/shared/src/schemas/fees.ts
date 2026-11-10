@@ -158,7 +158,7 @@ const feeInputObject = z.object({
   taxRateId: z.uuid().nullable(),
   /** null = every payment method. */
   paymentMethods: z.array(z.enum(PAYMENT_METHODS)).min(1).transform(uniqueList).nullable(),
-  /** null = every sales channel. */
+  /** null / empty = online only; the box office needs an explicit entry. */
   channels: z.array(z.enum(SALES_CHANNELS)).min(1).transform(uniqueList).nullable(),
   isActive: z.boolean(),
   /** Event-only fees: position among the event's fees. Ignored for global fees and overrides. */
@@ -217,7 +217,7 @@ function feeFormSchema(target: FeeTarget) {
       value: feeValue(v.calculation, v.value)!,
       taxRateId: v.taxRateId,
       paymentMethods: allOrList(v.paymentMethods, PAYMENT_METHODS),
-      channels: allOrList(v.channels, SALES_CHANNELS),
+      channels: [...new Set(v.channels)],
       isActive: v.isActive,
       ...(v.sortOrder === undefined ? {} : { sortOrder: v.sortOrder }),
     }));

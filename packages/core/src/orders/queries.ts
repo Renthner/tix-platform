@@ -1,8 +1,11 @@
 import {
+  bankTransactionAllocations,
   adminUsers,
   bankAccounts,
+  emailMessages,
   events,
   invoices,
+  invoiceSupersessions,
   orderFees,
   orderHistory,
   orderItems,
@@ -11,17 +14,25 @@ import {
   tickets,
   venues,
 } from '@tix/db';
+import { localized } from '@tix/shared';
 import type {
   CheckInState,
   OrderItemStatus,
   OrderStatus,
   PaymentMethod,
+  SalesChannel,
   TicketStatus,
 } from '@tix/shared';
 import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { parseStoredEmailRequest } from '../email/request';
 import { placeOrderBy } from '../tickets/order';
 import type { CoreContext } from '../context';
 import { getSetting } from '../settings';
+import {
+  getAdjustmentPaymentOptions,
+  findOpenAdjustment,
+  type AdjustmentPaymentOptions,
+} from './adjustments';
 
 type OrderRecord = typeof orders.$inferSelect;
 
@@ -57,6 +68,30 @@ export interface OrderTicketView {
   attendeeName: string | null;
 }
 
+/** Open additional payment (tariff change) as the customer sees it on the order page. */
+export interface OrderAdjustmentView {
+  id: string;
+  status: 'PROPOSED' | 'CONFIRMED';
+  /** Remaining cash to pay. */
+  amount: number;
+  /** Overpayment already received and credited against the difference. */
+  creditApplied: number;
+  currency: string;
+  paymentReference: string;
+  reason: string | null;
+  createdAt: Date;
+  confirmedAt: Date | null;
+  items: {
+    orderItemId: string;
+    fromName: string;
+    toName: string;
+    fromPriceGross: number;
+    toPriceGross: number;
+  }[];
+  /** Offered after the customer confirmed (null before). */
+  payment: AdjustmentPaymentOptions | null;
+}
+
 export interface OrderView {
   order: OrderRecord;
   events: OrderEventView[];
@@ -70,7 +105,19 @@ export interface OrderView {
   taxes: { rateBasisPoints: number; net: number; tax: number }[];
   /** All tickets of the order, issued ones first (REPLACED history included). */
   tickets: OrderTicketView[];
-  invoices: { id: string; type: string; invoiceNumber: string; issuedAt: string }[];
+  invoices: {
+    id: string;
+    type: string;
+    invoiceNumber: string;
+    issuedAt: string;
+    /** Number of the invoice a credit note refers to. */
+    correctsNumber: string | null;
+    /**
+     * Credit note that only corrects an invoice (additional payment, repair, reversed bank
+     * allocation – a new invoice follows). No money is paid back; refund credit notes are false.
+     */
+    isCorrection: boolean;
+  }[];
   /** Receiving account for Vorkasse (null when none is configured). */
   bankAccount: {
     accountHolder: string;
@@ -81,6 +128,8 @@ export interface OrderView {
   /** Unpaid PayPal order still within the approval window. */
   paypal: { payable: boolean; expiresAt: string | null };
   outstanding: number;
+  /** Open additional payment (tariff change); the order itself stays PAID meanwhile. */
+  adjustment: OrderAdjustmentView | null;
 }
 
 /** Full order with items grouped by event – for the customer order page and e-mails. */
@@ -95,10 +144,12 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
           id: events.id,
           slug: events.slug,
           title: events.title,
+          translations: events.translations,
           startsAt: events.startsAt,
           timeZone: events.timeZone,
         },
         venueName: venues.name,
+        venueTranslations: venues.translations,
       })
       .from(orderItems)
       .innerJoin(events, eq(events.id, orderItems.eventId))
@@ -116,6 +167,7 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
         type: invoices.type,
         invoiceNumber: invoices.invoiceNumber,
         issuedAt: invoices.issuedAt,
+        correctsInvoiceId: invoices.correctsInvoiceId,
       })
       .from(invoices)
       .where(eq(invoices.orderId, orderId))
@@ -151,17 +203,39 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
     getSetting(ctx, 'paypal'),
   ]);
 
+  const correctionIds = new Set(
+    invoiceRows.length > 0
+      ? (
+          await ctx.db
+            .select({ id: invoiceSupersessions.creditNoteId })
+            .from(invoiceSupersessions)
+            .where(
+              inArray(
+                invoiceSupersessions.creditNoteId,
+                invoiceRows.map((i) => i.id),
+              ),
+            )
+        ).map((r) => r.id)
+      : [],
+  );
   const byEvent = new Map<string, OrderEventView>();
-  for (const { item, event, venueName } of itemRows) {
+  const defaultLocale = (await getSetting(ctx, 'general')).defaultLocale;
+  for (const { item, event, venueName, venueTranslations } of itemRows) {
     let view = byEvent.get(event.id);
     if (!view) {
       view = {
         eventId: event.id,
         slug: event.slug,
-        title: event.title,
+        title: localized(event, 'title', order.locale, defaultLocale),
         startsAt: event.startsAt.toISOString(),
         timeZone: event.timeZone,
-        venueName,
+        venueName: localized(
+          { translations: venueTranslations },
+          'name',
+          order.locale,
+          defaultLocale,
+          venueName,
+        ),
         items: [],
       };
       byEvent.set(event.id, view);
@@ -191,6 +265,25 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
   for (const { item } of itemRows) addTax(item.taxRateBasisPoints, item.priceNet, item.taxAmount);
   for (const fee of feeRows) addTax(fee.taxRateBasisPoints, fee.totalNet, fee.totalTax);
 
+  const openAdjustment = await findOpenAdjustment(ctx.db, orderId);
+  const adjustment: OrderAdjustmentView | null = openAdjustment
+    ? {
+        id: openAdjustment.id,
+        status: openAdjustment.status as 'PROPOSED' | 'CONFIRMED',
+        amount: openAdjustment.amount,
+        creditApplied: openAdjustment.creditApplied,
+        currency: openAdjustment.currency,
+        paymentReference: openAdjustment.paymentReference,
+        reason: openAdjustment.reason,
+        createdAt: openAdjustment.createdAt,
+        confirmedAt: openAdjustment.confirmedAt,
+        items: openAdjustment.items,
+        payment:
+          openAdjustment.status === 'CONFIRMED'
+            ? await getAdjustmentPaymentOptions(ctx, openAdjustment)
+            : null,
+      }
+    : null;
   const expiresAt =
     order.status === 'PENDING' && order.paymentMethod === 'PAYPAL'
       ? new Date(order.createdAt.getTime() + paypalSettings.approvalTimeoutSeconds * 1000)
@@ -209,13 +302,19 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
       .sort((a, b) => b[0] - a[0])
       .map(([rateBasisPoints, v]) => ({ rateBasisPoints, ...v })),
     tickets: ticketRows,
-    invoices: invoiceRows.map((i) => ({ ...i, issuedAt: i.issuedAt.toISOString() })),
+    invoices: invoiceRows.map(({ correctsInvoiceId, ...i }) => ({
+      ...i,
+      issuedAt: i.issuedAt.toISOString(),
+      correctsNumber: invoiceRows.find((o) => o.id === correctsInvoiceId)?.invoiceNumber ?? null,
+      isCorrection: correctionIds.has(i.id),
+    })),
     bankAccount: account[0] ?? null,
     paypal: {
       payable: expiresAt !== null && expiresAt.getTime() > Date.now(),
       expiresAt: expiresAt?.toISOString() ?? null,
     },
     outstanding: Math.max(0, order.totalGross - order.amountPaid),
+    adjustment,
   };
 }
 
@@ -237,6 +336,7 @@ export interface OrderSearch {
   status?: OrderStatus;
   method?: PaymentMethod;
   eventId?: string;
+  channel?: SalesChannel;
   /** Unpaid Vorkasse orders past their auto-cancel date (kept reserved / partially paid). */
   overdueOnly?: boolean;
   page?: number;
@@ -248,8 +348,8 @@ export interface OrderListRow {
   orderNumber: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
-  channel: string;
-  email: string;
+  channel: SalesChannel;
+  email: string | null;
   firstName: string;
   lastName: string;
   totalGross: number;
@@ -288,6 +388,7 @@ export async function searchOrders(
   }
   if (search.status) conditions.push(eq(orders.status, search.status));
   if (search.method) conditions.push(eq(orders.paymentMethod, search.method));
+  if (search.channel) conditions.push(eq(orders.channel, search.channel));
   if (search.eventId) {
     conditions.push(
       inArray(
@@ -335,9 +436,37 @@ export async function searchOrders(
   return { rows, total: totalRow?.n ?? 0, page, pageSize };
 }
 
+/** One e-mail of the order (outbox row) for the admin timeline. */
+export interface OrderEmailEntry {
+  id: string;
+  templateKey: string | null;
+  toEmail: string;
+  subject: string;
+  status: string;
+  attempts: number;
+  lastError: string | null;
+  createdAt: Date;
+  sentAt: Date | null;
+  /** Names of the files actually sent, else the kinds queued (`invoice`, `tickets`). */
+  attachments: { kind: 'invoice' | 'tickets' | 'file'; name: string | null }[];
+}
+
 export interface OrderAdminView extends OrderView {
+  emails: OrderEmailEntry[];
+  /** Admin who sold the order (box office / admin channel). */
+  soldByName: string | null;
   history: (typeof orderHistory.$inferSelect & { actorName: string | null })[];
   payments: (typeof payments.$inferSelect)[];
+  /** Bank allocations of the order's payments (reversed ones stay for the audit trail). */
+  allocations: {
+    id: string;
+    paymentId: string | null;
+    bankTransactionId: string;
+    amount: number;
+    reversedAt: Date | null;
+    reversedByName: string | null;
+    reversalReason: string | null;
+  }[];
 }
 
 export async function getOrderAdminView(
@@ -346,7 +475,7 @@ export async function getOrderAdminView(
 ): Promise<OrderAdminView | null> {
   const view = await getOrderView(ctx, orderId);
   if (!view) return null;
-  const [history, paymentRows] = await Promise.all([
+  const [history, paymentRows, allocations, [seller], emailRows] = await Promise.all([
     ctx.db
       .select({ entry: orderHistory, actorName: adminUsers.displayName })
       .from(orderHistory)
@@ -358,10 +487,58 @@ export async function getOrderAdminView(
       .from(payments)
       .where(eq(payments.orderId, orderId))
       .orderBy(desc(payments.createdAt)),
+    ctx.db
+      .select({
+        id: bankTransactionAllocations.id,
+        paymentId: bankTransactionAllocations.paymentId,
+        bankTransactionId: bankTransactionAllocations.bankTransactionId,
+        amount: bankTransactionAllocations.amount,
+        reversedAt: bankTransactionAllocations.reversedAt,
+        reversedByName: adminUsers.displayName,
+        reversalReason: bankTransactionAllocations.reversalReason,
+      })
+      .from(bankTransactionAllocations)
+      .leftJoin(adminUsers, eq(adminUsers.id, bankTransactionAllocations.reversedByUserId))
+      .where(eq(bankTransactionAllocations.orderId, orderId))
+      .orderBy(asc(bankTransactionAllocations.createdAt)),
+    view.order.createdByUserId
+      ? ctx.db
+          .select({ name: adminUsers.displayName })
+          .from(adminUsers)
+          .where(eq(adminUsers.id, view.order.createdByUserId))
+      : Promise.resolve([]),
+    ctx.db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.orderId, orderId))
+      .orderBy(desc(emailMessages.createdAt)),
   ]);
   return {
     ...view,
+    emails: emailRows.map((m) => {
+      const stored = parseStoredEmailRequest(m.attachments);
+      return {
+        id: m.id,
+        templateKey: m.templateKey,
+        toEmail: m.toEmail,
+        subject: m.subject,
+        status: m.status,
+        attempts: m.attempts,
+        lastError: m.lastError,
+        createdAt: m.createdAt,
+        sentAt: m.sentAt,
+        attachments: stored.sentFiles
+          ? stored.sentFiles.map((f) => ({ kind: 'file' as const, name: f.fileName }))
+          : stored.attachments.map((a) =>
+              a.type === 'object'
+                ? { kind: 'file' as const, name: a.filename }
+                : { kind: a.type, name: null },
+            ),
+      };
+    }),
     history: history.map((h) => ({ ...h.entry, actorName: h.actorName })),
     payments: paymentRows,
+    allocations,
+    soldByName: seller?.name ?? null,
   };
 }

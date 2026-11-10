@@ -2,26 +2,30 @@
 # One-shot bootstrap of the S3-compatible object storage (idempotent):
 #  - creates the asset bucket (admin uploads: event images, ticket backgrounds, logos)
 #  - creates the document bucket (generated PDFs, invoices, .pkpass, bank statements)
-#  - creates a least-privilege application user restricted to those two buckets
+#  - creates the backup bucket (encrypted full backups: database dump + all files)
+#  - creates a least-privilege application user restricted to those three buckets
 # Only POSIX sh + mc are available in the client image (no sed/awk).
 set -eu
 
 : "${MINIO_ROOT_USER:?}" "${MINIO_ROOT_PASSWORD:?}"
 : "${S3_ACCESS_KEY_ID:?}" "${S3_SECRET_ACCESS_KEY:?}"
-: "${S3_BUCKET_ASSETS:?}" "${S3_BUCKET_DOCUMENTS:?}"
+: "${S3_BUCKET_ASSETS:?}" "${S3_BUCKET_DOCUMENTS:?}" "${S3_BUCKET_BACKUPS:?}"
 
 ENDPOINT="${MINIO_ENDPOINT:-http://minio:9000}"
 
 mc alias set store "$ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
 
-for bucket in "$S3_BUCKET_ASSETS" "$S3_BUCKET_DOCUMENTS"; do
+for bucket in "$S3_BUCKET_ASSETS" "$S3_BUCKET_DOCUMENTS" "$S3_BUCKET_BACKUPS"; do
   mc mb --ignore-existing "store/$bucket"
   # No anonymous access: assets and documents are served via short-lived presigned URLs.
   mc anonymous set none "store/$bucket" >/dev/null
 done
 
 # Versioning protects generated documents (tickets, invoices) against accidental overwrite.
-mc version enable "store/$S3_BUCKET_DOCUMENTS" >/dev/null
+# Backups are versioned too: a deleted or overwritten archive stays recoverable server-side.
+for bucket in "$S3_BUCKET_DOCUMENTS" "$S3_BUCKET_BACKUPS"; do
+  mc version enable "store/$bucket" >/dev/null
+done
 
 POLICY_FILE=/tmp/app-storage-policy.json
 cat > "$POLICY_FILE" <<JSON
@@ -31,12 +35,12 @@ cat > "$POLICY_FILE" <<JSON
     {
       "Effect": "Allow",
       "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:ListBucketMultipartUploads"],
-      "Resource": ["arn:aws:s3:::${S3_BUCKET_ASSETS}", "arn:aws:s3:::${S3_BUCKET_DOCUMENTS}"]
+      "Resource": ["arn:aws:s3:::${S3_BUCKET_ASSETS}", "arn:aws:s3:::${S3_BUCKET_DOCUMENTS}", "arn:aws:s3:::${S3_BUCKET_BACKUPS}"]
     },
     {
       "Effect": "Allow",
       "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"],
-      "Resource": ["arn:aws:s3:::${S3_BUCKET_ASSETS}/*", "arn:aws:s3:::${S3_BUCKET_DOCUMENTS}/*"]
+      "Resource": ["arn:aws:s3:::${S3_BUCKET_ASSETS}/*", "arn:aws:s3:::${S3_BUCKET_DOCUMENTS}/*", "arn:aws:s3:::${S3_BUCKET_BACKUPS}/*"]
     }
   ]
 }
@@ -52,4 +56,4 @@ case "$USER_INFO" in
   *) mc admin policy attach store app-storage --user "$S3_ACCESS_KEY_ID" >/dev/null ;;
 esac
 
-echo "object storage ready: $S3_BUCKET_ASSETS, $S3_BUCKET_DOCUMENTS (user $S3_ACCESS_KEY_ID)"
+echo "object storage ready: $S3_BUCKET_ASSETS, $S3_BUCKET_DOCUMENTS, $S3_BUCKET_BACKUPS (user $S3_ACCESS_KEY_ID)"

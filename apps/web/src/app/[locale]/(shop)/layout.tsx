@@ -4,16 +4,21 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 import { LocaleSwitcher } from '@/components/locale-switcher';
+import { AdminMenu } from '@/components/shop/admin-menu';
 import { CartProvider } from '@/components/shop/cart-context';
 import { HeaderCart } from '@/components/shop/header-cart';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { pickMessages } from '@/i18n/messages';
+import { allowedNavKeys } from '@/lib/admin-nav-access';
+import { getAdminSession } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { getCustomerSession } from '@/server/customer-session';
+import { readMaintenance } from '@/server/maintenance-gate';
 import { descriptionToHtml } from '@/server/rich-text';
 import { FOOTER_RICH_TEXT_CLASS } from '@/lib/rich-text-styles';
 import { cn } from '@/lib/utils';
+import { PresenceBeacon } from '@/components/shop/presence-beacon';
 
 export default async function ShopLayout({
   children,
@@ -24,14 +29,20 @@ export default async function ShopLayout({
 }) {
   await resolveLocale(params);
   const core = getCore();
-  const [general, branding, t, accounts, customer, tAccount] = await Promise.all([
-    getSetting(core, 'general'),
-    getSetting(core, 'branding'),
-    getTranslations('shop.layout'),
-    getSetting(core, 'customerAccounts'),
-    getCustomerSession(),
-    getTranslations('account.nav'),
-  ]);
+  const [general, branding, t, accounts, customer, tAccount, tAdminNav, adminSession, maintenance] =
+    await Promise.all([
+      getSetting(core, 'general'),
+      getSetting(core, 'branding'),
+      getTranslations('shop.layout'),
+      getSetting(core, 'customerAccounts'),
+      getCustomerSession(),
+      getTranslations('account.nav'),
+      getTranslations('admin.nav'),
+      getAdminSession(),
+      readMaintenance(),
+    ]);
+  // Signed-in admin users get a dashboard button (never while a restore holds the system).
+  const adminMenu = adminSession && !maintenance.active ? adminSession : null;
   const footerHtml = descriptionToHtml(branding.footerText);
   const legal = [
     { href: branding.imprintUrl, label: t('imprint') },
@@ -41,24 +52,47 @@ export default async function ShopLayout({
 
   return (
     <NextIntlClientProvider
-      messages={await pickMessages(['common', 'shop', 'queue', 'cart', 'checkout', 'account'])}
+      messages={await pickMessages([
+        'common',
+        'shop',
+        'queue',
+        'cart',
+        'checkout',
+        'account',
+        'admin',
+      ])}
     >
       <CartProvider>
+        {!adminSession && <PresenceBeacon />}
         <div className="flex min-h-dvh flex-col">
           <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
-            <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
-              <Link href="/" className="font-semibold" style={{ color: branding.primaryColor }}>
-                {general.shopName}
+            <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:gap-4">
+              <Link
+                href="/"
+                className="min-w-0 truncate font-semibold"
+                style={{ color: branding.primaryColor }}
+              >
+                {branding.logoAssetId ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/media/${branding.logoAssetId}`}
+                    alt={general.shopName}
+                    className="h-9 w-auto max-w-28 object-contain sm:max-w-56"
+                  />
+                ) : (
+                  general.shopName
+                )}
               </Link>
-              <nav className="flex-1">
+              <nav className="hidden flex-1 sm:block">
                 <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
                   {t('events')}
                 </Link>
               </nav>
+              <div className="flex-1 sm:hidden" />
               {accounts.enabled && (
                 <Link
                   href={customer ? '/account' : '/account/login'}
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
+                  className="flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent sm:px-3"
                 >
                   <UserRound className="size-4" />
                   <span className="hidden sm:inline">
@@ -68,6 +102,25 @@ export default async function ShopLayout({
               )}
               <HeaderCart />
               <LocaleSwitcher />
+              {adminMenu && (
+                <AdminMenu
+                  label={
+                    adminMenu.twoFactorSetupRequired
+                      ? tAccount('dashboardSetup')
+                      : tAccount('dashboard')
+                  }
+                  entries={
+                    adminMenu.twoFactorSetupRequired
+                      ? []
+                      : allowedNavKeys(adminMenu.roles).map((key) => ({
+                          key,
+                          label: tAdminNav(key),
+                        }))
+                  }
+                  setupRequired={adminMenu.twoFactorSetupRequired}
+                  signOutLabel={tAccount('signOut')}
+                />
+              )}
             </div>
           </header>
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>

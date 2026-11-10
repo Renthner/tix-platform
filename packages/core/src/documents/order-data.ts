@@ -1,5 +1,7 @@
 import { events, orderFees, orderItems, orders, venues, type Executor } from '@tix/db';
+import { localized, normalizeLocale } from '@tix/shared';
 import { asc, eq, inArray } from 'drizzle-orm';
+import { getSetting } from '../settings';
 import type { MailTranslator } from '../i18n/mail-messages';
 
 /**
@@ -55,12 +57,14 @@ export async function loadOrderDocumentData(
           .select({
             id: events.id,
             title: events.title,
+            translations: events.translations,
             subtitle: events.subtitle,
             startsAt: events.startsAt,
             doorsOpenAt: events.doorsOpenAt,
             timeZone: events.timeZone,
             taxRateId: events.taxRateId,
             venueName: venues.name,
+            venueTranslations: venues.translations,
             street: venues.street,
             postalCode: venues.postalCode,
             city: venues.city,
@@ -69,15 +73,25 @@ export async function loadOrderDocumentData(
           .innerJoin(venues, eq(venues.id, events.venueId))
           .where(inArray(events.id, eventIds))
           .orderBy(asc(events.startsAt));
+  // Event texts follow the order's locale (item snapshots were stored in it at checkout).
+  const defaultLocale = normalizeLocale(
+    (await getSetting({ db: db as never }, 'general')).defaultLocale,
+  );
   const documentEvents: DocumentEvent[] = eventRows.map((e) => ({
     id: e.id,
-    title: e.title,
-    subtitle: e.subtitle,
+    title: localized(e, 'title', order.locale, defaultLocale),
+    subtitle: e.subtitle === null ? null : localized(e, 'subtitle', order.locale, defaultLocale),
     startsAt: e.startsAt,
     doorsOpenAt: e.doorsOpenAt,
     timeZone: e.timeZone,
     taxRateId: e.taxRateId,
-    venueName: e.venueName,
+    venueName: localized(
+      { translations: e.venueTranslations },
+      'name',
+      order.locale,
+      defaultLocale,
+      e.venueName,
+    ),
     venueCity: e.city,
     venueAddress:
       [e.street, [e.postalCode, e.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') ||
@@ -114,9 +128,11 @@ export function describeOrderItem(
     : t('items.seatWithoutRow', { section: item.sectionLabel, seat: item.seatLabel });
 }
 
-/** Items to list in documents: everything of a cancelled order, otherwise the live ones. */
+/** Items to list in documents: everything of a closed order, otherwise the live ones. */
 export function documentItems(data: OrderDocumentData): OrderItemRow[] {
   const { order, items } = data;
-  if (order.status === 'CANCELLED' || order.status === 'EXPIRED') return items;
-  return items.filter((i) => i.status !== 'CANCELLED');
+  if (order.status === 'CANCELLED' || order.status === 'EXPIRED' || order.status === 'REFUNDED') {
+    return items;
+  }
+  return items.filter((i) => i.status !== 'CANCELLED' && i.status !== 'REFUNDED');
 }

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { SEAT_BLOCK_REASONS, SEAT_MAP_ELEMENT_TYPES, SECTION_TYPES } from '../enums';
 import { hexColorSchema } from '../schemas/common';
+import { translationsSchema } from '../translations';
 import {
   elementGeometrySchema,
   elementStyleSchema,
@@ -24,6 +25,15 @@ const uuid = z.uuid();
 const coordinate = z.number().min(-1_000_000).max(1_000_000);
 const name = z.string().trim().min(1).max(120);
 
+/** Plan category of a master plan (name + colour; prices exist only on events). */
+export const docCategorySchema = z.object({
+  id: uuid,
+  name,
+  color: hexColorSchema,
+  sortOrder: z.number().int().default(0),
+  translations: translationsSchema.default({}),
+});
+
 export const docEntranceSchema = z.object({
   id: uuid,
   name,
@@ -31,6 +41,7 @@ export const docEntranceSchema = z.object({
   x: coordinate,
   y: coordinate,
   sortOrder: z.number().int().default(0),
+  translations: translationsSchema.default({}),
 });
 
 export const docSectionSchema = z.object({
@@ -53,6 +64,7 @@ export const docSectionSchema = z.object({
   showNameOnMap: z.boolean().default(true),
   /** Print the block's ticket label on tickets (phase 4) and in the cart. */
   showLabelOnTicket: z.boolean().default(true),
+  translations: translationsSchema.default({}),
 });
 
 export const docRowSchema = z.object({
@@ -72,6 +84,7 @@ export const docElementSchema = z.object({
   style: elementStyleSchema.default({}),
   assetId: uuid.nullable().default(null),
   zIndex: z.number().int().default(0),
+  translations: translationsSchema.default({}),
 });
 
 export const docSeatSchema = z.object({
@@ -106,6 +119,8 @@ export const seatMapDocumentSchema = z
     canvasHeight: z.number().int().min(100).max(100_000),
     backgroundAssetId: uuid.nullable().default(null),
     settings: seatMapSettingsSchema.prefault({}),
+    /** Master plans only: categories that `priceCategoryId` of sections / seats refers to. */
+    categories: z.array(docCategorySchema).max(200).default([]),
     entrances: z.array(docEntranceSchema).max(200).default([]),
     sections: z.array(docSectionSchema).max(2_000).default([]),
     rows: z.array(docRowSchema).max(10_000).default([]),
@@ -118,6 +133,18 @@ export const seatMapDocumentSchema = z
       if (ids.has(id)) ctx.addIssue({ code: 'custom', path, message: `Duplicate id ${id}` });
       ids.add(id);
     };
+    const categoryNames = new Set<string>();
+    doc.categories.forEach((c, i) => {
+      dup(c.id, ['categories', i, 'id']);
+      const key = c.name.toLowerCase();
+      if (categoryNames.has(key))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['categories', i, 'name'],
+          message: 'Duplicate category name',
+        });
+      categoryNames.add(key);
+    });
     doc.entrances.forEach((e, i) => dup(e.id, ['entrances', i, 'id']));
     doc.sections.forEach((s, i) => dup(s.id, ['sections', i, 'id']));
     doc.rows.forEach((r, i) => dup(r.id, ['rows', i, 'id']));
@@ -287,6 +314,7 @@ export const seatMapDocumentSchema = z
 
 export type SeatMapDocument = z.infer<typeof seatMapDocumentSchema>;
 export type SeatMapDocumentInput = z.input<typeof seatMapDocumentSchema>;
+export type DocCategory = z.infer<typeof docCategorySchema>;
 export type DocEntrance = z.infer<typeof docEntranceSchema>;
 export type DocSection = z.infer<typeof docSectionSchema>;
 export type DocRow = z.infer<typeof docRowSchema>;

@@ -26,14 +26,36 @@
   },
   "errors": {
     "ORDER_NOT_OPEN": "Nur unbezahlte Bestellungen können reserviert gehalten werden.",
-    "ORDER_NOT_CANCELLABLE": "Hier können nur unbezahlte Bestellungen storniert werden. Bezahlte Bestellungen brauchen eine Erstattung (kommt mit den Kassenfunktionen).",
+    "ORDER_NOT_CANCELLABLE": "Hier können nur unbezahlte Bestellungen storniert werden. Bezahlte Bestellungen werden mit dem Erstattungsformular storniert.",
     "ORDER_NOT_PAYABLE": "Diese Bestellung ist storniert oder abgelaufen und kann keine Zahlungen mehr erhalten.",
     "NOTHING_TO_SEND": "Für den aktuellen Status dieser Bestellung gibt es keine E-Mail.",
     "INVALID_AMOUNT": "Bitte gib einen positiven Betrag ein.",
     "CURRENCY_MISMATCH": "Die Währung passt nicht zur Bestellung.",
     "ORDER_NOT_PAID": "Tickets gibt es nur für bezahlte Bestellungen.",
     "NO_TICKETS": "Diese Bestellung hat noch keine gültigen Tickets.",
-    "TICKET_NOT_FOUND": "Ticket nicht gefunden."
+    "TICKET_NOT_FOUND": "Ticket nicht gefunden.",
+    "ORDER_NOT_REFUNDABLE": "Nur bezahlte Bestellungen können storniert und erstattet werden.",
+    "ORDER_CHANGED": "Die Bestellung wurde zwischenzeitlich geändert. Bitte lade die Seite neu und prüfe die Tickets noch einmal.",
+    "ITEMS_NOT_REFUNDABLE": "Einige der gewählten Tickets sind nicht mehr aktiv (bereits storniert oder erstattet). Bitte lade die Seite neu.",
+    "REFUND_NOT_FOUND": "Erstattung nicht gefunden.",
+    "REFUND_NOT_RETRYABLE": "Nur fehlgeschlagene automatische Erstattungen können erneut versucht werden.",
+    "REFUND_NOT_MANUAL": "Diese Erstattung wird automatisch vom Zahlungsanbieter ausgeführt.",
+    "ADJUSTMENT_NOT_HIGHER": "Der neue Tarif muss mehr kosten als der bezahlte Preis.",
+    "ADJUSTMENT_NOT_POSSIBLE": "Nur bezahlte Bestellungen können einen Tarifwechsel erhalten.",
+    "ADJUSTMENT_NOT_POSSIBLE_REFUNDED": "Bei teilweise erstatteten Bestellungen kann der Tarif nicht geändert werden.",
+    "ADJUSTMENT_NOT_POSSIBLE_COMPLIMENTARY": "Für Freikarten-Bestellungen gibt es keine Nachzahlung.",
+    "ADJUSTMENT_ALREADY_OPEN": "Für diese Bestellung ist bereits eine Nachzahlung offen.",
+    "ADJUSTMENT_NOT_OPEN": "Diese Nachzahlung ist nicht mehr offen.",
+    "ADJUSTMENT_NOT_FOUND": "Nachzahlung nicht gefunden.",
+    "ADJUSTMENT_NOT_PAYABLE": "Diese Nachzahlung kann nicht mehr bezahlt werden.",
+    "TARIFF_NOT_ALLOWED": "Dieser Tarif wird für das gewählte Ticket nicht angeboten.",
+    "ITEM_NOT_ACTIVE": "Nur aktive Tickets können geändert werden.",
+    "ORDER_ITEM_NOT_FOUND": "Ticket nicht gefunden.",
+    "ADJUSTMENT_OPEN": "Dieses Ticket hat eine offene Nachzahlung (Tarifwechsel). Setze zuerst den Tarif zurück.",
+    "INVOICE_REPAIR_NOT_POSSIBLE": "Die Rechnung einer erstatteten Bestellung kann nicht automatisch korrigiert werden.",
+    "NO_OVERPAYMENT": "Diese Bestellung hat keine Überzahlung, die erstattet werden kann.",
+    "CREDIT_REQUIRES_FINANCE": "Nur die Finanzverwaltung kann eine Überzahlung mit einer Tarifänderung verrechnen.",
+    "OVERPAYMENT_CHANGED": "Die Überzahlung hat sich inzwischen geändert – lade die Seite neu."
   },
   "admin": {
     "title": "Bestellungen",
@@ -47,7 +69,9 @@
       "event": "Veranstaltung",
       "allEvents": "Alle Veranstaltungen",
       "overdue": "Nur überfällige Überweisungen",
-      "apply": "Filtern"
+      "apply": "Filtern",
+      "channel": "Vertriebskanal",
+      "allChannels": "Alle Kanäle"
     },
     "empty": "Keine Bestellungen gefunden.",
     "columns": {
@@ -85,7 +109,8 @@
       "keptReserved": "reserviert gehalten",
       "reminders": "Erinnerungen",
       "paidAt": "Bezahlt am",
-      "reason": "Grund"
+      "reason": "Grund",
+      "refunded": "Erstattet"
     },
     "items": {
       "title": "Tickets",
@@ -113,10 +138,14 @@
       "status": "Status",
       "reference": "Referenz",
       "amount": "Betrag",
-      "bank": "Bankumsatz"
+      "bank": "Bankumsatz",
+      "reversed": "Zuordnung aufgehoben von {who} am {when}"
     },
     "documents": {
-      "title": "Rechnungen"
+      "title": "Rechnungen",
+      "invoice": "Rechnung",
+      "creditNote": "Gutschrift (Erstattung)",
+      "correction": "Rechnungskorrektur zu {invoice}"
     },
     "history": {
       "title": "Verlauf",
@@ -133,7 +162,25 @@
         "late_payment_refunded": "Verspätete Zahlung automatisch erstattet",
         "external_refund_notice": "Erstattung vom Zahlungsanbieter gemeldet",
         "shortfall_written_off": "Geringe Unterzahlung ausgebucht (innerhalb der Zuordnungstoleranz)",
-        "invoice_issued": "Rechnung erstellt"
+        "invoice_issued": "Rechnung erstellt",
+        "paid_order_cancelled": "Bezahlte Bestellung storniert",
+        "credit_note_issued": "Gutschrift erstellt",
+        "credit_note_missing": "Gutschrift fehlt (manuell erstellen)",
+        "refund_failed": "Erstattung fehlgeschlagen",
+        "refund_retried": "Erstattung erneut versucht",
+        "refund_completed": "Erstattung abgeschlossen",
+        "bank_allocation_reversed": "Bankzuordnung aufgehoben",
+        "box_office_sale": "Kassenverkauf",
+        "seats_changed": "Plätze geändert",
+        "note_changed": "Interne Notiz geändert",
+        "adjustment_proposed": "Nachzahlung angefordert",
+        "adjustment_confirmed": "Nachzahlung vom Kunden bestätigt",
+        "adjustment_paid": "Nachzahlung eingegangen – Tarif geändert",
+        "adjustment_cancelled": "Nachzahlung storniert",
+        "adjustment_reminder_sent": "Erinnerung zur Nachzahlung gesendet",
+        "invoice_correction_needed": "Rechnung muss korrigiert werden (To-do Finanzen)",
+        "invoice_corrected": "Rechnung korrigiert",
+        "overpayment_refund_requested": "Erstattung der Überzahlung angefordert"
       },
       "actors": {
         "SYSTEM": "System",
@@ -141,6 +188,70 @@
         "CUSTOMER": "Kunde",
         "WEBHOOK": "Zahlungsanbieter",
         "DEVICE": "Scanner"
+      },
+      "place": "{section} · Reihe {row} · Platz {seat}",
+      "placeNoRow": "{section} · Platz {seat}",
+      "placeStanding": "{section} · Stehplatz",
+      "detail": {
+        "amountVia": "{amount} per {method}",
+        "tickets": "{count, plural, one {# Ticket} other {# Tickets}}",
+        "reference": "Verwendungszweck {reference}",
+        "reason": "Grund: {reason}",
+        "items": "Betroffen: {items}",
+        "overpayment": "Bestellung war bereits bezahlt (Überzahlung)",
+        "outstanding": "Noch offen: {amount}",
+        "shortfall": "Ausgebucht: {amount}",
+        "reminder": "Erinnerung Nr. {count}",
+        "keepOn": "Reserviert, bis manuell freigegeben",
+        "keepOff": "Normale Zahlungsfrist gilt wieder",
+        "template": "E-Mail: {template}",
+        "error": "Fehler: {message}",
+        "code": "Grund: {code}",
+        "cancelled": "Storniert: {items}",
+        "credit": "Gutschrift: {amount}",
+        "refundTotal": "Zu erstatten: {amount}",
+        "feesRefunded": "Gebühren erstattet",
+        "feesKept": "Gebühren nicht erstattet",
+        "creditNote": "Gutschrift {number}",
+        "note": "Notiz: {note}",
+        "noteRemoved": "Notiz entfernt",
+        "reversed": "Zuordnung von {amount} rückgängig gemacht",
+        "reopened": "Bestellung ist wieder unbezahlt",
+        "ticketsVoided": "{count, plural, one {# Ticket} other {# Tickets}} entwertet",
+        "priceOverrides": "{count, plural, one {# abweichender Preis} other {# abweichende Preise}}",
+        "blockedSold": "{count, plural, one {# gesperrter Platz verkauft} other {# gesperrte Plätze verkauft}}",
+        "blockedSeat": "gesperrter Platz",
+        "notified": "Kunde per E-Mail informiert",
+        "notNotified": "Kunde nicht informiert",
+        "tariffChange": "{from} → {to} ({prices})",
+        "confirmedByPayment": "Durch den Zahlungseingang bestätigt",
+        "notMailed": "Keine E-Mail-Adresse – es wurde nichts gesendet",
+        "invoiceNumber": "Neue Rechnung {number}",
+        "ticketsReissued": "{count, plural, one {# Ticket} other {# Tickets}} neu ausgestellt",
+        "creditUsed": "Mit der Überzahlung verrechnet: {amount}",
+        "settledByCredit": "Mit der Überzahlung verrechnet – nichts zu zahlen"
+      },
+      "refundKinds": {
+        "AUTOMATIC": "PayPal (automatisch)",
+        "MANUAL": "Manuelle Überweisung"
+      },
+      "email": {
+        "title": "E-Mail: {template}",
+        "unknownTemplate": "Nachricht",
+        "to": "An: {email}",
+        "subject": "Betreff: {subject}",
+        "sent": "Gesendet am {time}",
+        "queued": "Zum Versand eingeplant",
+        "sending": "Wird gesendet",
+        "failed": "Fehlgeschlagen nach {attempts, plural, one {# Versuch} other {# Versuchen}}: {error}",
+        "noError": "keine Fehlermeldung",
+        "retryError": "Letzter Fehler: {error}",
+        "attachments": "Anhänge: {files}",
+        "attachmentKinds": {
+          "invoice": "Rechnung",
+          "tickets": "Tickets (PDF)"
+        },
+        "meta": "E-Mail"
       }
     },
     "feedback": {
@@ -151,7 +262,22 @@
       "paymentPartial": "Teilzahlung erfasst – es ist noch ein Betrag offen.",
       "emailQueued": "Die E-Mail wurde in den Versand gegeben.",
       "noteSaved": "Notiz gespeichert.",
-      "ticketsQueued": "Die Tickets wurden in den Versand gegeben."
+      "ticketsQueued": "Die Tickets wurden in den Versand gegeben.",
+      "paidCancelledAutomatic": "Storniert. {amount} werden automatisch per PayPal an den Kunden erstattet.",
+      "paidCancelledManual": "Storniert. {amount} müssen jetzt manuell erstattet werden – siehe „Offene Erstattungen“.",
+      "paidCancelledMixed": "Storniert. Insgesamt {amount}: ein Teil wird automatisch per PayPal erstattet, der Rest muss manuell erstattet werden – siehe „Offene Erstattungen“.",
+      "paidCancelledNoRefund": "Storniert. Es gibt kein Geld zu erstatten.",
+      "refundRetried": "Die Erstattung wurde erneut in die Warteschlange gestellt.",
+      "refundCompleted": "Die Erstattung wurde als erledigt markiert.",
+      "refundAlreadyCompleted": "Diese Erstattung war bereits als erledigt markiert.",
+      "adjustmentProposed": "Nachzahlung angefordert. Das Ticket bleibt bis zur Zahlung gültig.",
+      "adjustmentProposedNoMail": "Nachzahlung angefordert, aber die Bestellung hat keine E-Mail-Adresse – es wurde nichts gesendet.",
+      "adjustmentCancelled": "Nachzahlung storniert – der Tarif bleibt wie verkauft.",
+      "adjustmentPaymentRecorded": "Zahlung erfasst – Tarif, Tickets und Rechnung wurden aktualisiert.",
+      "invoiceRepaired": "Rechnung korrigiert: Gutschrift und neue Rechnung wurden erstellt.",
+      "invoiceUpToDate": "Die Rechnung ist bereits aktuell.",
+      "overpaymentRefundRequested": "Die Erstattung der Überzahlung wurde angelegt.",
+      "adjustmentSettledByCredit": "Der Tarif wurde geändert und mit der Überzahlung verrechnet. Der Kunde hat die neuen Tickets per E-Mail erhalten."
     },
     "actions": {
       "keepReserved": {
@@ -192,6 +318,24 @@
         "title": "Tickets erneut senden",
         "description": "Sendet die Tickets dieser bezahlten Bestellung erneut mit dem Ticket-PDF im Anhang.",
         "submit": "Tickets senden"
+      },
+      "cancelPaid": {
+        "title": "Stornieren & erstatten",
+        "description": "Storniert die gewählten Tickets dieser bezahlten Bestellung, gibt die Plätze frei, entwertet die Tickets und erstellt eine Gutschrift. PayPal-Zahlungen werden automatisch erstattet; Überweisungen müssen von Hand zurückgezahlt werden („Offene Erstattungen“).",
+        "noActiveItems": "Diese Bestellung hat keine aktiven Tickets mehr.",
+        "selectAll": "Alle Tickets auswählen",
+        "selection": "{count, plural, =0 {Kein Ticket gewählt} one {# Ticket gewählt} other {# Tickets gewählt}}",
+        "feesNote": "zzgl. Gebühren, falls gewählt",
+        "refundFees": "Gebühren erstatten",
+        "reason": "Grund (intern, optional)",
+        "notify": "Kunden per E-Mail benachrichtigen",
+        "confirm": "Ja, die gewählten Tickets stornieren und erstatten",
+        "submit": "Stornieren & erstatten"
+      },
+      "changeSeats": {
+        "title": "Plätze ändern",
+        "description": "Verschiebt Tickets dieser Bestellung auf andere Plätze mit gleichem Preis. Bezahlte Tickets erhalten einen neuen QR-Code, die alten werden ungültig.",
+        "open": "Plätze ändern"
       }
     },
     "tickets": {
@@ -212,6 +356,172 @@
       "downloadAll": "Alle Tickets (PDF)",
       "download": "Herunterladen",
       "pdf": "PDF"
+    },
+    "refunds": {
+      "title": "Erstattungen",
+      "date": "Datum",
+      "kind": "Art",
+      "status": "Status",
+      "creditNote": "Gutschrift",
+      "amount": "Betrag",
+      "actions": "Aktionen",
+      "kinds": {
+        "AUTOMATIC": "PayPal (automatisch)",
+        "MANUAL": "Manuelle Überweisung"
+      },
+      "statuses": {
+        "PENDING": "Offen",
+        "SUCCEEDED": "Erledigt",
+        "FAILED": "Fehlgeschlagen",
+        "STUCK": "Hängt"
+      },
+      "retry": "Erneut versuchen",
+      "markDone": "Als erstattet markieren",
+      "markDoneSubmit": "Als erstattet markieren",
+      "note": "Notiz (optional)",
+      "confirmDone": "Das Geld wurde an den Kunden zurückgezahlt.",
+      "cancel": "Abbrechen",
+      "copyIban": "IBAN kopieren",
+      "overpaymentRefund": "Erstattung Überzahlung",
+      "cancellation": "Stornierung",
+      "stillOpen": "{amount} noch offen",
+      "overpaymentBadge": "Überzahlung",
+      "breakdown": "Aufschlüsselung",
+      "partPaypal": "davon PayPal (automatisch) {amount} ({status})",
+      "partTransfer": "davon per Überweisung {amount} ({status})",
+      "confirmDoneBatch": "Das Geld wurde an den Kunden zurücküberwiesen (alle offenen Überweisungen dieser Stornierung)."
+    },
+    "refundsPage": {
+      "title": "Offene Erstattungen",
+      "description": "Erstattungen, um die du dich kümmern musst: Überweisungen, die von Hand zurückgezahlt werden, und PayPal-Erstattungen, die fehlgeschlagen sind oder hängen.",
+      "empty": "Keine offenen Erstattungen.",
+      "columns": {
+        "order": "Bestellung",
+        "customer": "Kunde",
+        "amount": "Betrag",
+        "method": "Bezahlt mit",
+        "iban": "IBAN des Zahlers",
+        "payer": "Kontoinhaber",
+        "created": "Erstellt",
+        "status": "Status",
+        "actions": "Aktionen"
+      }
+    },
+    "seatChange": {
+      "title": "Plätze ändern",
+      "heading": "Plätze ändern – Bestellung {number}",
+      "description": "Veranstaltung wählen",
+      "back": "Zurück zur Bestellung",
+      "chooseEvent": "Diese Bestellung enthält mehrere Veranstaltungen. Wähle die Veranstaltung, deren Plätze geändert werden sollen.",
+      "noItems": "Diese Bestellung hat keine verschiebbaren Sitzplatz-Tickets (storniert, erstattet, Stehplätze oder Bestellung nicht änderbar).",
+      "loading": "Saalplan wird geladen …",
+      "howTo": "Rechts ein Ticket auswählen, dann im Plan einen freien Platz anklicken. Ein Klick auf einen anderen Platz dieser Bestellung tauscht die beiden Tickets. Der neue Platz muss den gleichen Preis haben.",
+      "place": "{section} · Reihe {row} · Platz {seat}",
+      "placeNoRow": "{section} · Platz {seat}",
+      "tickets": "Tickets der Bestellung",
+      "newSeat": "Neuer Platz",
+      "noNewSeat": "Kein neuer Platz gewählt",
+      "priceOk": "Gleicher Preis",
+      "priceDiffers": "Preis weicht ab ({expected} statt {current}) – bitte stattdessen das Ticket stornieren und neu verkaufen.",
+      "tariffNotAllowed": "Dieser Tarif ist auf dem Platz nicht verfügbar.",
+      "undo": "Zurücknehmen",
+      "holdCountdown": "Plätze gehalten für {time}",
+      "holdExpired": "Die Reservierung ist abgelaufen – die gewählten neuen Plätze wurden zurückgesetzt.",
+      "allowBlocked": "Gesperrte Plätze erlauben",
+      "allowBlockedHint": "Presse-, VIP- und Technikplätze können ebenfalls gewählt werden.",
+      "reason": "Grund (intern, erscheint im Verlauf)",
+      "notify": "Neue Tickets per E-Mail an den Kunden senden",
+      "noEmail": "Die Bestellung hat keine E-Mail-Adresse – es wird nichts gesendet.",
+      "walletNote": "Bereits hinzugefügte Apple-/Google-Wallet-Pässe behalten den alten Platz. Der Kunde sollte das neue PDF verwenden.",
+      "unpaidNote": "Die Bestellung ist noch nicht bezahlt: Es gibt noch keine Tickets, daher wird keine E-Mail gesendet. Die Tickets werden nach der Zahlung mit den neuen Plätzen erstellt.",
+      "confirm": "{count, plural, one {# Platz} other {# Plätze}} ändern",
+      "done": "Plätze geändert. {count, plural, one {# neues Ticket} other {# neue Tickets}} erstellt.",
+      "doneMail": "Plätze geändert. {count, plural, one {# neues Ticket} other {# neue Tickets}} erstellt und an den Kunden gesendet.",
+      "legend": {
+        "current": "Aktuelle Plätze der Bestellung",
+        "replaced": "Zu ersetzender Platz",
+        "new": "Gewählter neuer Platz"
+      }
+    },
+    "adjustment": {
+      "title": "Tarif ändern",
+      "description": "Tickets auf einen teureren Tarif umstellen (z. B. ermäßigt → normal). Der Kunde erhält eine Zahlungsaufforderung und muss sie bestätigen; die Tickets bleiben bis zum Zahlungseingang gültig.",
+      "noOptions": "Für diese Tickets ist kein teurerer Tarif verfügbar.",
+      "keep": "Aktuellen Tarif behalten",
+      "reason": "Grund (wird dem Kunden angezeigt)",
+      "reasonHint": "z. B. Ermäßigungsnachweis fehlt",
+      "notify": "Zahlungsaufforderung per E-Mail senden",
+      "noEmail": "Keine E-Mail-Adresse in der Bestellung – es wird nichts gesendet",
+      "summary": "Nachzahlung: {amount}",
+      "confirm": "Ich bestätige, dass die gewählten Tickets auf den höheren Tarif umgestellt werden und der Kunde die Differenz zahlen muss.",
+      "submit": "Nachzahlung anfordern",
+      "openTitle": "Offene Nachzahlung",
+      "openDescription": "Bestellung und Tickets bleiben unverändert, bis das Geld eingeht. Mit „Tarif zurücksetzen“ wird die Anforderung storniert; ein Ticket kannst du auf dieser Seite stornieren.",
+      "status": {
+        "PROPOSED": "Wartet auf Bestätigung",
+        "CONFIRMED": "Bestätigt – wartet auf Zahlung"
+      },
+      "amount": "Betrag",
+      "reference": "Verwendungszweck",
+      "requested": "Angefordert",
+      "confirmedAt": "Bestätigt",
+      "reminderSent": "Erinnerung gesendet",
+      "reasonLabel": "Grund",
+      "record": {
+        "title": "Zahlung erfassen",
+        "method": "Zahlungsart",
+        "date": "Eingegangen am",
+        "note": "Notiz (optional)",
+        "submit": "{amount} als bezahlt erfassen",
+        "overpaymentWarning": "Diese Bestellung hat bereits eine Überzahlung von {amount} (nicht Teil dieser Anforderung). Prüfe vor dem Erfassen, dass es sich nicht um dieselbe Überweisung handelt."
+      },
+      "cancel": {
+        "title": "Tarif zurücksetzen",
+        "description": "Storniert die Anforderung. Es muss nichts weiter rückgängig gemacht werden – die Bestellung wurde nicht verändert.",
+        "reason": "Grund (optional)",
+        "submit": "Anforderung stornieren"
+      },
+      "summaryCredit": "Verrechnet mit der bereits eingegangenen Überzahlung: −{credit}",
+      "summaryNothingToPay": "Nichts zu zahlen – die Änderung wird sofort angewendet.",
+      "summaryRest": "Noch zu zahlen: {amount}",
+      "difference": "Preisdifferenz",
+      "creditApplied": "Verrechnete Überzahlung",
+      "rest": "Noch zu zahlen",
+      "notifyForced": "Der Kunde wird immer per E-Mail informiert (neue Tickets)",
+      "creditFinanceOnly": "Diese Bestellung hat eine Überzahlung von {credit}. Nur die Finanzverwaltung kann sie mit einer Tarifänderung verrechnen – bitte eine Person mit Finanzrechten bitten."
+    },
+    "adjustmentsPage": {
+      "title": "Offene Nachzahlungen",
+      "description": "Tarifwechsel, die der Kunde noch nicht bezahlt hat. Nach der automatischen Erinnerung entscheidest du: Tarif zurücksetzen, Ticket auf der Bestellseite stornieren oder die Zahlung erfassen.",
+      "empty": "Keine offenen Nachzahlungen.",
+      "columns": {
+        "order": "Bestellung",
+        "customer": "Kunde",
+        "amount": "Betrag",
+        "status": "Status",
+        "created": "Angefordert",
+        "actions": "Aktionen"
+      },
+      "statuses": {
+        "PROPOSED": "Nicht bestätigt",
+        "CONFIRMED": "Bestätigt, unbezahlt"
+      },
+      "reminderSent": "Erinnerung am {date} gesendet",
+      "reset": "Tarif zurücksetzen",
+      "openOrder": "Bestellung öffnen",
+      "repairInvoice": "Rechnung korrigieren",
+      "corrections": {
+        "title": "Rechnungen korrigieren",
+        "description": "Die Rechnung dieser Bestellungen wurde nach einer Nachzahlung nicht automatisch korrigiert. „Rechnung korrigieren“ erstellt eine vollständige Gutschrift und eine neue Rechnung über die aktuelle Bestellung."
+      },
+      "creditIncluded": "davon {credit} verrechnet"
+    },
+    "overpayment": {
+      "title": "Überzahlung",
+      "text": "Diese Bestellung ist vollständig bezahlt, es wurden aber {amount} zu viel gezahlt. Erstatte den Betrag – bei einer Tarifänderung wird er automatisch verrechnet.",
+      "confirm": "{amount} an den Kunden erstatten (PayPal automatisch, sonst als offene Überweisung).",
+      "submit": "Überzahlung erstatten",
+      "reserved": "{amount} der Überzahlung werden von der offenen Tarifänderung verwendet und sind hier nicht enthalten."
     }
   },
   "eventPayments": {
@@ -228,5 +538,93 @@
     "cancelAfterDaysHint": "Wird nur bei „Eigene Tageszahl“ verwendet.",
     "cancelAfterDays": "Unbezahlte Bestellungen stornieren nach (Tagen)",
     "disableDaysBeforeEvent": "Keine Vorkasse mehr ab (Tage vor der Veranstaltung)"
+  },
+  "boxOffice": {
+    "title": "Abendkasse",
+    "description": "Tickets am Schalter verkaufen: Plätze im Plan wählen, bar oder per Karte kassieren oder Freikarten ausgeben.",
+    "event": "Veranstaltung",
+    "chooseEvent": "Veranstaltung wählen",
+    "clearSelection": "Auswahl leeren",
+    "noEvents": "Es gibt keine Veranstaltungen, für die Tickets verkauft werden können.",
+    "loading": "Saalplan wird geladen …",
+    "selection": "Auswahl",
+    "empty": "Plätze im Plan anklicken oder Stehplätze wählen.",
+    "remove": "Entfernen",
+    "tariff": "Ticketart",
+    "seatLabel": "{section} · Reihe {row} · Platz {seat}",
+    "seatLabelNoRow": "{section} · Platz {seat}",
+    "priceOverride": "Preis (optional)",
+    "priceOverrideHint": "Ändert den Preis dieses Tickets. Ein Grund ist erforderlich.",
+    "overrideReason": "Grund für die Preisänderung",
+    "standing": "Stehplatzbereiche",
+    "remaining": "{count} frei",
+    "quantity": "Anzahl",
+    "decrease": "Weniger",
+    "increase": "Mehr",
+    "allowBlocked": "Gesperrte Plätze freigeben",
+    "allowBlockedHint": "Gesperrte Plätze (Presse, VIP, Technik) werden wählbar und behalten ihr Kreuz.",
+    "payment": {
+      "title": "Zahlung",
+      "CASH": "Bar",
+      "CARD": "Karte",
+      "COMPLIMENTARY": "Freikarte"
+    },
+    "complimentaryHint": "Freikarten kosten nichts, enthalten keine Gebühren und erhalten keine Rechnung.",
+    "buyer": {
+      "title": "Käufer (optional)",
+      "show": "Käuferdaten erfassen",
+      "hide": "Käuferdaten ausblenden",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "company": "Firma",
+      "note": "Interne Notiz",
+      "address": "Anschrift",
+      "required": "Über {limit} braucht die Rechnung Name und vollständige Anschrift des Käufers.",
+      "language": "Sprache der E-Mails"
+    },
+    "sendEmail": "Tickets per E-Mail senden",
+    "sendEmailNeedsAddress": "Bitte zuerst eine E-Mail-Adresse eingeben.",
+    "totals": {
+      "subtotal": "Tickets",
+      "discount": "Ermäßigungen",
+      "fees": "Gebühren",
+      "total": "Gesamt",
+      "calculating": "Wird berechnet …"
+    },
+    "cash": {
+      "given": "Gegeben",
+      "change": "Rückgeld",
+      "missing": "Es fehlen noch"
+    },
+    "sellCount": "{count, plural, one {1 Ticket verkaufen} other {# Tickets verkaufen}}",
+    "selling": "Wird verkauft …",
+    "success": {
+      "title": "Verkauf abgeschlossen",
+      "order": "Bestellung {number}",
+      "total": "Summe {amount}",
+      "tickets": "{count, plural, one {# Ticket} other {# Tickets}}",
+      "print": "Tickets drucken (PDF)",
+      "invoice": "Rechnung (PDF)",
+      "invoicePending": "Rechnung wird erstellt …",
+      "nextSale": "Nächster Verkauf",
+      "orderDetail": "Bestellung öffnen",
+      "ticketsNotReady": "Die Tickets werden noch erstellt – das PDF gleich noch einmal öffnen.",
+      "emailQueued": "Die Tickets werden an {email} gesendet."
+    },
+    "hold": {
+      "countdown": "Plätze gehalten für {time}",
+      "expired": "Die Reservierung ist abgelaufen – die Auswahl wurde geleert."
+    },
+    "standingTariffs": "Anzahl je Ticketart"
+  },
+  "channel": {
+    "title": "Vertriebskanal",
+    "ONLINE": "Online",
+    "BOX_OFFICE": "Abendkasse",
+    "ADMIN": "Admin",
+    "soldBy": "Verkauft von",
+    "all": "Alle Kanäle"
   }
 }

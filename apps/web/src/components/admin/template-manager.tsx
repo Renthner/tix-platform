@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy, PencilRuler, Trash2 } from 'lucide-react';
+import { Copy, Download, PencilRuler, Trash2 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useActionState, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -80,6 +80,11 @@ export function TemplateManager({
                       </Link>
                     </Button>
                     <RenameDialog name={tpl.name} action={tpl.rename} />
+                    <Button asChild size="sm" variant="outline">
+                      <a href={`/api/admin/seat-maps/${tpl.id}/export`} download>
+                        <Download /> {t('export')}
+                      </a>
+                    </Button>
                     <ConfirmAction
                       action={tpl.duplicate}
                       variant="secondary"

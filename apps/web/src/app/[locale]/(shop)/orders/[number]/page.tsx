@@ -7,10 +7,14 @@ import {
   type OrderView,
 } from '@tix/core';
 import { formatTicketCode } from '@tix/shared';
-import { CheckCircle2, Clock, Download, Info, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Download, Info, Undo2, XCircle } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { CopyValue, OrderPaymentActions } from '@/components/shop/order-actions';
+import {
+  AdjustmentConfirmButton,
+  AdjustmentPayPalButton,
+} from '@/components/shop/order-adjustment';
 import { OrderAutoRefresh } from '@/components/shop/order-auto-refresh';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -89,7 +93,7 @@ export default async function OrderPage({
   const recentlyPaid = !!order.paidAt && Date.now() - order.paidAt.getTime() < PREPARING_WINDOW_MS;
   // Only wait for what will actually be produced, and only shortly after payment.
   const preparing =
-    order.status === 'PAID' &&
+    (order.status === 'PAID' || order.status === 'PARTIALLY_REFUNDED') &&
     recentlyPaid &&
     ((expectsTickets && issuedTickets.length === 0) ||
       (invoicing.issueInvoices && view.invoices.length === 0));
@@ -116,7 +120,11 @@ export default async function OrderPage({
       {notice && notice !== 'paid' && (
         <Alert variant={notice === 'pending' ? 'default' : 'destructive'}>
           <Info className="size-4" />
-          <AlertDescription>{t(`paypalNotice.${notice}`)}</AlertDescription>
+          <AlertDescription>
+            {view.adjustment || order.status === 'PAID'
+              ? t(`adjustment.paypalNotice.${notice}`)
+              : t(`paypalNotice.${notice}`)}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -128,6 +136,17 @@ export default async function OrderPage({
       )}
 
       <StatusCard view={view} money={money} token={token ?? null} format={format} t={t} />
+
+      {view.adjustment && (
+        <AdjustmentCard
+          orderId={order.id}
+          adjustment={view.adjustment}
+          placeByItem={placeByItem}
+          money={money}
+          token={token ?? null}
+          t={t}
+        />
+      )}
 
       {preparing && <OrderAutoRefresh />}
 
@@ -152,8 +171,14 @@ export default async function OrderPage({
               <ul className="divide-y text-sm">
                 {event.items.map((item) => (
                   <li key={item.id} className="flex justify-between gap-3 py-2">
-                    <div>
-                      <div className={item.status === 'CANCELLED' ? 'line-through' : undefined}>
+                    <div className="min-w-0">
+                      <div
+                        className={
+                          item.status === 'CANCELLED' || item.status === 'REFUNDED'
+                            ? 'line-through'
+                            : undefined
+                        }
+                      >
                         {item.kind === 'SEAT'
                           ? [
                               item.sectionLabel,
@@ -166,6 +191,7 @@ export default async function OrderPage({
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {item.categoryName} · {item.ticketTypeName}
+                        {item.status === 'REFUNDED' && ` · ${t('items.refundedItem')}`}
                       </div>
                     </div>
                     <span className="tabular-nums">{money(item.priceGross)}</span>
@@ -216,6 +242,12 @@ export default async function OrderPage({
               <div className="flex justify-between text-muted-foreground">
                 <span>{t('items.paid')}</span>
                 <span className="tabular-nums">{money(order.amountPaid)}</span>
+              </div>
+            )}
+            {order.amountRefunded > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>{t('items.refunded')}</span>
+                <span className="tabular-nums">−{money(order.amountRefunded)}</span>
               </div>
             )}
           </div>
@@ -297,12 +329,17 @@ export default async function OrderPage({
                     className="inline-flex items-center gap-2 hover:underline"
                   >
                     <Download className="size-4" />
-                    {t(
-                      invoice.type === 'CREDIT_NOTE' ? 'documents.creditNote' : 'documents.invoice',
-                      {
-                        number: invoice.invoiceNumber,
-                      },
-                    )}
+                    {invoice.isCorrection && invoice.correctsNumber
+                      ? t('documents.correction', {
+                          number: invoice.invoiceNumber,
+                          invoice: invoice.correctsNumber,
+                        })
+                      : t(
+                          invoice.type === 'CREDIT_NOTE'
+                            ? 'documents.creditNote'
+                            : 'documents.invoice',
+                          { number: invoice.invoiceNumber },
+                        )}
                   </a>
                 </li>
               ))}
@@ -311,7 +348,7 @@ export default async function OrderPage({
         </Card>
       )}
 
-      <p className="text-xs text-muted-foreground">{t('contact', { email: order.email })}</p>
+      <p className="text-xs text-muted-foreground">{t('contact', { email: order.email ?? '' })}</p>
     </div>
   );
 }
@@ -335,7 +372,21 @@ function StatusCard({
       <Alert>
         <CheckCircle2 className="size-4" />
         <AlertTitle>{t('paid.title')}</AlertTitle>
-        <AlertDescription>{t('paid.text', { email: order.email })}</AlertDescription>
+        <AlertDescription>{t('paid.text', { email: order.email ?? '' })}</AlertDescription>
+      </Alert>
+    );
+  }
+  if (order.status === 'REFUNDED' || order.status === 'PARTIALLY_REFUNDED') {
+    const key = order.status === 'REFUNDED' ? 'refunded' : 'partiallyRefunded';
+    return (
+      <Alert variant={order.status === 'REFUNDED' ? 'destructive' : 'default'}>
+        <Undo2 className="size-4" />
+        <AlertTitle>{t(`${key}.title`)}</AlertTitle>
+        <AlertDescription>
+          {t(`${key}.text`)}
+          {order.amountRefunded > 0 &&
+            ` ${t('refundedAmount', { amount: money(order.amountRefunded) })}`}
+        </AlertDescription>
       </Alert>
     );
   }
@@ -366,7 +417,7 @@ function StatusCard({
         </CardHeader>
         <CardContent>
           {account ? (
-            <dl className="grid gap-3 text-sm sm:grid-cols-[180px_1fr]">
+            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-[180px_1fr]">
               <dt className="text-muted-foreground">{t('bankTransfer.amount')}</dt>
               <dd>
                 <CopyValue
@@ -432,4 +483,139 @@ function StatusCard({
     );
   }
   return null;
+}
+
+function AdjustmentCard({
+  orderId,
+  adjustment,
+  placeByItem,
+  money,
+  token,
+  t,
+}: {
+  orderId: string;
+  adjustment: NonNullable<OrderView['adjustment']>;
+  placeByItem: Map<string, string>;
+  money: (cents: number) => string;
+  token: string | null;
+  t: Awaited<ReturnType<typeof getTranslations<'checkout.order'>>>;
+}) {
+  const bank = adjustment.payment?.bank ?? null;
+  const paypal = adjustment.payment?.paypal ?? false;
+  return (
+    <Card className="border-amber-400">
+      <CardHeader>
+        <CardTitle>{t('adjustment.title')}</CardTitle>
+        <p className="text-sm text-muted-foreground">{t('adjustment.intro')}</p>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <ul className="space-y-2 text-sm">
+          {adjustment.items.map((item) => (
+            <li key={item.orderItemId} className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+              <span>
+                {placeByItem.get(item.orderItemId) ?? ''}
+                <span className="block text-xs text-muted-foreground">
+                  {item.fromName} → {item.toName}
+                </span>
+              </span>
+              <span className="whitespace-nowrap tabular-nums">
+                <span className="text-muted-foreground line-through">
+                  {money(item.fromPriceGross)}
+                </span>{' '}
+                → <span className="font-medium">{money(item.toPriceGross)}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        {adjustment.reason && (
+          <p className="text-sm text-muted-foreground">
+            {t('adjustment.reason', { reason: adjustment.reason })}
+          </p>
+        )}
+        {adjustment.creditApplied > 0 && (
+          <div className="space-y-1 border-t pt-3 text-sm text-muted-foreground">
+            <div className="flex justify-between">
+              <span>{t('adjustment.difference')}</span>
+              <span className="tabular-nums">
+                {money(adjustment.amount + adjustment.creditApplied)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>{t('adjustment.alreadyPaid')}</span>
+              <span className="tabular-nums">−{money(adjustment.creditApplied)}</span>
+            </div>
+          </div>
+        )}
+        <div className="flex items-center justify-between border-t pt-3 text-base font-semibold">
+          <span>
+            {adjustment.creditApplied > 0 ? t('adjustment.rest') : t('adjustment.amount')}
+          </span>
+          <span className="tabular-nums">{money(adjustment.amount)}</span>
+        </div>
+        <p className="text-xs text-muted-foreground">{t('adjustment.ticketsStayValid')}</p>
+
+        {adjustment.status === 'PROPOSED' ? (
+          <div className="space-y-2">
+            <AdjustmentConfirmButton orderId={orderId} adjustmentId={adjustment.id} token={token} />
+            <p className="text-xs text-muted-foreground">{t('adjustment.confirmHint')}</p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {paypal && (
+              <div className="space-y-2">
+                <AdjustmentPayPalButton
+                  orderId={orderId}
+                  adjustmentId={adjustment.id}
+                  token={token}
+                />
+              </div>
+            )}
+            {bank && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold">{t('adjustment.bankTitle')}</h3>
+                <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-[180px_1fr]">
+                  <dt className="text-muted-foreground">{t('bankTransfer.amount')}</dt>
+                  <dd>
+                    <CopyValue
+                      value={money(adjustment.amount)}
+                      copyText={(adjustment.amount / 100).toFixed(2)}
+                      strong
+                    />
+                  </dd>
+                  <dt className="text-muted-foreground">{t('bankTransfer.reference')}</dt>
+                  <dd>
+                    <CopyValue value={adjustment.paymentReference} strong />
+                  </dd>
+                  <dt className="text-muted-foreground">{t('bankTransfer.holder')}</dt>
+                  <dd>
+                    <CopyValue value={bank.holder} />
+                  </dd>
+                  <dt className="text-muted-foreground">IBAN</dt>
+                  <dd>
+                    <CopyValue value={groupIban(bank.iban)} copyText={bank.iban} mono />
+                  </dd>
+                  {bank.bic && (
+                    <>
+                      <dt className="text-muted-foreground">BIC</dt>
+                      <dd>
+                        <CopyValue value={bank.bic} mono />
+                      </dd>
+                    </>
+                  )}
+                  {bank.bankName && (
+                    <>
+                      <dt className="text-muted-foreground">{t('bankTransfer.bank')}</dt>
+                      <dd>{bank.bankName}</dd>
+                    </>
+                  )}
+                </dl>
+                <p className="text-xs text-muted-foreground">{t('adjustment.bankHint')}</p>
+              </div>
+            )}
+            {!paypal && !bank && <p className="text-sm">{t('adjustment.noMethod')}</p>}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

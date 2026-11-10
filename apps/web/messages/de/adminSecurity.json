@@ -1,0 +1,240 @@
+{
+  "login": {
+    "codeIntro": "Gib den 6-stelligen Code aus deiner Authenticator-App oder einen deiner Wiederherstellungscodes ein.",
+    "code": "Code",
+    "codeHint": "Ein Wiederherstellungscode kann nur einmal verwendet werden.",
+    "verify": "Bestätigen",
+    "back": "Zurück zur Anmeldung",
+    "forgot": "Passwort vergessen?",
+    "notice": {
+      "reset": "Dein Passwort wurde geändert. Bitte melde dich an.",
+      "invited": "Dein Passwort ist gesetzt. Bitte melde dich an."
+    },
+    "errors": {
+      "INVALID": "E-Mail oder Passwort ist falsch.",
+      "LOCKED": "Zu viele Fehlversuche. Das Konto ist vorübergehend gesperrt.",
+      "RATE_LIMITED": "Zu viele Versuche. Bitte warte einige Minuten.",
+      "INVALID_CODE": "Der Code ist nicht korrekt.",
+      "EXPIRED": "Die Anmeldung ist abgelaufen. Bitte gib dein Passwort erneut ein."
+    }
+  },
+  "forgot": {
+    "title": "Passwort zurücksetzen",
+    "intro": "Gib deine E-Mail-Adresse ein. Gehört sie zu einem Admin-Konto, senden wir einen Link zum Zurücksetzen.",
+    "email": "E-Mail",
+    "submit": "Link senden",
+    "sent": "Gehört die Adresse zu einem Admin-Konto, ist ein Link zum Zurücksetzen unterwegs.",
+    "backToLogin": "Zurück zur Anmeldung"
+  },
+  "setPassword": {
+    "inviteTitle": "Konto aktivieren",
+    "resetTitle": "Neues Passwort festlegen",
+    "inviteIntro": "Lege ein Passwort fest, um dein Admin-Portal-Konto zu aktivieren.",
+    "resetIntro": "Lege ein neues Passwort fest. Alle anderen Sitzungen werden abgemeldet.",
+    "password": "Neues Passwort",
+    "hint": "Mindestens {min} Zeichen.",
+    "confirm": "Passwort wiederholen",
+    "inviteSubmit": "Passwort festlegen",
+    "resetSubmit": "Passwort ändern",
+    "invalidLink": "Dieser Link ist ungültig oder abgelaufen. Bitte einen Administrator um einen neuen.",
+    "backToLogin": "Zurück zur Anmeldung"
+  },
+  "errors": {
+    "GENERIC": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "VALIDATION": "Bitte prüfe deine Eingaben.",
+    "MISMATCH": "Die Passwörter stimmen nicht überein.",
+    "WRONG_PASSWORD": "Das Passwort ist nicht korrekt.",
+    "INVALID_CODE": "Der Code ist nicht korrekt.",
+    "WEAK_PASSWORD": "Das Passwort muss mindestens {min} Zeichen haben.",
+    "PASSWORD_TOO_LONG": "Das Passwort ist zu lang.",
+    "TWO_FACTOR_REQUIRED": "Die Zwei-Faktor-Authentifizierung ist für alle Admins verpflichtend.",
+    "TWO_FACTOR_ALREADY_ENABLED": "Die Zwei-Faktor-Authentifizierung ist bereits aktiv.",
+    "TWO_FACTOR_NO_SETUP": "Es gibt keine offene Einrichtung. Starte neu.",
+    "ACCOUNT_LOCKED": "Zu viele Fehlversuche. Das Konto ist vorübergehend gesperrt.",
+    "RATE_LIMITED": "Zu viele Versuche. Bitte warte einige Minuten.",
+    "TOKEN_INVALID": "Dieser Link ist ungültig oder abgelaufen.",
+    "EMAIL_TAKEN": "Diese E-Mail-Adresse wird bereits verwendet.",
+    "LAST_SUPER_ADMIN": "Der letzte aktive Super-Admin kann nicht geändert, deaktiviert oder entfernt werden.",
+    "CANNOT_DEACTIVATE_SELF": "Du kannst dich nicht selbst deaktivieren.",
+    "INVITE_NOT_PENDING": "Dieser Benutzer hat die Einladung bereits angenommen.",
+    "USER_HAS_SIGNED_IN": "Nur nie angenommene Einladungen können gelöscht werden.",
+    "ADMIN_USER_NOT_FOUND": "Benutzer nicht gefunden."
+  },
+  "messages": {
+    "invited": "Einladung gesendet.",
+    "userSaved": "Benutzer gespeichert.",
+    "reactivated": "Benutzer reaktiviert.",
+    "deactivated": "Benutzer deaktiviert, Sitzungen beendet.",
+    "twoFactorReset": "Zwei-Faktor-Authentifizierung zurückgesetzt, Sitzungen beendet.",
+    "inviteResent": "Neue Einladung gesendet.",
+    "inviteDeleted": "Einladung gelöscht.",
+    "profileSaved": "Profil gespeichert.",
+    "passwordChanged": "Passwort geändert. Deine anderen Sitzungen wurden abgemeldet.",
+    "twoFactorEnabled": "Zwei-Faktor-Authentifizierung ist aktiv.",
+    "twoFactorDisabled": "Zwei-Faktor-Authentifizierung ist ausgeschaltet.",
+    "recoveryCodesRegenerated": "Neue Wiederherstellungscodes erstellt.",
+    "resetRequested": "Link angefordert.",
+    "unlocked": "Benutzer entsperrt.",
+    "verificationSent": "Bestätigungslink gesendet. Bitte prüfe dein Postfach.",
+    "alreadyVerified": "Deine E-Mail-Adresse ist bereits bestätigt."
+  },
+  "account": {
+    "title": "Mein Konto",
+    "description": "Dein Profil, Passwort und die Zwei-Faktor-Authentifizierung.",
+    "setupRequired": "Die Zwei-Faktor-Authentifizierung ist verpflichtend. Richte sie mit einer Authenticator-App ein, um fortzufahren.",
+    "twoFactor": {
+      "title": "Zwei-Faktor-Authentifizierung",
+      "description": "Schütze deine Anmeldung mit einem Code aus einer Authenticator-App."
+    },
+    "profile": {
+      "title": "Profil",
+      "description": "Der im Admin-Portal angezeigte Name.",
+      "email": "E-Mail",
+      "displayName": "Name",
+      "save": "Speichern"
+    },
+    "password": {
+      "title": "Passwort",
+      "description": "Ändere dein Passwort.",
+      "current": "Aktuelles Passwort",
+      "new": "Neues Passwort",
+      "confirm": "Neues Passwort wiederholen",
+      "hint": "Mindestens {min} Zeichen.",
+      "sessionsNote": "Deine anderen Sitzungen werden bei der Änderung abgemeldet.",
+      "save": "Passwort ändern"
+    },
+    "emailVerify": {
+      "title": "E-Mail-Adresse bestätigen",
+      "description": "Mit der Bestätigung, dass diese Adresse dir gehört, schaltest du „Mein Konto“ im Ticketshop frei: Bei deiner nächsten Anmeldung dort (oder im Admin-Bereich) bist du zusätzlich als Kunde mit deinen eigenen Bestellungen unter dieser Adresse angemeldet. Ohne Bestätigung erscheint im Shop weiterhin der Dashboard-Button, „Mein Konto“ wird aber nicht verknüpft – so kann niemand fremde Bestellungen einsehen, nur weil ein Administrator mit einer falsch geschriebenen oder fremden Adresse angelegt wurde.",
+      "verified": "Deine E-Mail-Adresse ist bestätigt.",
+      "unverified": "Deine E-Mail-Adresse ({email}) ist noch nicht bestätigt.",
+      "send": "Bestätigungslink senden"
+    }
+  },
+  "twoFactor": {
+    "recoveryTitle": "Wiederherstellungscodes",
+    "recoveryHint": "Bewahre diese Codes sicher auf. Jeder funktioniert einmal, falls du die Authenticator-App verlierst. Sie werden nur jetzt angezeigt.",
+    "copy": "Codes kopieren",
+    "copied": "Kopiert.",
+    "password": "Passwort",
+    "code": "Code",
+    "codeHintAny": "Authenticator-Code oder ein Wiederherstellungscode.",
+    "enabledNow": "Die Zwei-Faktor-Authentifizierung ist aktiv. Speichere jetzt deine Wiederherstellungscodes.",
+    "done": "Fertig",
+    "offIntro": "Die Zwei-Faktor-Authentifizierung ist aus. Du kannst dein Konto mit einer Authenticator-App (z. B. einer TOTP-App auf dem Handy) schützen.",
+    "start": "Zwei-Faktor-Authentifizierung einrichten",
+    "scanIntro": "Scanne den QR-Code mit deiner Authenticator-App und gib dann den 6-stelligen Code ein.",
+    "qrAlt": "QR-Code für die Authenticator-App",
+    "manualKey": "Oder gib diesen Schlüssel manuell ein:",
+    "confirmCode": "6-stelliger Code",
+    "confirmHint": "Schaltet die Zwei-Faktor-Authentifizierung ein, sobald der Code stimmt.",
+    "verifying": "Prüfe…",
+    "enable": "Einschalten",
+    "onStatus": "Die Zwei-Faktor-Authentifizierung ist aktiv. Unbenutzte Wiederherstellungscodes: {count}.",
+    "requiredNote": "Sie ist für alle Admins verpflichtend und kann nicht ausgeschaltet werden.",
+    "regenerateTitle": "Neue Wiederherstellungscodes",
+    "regenerateHint": "Erstellt 10 neue Codes; die alten werden ungültig.",
+    "regenerate": "Neue Codes erstellen",
+    "disableTitle": "Ausschalten",
+    "disableHint": "Benötigt dein Passwort und einen aktuellen Code.",
+    "disable": "Zwei-Faktor-Authentifizierung ausschalten"
+  },
+  "users": {
+    "title": "Benutzer",
+    "description": "Admin-Portal-Konten, Rollen und Einladungen.",
+    "back": "Alle Benutzer",
+    "columns": {
+      "name": "Name",
+      "roles": "Rollen",
+      "status": "Status",
+      "twoFactor": "2FA",
+      "lastLogin": "Letzte Anmeldung"
+    },
+    "roles": "Rollen",
+    "role": {
+      "SUPER_ADMIN": "Super-Admin",
+      "EVENT_MANAGER": "Veranstaltungsleitung",
+      "FINANCE": "Finanzen",
+      "DOOR_STAFF": "Einlasspersonal"
+    },
+    "roleHint": {
+      "SUPER_ADMIN": "Alles, auch Einstellungen und Benutzer.",
+      "EVENT_MANAGER": "Veranstaltungen, Saalpläne, Preise, Bestellungen.",
+      "FINANCE": "Bestellungen, Bank, Erstattungen, Gebühren.",
+      "DOOR_STAFF": "Abendkasse und Einlass."
+    },
+    "status": {
+      "inactive": "Deaktiviert",
+      "invited": "Eingeladen",
+      "active": "Aktiv",
+      "locked": "Gesperrt"
+    },
+    "on": "An",
+    "off": "Aus",
+    "never": "Nie",
+    "invite": {
+      "title": "Benutzer einladen",
+      "description": "Der Benutzer erhält eine E-Mail mit einem Einmal-Link zum Festlegen des Passworts.",
+      "displayName": "Name",
+      "email": "E-Mail",
+      "submit": "Einladung senden",
+      "sending": "Sende…"
+    },
+    "edit": {
+      "title": "Name und Rollen",
+      "displayName": "Name",
+      "rolesNote": "Bei einer Rollenänderung wird der Benutzer überall abgemeldet.",
+      "save": "Speichern"
+    },
+    "operations": {
+      "title": "Konto",
+      "resendInvite": "Einladung erneut senden",
+      "activate": "Reaktivieren",
+      "deactivate": "Deaktivieren",
+      "resetTwoFactor": "Zwei-Faktor-Authentifizierung zurücksetzen",
+      "deleteInvite": "Einladung löschen",
+      "confirmDeactivate": "Diesen Benutzer deaktivieren? Alle Sitzungen werden beendet.",
+      "confirmResetTwoFactor": "Zwei-Faktor-Authentifizierung dieses Benutzers zurücksetzen? Er wird abgemeldet und muss sie neu einrichten.",
+      "confirmDeleteInvite": "Diese Einladung löschen?",
+      "unlock": "Entsperren"
+    }
+  },
+  "settings": {
+    "security": {
+      "title": "Sicherheit",
+      "description": "Sitzungen, Sperre, Passwörter und Zwei-Faktor-Authentifizierung der Admin-Benutzer.",
+      "requireTwoFactor": "Zwei-Faktor-Authentifizierung verpflichtend",
+      "requireTwoFactorHint": "Jeder Admin muss eine Authenticator-App nutzen. Wer keine hat, wird direkt nach der Anmeldung zur Einrichtung geleitet.",
+      "adminSessionTtlHours": "Sitzungsdauer (Stunden)",
+      "adminSessionTtlHoursHint": "Gilt für neue Anmeldungen.",
+      "minPasswordLength": "Mindestlänge des Passworts",
+      "maxFailedLogins": "Fehlversuche bis zur Sperre",
+      "lockoutMinutes": "Sperrdauer (Minuten)",
+      "inviteTtlHours": "Einladungslink gültig (Stunden)",
+      "passwordResetTtlMinutes": "Link zum Zurücksetzen gültig (Minuten)"
+    },
+    "scanner": {
+      "title": "Check-in-Scanner",
+      "description": "Verhalten der Android-Check-in-App.",
+      "phaseNote": "Die Check-in-App folgt in einer späteren Phase. Die Werte werden jetzt gespeichert und genutzt, sobald sich Geräte koppeln lassen.",
+      "allowCheckOut": "Check-out erlauben",
+      "allowCheckOutHint": "Das Einlasspersonal kann einen Gast wieder auschecken (Passierschein).",
+      "offlineModeAllowed": "Offline-Modus erlauben",
+      "offlineModeAllowedHint": "Geräte dürfen alle Tickets laden und ohne Verbindung scannen.",
+      "lanSyncEnabled": "Abgleich zwischen Geräten im lokalen Netz",
+      "lanSyncEnabledHint": "Scanner im selben WLAN tauschen Scans aus, damit kein Ticket doppelt eintritt.",
+      "syncIntervalSeconds": "Sync-Intervall (Sekunden)",
+      "syncIntervalSecondsHint": "Wie oft Online-Geräte Änderungen abrufen.",
+      "pairingCodeTtlMinutes": "Kopplungscode gültig (Minuten)",
+      "pairingCodeTtlMinutesHint": "Lebensdauer des QR-Codes zum Koppeln eines Geräts."
+    }
+  },
+  "verifyEmail": {
+    "title": "E-Mail-Adresse bestätigen",
+    "intro": "Klicke auf den Button, um zu bestätigen, dass diese E-Mail-Adresse dir gehört.",
+    "confirm": "E-Mail-Adresse bestätigen",
+    "done": "Deine E-Mail-Adresse ist bestätigt. Bei deiner nächsten Anmeldung im Shop wird „Mein Konto“ verknüpft.",
+    "invalid": "Dieser Link ist ungültig oder abgelaufen. Du kannst in deinen Kontoeinstellungen einen neuen anfordern.",
+    "backToLogin": "Zur Anmeldung"
+  }
+}

@@ -1,11 +1,19 @@
 import { searchOrders } from '@tix/core';
 import { events } from '@tix/db';
-import { ORDER_STATUSES, PAYMENT_METHODS, type OrderStatus, type PaymentMethod } from '@tix/shared';
+import {
+  ORDER_STATUSES,
+  PAYMENT_METHODS,
+  SALES_CHANNELS,
+  type OrderStatus,
+  type PaymentMethod,
+  type SalesChannel,
+} from '@tix/shared';
 import { desc } from 'drizzle-orm';
 import { Search } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { OrderStatusBadge } from '@/components/admin/order-badges';
 import { PageHeader } from '@/components/admin/form-controls';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -45,17 +53,30 @@ export default async function OrdersPage({
   const method = (PAYMENT_METHODS as readonly string[]).includes(sp.method ?? '')
     ? (sp.method as PaymentMethod)
     : undefined;
+  const channel = (SALES_CHANNELS as readonly string[]).includes(sp.channel ?? '')
+    ? (sp.channel as SalesChannel)
+    : undefined;
   const eventId = /^[0-9a-f-]{36}$/i.test(sp.event ?? '') ? sp.event : undefined;
   const overdueOnly = sp.overdue === '1';
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const q = sp.q?.slice(0, 100);
   const core = getCore();
-  const [t, tStatus, tMethod, format, result, eventRows] = await Promise.all([
+  const [t, tChannel, tStatus, tMethod, format, result, eventRows] = await Promise.all([
     getTranslations('orders.admin'),
+    getTranslations('orders.channel'),
     getTranslations('orders.status'),
     getTranslations('orders.method'),
     getFormatter(),
-    searchOrders(core, { q, status, method, eventId, overdueOnly, page, pageSize: PAGE_SIZE }),
+    searchOrders(core, {
+      q,
+      status,
+      method,
+      channel,
+      eventId,
+      overdueOnly,
+      page,
+      pageSize: PAGE_SIZE,
+    }),
     core.db
       .select({ id: events.id, title: events.title, startsAt: events.startsAt })
       .from(events)
@@ -68,6 +89,7 @@ export default async function OrdersPage({
       q,
       status,
       method,
+      channel,
       event: eventId,
       overdue: overdueOnly ? '1' : undefined,
       ...overrides,
@@ -116,6 +138,19 @@ export default async function OrdersPage({
             {PAYMENT_METHODS.map((m) => (
               <option key={m} value={m}>
                 {tMethod(m)}
+              </option>
+            ))}
+          </select>
+          <select
+            name="channel"
+            defaultValue={channel ?? ''}
+            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+            aria-label={t('filters.channel')}
+          >
+            <option value="">{t('filters.allChannels')}</option>
+            {SALES_CHANNELS.map((c) => (
+              <option key={c} value={c}>
+                {tChannel(c)}
               </option>
             ))}
           </select>
@@ -179,6 +214,11 @@ export default async function OrdersPage({
                           {row.firstName} {row.lastName}
                         </div>
                         <div className="text-xs text-muted-foreground">{row.email}</div>
+                        {row.channel !== 'ONLINE' && (
+                          <Badge variant="outline" className="mt-1">
+                            {tChannel(row.channel)}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>{tMethod(row.paymentMethod)}</TableCell>
                       <TableCell className="text-right tabular-nums">{row.ticketCount}</TableCell>

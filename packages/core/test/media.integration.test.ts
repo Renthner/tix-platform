@@ -5,7 +5,15 @@
  */
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { createDb, events, loadRootEnv, taxRates, venues, type DbHandle } from '@tix/db';
+import {
+  createDb,
+  events,
+  loadRootEnv,
+  taxRates,
+  ticketTemplates,
+  venues,
+  type DbHandle,
+} from '@tix/db';
 import { runMigrations } from '@tix/db/migrate';
 import { seedReferenceData } from '@tix/db/seed';
 import { eq } from 'drizzle-orm';
@@ -17,6 +25,8 @@ import {
   createCoreContext,
   deleteMediaAsset,
   getMediaAsset,
+  isMediaAssetInUse,
+  saveSetting,
   loadMediaBytes,
   objectStorageFromEnv,
   uploadMediaAsset,
@@ -26,7 +36,8 @@ import {
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
-const s3Endpoint = process.env.S3_ENDPOINT;
+// The root `.env` targets the running stack: storage tests only run on explicit opt-in.
+const s3Endpoint = process.env.TEST_S3_OPT_IN === '1' ? process.env.S3_ENDPOINT : undefined;
 
 function pngBytes(width: number, height: number, salt: number): Uint8Array {
   const b = new Uint8Array(40);
@@ -101,7 +112,7 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('media pipeline (integrat
       altText: 'Stage',
       fileName: '.._evil_Cover Image.png',
     });
-    expect(asset.objectKey).toMatch(/^media\/event_image\/\d{4}\/[0-9a-f]{64}\.png$/);
+    expect(asset.objectKey).toMatch(/^media\/event_image\/\d{4}\/[0-9a-f]{64}-[0-9a-f]{8}\.png$/);
 
     const loaded = await loadMediaBytes(ctx, asset.id);
     expect(Buffer.from(loaded.bytes).equals(Buffer.from(bytes))).toBe(true);
@@ -185,5 +196,44 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('media pipeline (integrat
     await deleteMediaAsset(ctx, used.id);
     expect(await getMediaAsset(ctx, used.id)).toBeNull();
     await expect(loadMediaBytes(ctx, used.id)).rejects.toMatchObject({ code: 'MEDIA_NOT_FOUND' });
+  });
+
+  it('counts images inside ticket layouts and branding settings as in use', async () => {
+    const upload = async (n: number) => {
+      const a = await uploadMediaAsset(ctx, {
+        kind: 'TICKET_BACKGROUND',
+        bytes: pngBytes(300, 300, salt + n),
+        fileName: 'x.png',
+        userId: null,
+      });
+      keys.add(a.objectKey);
+      return a;
+    };
+    const inLayout = await upload(10);
+    const logo = await upload(11);
+    expect(await isMediaAssetInUse(ctx, inLayout.id)).toBe(false);
+
+    const [tpl] = await handle.db
+      .insert(ticketTemplates)
+      .values({
+        name: 'T',
+        pageWidthMm: 150,
+        pageHeightMm: 60,
+        layout: {
+          elements: [
+            { kind: 'image', id: 'i1', assetId: inLayout.id, x: 0, y: 0, width: 10, height: 10 },
+          ],
+        },
+      } as unknown as typeof ticketTemplates.$inferInsert)
+      .returning({ id: ticketTemplates.id });
+    expect(await isMediaAssetInUse(ctx, inLayout.id)).toBe(true);
+    expect(await deleteMediaAsset(ctx, inLayout.id).catch((e: unknown) => e)).toMatchObject({
+      code: 'MEDIA_IN_USE',
+    });
+    await handle.db.delete(ticketTemplates).where(eq(ticketTemplates.id, tpl!.id));
+    expect(await isMediaAssetInUse(ctx, inLayout.id)).toBe(false);
+
+    await saveSetting(ctx, 'branding', { logoAssetId: logo.id }, null);
+    expect(await isMediaAssetInUse(ctx, logo.id)).toBe(true);
   });
 });

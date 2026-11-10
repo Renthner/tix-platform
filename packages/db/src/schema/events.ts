@@ -15,7 +15,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import type { EventInfoBox } from '@tix/shared';
-import { cents, createdAt, currency, id, timestamps, tstz } from './_columns';
+import { cents, createdAt, currency, id, timestamps, tstz, translationsColumn } from './_columns';
 import { adminUsers } from './auth';
 import {
   accessCodeTypeEnum,
@@ -72,6 +72,7 @@ export const events = pgTable(
     title: text('title').notNull(),
     subtitle: text('subtitle'),
     description: text('description'),
+    translations: translationsColumn(),
     status: eventStatusEnum('status').notNull().default('DRAFT'),
     /**
      * Event page layout: rows of blocks side by side (drag & drop in the admin). Read through
@@ -208,6 +209,7 @@ export const priceCategories = pgTable(
       .references(() => events.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
+    translations: translationsColumn(),
     color: text('color').notNull(),
     basePrice: cents('base_price').notNull(),
     maxTicketsPerOrder: integer('max_tickets_per_order'),
@@ -249,6 +251,7 @@ export const ticketTypes = pgTable(
       .references(() => events.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
+    translations: translationsColumn(),
     discountKind: discountKindEnum('discount_kind').notNull().default('NONE'),
     /** Basis points for PERCENT, cents for FIXED_AMOUNT / FIXED_PRICE. */
     discountValue: integer('discount_value').notNull().default(0),
@@ -358,6 +361,7 @@ export const fees = pgTable(
       onDelete: 'cascade',
     }),
     name: text('name').notNull(),
+    translations: translationsColumn(),
     scope: feeScopeEnum('scope').notNull(),
     calculation: feeCalculationEnum('calculation').notNull(),
     /** Cents for FIXED, basis points of the ticket / event subtotal / order amount for PERCENT. */
@@ -444,6 +448,7 @@ export const queueConfigs = pgTable(
     isPaused: boolean('is_paused').notNull().default(false),
     title: text('title'),
     message: text('message'),
+    translations: translationsColumn(),
     updatedByUserId: uuid('updated_by_user_id').references(() => adminUsers.id, {
       onDelete: 'set null',
     }),
@@ -469,6 +474,7 @@ export const queueAnnouncements = pgTable(
     eventId: uuid('event_id').references(() => events.id, { onDelete: 'cascade' }),
     severity: announcementSeverityEnum('severity').notNull().default('INFO'),
     message: text('message').notNull(),
+    translations: translationsColumn(),
     publishedAt: tstz('published_at').notNull().defaultNow(),
     expiresAt: tstz('expires_at'),
     createdByUserId: uuid('created_by_user_id').references(() => adminUsers.id, {

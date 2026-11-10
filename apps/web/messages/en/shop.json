@@ -40,7 +40,10 @@
     "legend": {
       "unavailable": "Sold",
       "selected": "Your selection",
-      "inOtherCart": "In another cart"
+      "inOtherCart": "In another cart",
+      "blocked": "Not available (blocked)",
+      "wheelchair": "Wheelchair space",
+      "companion": "Companion seat"
     },
     "bestAvailable": {
       "title": "Best available",

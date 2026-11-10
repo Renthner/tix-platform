@@ -2,6 +2,7 @@ import createIntlMiddleware from 'next-intl/middleware';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { routing } from './i18n/routing';
+import { maintenanceGate } from './server/maintenance-gate';
 import {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
@@ -12,15 +13,21 @@ import {
 
 const intl = createIntlMiddleware(routing);
 const ADMIN_PATH = new RegExp(`^/(?:(?:${routing.locales.join('|')})/)?admin(?:/|$)`);
-const ADMIN_LOGIN = new RegExp(`^/(?:(?:${routing.locales.join('|')})/)?admin/login/?$`);
+/** Admin pages reachable without a session (sign-in, forgot password, invitation / reset links). */
+const ADMIN_LOGIN = new RegExp(
+  `^/(?:(?:${routing.locales.join('|')})/)?admin/(?:login|forgot-password|reset-password|accept-invite|verify-email)/?$`,
+);
 
 /**
  * Runs before every page request:
  *  1. locale negotiation / prefixing (next-intl),
  *  2. issues the anonymous session cookie (cart + waiting-room identity),
  *  3. optimistic admin guard (real authorisation happens in layouts and actions).
+ * While a backup restore runs, every page (and server action) answers 503 first.
  */
-export default function proxy(request: NextRequest): NextResponse {
+export default async function proxy(request: NextRequest): Promise<NextResponse | Response> {
+  const blocked = await maintenanceGate(request);
+  if (blocked) return blocked;
   const { pathname } = request.nextUrl;
   if (
     ADMIN_PATH.test(pathname) &&

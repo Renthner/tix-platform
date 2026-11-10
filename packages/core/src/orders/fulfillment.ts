@@ -4,16 +4,19 @@ import {
   orders,
   payments,
   seatMapSections,
+  seats,
   withTransaction,
   type Transaction,
 } from '@tix/db';
+import type { TakenCode } from '@tix/redis';
 import type { ActorType, OrderStatus, PaymentMethod } from '@tix/shared';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
 import { QUEUE_NAMES } from '../job-queues';
 import { publishSeatDelta } from '../realtime';
 import { voidTicketsForItems } from '../tickets/issue';
+import { currentPaidCycle, orderPaidJobId } from './paid-cycle';
 
 /**
  * Order state transitions that move money or inventory:
@@ -208,7 +211,13 @@ export async function recordPayment(
       .set({ status: 'CONFIRMED' })
       .where(and(eq(orderItems.orderId, order.id), eq(orderItems.status, 'PENDING')))
       .returning({ seatId: orderItems.seatId, eventId: orderItems.eventId });
-    if (writeOff) await history('shortfall_written_off', { ...paymentData, shortfall });
+    if (writeOff) {
+      await history('shortfall_written_off', {
+        ...paymentData,
+        shortfall,
+        paidCycle: order.paidCycle,
+      });
+    }
     await history('status_changed', paymentData, 'PAID');
     return {
       result: { status: 'PAID', orderId: order.id, paymentId: payment!.id } as const,
@@ -222,8 +231,11 @@ export async function recordPayment(
     await ctx.jobs?.add(
       QUEUE_NAMES.documents,
       'order-paid',
-      { orderId: outcome.result.orderId },
-      { jobId: `order-paid-${outcome.result.orderId}` },
+      {
+        orderId: outcome.result.orderId,
+        paidCycle: await currentPaidCycle(ctx.db, outcome.result.orderId),
+      },
+      { jobId: await orderPaidJobId(ctx.db, outcome.result.orderId) },
     );
   }
   return outcome.result;
@@ -237,10 +249,18 @@ async function findDuplicatePayment(
     const [row] = await tx
       .select({ id: payments.id })
       .from(payments)
-      .where(eq(payments.providerCaptureId, receipt.providerCaptureId));
+      .where(
+        and(
+          eq(payments.providerCaptureId, receipt.providerCaptureId),
+          // A pending capture (APPROVED attempt) is completed in place, not a duplicate.
+          inArray(payments.status, ['CAPTURED', 'REFUNDED', 'PARTIALLY_REFUNDED']),
+        ),
+      );
     if (row) return row.id;
   }
   if (receipt.bankTransactionId) {
+    // A payment cancelled by a reversed bank allocation does not block assigning the same
+    // transaction to the order again.
     const [row] = await tx
       .select({ id: payments.id })
       .from(payments)
@@ -248,6 +268,7 @@ async function findDuplicatePayment(
         and(
           eq(payments.bankTransactionId, receipt.bankTransactionId),
           eq(payments.orderId, receipt.orderId),
+          ne(payments.status, 'CANCELLED'),
         ),
       );
     if (row) return row.id;
@@ -329,7 +350,10 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
       toStatus: params.status,
       actorType: params.actor.type,
       actorUserId: params.actor.userId ?? null,
-      data: params.reason ? { reason: params.reason } : null,
+      data: {
+        ...(params.reason ? { reason: params.reason } : {}),
+        orderItemIds: items.map((i) => i.id),
+      },
     });
     const messageId = params.notifyCustomer
       ? await createEmailMessage(ctx, tx, { key: 'ORDER_CANCELLED', orderId: order.id })
@@ -337,8 +361,28 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
     return { items, messageId };
   });
   if (!outcome) return false;
-  const released = outcome.items;
+  await releaseInventory(ctx, outcome.items);
+  if (outcome.messageId) {
+    await dispatchEmailMessage(ctx, outcome.messageId).catch((err: unknown) =>
+      console.error('[orders] cancellation e-mail stored but not queued (outbox retries)', err),
+    );
+  }
+  return true;
+}
 
+/**
+ * After the transaction that released items (cancel / refund): clears the Redis "taken" mirror of
+ * their seats, gives standing spots back to the Redis counter and broadcasts the new availability.
+ */
+export async function releaseInventory(
+  ctx: CoreContext,
+  released: readonly {
+    seatId: string | null;
+    eventId: string;
+    sectionId: string;
+    kind: string;
+  }[],
+): Promise<void> {
   await mirrorSeats(ctx, released, null);
   const gaByEvent = new Map<string, Record<string, number>>();
   for (const item of released) {
@@ -356,12 +400,6 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
       ga: Object.fromEntries(Object.keys(sections).map((s) => [s, remaining[s] ?? 0])),
     });
   }
-  if (outcome.messageId) {
-    await dispatchEmailMessage(ctx, outcome.messageId).catch((err: unknown) =>
-      console.error('[orders] cancellation e-mail stored but not queued (outbox retries)', err),
-    );
-  }
-  return true;
 }
 
 /** Updates the Redis "taken" mirror for order seats and broadcasts the change. */
@@ -376,10 +414,26 @@ export async function mirrorSeats(
     byEvent.set(item.eventId, [...(byEvent.get(item.eventId) ?? []), item.seatId]);
   }
   for (const [eventId, seatIds] of byEvent) {
-    await ctx.seats.setTaken(eventId, Object.fromEntries(seatIds.map((id) => [id, code])));
+    let codes: Record<string, TakenCode | null> = Object.fromEntries(
+      seatIds.map((id) => [id, code]),
+    );
+    if (code === null) {
+      // A freed seat that is blocked (press / VIP seat sold at the box office) or removed from
+      // the plan must not become sellable online.
+      const special = await ctx.db
+        .select({ id: seats.id, blockReason: seats.blockReason, removedAt: seats.removedAt })
+        .from(seats)
+        .where(inArray(seats.id, seatIds));
+      for (const s of special) {
+        if (s.removedAt) codes[s.id] = 'X';
+        else if (s.blockReason) codes[s.id] = 'B';
+      }
+    }
+    await ctx.seats.setTaken(eventId, codes);
     await publishSeatDelta(ctx, {
       eventId,
-      seats: seatIds.map((id) => [id, code === null ? 'F' : 'S']),
+      // A freed seat that stays blocked / removed is still unavailable for the shop.
+      seats: seatIds.map((id) => [id, code === null && codes[id] === null ? 'F' : 'S']),
     });
   }
 }

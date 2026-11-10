@@ -4,6 +4,7 @@ import {
   resolveCustomerSession,
   revokeCustomerSession,
   type CustomerSessionRecord,
+  type SessionOptions,
 } from '@tix/core';
 import type { PostalAddress } from '@tix/shared';
 import { cookies, headers } from 'next/headers';
@@ -60,14 +61,22 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
  * Opens a session and sets the cookie (route handlers / server actions only). A session the
  * browser already carried is ended first (no session fixation, no orphaned rows).
  */
-export async function signInCustomer(customerId: string): Promise<void> {
+export async function signInCustomer(
+  customerId: string,
+  options: SessionOptions = {},
+): Promise<void> {
   const jar = await cookies();
   const previous = jar.get(CUSTOMER_COOKIE)?.value;
   const core = getCore();
   if (previous) await revokeCustomerSession(core, previous);
   const ip = await clientIp();
   const userAgent = (await headers()).get('user-agent');
-  const session = await createCustomerSession(core, customerId, { ipAddress: ip, userAgent });
+  const session = await createCustomerSession(
+    core,
+    customerId,
+    { ipAddress: ip, userAgent },
+    options,
+  );
   jar.set(CUSTOMER_COOKIE, session.token, cookieDefaults(session.maxAgeSeconds));
 }
 

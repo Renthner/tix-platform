@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -58,6 +59,29 @@ export class ObjectStorage {
     );
     if (!res.Body) throw new Error(`Object ${bucket}/${key} has no body`);
     return { body: await res.Body.transformToByteArray(), contentType: res.ContentType };
+  }
+
+  /** All objects below `prefix` (follows pagination). */
+  async list(
+    bucket: StorageBucket,
+    prefix: string,
+  ): Promise<{ key: string; lastModified: Date | undefined }[]> {
+    const out: { key: string; lastModified: Date | undefined }[] = [];
+    let token: string | undefined;
+    do {
+      const res = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.config.buckets[bucket],
+          Prefix: prefix,
+          ContinuationToken: token,
+        }),
+      );
+      for (const o of res.Contents ?? []) {
+        if (o.Key) out.push({ key: o.Key, lastModified: o.LastModified });
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+    return out;
   }
 
   async delete(bucket: StorageBucket, key: string): Promise<void> {

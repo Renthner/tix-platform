@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   FEE_MAX_FIXED_CENTS,
+  SALES_CHANNELS,
   eventFeeFormSchema,
   eventFeeInputSchema,
   exampleFeeAmount,
@@ -82,7 +83,7 @@ describe('decimal parsing', () => {
 });
 
 describe('fee form schema', () => {
-  it('converts a fixed amount into cents and "all ticked" into null', () => {
+  it('converts a fixed amount into cents; all payment methods ticked = null, channels stay explicit', () => {
     const result = globalFeeFormSchema.safeParse(form());
     expect(result.success).toBe(true);
     expect(result.data).toEqual({
@@ -92,7 +93,7 @@ describe('fee form schema', () => {
       value: 150,
       taxRateId: null,
       paymentMethods: null,
-      channels: null,
+      channels: [...SALES_CHANNELS],
       isActive: true,
     });
   });

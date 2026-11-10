@@ -2,6 +2,7 @@
 
 import {
   clearSecretSetting,
+  getMediaAsset,
   getSetting,
   hasSecretSetting,
   saveSecretSetting,
@@ -29,7 +30,9 @@ export type EditableSettingKey =
   | 'bankTransfer'
   | 'paypal'
   | 'smtp'
-  | 'customerAccounts';
+  | 'customerAccounts'
+  | 'security'
+  | 'scanner';
 
 type Errors = Partial<Record<string, FieldErrorCode>>;
 
@@ -70,6 +73,22 @@ interface SecretChange {
   clear: boolean;
 }
 
+/** Optional LOGO media asset id: empty = none; unknown id / wrong kind is rejected. */
+async function logoAssetField(
+  fd: FormData,
+  name: string,
+  errors: Errors,
+): Promise<string | undefined> {
+  const id = text(fd, name);
+  if (id === undefined) return undefined;
+  const asset = z.uuid().safeParse(id).success ? await getMediaAsset(getCore(), id) : null;
+  if (!asset || asset.kind !== 'LOGO') {
+    errors[name] = 'invalid';
+    return undefined;
+  }
+  return asset.id;
+}
+
 async function readInput(
   key: EditableSettingKey,
   fd: FormData,
@@ -87,12 +106,12 @@ async function readInput(
         },
       };
     case 'branding': {
-      // Logo / favicon are managed by the upload screen – keep the stored values.
-      const current = await getSetting(getCore(), 'branding');
+      const logoAssetId = await logoAssetField(fd, 'logoAssetId', errors);
+      const faviconAssetId = await logoAssetField(fd, 'faviconAssetId', errors);
       return {
         input: {
-          logoAssetId: current.logoAssetId,
-          faviconAssetId: current.faviconAssetId,
+          logoAssetId,
+          faviconAssetId,
           primaryColor: text(fd, 'primaryColor'),
           accentColor: text(fd, 'accentColor'),
           imprintUrl: text(fd, 'imprintUrl'),
@@ -123,6 +142,7 @@ async function readInput(
           requireTermsAcceptance: flag(fd, 'requireTermsAcceptance'),
           requirePhone: flag(fd, 'requirePhone'),
           requireBillingAddress: flag(fd, 'requireBillingAddress'),
+          refundFeesByDefault: flag(fd, 'refundFeesByDefault'),
         },
       };
     }
@@ -135,6 +155,9 @@ async function readInput(
           selectionColor: text(fd, 'selectionColor'),
           markUnavailableWithCross: flag(fd, 'markUnavailableWithCross'),
           selectionStyle: text(fd, 'selectionStyle'),
+          seatChangeCurrentColor: text(fd, 'seatChangeCurrentColor'),
+          seatChangeReplacedColor: text(fd, 'seatChangeReplacedColor'),
+          seatChangeNewColor: text(fd, 'seatChangeNewColor'),
         },
       };
     case 'organizer':
@@ -155,9 +178,12 @@ async function readInput(
           website: text(fd, 'website'),
         },
       };
-    case 'invoicing':
+    case 'invoicing': {
+      const limit = parseMoneyToCents(text(fd, 'smallAmountInvoiceLimit') ?? '');
+      if (limit === null) errors.smallAmountInvoiceLimit = 'money';
       return {
         input: {
+          smallAmountInvoiceLimit: limit ?? undefined,
           issueInvoices: flag(fd, 'issueInvoices'),
           orderNumberPattern: text(fd, 'orderNumberPattern') ?? '',
           invoiceNumberPattern: text(fd, 'invoiceNumberPattern') ?? '',
@@ -165,6 +191,7 @@ async function readInput(
           invoiceFooter: text(fd, 'invoiceFooter'),
         },
       };
+    }
     case 'bankTransfer': {
       const tolerance = text(fd, 'autoMatchTolerance');
       const toleranceCents = tolerance === undefined ? 0 : parseMoneyToCents(tolerance);
@@ -178,6 +205,7 @@ async function readInput(
           countBusinessDaysOnly: flag(fd, 'countBusinessDaysOnly'),
           holidayRegion: region ?? null,
           reminderAfterDays: requiredInt(fd, 'reminderAfterDays', errors),
+          adjustmentReminderDays: requiredInt(fd, 'adjustmentReminderDays', errors),
           cancelAfterDays: optionalIntOrNull(fd, 'cancelAfterDays', errors),
           disableDaysBeforeEvent: requiredInt(fd, 'disableDaysBeforeEvent', errors),
           autoMatchToleranceCents: toleranceCents ?? undefined,
@@ -224,6 +252,28 @@ async function readInput(
         },
       };
     }
+    case 'security':
+      return {
+        input: {
+          requireTwoFactor: flag(fd, 'requireTwoFactor'),
+          adminSessionTtlHours: requiredInt(fd, 'adminSessionTtlHours', errors),
+          minPasswordLength: requiredInt(fd, 'minPasswordLength', errors),
+          maxFailedLogins: requiredInt(fd, 'maxFailedLogins', errors),
+          lockoutMinutes: requiredInt(fd, 'lockoutMinutes', errors),
+          inviteTtlHours: requiredInt(fd, 'inviteTtlHours', errors),
+          passwordResetTtlMinutes: requiredInt(fd, 'passwordResetTtlMinutes', errors),
+        },
+      };
+    case 'scanner':
+      return {
+        input: {
+          allowCheckOut: flag(fd, 'allowCheckOut'),
+          offlineModeAllowed: flag(fd, 'offlineModeAllowed'),
+          lanSyncEnabled: flag(fd, 'lanSyncEnabled'),
+          syncIntervalSeconds: requiredInt(fd, 'syncIntervalSeconds', errors),
+          pairingCodeTtlMinutes: requiredInt(fd, 'pairingCodeTtlMinutes', errors),
+        },
+      };
     case 'customerAccounts':
       return {
         input: {
@@ -234,6 +284,7 @@ async function readInput(
           passwordMinLength: requiredInt(fd, 'passwordMinLength', errors),
           emailVerificationTtlHours: requiredInt(fd, 'emailVerificationTtlHours', errors),
           passwordResetTtlMinutes: requiredInt(fd, 'passwordResetTtlMinutes', errors),
+          loginLinkTtlMinutes: requiredInt(fd, 'loginLinkTtlMinutes', errors),
         },
       };
   }

@@ -24,7 +24,16 @@ import {
 } from './shapes';
 import { usePanZoom } from './use-pan-zoom';
 
-export type SeatStatus = 'free' | 'mine' | 'locked' | 'taken' | 'pending';
+export type SeatStatus =
+  | 'free'
+  | 'mine'
+  | 'locked'
+  | 'taken'
+  | 'pending'
+  /** Seat change editor (admin): order seat kept / being replaced / chosen alternative. */
+  | 'changeCurrent'
+  | 'changeReplaced'
+  | 'changeNew';
 
 /** Colours of non-free seat states (admin setting `seatDisplay`). */
 export interface SeatColors {
@@ -35,6 +44,10 @@ export interface SeatColors {
   selectionColor: string;
   /** RING = ring around the seat, FILL = seat filled with the selection colour, BOTH. */
   selectionStyle: SeatSelectionStyle;
+  /** Seat change editor only (admin); the shop does not pass or use these. */
+  seatChangeCurrentColor?: string;
+  seatChangeReplacedColor?: string;
+  seatChangeNewColor?: string;
 }
 
 export interface SeatChartProps {
@@ -50,6 +63,8 @@ export interface SeatChartProps {
   onSeatClick: (seat: PublicSeat) => void;
   onSectionClick: (sectionId: string) => void;
   seatTitle: (seat: PublicSeat) => string;
+  /** Box office: blocked seats (with a category) can be selected; they keep their cross mark. */
+  sellBlocked?: boolean;
 }
 
 const ORPHAN_COLOR = '#dc2626';
@@ -61,6 +76,156 @@ const ORPHAN_COLOR = '#dc2626';
 const SEAT_NUMBER_MIN_RADIUS_PX = 12;
 /** Type markers of wheelchair / companion seats (♿, +, short text) appear earlier. */
 const SEAT_MARKER_MIN_RADIUS_PX = 7;
+
+/**
+ * One seat exactly as drawn in the chart. Also used for the legend swatches so that legend and
+ * plan can never drift apart.
+ */
+export function SeatMark({
+  seat,
+  radius,
+  showNumbers,
+  showMarkers,
+  specialLabels,
+  defaultSymbolId,
+  symbolIds,
+  colorOf,
+  colors,
+  status,
+  isHighlighted = false,
+  title,
+  sellBlocked,
+}: {
+  seat: PublicSeat;
+  radius: number;
+  showNumbers: boolean;
+  showMarkers: boolean;
+  specialLabels: Pick<SeatMapSettingsInput, 'wheelchairLabel' | 'companionLabel'>;
+  defaultSymbolId: string | null;
+  symbolIds: ReadonlySet<string>;
+  colorOf: (categoryId: string | null) => string;
+  colors: SeatColors;
+  status: (seatId: string) => SeatStatus;
+  isHighlighted?: boolean;
+  title?: string;
+  sellBlocked?: boolean;
+}) {
+  const cross = (x: number, y: number) =>
+    `M${x - radius * 0.5},${y - radius * 0.5}L${x + radius * 0.5},${y + radius * 0.5}M${x + radius * 0.5},${y - radius * 0.5}L${x - radius * 0.5},${y + radius * 0.5}`;
+  const blockedFlag = (seat.f & SEAT_FLAG.BLOCKED) !== 0;
+  const blocked = (blockedFlag && !(sellBlocked && seat.c)) || !seat.c;
+  const s = blocked ? 'taken' : status(seat.i);
+  const free = s === 'free';
+  const mine = s === 'mine' || s === 'pending';
+  const changeColor =
+    s === 'changeCurrent'
+      ? (colors.seatChangeCurrentColor ?? '#2563EB')
+      : s === 'changeReplaced'
+        ? (colors.seatChangeReplacedColor ?? '#DC2626')
+        : s === 'changeNew'
+          ? (colors.seatChangeNewColor ?? '#16A34A')
+          : undefined;
+  const fillSelected = mine && colors.selectionStyle !== 'RING';
+  const ringSelected = (mine && colors.selectionStyle !== 'FILL') || !!changeColor;
+  const ringColor = changeColor ?? colors.selectionColor;
+  const fill = changeColor
+    ? changeColor
+    : blocked
+      ? colors.blockedColor
+      : s === 'taken'
+        ? colors.soldColor
+        : s === 'locked'
+          ? colors.inOtherCartColor
+          : fillSelected
+            ? colors.selectionColor
+            : colorOf(seat.c);
+  const showCross =
+    !changeColor && colors.markUnavailableWithCross && (blocked || blockedFlag || s === 'taken');
+  // Seat number, or the configured marker of wheelchair / companion seats.
+  const planLabel = showCross
+    ? null
+    : seatPlanLabel(
+        {
+          label: seat.l,
+          isWheelchairSpace: (seat.f & SEAT_FLAG.WHEELCHAIR) !== 0,
+          isCompanionSeat: (seat.f & SEAT_FLAG.COMPANION) !== 0,
+        },
+        specialLabels,
+      );
+  const planText =
+    planLabel && (planLabel.kind === 'MARKER' ? showMarkers : showNumbers) ? planLabel.text : null;
+  const symbolId = seat.m && symbolIds.has(seat.m) ? seat.m : defaultSymbolId;
+  const clickable = free || mine || !!changeColor;
+  return (
+    <g
+      key={seat.i}
+      data-seat={clickable ? seat.i : undefined}
+      className={clickable ? 'cursor-pointer' : undefined}
+    >
+      {title && <title>{title}</title>}
+      {symbolId ? (
+        <>
+          <use
+            href={symbolRef(symbolId)}
+            x={seat.x - radius}
+            y={seat.y - radius}
+            width={radius * 2}
+            height={radius * 2}
+            color={fill}
+            opacity={s === 'pending' ? 0.6 : 1}
+            transform={seat.o ? `rotate(${seat.o} ${seat.x} ${seat.y})` : undefined}
+          />
+          {/* invisible hit area so the whole seat box is clickable */}
+          <circle cx={seat.x} cy={seat.y} r={radius} fill="transparent" />
+          {(ringSelected || isHighlighted) && (
+            <circle
+              cx={seat.x}
+              cy={seat.y}
+              r={radius * 1.15}
+              fill="none"
+              stroke={isHighlighted ? ORPHAN_COLOR : ringColor}
+              strokeWidth={radius * 0.25}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <circle
+            cx={seat.x}
+            cy={seat.y}
+            r={radius}
+            fill={fill}
+            fillOpacity={s === 'pending' ? 0.6 : 1}
+            stroke={isHighlighted ? ORPHAN_COLOR : ringSelected ? ringColor : 'none'}
+            strokeWidth={isHighlighted ? radius * 0.45 : ringSelected ? radius * 0.35 : 0}
+          />
+          {mine && !planText && <circle cx={seat.x} cy={seat.y} r={radius * 0.35} fill="#ffffff" />}
+        </>
+      )}
+      {showCross && <path d={cross(seat.x, seat.y)} stroke="#71717a" strokeWidth={radius * 0.2} />}
+      {planText && (
+        <text
+          x={seat.x}
+          y={seat.y}
+          textAnchor="middle"
+          dominantBaseline="central"
+          // On seat symbols: dark digits with a white halo (readable on any symbol);
+          // on plain circles: black or white, whichever contrasts with the fill.
+          fontSize={radius * (symbolId ? 0.85 : 0.9) * (planText.length > 2 ? 0.72 : 1)}
+          fontWeight={symbolId ? 700 : 600}
+          fill={symbolId ? '#111827' : contrastText(fill)}
+          stroke={symbolId ? '#ffffff' : 'none'}
+          strokeWidth={symbolId ? radius * 0.22 : 0}
+          strokeLinejoin="round"
+          paintOrder="stroke"
+          className="pointer-events-none select-none"
+        >
+          {planText}
+        </text>
+      )}
+    </g>
+  );
+}
 
 const SeatLayer = memo(function SeatLayer({
   seats,
@@ -75,6 +240,7 @@ const SeatLayer = memo(function SeatLayer({
   status,
   highlighted,
   seatTitle,
+  sellBlocked,
 }: {
   seats: PublicSeat[];
   radius: number;
@@ -89,122 +255,28 @@ const SeatLayer = memo(function SeatLayer({
   statusVersion: number;
   highlighted: ReadonlySet<string>;
   seatTitle: (seat: PublicSeat) => string;
+  sellBlocked?: boolean;
 }) {
-  const cross = (x: number, y: number) =>
-    `M${x - radius * 0.5},${y - radius * 0.5}L${x + radius * 0.5},${y + radius * 0.5}M${x + radius * 0.5},${y - radius * 0.5}L${x - radius * 0.5},${y + radius * 0.5}`;
   return (
     <g>
-      {seats.map((seat) => {
-        const blocked = (seat.f & SEAT_FLAG.BLOCKED) !== 0 || !seat.c;
-        const s = blocked ? 'taken' : status(seat.i);
-        const free = s === 'free';
-        const mine = s === 'mine' || s === 'pending';
-        const fillSelected = mine && colors.selectionStyle !== 'RING';
-        const ringSelected = mine && colors.selectionStyle !== 'FILL';
-        const fill = blocked
-          ? colors.blockedColor
-          : s === 'taken'
-            ? colors.soldColor
-            : s === 'locked'
-              ? colors.inOtherCartColor
-              : fillSelected
-                ? colors.selectionColor
-                : colorOf(seat.c);
-        const showCross = colors.markUnavailableWithCross && (blocked || s === 'taken');
-        // Seat number, or the configured marker of wheelchair / companion seats.
-        const planLabel = showCross
-          ? null
-          : seatPlanLabel(
-              {
-                label: seat.l,
-                isWheelchairSpace: (seat.f & SEAT_FLAG.WHEELCHAIR) !== 0,
-                isCompanionSeat: (seat.f & SEAT_FLAG.COMPANION) !== 0,
-              },
-              specialLabels,
-            );
-        const planText =
-          planLabel && (planLabel.kind === 'MARKER' ? showMarkers : showNumbers)
-            ? planLabel.text
-            : null;
-        const symbolId = seat.m && symbolIds.has(seat.m) ? seat.m : defaultSymbolId;
-        const isHighlighted = highlighted.has(seat.i);
-        const clickable = free || mine;
-        return (
-          <g
-            key={seat.i}
-            data-seat={clickable ? seat.i : undefined}
-            className={clickable ? 'cursor-pointer' : undefined}
-          >
-            <title>{seatTitle(seat)}</title>
-            {symbolId ? (
-              <>
-                <use
-                  href={symbolRef(symbolId)}
-                  x={seat.x - radius}
-                  y={seat.y - radius}
-                  width={radius * 2}
-                  height={radius * 2}
-                  color={fill}
-                  opacity={s === 'pending' ? 0.6 : 1}
-                  transform={seat.o ? `rotate(${seat.o} ${seat.x} ${seat.y})` : undefined}
-                />
-                {/* invisible hit area so the whole seat box is clickable */}
-                <circle cx={seat.x} cy={seat.y} r={radius} fill="transparent" />
-                {(ringSelected || isHighlighted) && (
-                  <circle
-                    cx={seat.x}
-                    cy={seat.y}
-                    r={radius * 1.15}
-                    fill="none"
-                    stroke={isHighlighted ? ORPHAN_COLOR : colors.selectionColor}
-                    strokeWidth={radius * 0.25}
-                  />
-                )}
-              </>
-            ) : (
-              <>
-                <circle
-                  cx={seat.x}
-                  cy={seat.y}
-                  r={radius}
-                  fill={fill}
-                  fillOpacity={s === 'pending' ? 0.6 : 1}
-                  stroke={
-                    isHighlighted ? ORPHAN_COLOR : ringSelected ? colors.selectionColor : 'none'
-                  }
-                  strokeWidth={isHighlighted ? radius * 0.45 : ringSelected ? radius * 0.35 : 0}
-                />
-                {mine && !planText && (
-                  <circle cx={seat.x} cy={seat.y} r={radius * 0.35} fill="#ffffff" />
-                )}
-              </>
-            )}
-            {showCross && (
-              <path d={cross(seat.x, seat.y)} stroke="#71717a" strokeWidth={radius * 0.2} />
-            )}
-            {planText && (
-              <text
-                x={seat.x}
-                y={seat.y}
-                textAnchor="middle"
-                dominantBaseline="central"
-                // On seat symbols: dark digits with a white halo (readable on any symbol);
-                // on plain circles: black or white, whichever contrasts with the fill.
-                fontSize={radius * (symbolId ? 0.85 : 0.9) * (planText.length > 2 ? 0.72 : 1)}
-                fontWeight={symbolId ? 700 : 600}
-                fill={symbolId ? '#111827' : contrastText(fill)}
-                stroke={symbolId ? '#ffffff' : 'none'}
-                strokeWidth={symbolId ? radius * 0.22 : 0}
-                strokeLinejoin="round"
-                paintOrder="stroke"
-                className="pointer-events-none select-none"
-              >
-                {planText}
-              </text>
-            )}
-          </g>
-        );
-      })}
+      {seats.map((seat) => (
+        <SeatMark
+          key={seat.i}
+          seat={seat}
+          radius={radius}
+          showNumbers={showNumbers}
+          showMarkers={showMarkers}
+          specialLabels={specialLabels}
+          defaultSymbolId={defaultSymbolId}
+          symbolIds={symbolIds}
+          colorOf={colorOf}
+          colors={colors}
+          status={status}
+          isHighlighted={highlighted.has(seat.i)}
+          title={seatTitle(seat)}
+          sellBlocked={sellBlocked}
+        />
+      ))}
     </g>
   );
 });
@@ -327,6 +399,7 @@ export function SeatChart(props: SeatChartProps) {
           statusVersion={props.statusVersion}
           highlighted={props.highlighted}
           seatTitle={props.seatTitle}
+          sellBlocked={props.sellBlocked}
         />
         <ElementLayer elements={textElements} />
       </svg>

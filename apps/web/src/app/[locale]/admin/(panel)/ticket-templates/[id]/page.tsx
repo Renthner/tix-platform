@@ -1,4 +1,6 @@
 import { getTicketTemplate } from '@tix/core';
+import { translationLocales } from '@tix/shared';
+import { getBaseContentLocale } from '@/server/admin/edit-locale';
 import { events, mediaAssets } from '@tix/db';
 import { defaultTicketLayout, ticketLayoutSchema } from '@tix/shared';
 import { desc, eq, ne } from 'drizzle-orm';
@@ -30,6 +32,7 @@ export default async function TicketTemplateEditorPage({
   const { id } = await params;
   if (!UUID.test(id)) notFound();
   const { db } = getCore();
+  const baseLocale = await getBaseContentLocale();
   const template = await getTicketTemplate(db, id);
   if (!template) notFound();
   const t = await getTranslations('ticketDesigner');
@@ -89,6 +92,8 @@ export default async function TicketTemplateEditorPage({
         }
       />
       <TicketDesignerLoader
+        baseLocale={baseLocale}
+        translationLocales={translationLocales(baseLocale)}
         templateId={template.id}
         eventId={template.eventId}
         coverAssetId={eventRow?.hero ?? null}

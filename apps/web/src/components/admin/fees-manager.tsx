@@ -141,7 +141,9 @@ function useFeeFormat(currency: string) {
     fee.paymentMethods
       ? fee.paymentMethods.map((m) => t(`methods.${m}`)).join(', ')
       : t('allMethods'),
-    fee.channels ? fee.channels.map((c) => t(`channelNames.${c}`)).join(', ') : t('allChannels'),
+    (fee.channels?.length ? fee.channels : (['ONLINE'] as const))
+      .map((c) => t(`channelNames.${c}`))
+      .join(', '),
   ];
   return { money, percent, describe, appliesTo };
 }
@@ -339,7 +341,7 @@ function FeeFields({
       : formatHundredths(initial.value, initial.calculation === 'PERCENT' ? 'percent' : 'money');
   const rateOptions = taxRates.filter((r) => r.isActive || r.id === initial?.taxRateId);
   const methods = initial?.paymentMethods ?? PAYMENT_METHODS;
-  const channels = initial?.channels ?? SALES_CHANNELS;
+  const channels = initial?.channels?.length ? initial.channels : (['ONLINE'] as const);
 
   return (
     <>
@@ -1264,7 +1266,7 @@ function FeeExample({
   const price = parseFeeAmountToCents(priceInput);
   const tickets = Math.min(Math.max(Number.isInteger(count) ? count : 1, 1), 50);
   const fees = [...[...eventFees].sort((a, b) => a.sortOrder - b.sortOrder), ...orderFees].filter(
-    (f) => !f.channels || f.channels.includes('ONLINE'),
+    (f) => (f.channels?.length ? f.channels : ['ONLINE']).includes('ONLINE'),
   );
   const amountFor = (fee: FeeView, method: PaymentMethod) =>
     price === null || (fee.paymentMethods && !fee.paymentMethods.includes(method))

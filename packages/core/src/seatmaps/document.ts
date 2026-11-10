@@ -2,6 +2,7 @@ import {
   events,
   orderItems,
   priceCategories,
+  seatMapCategories,
   seatMapElements,
   seatMapEntrances,
   seatMapRows,
@@ -18,8 +19,10 @@ import {
   seatMapDocumentSchema,
   type SeatMapDocument,
   type SeatMapSaveError,
+  type SeatMapSettingsInput,
+  cleanTranslations,
 } from '@tix/shared';
-import { and, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { sequential } from '../sequential';
 
@@ -53,7 +56,8 @@ export async function loadSeatMapDocument(
 ): Promise<SeatMapDocument | null> {
   const [map] = await db.select().from(seatMaps).where(eq(seatMaps.id, seatMapId));
   if (!map) return null;
-  const [entrances, sections, rows, elements, seatRows] = await Promise.all([
+  const isTemplate = map.kind === 'TEMPLATE';
+  const [entrances, sections, rows, elements, seatRows, categoryRows] = await Promise.all([
     db.select().from(seatMapEntrances).where(eq(seatMapEntrances.seatMapId, seatMapId)),
     db
       .select()
@@ -68,8 +72,16 @@ export async function loadSeatMapDocument(
       .select()
       .from(seats)
       .where(and(eq(seats.seatMapId, seatMapId), isNull(seats.removedAt))),
+    isTemplate
+      ? db
+          .select()
+          .from(seatMapCategories)
+          .where(eq(seatMapCategories.seatMapId, seatMapId))
+          .orderBy(asc(seatMapCategories.sortOrder), asc(seatMapCategories.name))
+      : Promise.resolve([]),
   ]);
 
+  // On master plans `priceCategoryId` carries the plan category (seat_map_categories.id).
   return {
     version: map.version,
     name: map.name,
@@ -77,6 +89,13 @@ export async function loadSeatMapDocument(
     canvasHeight: map.canvasHeight,
     backgroundAssetId: map.backgroundAssetId,
     settings: seatMapDocumentSchema.shape.settings.parse(map.settings),
+    categories: categoryRows.map((c) => ({
+      id: c.id,
+      name: c.name,
+      color: c.color,
+      sortOrder: c.sortOrder,
+      translations: c.translations,
+    })),
     entrances: entrances.map((e) => ({
       id: e.id,
       name: e.name,
@@ -84,6 +103,7 @@ export async function loadSeatMapDocument(
       x: e.x,
       y: e.y,
       sortOrder: e.sortOrder,
+      translations: e.translations,
     })),
     sections: sections.map((s) => ({
       id: s.id,
@@ -95,13 +115,14 @@ export async function loadSeatMapDocument(
       color: s.color,
       sortOrder: s.sortOrder,
       entranceId: s.entranceId,
-      priceCategoryId: s.priceCategoryId,
+      priceCategoryId: isTemplate ? s.templateCategoryId : s.priceCategoryId,
       capacity: s.capacity,
       bestAvailablePriority: s.bestAvailablePriority,
       isBestAvailableEnabled: s.isBestAvailableEnabled,
       isActive: s.isActive,
       showNameOnMap: s.showNameOnMap,
       showLabelOnTicket: s.showLabelOnTicket,
+      translations: s.translations,
     })),
     rows: rows.map((r) => ({
       id: r.id,
@@ -119,6 +140,7 @@ export async function loadSeatMapDocument(
       style: e.style,
       assetId: e.assetId,
       zIndex: e.zIndex,
+      translations: e.translations,
     })),
     seats: seatRows.map((s) => ({
       id: s.id,
@@ -130,7 +152,7 @@ export async function loadSeatMapDocument(
       x: s.x,
       y: s.y,
       rotation: s.rotation,
-      priceCategoryId: s.priceCategoryId,
+      priceCategoryId: isTemplate ? s.templateCategoryId : s.priceCategoryId,
       bestAvailableRank: s.bestAvailableRank,
       isWheelchairSpace: s.isWheelchairSpace,
       isCompanionSeat: s.isCompanionSeat,
@@ -166,6 +188,16 @@ function chunks<T>(items: T[], size = CHUNK): T[][] {
 }
 
 /** `SET col = excluded.col` for every column except the primary key / seat_map_id / created_at. */
+/** Plan settings from the editor; translations the editor did not send are kept. */
+function withSettingsTranslations(
+  incoming: SeatMapSettingsInput,
+  current: SeatMapSettingsInput,
+): SeatMapSettingsInput {
+  const source = incoming.translations ?? current.translations;
+  const { translations: _drop, ...rest } = incoming;
+  return source ? { ...rest, translations: cleanTranslations(source, 'seatMap') } : rest;
+}
+
 function excludedSet(table: PgTable): Record<string, SQL> {
   const set: Record<string, SQL> = {};
   for (const [key, column] of Object.entries(getTableColumns(table))) {
@@ -176,7 +208,7 @@ function excludedSet(table: PgTable): Record<string, SQL> {
   return set;
 }
 
-class SaveAbort extends Error {
+export class SaveAbort extends Error {
   constructor(readonly result: Extract<SaveSeatMapResult, { ok: false }>) {
     super(result.error.message);
   }
@@ -216,22 +248,25 @@ export async function saveSeatMapDocument(
   const doc = parsed.data;
 
   try {
-    return await withTransaction(db, (tx) => applyDocument(tx, seatMapId, doc, actorUserId));
+    return await withTransaction(db, (tx) => applySeatMapDocument(tx, seatMapId, doc, actorUserId));
   } catch (err) {
     if (err instanceof SaveAbort) return err.result;
     throw err;
   }
 }
 
-async function applyDocument(
+export async function applySeatMapDocument(
   tx: Transaction,
   seatMapId: string,
   doc: SeatMapDocument,
   actorUserId: string | null,
 ): Promise<SaveSeatMapResult> {
-  const locked = await tx.execute<{ id: string; kind: 'TEMPLATE' | 'EVENT'; version: number }>(
-    sql`SELECT id, kind, version FROM seat_maps WHERE id = ${seatMapId} FOR UPDATE`,
-  );
+  const locked = await tx.execute<{
+    id: string;
+    kind: 'TEMPLATE' | 'EVENT';
+    version: number;
+    settings: SeatMapSettingsInput;
+  }>(sql`SELECT id, kind, version, settings FROM seat_maps WHERE id = ${seatMapId} FOR UPDATE`);
   const map = locked.rows[0];
   if (!map)
     throw new SaveAbort({
@@ -289,17 +324,21 @@ async function applyDocument(
   const categoryIds = new Set<string>();
   for (const s of doc.seats) if (s.priceCategoryId) categoryIds.add(s.priceCategoryId);
   for (const s of doc.sections) if (s.priceCategoryId) categoryIds.add(s.priceCategoryId);
+  const isTemplate = map.kind === 'TEMPLATE';
   if (categoryIds.size > 0) {
-    const allowed = eventId
-      ? new Set(
-          (
-            await tx
-              .select({ id: priceCategories.id })
-              .from(priceCategories)
-              .where(eq(priceCategories.eventId, eventId))
-          ).map((c) => c.id),
-        )
-      : new Set<string>();
+    // Master plans reference their own plan categories, event plans the event's price categories.
+    const allowed = isTemplate
+      ? new Set(doc.categories.map((c) => c.id))
+      : eventId
+        ? new Set(
+            (
+              await tx
+                .select({ id: priceCategories.id })
+                .from(priceCategories)
+                .where(eq(priceCategories.eventId, eventId))
+            ).map((c) => c.id),
+          )
+        : new Set<string>();
     const unknown = [...categoryIds].filter((id) => !allowed.has(id));
     if (unknown.length > 0) {
       throw new SaveAbort({
@@ -307,9 +346,9 @@ async function applyDocument(
         status: 422,
         error: {
           code: 'VALIDATION_FAILED',
-          message: eventId
-            ? 'Price categories must belong to this event'
-            : 'Templates cannot reference price categories',
+          message: isTemplate
+            ? 'Unknown plan category'
+            : 'Price categories must belong to this event',
           issues: unknown.map((id) => ({
             path: ['priceCategoryId'],
             message: `Unknown category ${id}`,
@@ -320,35 +359,40 @@ async function applyDocument(
   }
 
   // ── Current state ─────────────────────────────────────────────────────────
-  const [curSeats, curSections, curRows, curElements, curEntrances] = await sequential([
-    tx
-      .select({
-        id: seats.id,
-        rowId: seats.rowId,
-        tableElementId: seats.tableElementId,
-        label: seats.label,
-        position: seats.position,
-        blockReason: seats.blockReason,
-      })
-      .from(seats)
-      .where(and(eq(seats.seatMapId, seatMapId), isNull(seats.removedAt))),
-    tx
-      .select({ id: seatMapSections.id, name: seatMapSections.name })
-      .from(seatMapSections)
-      .where(and(eq(seatMapSections.seatMapId, seatMapId), isNull(seatMapSections.removedAt))),
-    tx
-      .select({ id: seatMapRows.id, sectionId: seatMapRows.sectionId, label: seatMapRows.label })
-      .from(seatMapRows)
-      .where(and(eq(seatMapRows.seatMapId, seatMapId), isNull(seatMapRows.removedAt))),
-    tx
-      .select({ id: seatMapElements.id })
-      .from(seatMapElements)
-      .where(eq(seatMapElements.seatMapId, seatMapId)),
-    tx
-      .select({ id: seatMapEntrances.id })
-      .from(seatMapEntrances)
-      .where(eq(seatMapEntrances.seatMapId, seatMapId)),
-  ]);
+  const [curSeats, curSections, curRows, curElements, curEntrances, curCategories] =
+    await sequential([
+      tx
+        .select({
+          id: seats.id,
+          rowId: seats.rowId,
+          tableElementId: seats.tableElementId,
+          label: seats.label,
+          position: seats.position,
+          blockReason: seats.blockReason,
+        })
+        .from(seats)
+        .where(and(eq(seats.seatMapId, seatMapId), isNull(seats.removedAt))),
+      tx
+        .select({ id: seatMapSections.id, name: seatMapSections.name })
+        .from(seatMapSections)
+        .where(and(eq(seatMapSections.seatMapId, seatMapId), isNull(seatMapSections.removedAt))),
+      tx
+        .select({ id: seatMapRows.id, sectionId: seatMapRows.sectionId, label: seatMapRows.label })
+        .from(seatMapRows)
+        .where(and(eq(seatMapRows.seatMapId, seatMapId), isNull(seatMapRows.removedAt))),
+      tx
+        .select({ id: seatMapElements.id })
+        .from(seatMapElements)
+        .where(eq(seatMapElements.seatMapId, seatMapId)),
+      tx
+        .select({ id: seatMapEntrances.id })
+        .from(seatMapEntrances)
+        .where(eq(seatMapEntrances.seatMapId, seatMapId)),
+      tx
+        .select({ id: seatMapCategories.id })
+        .from(seatMapCategories)
+        .where(eq(seatMapCategories.seatMapId, seatMapId)),
+    ]);
 
   const docSeatIds = new Set(doc.seats.map((s) => s.id));
   const docSectionIds = new Set(doc.sections.map((s) => s.id));
@@ -527,17 +571,35 @@ async function applyDocument(
     }
   };
 
+  if (isTemplate) {
+    await upsert(
+      seatMapCategories,
+      doc.categories.map((c) => ({
+        ...c,
+        translations: cleanTranslations(c.translations, 'priceCategory'),
+        seatMapId,
+      })),
+      'category',
+    );
+  }
   await upsert(
     seatMapEntrances,
-    doc.entrances.map((e) => ({ ...e, seatMapId })),
+    doc.entrances.map((e) => ({
+      ...e,
+      translations: cleanTranslations(e.translations, 'entrance'),
+      seatMapId,
+    })),
     'entrance',
   );
   await upsert(
     seatMapSections,
     doc.sections.map((s) => ({
       ...s,
+      translations: cleanTranslations(s.translations, 'section'),
       seatMapId,
       capacity: s.type === 'STANDING' ? s.capacity : null,
+      priceCategoryId: isTemplate ? null : s.priceCategoryId,
+      templateCategoryId: isTemplate ? s.priceCategoryId : null,
       removedAt: null,
     })),
     'section',
@@ -549,7 +611,11 @@ async function applyDocument(
   );
   await upsert(
     seatMapElements,
-    doc.elements.map((e) => ({ ...e, seatMapId })),
+    doc.elements.map((e) => ({
+      ...e,
+      translations: cleanTranslations(e.translations, 'element'),
+      seatMapId,
+    })),
     'element',
   );
   // An unchanged block keeps its original timestamp and author.
@@ -564,6 +630,8 @@ async function applyDocument(
     doc.seats.map((s) => ({
       ...s,
       seatMapId,
+      priceCategoryId: isTemplate ? null : s.priceCategoryId,
+      templateCategoryId: isTemplate ? s.priceCategoryId : null,
       blockedAt: s.blockReason ? now : null,
       blockedByUserId: s.blockReason ? actorUserId : null,
       removedAt: null,
@@ -571,6 +639,13 @@ async function applyDocument(
     'seat',
     { blockedAt: keepBlock('blocked_at'), blockedByUserId: keepBlock('blocked_by_user_id') },
   );
+
+  if (isTemplate) {
+    const keep = new Set(doc.categories.map((c) => c.id));
+    const goneCategories = curCategories.filter((c) => !keep.has(c.id)).map((c) => c.id);
+    if (goneCategories.length > 0)
+      await tx.delete(seatMapCategories).where(inArray(seatMapCategories.id, goneCategories));
+  }
 
   const newVersion = map.version + 1;
   await tx
@@ -580,7 +655,7 @@ async function applyDocument(
       canvasWidth: doc.canvasWidth,
       canvasHeight: doc.canvasHeight,
       backgroundAssetId: doc.backgroundAssetId,
-      settings: doc.settings,
+      settings: withSettingsTranslations(doc.settings, map.settings),
       version: newVersion,
     })
     .where(eq(seatMaps.id, seatMapId));

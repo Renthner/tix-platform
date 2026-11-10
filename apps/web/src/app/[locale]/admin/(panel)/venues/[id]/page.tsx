@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { ConfirmAction } from '@/components/admin/confirm-action';
 import { PageHeader } from '@/components/admin/form-controls';
+import { SeatPlanImport } from '@/components/admin/seat-plan-import';
 import { TemplateManager } from '@/components/admin/template-manager';
 import { VenueForm } from '@/components/admin/venue-form';
 import { Button } from '@/components/ui/button';
@@ -79,6 +80,9 @@ export default async function VenueDetailPage({
                 remove: deleteTemplateAction.bind(null, tpl.id),
               }))}
             />
+            <div className="mt-4">
+              <SeatPlanImport venueId={venue.id} />
+            </div>
           </CardContent>
         </Card>
         <Card>

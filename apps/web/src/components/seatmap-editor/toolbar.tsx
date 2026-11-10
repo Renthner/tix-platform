@@ -27,6 +27,7 @@ import {
   ZoomOut,
   type LucideIcon,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ export function TopBar({
   onFit,
   onSave,
   confirmLeave,
+  localeSlot,
 }: {
   title: string;
   planName: string;
@@ -74,6 +76,8 @@ export function TopBar({
   onSave: () => void;
   /** Confirmation text when leaving with unsaved changes (null = no prompt). */
   confirmLeave: string | null;
+  /** Content language dropdown. */
+  localeSlot?: ReactNode;
 }) {
   const t = useTranslations('editor.toolbar');
   return (
@@ -98,6 +102,7 @@ export function TopBar({
         <p className="truncate text-xs text-muted-foreground">{title}</p>
       </div>
       <div className="ml-auto flex items-center gap-1">
+        {localeSlot}
         <IconButton
           icon={Undo2}
           label={t('undo')}

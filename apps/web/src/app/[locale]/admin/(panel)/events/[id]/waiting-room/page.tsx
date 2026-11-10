@@ -1,4 +1,7 @@
 import { getTranslations } from 'next-intl/server';
+import { EventTranslationPane } from '@/components/admin/event-translation-pane';
+import { getBaseContentLocale, getEditLocale } from '@/server/admin/edit-locale';
+import { translationLocales } from '@tix/shared';
 import { notFound } from 'next/navigation';
 import {
   Announcements,
@@ -21,6 +24,7 @@ import { queueFormValues } from '@/server/admin/queue-defaults';
 import {
   createAnnouncementAction,
   expireAnnouncementAction,
+  updateAnnouncementAction,
   resetQueueAction,
   saveQueueConfigAction,
 } from '@/server/admin/queue';
@@ -42,6 +46,10 @@ export default async function EventWaitingRoomPage({
   const row = await getEventWithVenue(id);
   if (!row) notFound();
   const { event } = row;
+  const editLocale = await getEditLocale();
+  if (editLocale) {
+    return <EventTranslationPane eventId={event.id} scope="waitingRoom" editLocale={editLocale} />;
+  }
   const [t, form, stats, announcements] = await Promise.all([
     getTranslations('admin.queue'),
     queueFormValues(event.id),
@@ -85,13 +93,16 @@ export default async function EventWaitingRoomPage({
         <CardContent>
           <Announcements
             create={createAnnouncementAction.bind(null, event.id)}
+            translationLocales={translationLocales(await getBaseContentLocale())}
             items={announcements.map((a) => ({
               id: a.id,
               message: a.message,
               severity: a.severity,
               publishedAt: a.publishedAt.toISOString(),
               expiresAt: a.expiresAt?.toISOString() ?? null,
+              translations: a.translations,
               expire: expireAnnouncementAction.bind(null, a.id),
+              edit: updateAnnouncementAction.bind(null, a.id),
             }))}
           />
         </CardContent>

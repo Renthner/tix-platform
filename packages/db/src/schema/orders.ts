@@ -9,7 +9,6 @@ import {
   jsonb,
   pgSequence,
   pgTable,
-  primaryKey,
   text,
   unique,
   uniqueIndex,
@@ -21,6 +20,8 @@ import { basisPoints, cents, createdAt, currency, id, timestamps, tstz } from '.
 import { adminUsers } from './auth';
 import {
   actorTypeEnum,
+  adjustmentKindEnum,
+  adjustmentStatusEnum,
   checkInStateEnum,
   customerTokenPurposeEnum,
   feeScopeEnum,
@@ -30,6 +31,7 @@ import {
   orderStatusEnum,
   paymentMethodEnum,
   paymentStatusEnum,
+  refundKindEnum,
   refundStatusEnum,
   salesChannelEnum,
   ticketStatusEnum,
@@ -106,6 +108,10 @@ export const customerSessions = pgTable(
       .references(() => customers.id, { onDelete: 'cascade' }),
     expiresAt: tstz('expires_at').notNull(),
     lastSeenAt: tstz('last_seen_at').notNull().defaultNow(),
+    /** Set for sessions created by linking a signed-in admin (revoked with the admin's access). */
+    linkedAdminUserId: uuid('linked_admin_user_id').references(() => adminUsers.id, {
+      onDelete: 'cascade',
+    }),
     ipAddress: inet('ip_address'),
     userAgent: text('user_agent'),
     createdAt: createdAt(),
@@ -149,15 +155,14 @@ export const orders = pgTable(
     id: id(),
     /** Human-readable, sequential order number (pattern from `invoicing` settings). */
     orderNumber: text('order_number').notNull(),
-    customerId: uuid('customer_id')
-      .notNull()
-      .references(() => customers.id, { onDelete: 'restrict' }),
+    /** NULL only for box-office / admin orders without buyer data (see orders_online_has_buyer). */
+    customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'restrict' }),
     status: orderStatusEnum('status').notNull(),
     channel: salesChannelEnum('channel').notNull(),
     paymentMethod: paymentMethodEnum('payment_method').notNull(),
 
-    // ── Buyer snapshot ─────────────────────────────────────────────────────
-    email: text('email').notNull(),
+    // ── Buyer snapshot (anonymous box-office sales: email NULL, names empty) ──
+    email: text('email'),
     firstName: text('first_name').notNull(),
     lastName: text('last_name').notNull(),
     company: text('company'),
@@ -204,20 +209,36 @@ export const orders = pgTable(
     ipAddress: inet('ip_address'),
 
     paidAt: tstz('paid_at'),
+    /** Incremented whenever a bank allocation reversal undoes a payment: tells paid cycles apart. */
+    paidCycle: integer('paid_cycle').notNull().default(0),
     cancelledAt: tstz('cancelled_at'),
     expiredAt: tstz('expired_at'),
     cancellationReason: text('cancellation_reason'),
     /** Optimistic concurrency token for admin edits. */
     version: integer('version').notNull().default(1),
+    /** GDPR erasure: contact data of this order was replaced (see `customers/privacy.ts`). */
+    anonymizedAt: tstz('anonymized_at'),
+    /**
+     * Set when the customer was anonymised while invoices still bind the order's billing data
+     * (GoBD): name, company and billing address stay until this date, then the retention job
+     * erases them. NULL = nothing retained.
+     */
+    personalDataRetainedUntil: tstz('personal_data_retained_until'),
     ...timestamps(),
   },
   (t) => [
+    index('orders_retention_idx')
+      .on(t.personalDataRetainedUntil)
+      .where(sql`${t.personalDataRetainedUntil} IS NOT NULL`),
     unique('orders_order_number_uq').on(t.orderNumber),
     unique('orders_payment_reference_uq').on(t.paymentReference),
     index('orders_status_created_idx').on(t.status, t.createdAt),
     index('orders_email_idx').on(sql`lower(${t.email})`),
     index('orders_customer_idx').on(t.customerId),
     index('orders_created_idx').on(t.createdAt),
+    index('orders_paid_at_idx')
+      .on(t.paidAt)
+      .where(sql`${t.paidAt} IS NOT NULL`),
     index('orders_awaiting_due_idx')
       .on(t.autoCancelAt)
       .where(sql`${t.status} = 'AWAITING_PAYMENT'`),
@@ -230,6 +251,10 @@ export const orders = pgTable(
     index('orders_name_trgm_idx').using(
       'gin',
       sql`(${t.firstName} || ' ' || ${t.lastName}) gin_trgm_ops`,
+    ),
+    check(
+      'orders_online_has_buyer',
+      sql`${t.channel} <> 'ONLINE' OR (${t.customerId} IS NOT NULL AND ${t.email} IS NOT NULL)`,
     ),
     check('orders_currency_format', sql`${t.currency} ~ '^[A-Z]{3}$'`),
     check(
@@ -479,6 +504,10 @@ export const payments = pgTable(
       (): AnyPgColumn => bankTransactions.id,
       { onDelete: 'restrict' },
     ),
+    /** Set when the money pays an additional-payment request (`order_adjustments`), not the order itself. */
+    adjustmentId: uuid('adjustment_id').references((): AnyPgColumn => orderAdjustments.id, {
+      onDelete: 'restrict',
+    }),
     receivedByUserId: uuid('received_by_user_id').references(() => adminUsers.id, {
       onDelete: 'set null',
     }),
@@ -497,8 +526,80 @@ export const payments = pgTable(
       .on(t.providerCaptureId)
       .where(sql`${t.providerCaptureId} IS NOT NULL`),
     index('payments_bank_tx_idx').on(t.bankTransactionId),
+    index('payments_adjustment_idx')
+      .on(t.adjustmentId)
+      .where(sql`${t.adjustmentId} IS NOT NULL`),
     check('payments_amount_nonneg', sql`${t.amount} >= 0`),
     check('payments_captured_at', sql`${t.status} <> 'CAPTURED' OR ${t.capturedAt} IS NOT NULL`),
+  ],
+);
+
+/** One ticket of an adjustment: old and new tariff with the prices (gross, cents). */
+export interface AdjustmentItemSnapshot {
+  orderItemId: string;
+  /** Price category of the ticket when proposed (a seat change to another category invalidates it). */
+  fromPriceCategoryId: string;
+  fromTicketTypeId: string;
+  toTicketTypeId: string;
+  fromName: string;
+  toName: string;
+  fromPriceGross: number;
+  toPriceGross: number;
+}
+
+/**
+ * Additional payment for a PAID order (tariff upgrade, e.g. reduced → normal). While it is open
+ * (PROPOSED / CONFIRMED) the order, its items and tickets stay untouched; only the payment of
+ * the adjustment (`payments.adjustment_id`) applies the new tariffs, re-issues the tickets and
+ * corrects the invoice. At most one open adjustment per order. Cancelling resets everything.
+ */
+export const orderAdjustments = pgTable(
+  'order_adjustments',
+  {
+    id: id(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'restrict' }),
+    status: adjustmentStatusEnum('status').notNull().default('PROPOSED'),
+    kind: adjustmentKindEnum('kind').notNull().default('TARIFF_UPGRADE'),
+    /**
+     * Cash still to pay for the adjustment (cents). 0 = settled completely by credit (the order
+     * was overpaid); `amount + credit_applied` is the price difference of the changed tickets.
+     */
+    amount: cents('amount').notNull(),
+    /** Overpayment of the order credited against the price difference (cents). */
+    creditApplied: cents('credit_applied').notNull().default(0),
+    currency: currency().notNull(),
+    /** Own Verwendungszweck (same format as orders, unique across orders and adjustments). */
+    paymentReference: text('payment_reference').notNull(),
+    items: jsonb('items').$type<AdjustmentItemSnapshot[]>().notNull(),
+    reason: text('reason'),
+    createdByUserId: uuid('created_by_user_id').references(() => adminUsers.id, {
+      onDelete: 'set null',
+    }),
+    confirmedAt: tstz('confirmed_at'),
+    reminderSentAt: tstz('reminder_sent_at'),
+    paidAt: tstz('paid_at'),
+    cancelledAt: tstz('cancelled_at'),
+    cancelledBy: text('cancelled_by'),
+    ...timestamps(),
+  },
+  (t) => [
+    unique('order_adjustments_payment_reference_uq').on(t.paymentReference),
+    index('order_adjustments_order_idx').on(t.orderId),
+    uniqueIndex('order_adjustments_one_open_uq')
+      .on(t.orderId)
+      .where(sql`${t.status} IN ('PROPOSED','CONFIRMED')`),
+    index('order_adjustments_open_idx')
+      .on(t.createdAt)
+      .where(sql`${t.status} IN ('PROPOSED','CONFIRMED')`),
+    check('order_adjustments_amount_nonneg', sql`${t.amount} >= 0`),
+    check('order_adjustments_credit_nonneg', sql`${t.creditApplied} >= 0`),
+    check('order_adjustments_currency_format', sql`${t.currency} ~ '^[A-Z]{3}$'`),
+    check(
+      'order_adjustments_reference_format',
+      sql`${t.paymentReference} ~ '^[A-Z]{2,6}-[0-9]{4}-[0-9]{4,10}-[0-9]$'`,
+    ),
   ],
 );
 
@@ -511,10 +612,29 @@ export const refunds = pgTable(
       .references(() => orders.id, { onDelete: 'restrict' }),
     paymentId: uuid('payment_id').references(() => payments.id, { onDelete: 'restrict' }),
     method: paymentMethodEnum('method').notNull(),
+    /**
+     * AUTOMATIC = executed through the provider API (PayPal capture refund); MANUAL = "Erstattung
+     * offen" to-do – somebody transfers the money and marks it done (bank transfer, cash, card).
+     */
+    kind: refundKindEnum('kind').notNull().default('AUTOMATIC'),
     status: refundStatusEnum('status').notNull().default('PENDING'),
+    /**
+     * All refund rows created by one cancellation / overpayment refund share a batch (one amount
+     * and one credit note for the admin); PayPal needs one row per capture. Default: own batch.
+     */
+    batchId: uuid('batch_id').notNull().defaultRandom(),
+    /** Pays back an overpayment (no order items / fees, no credit note); counts as refunded money. */
+    overpayment: boolean('overpayment').notNull().default(false),
     amount: cents('amount').notNull(),
     currency: currency().notNull(),
     reason: text('reason'),
+    /** PayPal request-id generation: a retry after a definite provider failure starts a new one. */
+    attempt: integer('attempt').notNull().default(1),
+    /** Whether the admin chose to refund service fees with this cancellation. */
+    refundFees: boolean('refund_fees').notNull().default(false),
+    /** Payer account snapshot (from the bank transaction of the payment) for manual refunds. */
+    payerIban: text('payer_iban'),
+    payerName: text('payer_name'),
     providerRefundId: text('provider_refund_id'),
     creditNoteId: uuid('credit_note_id').references((): AnyPgColumn => invoices.id, {
       onDelete: 'restrict',
@@ -524,10 +644,21 @@ export const refunds = pgTable(
     }),
     failureMessage: text('failure_message'),
     processedAt: tstz('processed_at'),
+    /** Manual refunds: who marked the transfer as done, when, and an optional remark. */
+    completedByUserId: uuid('completed_by_user_id').references(() => adminUsers.id, {
+      onDelete: 'set null',
+    }),
+    completedAt: tstz('completed_at'),
+    note: text('note'),
     ...timestamps(),
   },
   (t) => [
     index('refunds_order_idx').on(t.orderId),
+    index('refunds_batch_idx').on(t.batchId),
+    /** Open to-dos: manual refunds waiting for a transfer and failed automatic ones. */
+    index('refunds_open_idx')
+      .on(t.createdAt)
+      .where(sql`${t.status} IN ('PENDING','FAILED')`),
     uniqueIndex('refunds_provider_refund_uq')
       .on(t.providerRefundId)
       .where(sql`${t.providerRefundId} IS NOT NULL`),
@@ -535,21 +666,36 @@ export const refunds = pgTable(
   ],
 );
 
+/**
+ * What a refund pays back: an order item (ticket price) or a fee line. `amount` is the money
+ * actually returned with that refund row (can be below the item price when the order was only
+ * partly paid); exactly one of `order_item_id` / `order_fee_id` is set.
+ */
 export const refundItems = pgTable(
   'refund_items',
   {
+    id: id(),
     refundId: uuid('refund_id')
       .notNull()
       .references(() => refunds.id, { onDelete: 'cascade' }),
-    orderItemId: uuid('order_item_id')
-      .notNull()
-      .references(() => orderItems.id, { onDelete: 'restrict' }),
+    orderItemId: uuid('order_item_id').references(() => orderItems.id, { onDelete: 'restrict' }),
+    orderFeeId: uuid('order_fee_id').references(() => orderFees.id, { onDelete: 'restrict' }),
     amount: cents('amount').notNull(),
   },
   (t) => [
-    primaryKey({ name: 'refund_items_pk', columns: [t.refundId, t.orderItemId] }),
+    uniqueIndex('refund_items_item_uq')
+      .on(t.refundId, t.orderItemId)
+      .where(sql`${t.orderItemId} IS NOT NULL`),
+    uniqueIndex('refund_items_fee_uq')
+      .on(t.refundId, t.orderFeeId)
+      .where(sql`${t.orderFeeId} IS NOT NULL`),
     index('refund_items_item_idx').on(t.orderItemId),
+    index('refund_items_fee_idx').on(t.orderFeeId),
     check('refund_items_amount_nonneg', sql`${t.amount} >= 0`),
+    check(
+      'refund_items_target',
+      sql`(${t.orderItemId} IS NOT NULL)::int + (${t.orderFeeId} IS NOT NULL)::int = 1`,
+    ),
   ],
 );
 
@@ -621,6 +767,21 @@ export const invoiceLines = pgTable(
     check('invoice_lines_totals', sql`${t.totalGross} = ${t.totalNet} + ${t.totalTax}`),
   ],
 );
+
+/**
+ * An invoice that a credit note cancelled completely because the sale was undone (bank allocation
+ * reversed). The next payment of the order issues a new invoice; the superseded one stays for the
+ * audit trail. Kept in its own table: invoices are immutable (GoBD trigger).
+ */
+export const invoiceSupersessions = pgTable('invoice_supersessions', {
+  invoiceId: uuid('invoice_id')
+    .primaryKey()
+    .references(() => invoices.id, { onDelete: 'restrict' }),
+  creditNoteId: uuid('credit_note_id')
+    .notNull()
+    .references(() => invoices.id, { onDelete: 'restrict' }),
+  createdAt: createdAt(),
+});
 
 /** Order history / state machine log (admin order timeline, customer account view). */
 export const orderHistory = pgTable(

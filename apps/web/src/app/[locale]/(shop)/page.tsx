@@ -1,4 +1,5 @@
-import { computeSaleState } from '@tix/core';
+import { computeSaleState, contentLocale } from '@tix/core';
+import { localized } from '@tix/shared';
 import { events, mediaAssets, priceCategories, venues } from '@tix/db';
 import { and, eq, inArray, min } from 'drizzle-orm';
 import { CalendarDays, MapPin } from 'lucide-react';
@@ -27,13 +28,16 @@ export async function generateMetadata() {
 }
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
-  await resolveLocale(params);
+  const locale = await resolveLocale(params);
   const { db } = getCore();
+  const content = await contentLocale(getCore(), locale);
+  const L = (e: Parameters<typeof localized>[0], field: string, base: string | null) =>
+    localized(e, field, content.locale, content.defaultLocale, base);
   const [t, format] = await Promise.all([getTranslations('shop'), getFormatter()]);
   const rows = await db
     .select({
       event: events,
-      venue: { name: venues.name, city: venues.city },
+      venue: { name: venues.name, city: venues.city, translations: venues.translations },
       cover: { id: mediaAssets.id, width: mediaAssets.width, height: mediaAssets.height },
     })
     .from(events)
@@ -90,13 +94,15 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
               )}
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-lg">{event.title}</CardTitle>
+                  <CardTitle className="text-lg">{L(event, 'title', event.title)}</CardTitle>
                   <Badge variant={state === 'ON_SALE' ? 'default' : 'secondary'}>
                     {t(`saleState.${state}`)}
                   </Badge>
                 </div>
                 {event.subtitle && (
-                  <p className="text-sm text-muted-foreground">{event.subtitle}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {L(event, 'subtitle', event.subtitle)}
+                  </p>
                 )}
               </CardHeader>
               <CardContent className="flex-1 space-y-1 text-sm text-muted-foreground">
@@ -110,7 +116,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 </p>
                 <p className="flex items-center gap-2">
                   <MapPin className="size-4" />
-                  {[venue.name, venue.city].filter(Boolean).join(', ')}
+                  {[L(venue, 'name', venue.name), venue.city].filter(Boolean).join(', ')}
                 </p>
                 {price !== undefined && price !== null && (
                   <p>

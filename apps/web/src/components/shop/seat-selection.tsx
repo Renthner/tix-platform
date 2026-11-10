@@ -10,7 +10,7 @@ import {
   type SeatDeltaMessage,
 } from '@tix/shared';
 import { Loader2, Minus, Plus, Sparkles, X } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -27,9 +27,11 @@ import {
 import { useRouter } from '@/i18n/navigation';
 import { apiFetch, errorCode, errorMessage } from '@/lib/api';
 import { useMoney } from '@/lib/format';
+import { startSocketPresence } from '@/lib/presence';
 import { emitRealtime, onRealtime, subscribeRoom } from '@/lib/realtime';
 import { useCart } from './cart-context';
 import { SeatChart, type SeatColors, type SeatStatus } from './seat-chart/seat-chart';
+import { SeatStateLegend, SeatSwatch, StandingSwatch } from './seat-chart/seat-legend';
 
 /** Upper bound of standing spots per request (matches the API). */
 const GA_MAX_PER_REQUEST = 100;
@@ -79,6 +81,7 @@ export function SeatSelection({
   /** Called when the shop pass expired → the parent re-runs the waiting-room gate. */
   onPassLost: () => void;
 }) {
+  const locale = useLocale();
   const t = useTranslations('shop.selection');
   const tErr = useTranslations('common.errors');
   const money = useMoney();
@@ -121,7 +124,7 @@ export function SeatSelection({
 
   const loadAll = useCallback(async () => {
     const [nextMap, availability] = await Promise.all([
-      apiFetch<PublicSeatMap>(`/api/events/${eventId}/seatmap`),
+      apiFetch<PublicSeatMap>(`/api/events/${eventId}/seatmap?locale=${locale}`),
       apiFetch<EventAvailability>(`/api/events/${eventId}/availability`),
     ]);
     setMap(nextMap);
@@ -135,7 +138,7 @@ export function SeatSelection({
       version: availability.version,
     });
     setStatusVersion((v) => v + 1);
-  }, [eventId]);
+  }, [eventId, locale]);
 
   useEffect(() => {
     loadAll().catch(showError);
@@ -170,10 +173,12 @@ export function SeatSelection({
     });
     const ping = setInterval(() => emitRealtime('shop:ping', eventId), PING_INTERVAL_MS);
     emitRealtime('shop:ping', eventId);
+    const stopPresence = startSocketPresence(eventId);
     return () => {
       off();
       unsubscribe();
       clearInterval(ping);
+      stopPresence();
     };
   }, [eventId, loadAll, update]);
 
@@ -435,7 +440,7 @@ export function SeatSelection({
   const seatedCategories = map.categories.filter((c) => map.seats.some((s) => s.c === c.id));
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
       <div className="space-y-3">
         <SeatChart
           map={map}
@@ -450,40 +455,24 @@ export function SeatSelection({
           onSectionClick={setActiveSection}
           seatTitle={seatTitle}
         />
-        <div className="flex flex-wrap gap-3 text-sm">
-          {map.categories.map((c) => (
-            <span key={c.id} className="flex items-center gap-1.5">
-              <span className="inline-block size-3 rounded-full" style={{ background: c.color }} />
-              {c.name} ·{' '}
-              {t('from', {
-                price: money(lookups.priceRange.get(c.id)?.min ?? c.basePrice, map.currency),
-              })}
-            </span>
-          ))}
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span
-              className="inline-block size-3 rounded-full"
-              style={{ background: colors.inOtherCartColor }}
-            />{' '}
-            {t('legend.inOtherCart')}
-          </span>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span
-              className="inline-block size-3 rounded-full"
-              style={{ background: colors.soldColor }}
-            />{' '}
-            {t('legend.unavailable')}
-          </span>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span
-              className={`inline-block size-3 rounded-full ${colors.selectionStyle === 'FILL' ? '' : 'border-2'}`}
-              style={{
-                borderColor: colors.selectionColor,
-                background: colors.selectionStyle === 'RING' ? undefined : colors.selectionColor,
-              }}
-            />{' '}
-            {t('legend.selected')}
-          </span>
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+          {map.categories.map((c) => {
+            const seated = map.seats.some((seat) => seat.c === c.id);
+            return (
+              <span key={c.id} className="flex items-center gap-1.5">
+                {seated || !map.sections.some((sec) => sec.priceCategoryId === c.id) ? (
+                  <SeatSwatch map={map} colors={colors} kind="free" categoryId={c.id} />
+                ) : (
+                  <StandingSwatch color={c.color} />
+                )}
+                {c.name} ·{' '}
+                {t('from', {
+                  price: money(lookups.priceRange.get(c.id)?.min ?? c.basePrice, map.currency),
+                })}
+              </span>
+            );
+          })}
+          <SeatStateLegend map={map} colors={colors} />
         </div>
       </div>
 

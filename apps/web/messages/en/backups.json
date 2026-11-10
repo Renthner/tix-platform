@@ -1,0 +1,235 @@
+{
+  "title": "Backups",
+  "description": "Full backups of the database and all stored files (images, invoices, tickets, bank statements). Backups are encrypted and kept in their own storage bucket; an external S3 target is optional.",
+  "keyNote": "Archives are encrypted with the key ring of this installation (key \"{keyId}\"). To restore a backup on another server, that server needs the same APP_ENCRYPTION_KEYS – keep a copy of them outside this system.",
+  "maintenance": {
+    "title": "Maintenance in progress",
+    "text": "The system is being restored from a backup and is briefly unavailable. This page reloads automatically.",
+    "steps": {
+      "VALIDATE": "Checking the backup…",
+      "DRAINING": "Pausing the system…",
+      "SAFETY_BACKUP": "Creating a safety backup…",
+      "SNAPSHOT": "Creating a safety backup…",
+      "DATABASE": "Creating a safety backup…",
+      "FILES_ASSETS": "Creating a safety backup…",
+      "FILES_DOCUMENTS": "Creating a safety backup…",
+      "EXTERNAL": "Creating a safety backup…",
+      "DATABASE_RESTORE": "Restoring the database…",
+      "MIGRATIONS": "Updating the database structure…",
+      "SEQUENCES": "Carrying number sequences forward…",
+      "FILES_RESTORE": "Restoring files…",
+      "FILES_CLEANUP": "Cleaning up files…",
+      "REDIS_CLEANUP": "Resetting caches and reservations…",
+      "ERASURE_REPLAY": "Replaying recorded erasures…",
+      "RESTORE_INCOMPLETE": "Restore incomplete – the system stays in maintenance mode"
+    }
+  },
+  "actions": {
+    "backupNow": "Back up now",
+    "upload": "Upload backup file",
+    "uploading": "Uploading… {percent}%",
+    "download": "Download",
+    "verify": "Verify",
+    "restore": "Restore",
+    "delete": "Delete",
+    "cancel": "Cancel"
+  },
+  "status": {
+    "title": "Current operation",
+    "operation": {
+      "BACKUP": "Backup",
+      "VERIFY": "Verification",
+      "RESTORE": "Restore",
+      "IMPORT": "Importing uploaded file"
+    },
+    "state": {
+      "RUNNING": "Running",
+      "SUCCEEDED": "Finished",
+      "FAILED": "Failed"
+    },
+    "stale": "No progress report for several minutes – the worker may have stopped. A new operation can be started once the system reports idle.",
+    "restoreRunning": "A restore is running. The shop is in maintenance mode and the admin area may be unavailable for a moment. You may be signed out afterwards if your session is not part of the restored data.",
+    "steps": {
+      "START": "Starting…",
+      "SNAPSHOT": "Taking a consistent snapshot…",
+      "DATABASE": "Dumping the database…",
+      "FILES_ASSETS": "Copying images…",
+      "FILES_DOCUMENTS": "Copying documents…",
+      "EXTERNAL": "Uploading to the external target…",
+      "RETENTION": "Applying retention…",
+      "CHECKSUM": "Checking checksum and decrypting…",
+      "TEST_RESTORE": "Restoring into a temporary database…",
+      "VALIDATE": "Validating…",
+      "DRAINING": "Pausing the system…",
+      "SAFETY_BACKUP": "Creating a safety backup…",
+      "DATABASE_RESTORE": "Restoring the database…",
+      "MIGRATIONS": "Updating the database structure…",
+      "SEQUENCES": "Carrying number sequences forward…",
+      "FILES_RESTORE": "Restoring files…",
+      "FILES_CLEANUP": "Cleaning up files…",
+      "REDIS_CLEANUP": "Resetting caches and reservations…",
+      "DONE": "Done",
+      "FAILED": "Failed",
+      "VERIFY_FAILED": "Verification failed",
+      "IMPORT_FAILED": "The uploaded file is not a valid backup",
+      "REJECTED_MIGRATION_NEWER": "Rejected: the backup was made by a newer version of the software",
+      "REJECTED_KEY_UNKNOWN": "Rejected: the encryption key of this backup is not available here",
+      "REJECTED_ARCHIVE_INVALID": "Rejected: the archive is damaged or was modified",
+      "REJECTED_CHECKSUM_MISMATCH": "Rejected: the checksum does not match",
+      "REJECTED_NOT_FOUND": "Rejected: backup not found",
+      "ERASURE_REPLAY": "Replaying recorded erasures…"
+    }
+  },
+  "list": {
+    "title": "Backups",
+    "empty": "No backups yet.",
+    "columns": {
+      "date": "Created",
+      "kind": "Type",
+      "size": "Size",
+      "external": "External copy",
+      "verify": "Verification",
+      "actions": "Actions"
+    },
+    "kind": {
+      "MANUAL": "Manual",
+      "SCHEDULED": "Scheduled",
+      "PRE_RESTORE": "Safety backup"
+    },
+    "external": {
+      "NONE": "–",
+      "UPLOADED": "Uploaded",
+      "FAILED": "Failed"
+    },
+    "verify": {
+      "NONE": "Not verified",
+      "OK": "Verified {date}",
+      "FAILED": "Failed {date}"
+    },
+    "details": "{orders} orders, {assets} images, {documents} documents · migration {migration}",
+    "uploaded": "uploaded file"
+  },
+  "verifyDetail": {
+    "ARCHIVE_MISMATCH": "The archive does not match its description.",
+    "ROW_COUNT_MISMATCH": "The test restore has different record counts than the backup.",
+    "CREATEDB_MISSING": "Checksum and decryption are fine, but the database user may not create databases, so no test restore was possible.",
+    "TEST_RESTORE_FAILED": "The test restore failed.",
+    "NOT_A_BACKUP": "Not a backup file.",
+    "KEY_UNKNOWN": "The encryption key of this backup is not available.",
+    "CORRUPT": "The backup is damaged or was modified.",
+    "TRUNCATED": "The backup file is incomplete.",
+    "BAD_ARCHIVE": "The archive structure is invalid."
+  },
+  "restore": {
+    "title": "Restore this backup?",
+    "description": "The database and all files are replaced by the state of {date}. A safety backup of the current state is created first; the shop is unavailable while the restore runs.",
+    "loading": "Checking what would be lost…",
+    "lossTitle": "Created after this backup and lost by the restore:",
+    "loss": "{orders} orders, {invoices} invoices, {payments} payments, {refunds} refunds",
+    "lossNone": "Nothing was created in the live system after this backup.",
+    "gobd": "Invoice and order numbers are never reused: the number counters keep the higher live values, so gaps may appear in the number sequence.",
+    "password": "Your password",
+    "code": "Authenticator or recovery code",
+    "acknowledge": "I understand that data created after the backup is lost and that the system is unavailable during the restore.",
+    "submit": "Restore now",
+    "submitting": "Starting…",
+    "twoFactorSetup": "Restoring requires two-factor authentication, but your account has none. Set up an authenticator app first.",
+    "twoFactorSetupLink": "Open my account"
+  },
+  "deleteConfirm": {
+    "title": "Delete this backup?",
+    "description": "The backup is removed from this server and from the external target. This cannot be undone.",
+    "external": "Also delete the copy on the external target"
+  },
+  "upload": {
+    "hint": "Restore a backup from another server or from the external target: upload the .tixbak file. It is checked completely before it appears in the list. Restoring requires the same encryption keys.",
+    "accepted": "Upload received – the file is being checked.",
+    "failed": "The upload failed.",
+    "notABackup": "This file is not a backup archive."
+  },
+  "settings": {
+    "title": "Schedule, retention and external copy",
+    "description": "Times use the shop time zone ({timeZone}).",
+    "scheduleEnabled": "Run scheduled backups",
+    "scheduleHint": "A backup missed by more than six hours (e.g. the system was down) is skipped until the next slot.",
+    "frequency": "Frequency",
+    "frequencies": {
+      "DAILY": "Daily",
+      "WEEKLY": "Weekly"
+    },
+    "weekday": "Weekday",
+    "time": "Time",
+    "keepScheduled": "Scheduled backups to keep",
+    "keepScheduledHint": "Older scheduled backups are deleted, on the external target too. Manual backups are kept until you delete them.",
+    "alertEmail": "Alert e-mail for failed scheduled backups",
+    "alertEmailHint": "Sent through the configured mail server; failures also appear on the dashboard.",
+    "external": {
+      "title": "External S3 copy",
+      "enabled": "Upload every backup to an external S3-compatible target",
+      "endpoint": "Endpoint URL",
+      "endpointHint": "e.g. https://s3.example.org",
+      "bucket": "Bucket",
+      "region": "Region",
+      "prefix": "Folder prefix",
+      "prefixHint": "Optional, e.g. tix-backups",
+      "forcePathStyle": "Path-style addressing (needed for MinIO and many providers)",
+      "accessKeyId": "Access key ID",
+      "secretAccessKey": "Secret access key",
+      "stored": "Stored",
+      "notStored": "Not set",
+      "replaceHint": "Leave empty to keep the stored keys.",
+      "enterHint": "Both keys are stored encrypted and are never shown again.",
+      "clear": "Remove the stored keys",
+      "test": "Test connection",
+      "testing": "Testing…"
+    },
+    "save": "Save",
+    "manualMaxAgeDays": "Delete manual and safety backups after (days)",
+    "manualMaxAgeDaysHint": "0 = keep until deleted by hand. Backups contain personal data: a limit helps with erasure requests (GDPR Art. 17). The newest verified backup is never deleted. Erasures are replayed after a restore.",
+    "maxUploadMb": "Largest upload (MB)",
+    "restoreRequiresTwoFactor": "Restoring requires two-factor authentication (recommended)",
+    "allowInsecureEndpoint": "Allow plain http:// endpoints",
+    "allowPrivateNetwork": "Allow endpoints in private networks (e.g. a MinIO on your LAN)",
+    "credentialsChangeHint": "Changing endpoint or bucket requires entering the keys again."
+  },
+  "feedback": {
+    "queued": "Started – see the progress above.",
+    "deleted": "Backup deleted.",
+    "connectionOk": "Connection works: a test file was written, read and deleted.",
+    "generic": "Something went wrong.",
+    "busy": "Another backup operation is running. Please wait until it has finished.",
+    "notFound": "Backup not found.",
+    "password": "The password is not correct.",
+    "twoFactorRequired": "Enter the code of your authenticator app (or a recovery code).",
+    "twoFactorInvalid": "The code is not correct.",
+    "acknowledge": "Please confirm that you understand the consequences.",
+    "locked": "The account is temporarily locked.",
+    "rateLimited": "Too many attempts. Please wait a few minutes.",
+    "connectionFailed": "Connection failed ({detail}).",
+    "connectionIncomplete": "Please enter endpoint, bucket and both access keys first.",
+    "endpointNotAllowed": "This endpoint is not allowed: use https and a public address (or enable the matching option below).",
+    "protected": "The newest verified backup cannot be deleted.",
+    "twoFactorSetupRequired": "Restoring requires two-factor authentication. Set it up in your account first."
+  },
+  "dashboardAlert": {
+    "title": "The last scheduled backup failed",
+    "text": "{message}",
+    "link": "Open backups"
+  },
+  "weekdays": {
+    "0": "Sunday",
+    "1": "Monday",
+    "2": "Tuesday",
+    "3": "Wednesday",
+    "4": "Thursday",
+    "5": "Friday",
+    "6": "Saturday"
+  },
+  "incomplete": {
+    "title": "Restore incomplete – the system stays in maintenance mode",
+    "text": "The database was replaced but the restore did not finish (step: {step}). Run the restore again, or restore the safety backup that was taken before it.",
+    "retry": "Run the restore again",
+    "safety": "Restore the safety backup",
+    "error": "Error: {error}"
+  }
+}

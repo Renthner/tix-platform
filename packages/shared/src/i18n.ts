@@ -9,3 +9,9 @@ export const DEFAULT_LOCALE: AppLocale = 'en';
 export function isAppLocale(value: string): value is AppLocale {
   return (SUPPORTED_LOCALES as readonly string[]).includes(value);
 }
+
+/** Base language of a locale tag ("de-DE" → "de") if supported, else "en". */
+export function normalizeLocale(tag: string | null | undefined): AppLocale {
+  const base = (tag ?? '').toLowerCase().split(/[-_]/)[0] ?? '';
+  return isAppLocale(base) ? base : 'en';
+}

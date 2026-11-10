@@ -26,6 +26,8 @@ export interface InvoicePdfInput {
   invoiceNumber: string;
   issuedAt: Date;
   correctsInvoiceNumber: string | null;
+  /** Credit note that only corrects an invoice (no refund): a new invoice replaces it. */
+  isCorrection?: boolean;
   currency: string;
   seller: PartySnapshot;
   buyer: PartySnapshot;
@@ -290,7 +292,11 @@ export async function renderInvoicePdfDocument(
   );
   canvas.y -= 18;
   for (const line of canvas.wrap(
-    isCredit ? t('invoice.creditNoteIntro') : t('invoice.intro'),
+    isCredit
+      ? input.isCorrection && input.correctsInvoiceNumber
+        ? t('invoice.correctionIntro', { invoice: input.correctsInvoiceNumber })
+        : t('invoice.creditNoteIntro')
+      : t('invoice.intro'),
     WIDTH,
     10,
   )) {

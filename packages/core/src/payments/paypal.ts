@@ -1,9 +1,23 @@
 import { createHash } from 'node:crypto';
-import { orderHistory, orders, payments, refunds, webhookEvents } from '@tix/db';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import {
+  orderAdjustments,
+  orderHistory,
+  orders,
+  payments,
+  refunds,
+  webhookEvents,
+  withTransaction,
+} from '@tix/db';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { orderAccessToken, orderUrl } from '../orders/access';
+import {
+  completeAdjustment,
+  getAdjustmentPaymentOptions,
+  type AdjustmentRow,
+} from '../orders/adjustments';
 import { recordPayment } from '../orders/fulfillment';
+import { markRefundSucceeded } from '../orders/refund-state';
 import { getSecretSetting, getSetting } from '../settings';
 
 /**
@@ -222,6 +236,7 @@ export async function startPayPalPayment(
       and(
         eq(payments.orderId, order.id),
         eq(payments.method, 'PAYPAL'),
+        isNull(payments.adjustmentId),
         inArray(payments.status, ['CREATED', 'APPROVED']),
       ),
     );
@@ -332,12 +347,32 @@ export async function completePayPalPayment(
     );
   if (!attempt) throw new DomainError('PAYMENT_NOT_FOUND', 'Payment not found', 404);
   if (attempt.status === 'CAPTURED') return { status: 'PAID' };
+  // Money that was refunded again (late / orphan capture) never counts as paid.
+  if (attempt.status === 'REFUNDED' || attempt.status === 'PARTIALLY_REFUNDED') {
+    return { status: 'NOT_PAYABLE' };
+  }
   const [order] = await ctx.db.select().from(orders).where(eq(orders.id, orderId));
   if (!order) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
+  if (attempt.adjustmentId) return completeAdjustmentPayPal(ctx, config, order, attempt);
   if (order.status === 'PAID') return { status: 'PAID' };
   // Never take money for an order that no longer holds seats.
   if (order.status !== 'PENDING') return { status: 'NOT_PAYABLE' };
 
+  const captured = await capturePayPalOrder(ctx, config, attempt.id, paypalOrderId);
+  if ('done' in captured) return captured.done;
+  return applyCapture(ctx, order, attempt.id, paypalOrderId, firstCapture(captured.remote));
+}
+
+/**
+ * Captures an approved PayPal order. Returns the remote order, or a final result when PayPal
+ * declines / the buyer has not approved / the capture failed (the attempt row is updated).
+ */
+async function capturePayPalOrder(
+  ctx: CoreContext,
+  config: PayPalConfig,
+  attemptId: string,
+  paypalOrderId: string,
+): Promise<{ remote: PayPalOrder } | { done: CompletePayPalResult }> {
   let remote: PayPalOrder;
   try {
     remote = await api<PayPalOrder>(
@@ -363,15 +398,15 @@ export async function completePayPalPayment(
         'GET',
         `/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`,
       ).catch(() => null);
-      return { status: 'RETRY', url: current ? approveLink(current) : null };
+      return { done: { status: 'RETRY', url: current ? approveLink(current) : null } };
     } else if (err.issue === 'ORDER_NOT_APPROVED') {
-      return { status: 'NOT_APPROVED' };
+      return { done: { status: 'NOT_APPROVED' } };
     } else {
-      await markAttempt(ctx, attempt.id, 'FAILED', err.issue ?? 'CAPTURE_FAILED', err.message);
-      return { status: 'FAILED', reason: err.issue ?? 'CAPTURE_FAILED' };
+      await markAttempt(ctx, attemptId, 'FAILED', err.issue ?? 'CAPTURE_FAILED', err.message);
+      return { done: { status: 'FAILED', reason: err.issue ?? 'CAPTURE_FAILED' } };
     }
   }
-  return applyCapture(ctx, order, attempt.id, paypalOrderId, firstCapture(remote));
+  return { remote };
 }
 
 async function applyCapture(
@@ -380,6 +415,8 @@ async function applyCapture(
   attemptId: string,
   paypalOrderId: string,
   capture: PayPalCapture | undefined,
+  /** The capture pays this additional-payment request instead of the order itself. */
+  adjustment?: AdjustmentRow,
 ): Promise<CompletePayPalResult> {
   if (!capture) {
     await markAttempt(ctx, attemptId, 'FAILED', 'NO_CAPTURE', 'PayPal returned no capture');
@@ -415,6 +452,25 @@ async function applyCapture(
     return { status: 'FAILED', reason: capture.status };
   }
   const amount = fromPayPalAmount(capture.amount.value);
+  if (adjustment) {
+    const done = await completeAdjustment(ctx, {
+      adjustmentId: adjustment.id,
+      amount,
+      currency: capture.amount.currency_code,
+      method: 'PAYPAL',
+      capturedAt: capture.create_time ? new Date(capture.create_time) : new Date(),
+      providerOrderId: paypalOrderId,
+      providerCaptureId: capture.id,
+      providerResponse: response,
+      actor: { type: 'WEBHOOK' },
+    });
+    if (done.status === 'NOT_PAYABLE') {
+      // Cancelled / paid meanwhile or a wrong amount: never keep money we cannot book.
+      await refundOrphanCapture(ctx, order, attemptId, capture, amount);
+      return { status: 'NOT_PAYABLE' };
+    }
+    return { status: 'PAID' };
+  }
   const result = await recordPayment(ctx, {
     orderId: order.id,
     amount,
@@ -458,48 +514,368 @@ async function refundOrphanCapture(
   amount: number,
 ): Promise<void> {
   const config = await loadConfig(ctx);
-  let refundId: string | null = null;
-  let failure: string | null = null;
-  try {
-    const refund = await api<{ id: string; status: string }>(
+  // One refund per capture: concurrent return / webhook / reconcile calls serialise on a lock
+  // keyed by the capture id; the loser finds the refund row and does nothing.
+  await withTransaction(ctx.db, async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`orphan-refund:${capture.id}`}))`);
+    const [existing] = await tx
+      .select({ id: refunds.id })
+      .from(refunds)
+      .where(and(eq(refunds.paymentId, attemptId), eq(refunds.reason, ORPHAN_REFUND_REASON)));
+    if (existing) return;
+    let refundId: string | null = null;
+    let failure: string | null = null;
+    try {
+      const refund = await api<{ id: string; status: string }>(
+        ctx,
+        config,
+        'POST',
+        `/v2/payments/captures/${encodeURIComponent(capture.id)}/refund`,
+        { requestId: `tix-refund-${capture.id}`, body: {} },
+      );
+      refundId = refund.id;
+    } catch (err) {
+      failure = err instanceof Error ? err.message : String(err);
+    }
+    await tx
+      .update(payments)
+      .set({
+        status: refundId ? 'REFUNDED' : 'CAPTURED',
+        providerCaptureId: capture.id,
+        capturedAt: new Date(),
+        failureMessage: failure,
+        updatedAt: new Date(),
+      })
+      .where(eq(payments.id, attemptId));
+    await tx.insert(refunds).values({
+      orderId: order.id,
+      paymentId: attemptId,
+      method: 'PAYPAL',
+      status: refundId ? 'SUCCEEDED' : 'FAILED',
+      amount,
+      currency: capture.amount.currency_code,
+      reason: ORPHAN_REFUND_REASON,
+      providerRefundId: refundId,
+      failureMessage: failure,
+      processedAt: new Date(),
+    });
+    await tx.insert(orderHistory).values({
+      orderId: order.id,
+      type: 'late_payment_refunded',
+      actorType: 'SYSTEM',
+      data: { captureId: capture.id, amount, refundId, failure },
+    });
+  });
+}
+
+const ORPHAN_REFUND_REASON = 'Payment received after the order was cancelled/expired';
+
+// ─── Additional payments (order adjustments) ────────────────────────────────
+
+/**
+ * Creates (or resumes) the PayPal order for a CONFIRMED adjustment of a PAID order and returns
+ * the approval URL. Own PayPal order, own request ids (never the order's), amount = adjustment.
+ */
+export async function startAdjustmentPayPalPayment(
+  ctx: CoreContext,
+  adjustmentId: string,
+): Promise<StartPayPalResult> {
+  const config = await loadConfig(ctx);
+  const [adjustment] = await ctx.db
+    .select()
+    .from(orderAdjustments)
+    .where(eq(orderAdjustments.id, adjustmentId));
+  if (!adjustment) {
+    throw new DomainError('ADJUSTMENT_NOT_FOUND', 'Additional payment not found', 404);
+  }
+  if (adjustment.status === 'PAID') return { status: 'DONE' };
+  if (adjustment.status !== 'CONFIRMED') {
+    throw new DomainError('ADJUSTMENT_NOT_PAYABLE', 'This additional payment cannot be paid', 409, {
+      status: adjustment.status,
+    });
+  }
+  const [order] = await ctx.db.select().from(orders).where(eq(orders.id, adjustment.orderId));
+  if (!order) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
+  if (order.status !== 'PAID') {
+    throw new DomainError('ADJUSTMENT_NOT_PAYABLE', 'This additional payment cannot be paid', 409);
+  }
+  if (!(await getAdjustmentPaymentOptions(ctx, adjustment)).paypal) {
+    throw new DomainError('PAYMENT_METHOD_UNAVAILABLE', 'PayPal is not available', 409);
+  }
+
+  const attempts = await ctx.db
+    .select()
+    .from(payments)
+    .where(
+      and(
+        eq(payments.adjustmentId, adjustment.id),
+        eq(payments.method, 'PAYPAL'),
+        inArray(payments.status, ['CREATED', 'APPROVED']),
+      ),
+    );
+  for (const attempt of attempts) {
+    if (!attempt.providerOrderId) continue;
+    const remote = await api<PayPalOrder>(
       ctx,
       config,
-      'POST',
-      `/v2/payments/captures/${encodeURIComponent(capture.id)}/refund`,
-      { requestId: `tix-refund-${capture.id}`, body: {} },
-    );
-    refundId = refund.id;
-  } catch (err) {
-    failure = err instanceof Error ? err.message : String(err);
+      'GET',
+      `/v2/checkout/orders/${encodeURIComponent(attempt.providerOrderId)}`,
+    ).catch(() => null);
+    if (!remote) continue;
+    if (remote.status === 'APPROVED' || remote.status === 'COMPLETED') {
+      const result = await completePayPalPayment(ctx, order.id, remote.id);
+      if (result.status === 'PAID' || result.status === 'PENDING') return { status: 'DONE' };
+      if (result.status === 'RETRY' && result.url) return { status: 'REDIRECT', url: result.url };
+      continue;
+    }
+    const link = approveLink(remote);
+    if (link && (remote.status === 'PAYER_ACTION_REQUIRED' || remote.status === 'CREATED')) {
+      return { status: 'REDIRECT', url: link };
+    }
   }
+
+  const base = requireCapability(ctx, 'appUrl');
+  const [paypal, general, allAttempts] = await Promise.all([
+    getSetting(ctx, 'paypal'),
+    getSetting(ctx, 'general'),
+    ctx.db
+      .select({ id: payments.id })
+      .from(payments)
+      .where(and(eq(payments.adjustmentId, adjustment.id), eq(payments.method, 'PAYPAL'))),
+  ]);
+  const returnUrl = new URL(`${base}/api/paypal/return`);
+  returnUrl.searchParams.set('order', order.id);
+  returnUrl.searchParams.set('t', orderAccessToken(ctx, order.id));
+  const cancelUrl = orderUrl(ctx, {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    locale: order.locale,
+  });
+  const attemptNo = allAttempts.length + 1;
+  const created = await api<PayPalOrder>(ctx, config, 'POST', '/v2/checkout/orders', {
+    requestId: `tix-adj-create-${adjustment.id}-${attemptNo}`,
+    body: {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          reference_id: adjustment.paymentReference,
+          invoice_id: `${adjustment.paymentReference}-${attemptNo}`,
+          custom_id: `adj:${adjustment.id}`,
+          description: `${paypal.brandName || general.shopName} ${order.orderNumber}`.slice(0, 127),
+          amount: { currency_code: adjustment.currency, value: toPayPalAmount(adjustment.amount) },
+        },
+      ],
+      payment_source: {
+        paypal: {
+          experience_context: {
+            brand_name: (config.brandName ?? general.shopName).slice(0, 127),
+            locale: order.locale === 'de' ? 'de-DE' : 'en-US',
+            shipping_preference: 'NO_SHIPPING',
+            user_action: 'PAY_NOW',
+            return_url: returnUrl.toString(),
+            cancel_url: `${cancelUrl}&paypal=cancelled`,
+          },
+        },
+      },
+    },
+  });
+  const link = approveLink(created);
+  if (!link) throw new PayPalApiError(502, null, null, 'PayPal returned no approval link');
   await ctx.db
-    .update(payments)
-    .set({
-      status: refundId ? 'REFUNDED' : 'CAPTURED',
-      providerCaptureId: capture.id,
-      capturedAt: new Date(),
-      failureMessage: failure,
-      updatedAt: new Date(),
+    .insert(payments)
+    .values({
+      orderId: order.id,
+      adjustmentId: adjustment.id,
+      method: 'PAYPAL',
+      status: 'CREATED',
+      amount: adjustment.amount,
+      currency: adjustment.currency,
+      providerOrderId: created.id,
+      providerResponse: { id: created.id, status: created.status },
     })
-    .where(eq(payments.id, attemptId));
-  await ctx.db.insert(refunds).values({
-    orderId: order.id,
-    paymentId: attemptId,
-    method: 'PAYPAL',
-    status: refundId ? 'SUCCEEDED' : 'FAILED',
-    amount,
-    currency: capture.amount.currency_code,
-    reason: 'Payment received after the order was cancelled/expired',
-    providerRefundId: refundId,
-    failureMessage: failure,
-    processedAt: new Date(),
+    .onConflictDoNothing();
+  return { status: 'REDIRECT', url: link };
+}
+
+/** Capture after the return from PayPal (or webhook / reconcile) for an adjustment attempt. */
+async function completeAdjustmentPayPal(
+  ctx: CoreContext,
+  config: PayPalConfig,
+  order: typeof orders.$inferSelect,
+  attempt: typeof payments.$inferSelect,
+): Promise<CompletePayPalResult> {
+  const [adjustment] = await ctx.db
+    .select()
+    .from(orderAdjustments)
+    .where(eq(orderAdjustments.id, attempt.adjustmentId!));
+  if (!adjustment) {
+    throw new DomainError('ADJUSTMENT_NOT_FOUND', 'Additional payment not found', 404);
+  }
+  // Never capture for a cancelled / paid adjustment or an order that is no longer paid.
+  if (adjustment.status !== 'CONFIRMED' && adjustment.status !== 'PROPOSED') {
+    return { status: 'NOT_PAYABLE' };
+  }
+  if (order.status !== 'PAID') return { status: 'NOT_PAYABLE' };
+  const paypalOrderId = attempt.providerOrderId!;
+  const captured = await capturePayPalOrder(ctx, config, attempt.id, paypalOrderId);
+  if ('done' in captured) return captured.done;
+  return applyCapture(
+    ctx,
+    order,
+    attempt.id,
+    paypalOrderId,
+    firstCapture(captured.remote),
+    adjustment,
+  );
+}
+
+/**
+ * An attempt whose capture was PENDING at PayPal: asks PayPal for the capture's current state and
+ * books it when COMPLETED (order or adjustment, in place), or fails the attempt when denied.
+ */
+async function settlePendingCapture(
+  ctx: CoreContext,
+  config: PayPalConfig,
+  orderId: string,
+  attempt: typeof payments.$inferSelect,
+): Promise<void> {
+  const capture = await api<PayPalCapture>(
+    ctx,
+    config,
+    'GET',
+    `/v2/payments/captures/${encodeURIComponent(attempt.providerCaptureId!)}`,
+  );
+  if (capture.status === 'PENDING') return;
+  const [order] = await ctx.db.select().from(orders).where(eq(orders.id, orderId));
+  if (!order) return;
+  const [adjustment] = attempt.adjustmentId
+    ? await ctx.db
+        .select()
+        .from(orderAdjustments)
+        .where(eq(orderAdjustments.id, attempt.adjustmentId))
+    : [];
+  await applyCapture(ctx, order, attempt.id, attempt.providerOrderId!, capture, adjustment);
+}
+
+/** Attempts older than this without approval are closed by the reconcile run. */
+const ADJUSTMENT_ATTEMPT_MAX_AGE_MS = 3 * 3600 * 1000;
+
+/**
+ * Checks the open PayPal attempts of an open adjustment at PayPal: approved ones are captured
+ * (buyer never came back), abandoned ones are closed. Run by the dunning job.
+ */
+export async function reconcileAdjustmentPayPal(
+  ctx: CoreContext,
+  adjustmentId: string,
+  now = new Date(),
+): Promise<void> {
+  const attempts = await ctx.db
+    .select()
+    .from(payments)
+    .where(
+      and(
+        eq(payments.adjustmentId, adjustmentId),
+        eq(payments.method, 'PAYPAL'),
+        inArray(payments.status, ['CREATED', 'APPROVED']),
+      ),
+    );
+  if (attempts.length === 0) return;
+  const config = await loadConfig(ctx);
+  for (const attempt of attempts) {
+    if (!attempt.providerOrderId) continue;
+    if (attempt.status === 'APPROVED' && attempt.providerCaptureId) {
+      await settlePendingCapture(ctx, config, attempt.orderId, attempt);
+      continue;
+    }
+    const remote = await api<PayPalOrder>(
+      ctx,
+      config,
+      'GET',
+      `/v2/checkout/orders/${encodeURIComponent(attempt.providerOrderId)}`,
+    );
+    if (remote.status === 'APPROVED' || remote.status === 'COMPLETED') {
+      await completePayPalPayment(ctx, attempt.orderId, remote.id);
+    } else if (now.getTime() - attempt.createdAt.getTime() > ADJUSTMENT_ATTEMPT_MAX_AGE_MS) {
+      await markAttempt(ctx, attempt.id, 'CANCELLED', 'NOT_APPROVED', null);
+    }
+  }
+}
+
+// ─── Refunds of captures (admin cancellation of paid orders) ────────────────
+
+export interface PayPalRefundResult {
+  id: string;
+  status: 'COMPLETED' | 'PENDING' | 'FAILED' | 'CANCELLED';
+  statusReason: string | null;
+}
+
+/**
+ * Refunds (part of) a capture. `requestId` must be unique PER REFUND ROW (`tix-refund-<refundId>`):
+ * PayPal deduplicates on it, so a retried job returns the original refund while two different
+ * partial refunds of the same capture are both executed.
+ */
+export async function createPayPalRefund(
+  ctx: CoreContext,
+  params: {
+    requestId: string;
+    captureId: string;
+    amountCents: number;
+    currency: string;
+    note?: string | null;
+    /** Our refund row id – echoed in the PAYMENT.CAPTURE.REFUNDED webhook (`custom_id`). */
+    customId?: string;
+  },
+): Promise<PayPalRefundResult> {
+  const config = await loadConfig(ctx);
+  const refund = await api<{
+    id: string;
+    status: PayPalRefundResult['status'];
+    status_details?: { reason?: string };
+  }>(ctx, config, 'POST', `/v2/payments/captures/${encodeURIComponent(params.captureId)}/refund`, {
+    requestId: params.requestId,
+    body: {
+      amount: { value: toPayPalAmount(params.amountCents), currency_code: params.currency },
+      ...(params.note ? { note_to_payer: params.note.slice(0, 255) } : {}),
+      ...(params.customId ? { custom_id: params.customId } : {}),
+    },
   });
-  await ctx.db.insert(orderHistory).values({
-    orderId: order.id,
-    type: 'late_payment_refunded',
-    actorType: 'SYSTEM',
-    data: { captureId: capture.id, amount, refundId, failure },
-  });
+  return {
+    id: refund.id,
+    status: refund.status,
+    statusReason: refund.status_details?.reason ?? null,
+  };
+}
+
+/** Current state of a refund at PayPal (resolves refunds that were PENDING when created). */
+export async function getPayPalRefund(
+  ctx: CoreContext,
+  providerRefundId: string,
+): Promise<PayPalRefundResult> {
+  const config = await loadConfig(ctx);
+  const refund = await api<{
+    id: string;
+    status: PayPalRefundResult['status'];
+    status_details?: { reason?: string };
+  }>(ctx, config, 'GET', `/v2/payments/refunds/${encodeURIComponent(providerRefundId)}`);
+  return {
+    id: refund.id,
+    status: refund.status,
+    statusReason: refund.status_details?.reason ?? null,
+  };
+}
+
+/** Errors a retry can fix (network, timeout, rate limit, PayPal outage) – everything else is final. */
+export function isTransientPayPalError(err: unknown): boolean {
+  if (err instanceof PayPalApiError) {
+    // 409 / PREVIOUS_REQUEST_IN_PROGRESS: the same request id is still being processed.
+    return (
+      err.status === 429 ||
+      err.status === 409 ||
+      err.status >= 500 ||
+      err.issue === 'PREVIOUS_REQUEST_IN_PROGRESS'
+    );
+  }
+  return !(err instanceof DomainError);
 }
 
 // ─── Reconciliation (expiry job) ────────────────────────────────────────────
@@ -516,6 +892,7 @@ export async function reconcilePayPalOrder(ctx: CoreContext, orderId: string): P
       and(
         eq(payments.orderId, orderId),
         eq(payments.method, 'PAYPAL'),
+        isNull(payments.adjustmentId),
         inArray(payments.status, ['CREATED', 'APPROVED']),
       ),
     );
@@ -525,7 +902,9 @@ export async function reconcilePayPalOrder(ctx: CoreContext, orderId: string): P
   for (const attempt of attempts) {
     if (!attempt.providerOrderId) continue;
     if (attempt.status === 'APPROVED' && attempt.providerCaptureId) {
-      // Capture pending at PayPal: completed/denied by webhook – keep the seats meanwhile.
+      // Capture pending at PayPal: ask for its outcome (the webhook may have been lost) and
+      // keep the seats meanwhile.
+      await settlePendingCapture(ctx, config, orderId, attempt);
       keep = true;
       continue;
     }
@@ -699,12 +1078,25 @@ async function processWebhookEvent(ctx: CoreContext, event: PayPalWebhookEvent):
       if (attempt.status === 'CAPTURED') return true;
       const [order] = await ctx.db.select().from(orders).where(eq(orders.id, attempt.orderId));
       if (!order) return false;
-      await applyCapture(ctx, order, attempt.id, attempt.providerOrderId!, {
-        id: resource.id,
-        status: 'COMPLETED',
-        amount: resource.amount,
-        create_time: resource.create_time,
-      });
+      const [adjustment] = attempt.adjustmentId
+        ? await ctx.db
+            .select()
+            .from(orderAdjustments)
+            .where(eq(orderAdjustments.id, attempt.adjustmentId))
+        : [];
+      await applyCapture(
+        ctx,
+        order,
+        attempt.id,
+        attempt.providerOrderId!,
+        {
+          id: resource.id,
+          status: 'COMPLETED',
+          amount: resource.amount,
+          create_time: resource.create_time,
+        },
+        adjustment,
+      );
       return true;
     }
     case 'PAYMENT.CAPTURE.DENIED':
@@ -731,7 +1123,36 @@ async function processWebhookEvent(ctx: CoreContext, event: PayPalWebhookEvent):
     }
     case 'PAYMENT.CAPTURE.REFUNDED':
     case 'PAYMENT.CAPTURE.REVERSED': {
-      // Refunds are initiated in the admin (phase 5); external ones are logged for review.
+      // A refund we started that PayPal completed asynchronously: settle our row. Matched by
+      // the custom id we sent (our refund row id), then by the PayPal refund id; only a
+      // COMPLETED refund of exactly our amount counts.
+      if (event.event_type === 'PAYMENT.CAPTURE.REFUNDED' && resource.id) {
+        const customId = resource.custom_id;
+        const [ours] = await ctx.db
+          .select({ id: refunds.id, amount: refunds.amount })
+          .from(refunds)
+          .where(
+            customId && /^[0-9a-f-]{36}$/i.test(customId)
+              ? or(eq(refunds.id, customId), eq(refunds.providerRefundId, resource.id))
+              : eq(refunds.providerRefundId, resource.id),
+          );
+        if (ours) {
+          if (
+            resource.status === 'COMPLETED' &&
+            resource.amount &&
+            fromPayPalAmount(resource.amount.value) === ours.amount
+          ) {
+            await withTransaction(ctx.db, (tx) =>
+              markRefundSucceeded(tx, ours.id, {
+                providerRefundId: resource.id,
+                actor: { type: 'WEBHOOK' },
+              }),
+            );
+          }
+          return true;
+        }
+      }
+      // Other refunds (made in the PayPal dashboard) are logged for review.
       // REFUNDED: resource = refund, its "up" link points to the capture.
       const captureId =
         event.event_type === 'PAYMENT.CAPTURE.REVERSED'

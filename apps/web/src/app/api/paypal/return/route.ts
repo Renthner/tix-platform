@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { getCore } from '@/server/core';
 import { getEnv } from '@/server/env';
+import { readMaintenance } from '@/server/maintenance-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,8 +30,10 @@ export async function GET(request: Request) {
   const orderId = url.searchParams.get('order') ?? '';
   const t = url.searchParams.get('t') ?? '';
   const paypalOrderId = url.searchParams.get('token') ?? '';
-  const core = getCore();
   const base = getEnv().APP_URL.replace(/\/+$/, '');
+  // Restore running: no capture, no database access. The maintenance page reloads when it is over.
+  if ((await readMaintenance()).active) return NextResponse.redirect(`${base}/`, 303);
+  const core = getCore();
   if (!paypalOrderId || verifyOrderAccessToken(core, t) !== orderId) {
     return NextResponse.redirect(`${base}/`, 303);
   }

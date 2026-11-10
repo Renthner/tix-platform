@@ -57,6 +57,12 @@ FROM ${NODE_IMAGE} AS worker
 ENV NODE_ENV=production \
     MIGRATIONS_DIR=/app/migrations
 WORKDIR /app
+# PostgreSQL client tools for backups (pg_dump / pg_restore / psql). Their major version must match
+# the server (postgres:18): the built image has to report `pg_dump --version` 18.x (checked below).
+# Alpine ships `postgresql18-client` since 3.23 (node:24-alpine is on 3.24); when NODE_IMAGE is
+# changed, verify with `apk search postgresql18-client` for that base.
+RUN apk add --no-cache postgresql18-client \
+ && pg_dump --version | grep -q 'pg_dump (PostgreSQL) 18'
 # `sharp` is native and therefore external to the bundle: install the exact version the
 # lockfile resolved (recorded in the build stage) so import('sharp') resolves from /app.
 COPY --from=build /sharp-version /tmp/sharp-version

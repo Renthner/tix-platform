@@ -1,9 +1,16 @@
-import { computeSaleState } from '@tix/core';
-import { Building2, CalendarPlus, Hourglass } from 'lucide-react';
+import {
+  computeSaleState,
+  countAdjustmentsNeedingAttention,
+  countInvoiceCorrections,
+  countOpenRefunds,
+  getBackupFailure,
+} from '@tix/core';
+import { Building2, CalendarPlus, DatabaseBackup, Hourglass, Undo2 } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { PageHeader } from '@/components/admin/form-controls';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { LiveDashboard } from '@/components/admin/live-dashboard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -17,7 +24,9 @@ import {
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { formatInZone } from '@/lib/datetime';
-import { requireAdmin } from '@/server/auth';
+import { hasRole, requireAdmin } from '@/server/auth';
+import { getCore } from '@/server/core';
+import { loadDashboard } from '@/server/admin/dashboard';
 import { listEvents } from '@/server/admin/queries';
 
 export async function generateMetadata() {
@@ -35,10 +44,21 @@ export default async function AdminDashboardPage({
   const locale = await resolveLocale(params);
   const session = await requireAdmin();
   const { denied } = await searchParams;
-  const [t, upcoming] = await Promise.all([
-    getTranslations('admin.dashboard'),
-    listEvents({ upcomingOnly: true }),
-  ]);
+  const [t, tb, upcoming, openRefunds, openAdjustments, invoiceCorrections, backupFailure, live] =
+    await Promise.all([
+      getTranslations('admin.dashboard'),
+      getTranslations('backups.dashboardAlert'),
+      listEvents({ upcomingOnly: true }),
+      hasRole(session, ['FINANCE']) ? countOpenRefunds(getCore()) : Promise.resolve(0),
+      hasRole(session, ['FINANCE'])
+        ? countAdjustmentsNeedingAttention(getCore())
+        : Promise.resolve(0),
+      hasRole(session, ['FINANCE']) ? countInvoiceCorrections(getCore()) : Promise.resolve(0),
+      hasRole(session, ['SUPER_ADMIN'])
+        ? getBackupFailure(getCore()).catch(() => null)
+        : Promise.resolve(null),
+      loadDashboard(session).catch(() => null),
+    ]);
 
   return (
     <>
@@ -47,6 +67,54 @@ export default async function AdminDashboardPage({
         {denied && (
           <Alert variant="destructive">
             <AlertDescription>{t('denied')}</AlertDescription>
+          </Alert>
+        )}
+        {backupFailure && (
+          <Alert variant="destructive">
+            <DatabaseBackup className="size-4" />
+            <AlertTitle>{tb('title')}</AlertTitle>
+            <AlertDescription>
+              <span>{tb('text', { message: backupFailure.message })}</span>{' '}
+              <Link href="/admin/backups" className="font-medium underline">
+                {tb('link')}
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+        {openRefunds > 0 && (
+          <Alert variant="destructive">
+            <Undo2 className="size-4" />
+            <AlertTitle>{t('refundsOpen.title', { count: openRefunds })}</AlertTitle>
+            <AlertDescription>
+              <span>{t('refundsOpen.text')}</span>{' '}
+              <Link href="/admin/refunds" className="font-medium underline">
+                {t('refundsOpen.link')}
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+        {invoiceCorrections > 0 && (
+          <Alert variant="destructive">
+            <Undo2 className="size-4" />
+            <AlertTitle>{t('invoiceCorrections.title', { count: invoiceCorrections })}</AlertTitle>
+            <AlertDescription>
+              <span>{t('invoiceCorrections.text')}</span>{' '}
+              <Link href="/admin/refunds" className="font-medium underline">
+                {t('invoiceCorrections.link')}
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+        {openAdjustments > 0 && (
+          <Alert variant="destructive">
+            <Undo2 className="size-4" />
+            <AlertTitle>{t('adjustmentsOpen.title', { count: openAdjustments })}</AlertTitle>
+            <AlertDescription>
+              <span>{t('adjustmentsOpen.text')}</span>{' '}
+              <Link href="/admin/refunds" className="font-medium underline">
+                {t('adjustmentsOpen.link')}
+              </Link>
+            </AlertDescription>
           </Alert>
         )}
         <div className="flex flex-wrap gap-2">
@@ -66,6 +134,7 @@ export default async function AdminDashboardPage({
             </Link>
           </Button>
         </div>
+        {live && <LiveDashboard initial={live} />}
         <Card>
           <CardHeader>
             <CardTitle>{t('upcoming')}</CardTitle>

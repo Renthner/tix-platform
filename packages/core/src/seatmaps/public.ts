@@ -11,14 +11,17 @@ import {
 } from '@tix/db';
 import {
   PUBLIC_MAP_FORMAT,
+  localizePublicSeatMap,
   SEAT_FLAG,
   companionPartners,
   computeTicketPrice,
   type PublicSeatMap,
   type PublicTicketType,
+  type SalesChannel,
 } from '@tix/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
+import { contentLocale } from '../content-locale';
 import type { EventRow } from '../events';
 import { symbolsByIds } from '../symbols';
 
@@ -82,6 +85,16 @@ export async function getPublicSeatMap(ctx: CoreContext, event: EventRow): Promi
   return map;
 }
 
+/** Public plan with all content translations resolved for `locale` (shop API, documents). */
+export async function getLocalizedPublicSeatMap(
+  ctx: CoreContext,
+  event: EventRow,
+  locale?: string | null,
+): Promise<PublicSeatMap> {
+  const { locale: loc, defaultLocale } = await contentLocale(ctx, locale);
+  return localizePublicSeatMap(await getPublicSeatMap(ctx, event), loc, defaultLocale);
+}
+
 /** Drops cached snapshots of an event (prices or tariffs changed without a map save). */
 export async function invalidatePublicSeatMap(
   ctx: CoreContext,
@@ -90,6 +103,79 @@ export async function invalidatePublicSeatMap(
 ): Promise<void> {
   for (const key of local.keys()) if (key.startsWith(`${eventId}:`)) local.delete(key);
   await ctx.redis.del(ctx.keys.seatMapSnapshot(eventId, version, PUBLIC_MAP_FORMAT));
+}
+
+/**
+ * Tariffs sellable in a sales channel with their price per category (matrix applied).
+ * Shared by the public (ONLINE) map and the box office (BOX_OFFICE / ADMIN).
+ */
+async function buildTicketTypeList(
+  db: CoreContext['db'],
+  types: (typeof ticketTypes.$inferSelect)[],
+  categories: { id: string; basePrice: number }[],
+  channel: SalesChannel,
+): Promise<PublicTicketType[]> {
+  const channelTypes = types.filter((t) => t.channels.includes(channel));
+  const matrix = channelTypes.length
+    ? await db
+        .select()
+        .from(priceCategoryTicketTypes)
+        .where(
+          and(
+            inArray(
+              priceCategoryTicketTypes.ticketTypeId,
+              channelTypes.map((t) => t.id),
+            ),
+            eq(priceCategoryTicketTypes.isActive, true),
+          ),
+        )
+    : [];
+
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  return channelTypes.map((t) => {
+    const prices: Record<string, number> = {};
+    for (const m of matrix) {
+      if (m.ticketTypeId !== t.id) continue;
+      const category = categoryById.get(m.priceCategoryId);
+      if (!category) continue;
+      prices[category.id] = computeTicketPrice(category.basePrice, t, {
+        priceOverride: m.priceOverride,
+        discountKind: m.discountKind,
+        discountValue: m.discountValue,
+      }).priceGross;
+    }
+    return {
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      isDefault: t.isDefault,
+      requiresProofAtEntry: t.requiresProofAtEntry,
+      requiredSeatFeature: t.requiredSeatFeature,
+      maxPerOrder: t.maxPerOrder,
+      sortOrder: t.sortOrder,
+      tr: t.translations,
+      prices,
+    };
+  });
+}
+
+/**
+ * Seating plan with the tariffs of another sales channel (box office). Not cached: used by
+ * the few admin users at the door, the (cached) public map supplies everything else.
+ */
+export async function getSeatMapForChannel(
+  ctx: CoreContext,
+  event: EventRow,
+  channel: SalesChannel,
+): Promise<PublicSeatMap> {
+  const map = await getPublicSeatMap(ctx, event);
+  if (channel === 'ONLINE') return map;
+  const types = await ctx.db
+    .select()
+    .from(ticketTypes)
+    .where(and(eq(ticketTypes.eventId, event.id), eq(ticketTypes.isActive, true)))
+    .orderBy(asc(ticketTypes.sortOrder), asc(ticketTypes.name));
+  return { ...map, ticketTypes: await buildTicketTypeList(ctx.db, types, map.categories, channel) };
 }
 
 async function buildPublicSeatMap(
@@ -148,48 +234,9 @@ async function buildPublicSeatMap(
     })),
   );
 
-  const onlineTypes = types.filter((t) => t.channels.includes('ONLINE'));
-  const matrix = onlineTypes.length
-    ? await db
-        .select()
-        .from(priceCategoryTicketTypes)
-        .where(
-          and(
-            inArray(
-              priceCategoryTicketTypes.ticketTypeId,
-              onlineTypes.map((t) => t.id),
-            ),
-            eq(priceCategoryTicketTypes.isActive, true),
-          ),
-        )
-    : [];
+  const ticketTypeList = await buildTicketTypeList(db, types, categories, 'ONLINE');
 
   const categoryById = new Map(categories.map((c) => [c.id, c]));
-  const ticketTypeList: PublicTicketType[] = onlineTypes.map((t) => {
-    const prices: Record<string, number> = {};
-    for (const m of matrix) {
-      if (m.ticketTypeId !== t.id) continue;
-      const category = categoryById.get(m.priceCategoryId);
-      if (!category) continue;
-      prices[category.id] = computeTicketPrice(category.basePrice, t, {
-        priceOverride: m.priceOverride,
-        discountKind: m.discountKind,
-        discountValue: m.discountValue,
-      }).priceGross;
-    }
-    return {
-      id: t.id,
-      name: t.name,
-      description: t.description,
-      isDefault: t.isDefault,
-      requiresProofAtEntry: t.requiresProofAtEntry,
-      requiredSeatFeature: t.requiredSeatFeature,
-      maxPerOrder: t.maxPerOrder,
-      sortOrder: t.sortOrder,
-      prices,
-    };
-  });
-
   const activeSections = new Set(sections.map((s) => s.id));
   return {
     eventId: event.id,
@@ -206,6 +253,7 @@ async function buildPublicSeatMap(
       basePrice: c.basePrice,
       sortOrder: c.sortOrder,
       maxPerOrder: c.maxTicketsPerOrder,
+      tr: c.translations,
     })),
     ticketTypes: ticketTypeList,
     sections: sections.map((s) => ({
@@ -221,6 +269,7 @@ async function buildPublicSeatMap(
       bestAvailablePriority: s.bestAvailablePriority,
       showNameOnMap: s.showNameOnMap,
       showLabelOnTicket: s.showLabelOnTicket,
+      tr: s.translations,
     })),
     rows: rows
       .filter((r) => activeSections.has(r.sectionId))
@@ -238,8 +287,16 @@ async function buildPublicSeatMap(
       geometry: e.geometry,
       style: e.style,
       zIndex: e.zIndex,
+      tr: e.translations,
     })),
-    entrances: entrances.map((e) => ({ id: e.id, name: e.name, code: e.code, x: e.x, y: e.y })),
+    entrances: entrances.map((e) => ({
+      id: e.id,
+      name: e.name,
+      code: e.code,
+      x: e.x,
+      y: e.y,
+      tr: e.translations,
+    })),
     seats: seatRows
       .filter((s) => activeSections.has(s.sectionId))
       .map((s) => ({

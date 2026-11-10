@@ -1,6 +1,7 @@
 import {
   bankTransactionAllocations,
   bankTransactions,
+  orderAdjustments,
   orders,
   withTransaction,
   type Database,
@@ -16,8 +17,9 @@ import {
   type OrderStatus,
   type ParsedPaymentReference,
 } from '@tix/shared';
-import { and, asc, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
+import { completeAdjustment, findOpenAdjustment } from '../orders/adjustments';
 import { recordPayment, type RecordPaymentResult } from '../orders/fulfillment';
 import { getSetting } from '../settings';
 import { withMutex } from './runs';
@@ -193,6 +195,24 @@ async function matchLocked(
     return { ...outcome(tx), status, reviewReason: reason };
   }
 
+  // An admin reversed an allocation of this transaction (it was matched to the wrong order):
+  // never put the money back automatically, a human decides.
+  const [reversed] = await ctx.db
+    .select({ id: bankTransactionAllocations.id })
+    .from(bankTransactionAllocations)
+    .where(
+      and(
+        eq(bankTransactionAllocations.bankTransactionId, tx.id),
+        isNotNull(bankTransactionAllocations.reversedAt),
+      ),
+    )
+    .limit(1);
+  if (reversed) {
+    const reason = tx.reviewReason ?? 'AMBIGUOUS';
+    await setStatus(ctx.db, tx.id, { matchStatus: 'NEEDS_REVIEW', reviewReason: reason });
+    return { ...outcome(tx), status: 'NEEDS_REVIEW', reviewReason: reason };
+  }
+
   const settings = await getSetting(ctx, 'bankTransfer');
   const tolerance = settings.autoMatchToleranceCents;
   const refs = extractPaymentReferences(referenceText(tx), [settings.paymentReferencePrefix]);
@@ -203,6 +223,19 @@ async function matchLocked(
         .select(orderColumns)
         .from(orders)
         .where(inArray(orders.paymentReference, validRefs))
+    : [];
+
+  // References of additional payments (tariff changes): own reference, own amount.
+  const referencedAdjustments = validRefs.length
+    ? await ctx.db
+        .select({
+          adjustment: orderAdjustments,
+          orderNumber: orders.orderNumber,
+          orderStatus: orders.status,
+        })
+        .from(orderAdjustments)
+        .innerJoin(orders, eq(orders.id, orderAdjustments.orderId))
+        .where(inArray(orderAdjustments.paymentReference, validRefs))
     : [];
 
   const review = async (
@@ -219,14 +252,6 @@ async function matchLocked(
     return { transactionId: tx.id, status: 'NEEDS_REVIEW', reviewReason: reason, orderIds: [] };
   };
 
-  // ── No order with a valid reference ──────────────────────────────────────
-  if (referenced.length === 0) {
-    const { candidates, strongName } = await findCandidates(ctx.db, tx, refs, tolerance);
-    const reason: BankTxReviewReason =
-      refs.length > 0 ? 'UNKNOWN_REFERENCE' : strongName ? 'NAME_MATCH_ONLY' : 'NO_REFERENCE';
-    return review(reason, candidates);
-  }
-
   const direct = (
     o: OrderInfo,
     score: number,
@@ -238,6 +263,43 @@ async function matchLocked(
     reasons: ['REFERENCE', ...extra],
   });
 
+  // ── Additional payment (tariff change) ────────────────────────────────────
+  if (referencedAdjustments.length > 0) {
+    const asCandidate = (
+      a: (typeof referencedAdjustments)[number],
+      ...extra: MatchCandidateReason[]
+    ): MatchCandidate => ({
+      orderId: a.adjustment.orderId,
+      orderNumber: a.orderNumber,
+      score: 90,
+      reasons: ['REFERENCE', 'ADJUSTMENT', ...extra],
+      adjustmentId: a.adjustment.id,
+    });
+    // Same reference on orders and adjustments, or several of them: a human decides.
+    if (referenced.length > 0 || referencedAdjustments.length > 1) {
+      return review('AMBIGUOUS', [
+        ...referenced.map((o) => direct(o, 85)),
+        ...referencedAdjustments.map((a) => asCandidate(a)),
+      ]);
+    }
+    return matchAdjustment(
+      ctx,
+      tx,
+      referencedAdjustments[0]!,
+      asCandidate(referencedAdjustments[0]!),
+      extractedReference,
+      review,
+    );
+  }
+
+  // ── No order with a valid reference ──────────────────────────────────────
+  if (referenced.length === 0) {
+    const { candidates, strongName } = await findCandidates(ctx.db, tx, refs, tolerance);
+    const reason: BankTxReviewReason =
+      refs.length > 0 ? 'UNKNOWN_REFERENCE' : strongName ? 'NAME_MATCH_ONLY' : 'NO_REFERENCE';
+    return review(reason, candidates);
+  }
+
   // ── Exactly one referenced order ─────────────────────────────────────────
   if (referenced.length === 1) {
     const order = referenced[0]!;
@@ -246,7 +308,20 @@ async function matchLocked(
     if (NOT_PAYABLE.includes(order.status)) {
       return review('ORDER_NOT_PAYABLE', [direct(order, 90, 'ORDER_NOT_PAYABLE')]);
     }
-    if (order.status === 'PAID') return review('OVERPAYMENT', [direct(order, 90, 'ALREADY_PAID')]);
+    if (order.status === 'PAID') {
+      // The customer may have paid an open additional payment with the order's reference.
+      const open = await findOpenAdjustment(ctx.db, order.id);
+      return review('OVERPAYMENT', [
+        ...(open && open.currency === tx.currency
+          ? [
+              {
+                ...direct(order, 92, 'ALREADY_PAID', 'ADJUSTMENT'),
+                adjustmentId: open.id,
+              },
+            ]
+          : [direct(order, 90, 'ALREADY_PAID')]),
+      ]);
+    }
     const outstanding = order.totalGross - order.amountPaid;
     const diff = tx.amount - outstanding;
     if (diff > tolerance) return review('OVERPAYMENT', [direct(order, 95)]);
@@ -278,6 +353,73 @@ async function matchLocked(
     amount: i === sorted.length - 1 ? tx.amount - (total - outstanding[i]!) : outstanding[i]!,
   }));
   return autoAllocate(ctx, tx, parts, extractedReference, review, tolerance);
+}
+
+/** A transfer with the reference of an additional payment: exact amount completes it. */
+async function matchAdjustment(
+  ctx: CoreContext,
+  tx: TxRow,
+  found: {
+    adjustment: typeof orderAdjustments.$inferSelect;
+    orderNumber: string;
+    orderStatus: OrderStatus;
+  },
+  candidate: MatchCandidate,
+  extractedReference: string | null,
+  review: (reason: BankTxReviewReason, candidates: MatchCandidate[]) => Promise<MatchResult>,
+): Promise<MatchResult> {
+  const { adjustment } = found;
+  if (adjustment.currency !== tx.currency) {
+    return review('CURRENCY_MISMATCH', [
+      { ...candidate, reasons: [...candidate.reasons, 'CURRENCY'] },
+    ]);
+  }
+  const notPayable = () =>
+    review('ORDER_NOT_PAYABLE', [
+      { ...candidate, reasons: [...candidate.reasons, 'ORDER_NOT_PAYABLE'] },
+    ]);
+  if (adjustment.status === 'CANCELLED' || adjustment.status === 'PAID') return notPayable();
+  const diff = tx.amount - adjustment.amount;
+  if (diff > 0) return review('OVERPAYMENT', [candidate]);
+  if (diff < 0) return review('UNDERPAYMENT', [candidate]);
+  const done = await completeAdjustment(ctx, {
+    adjustmentId: adjustment.id,
+    amount: tx.amount,
+    currency: tx.currency,
+    method: 'BANK_TRANSFER',
+    bankTransactionId: tx.id,
+    capturedAt: bookingInstant(tx.bookingDate),
+    providerResponse: { bankTransactionId: tx.id, method: 'AUTO', adjustmentId: adjustment.id },
+    actor: { type: 'SYSTEM' },
+  });
+  if (done.status === 'NOT_PAYABLE') {
+    return done.reason === 'CURRENCY_MISMATCH'
+      ? review('CURRENCY_MISMATCH', [candidate])
+      : done.reason === 'AMOUNT_MISMATCH'
+        ? review('UNDERPAYMENT', [candidate])
+        : notPayable();
+  }
+  await persistAllocations(
+    ctx.db,
+    tx.id,
+    [{ orderId: adjustment.orderId, paymentId: done.paymentId, amount: tx.amount }],
+    'AUTO',
+    null,
+    null,
+  );
+  await setStatus(ctx.db, tx.id, {
+    matchStatus: 'AUTO_MATCHED',
+    reviewReason: null,
+    extractedReference,
+    matchConfidence: 100,
+    matchCandidates: [{ ...candidate, score: 100 }],
+  });
+  return {
+    transactionId: tx.id,
+    status: 'AUTO_MATCHED',
+    reviewReason: null,
+    orderIds: [adjustment.orderId],
+  };
 }
 
 async function autoAllocate(
@@ -512,6 +654,41 @@ export async function findCandidates(
     }
   }
 
+  // 1b. The same near-miss matching for open additional payments (own references).
+  const adjustmentOf = new Map<string, string>();
+  for (const prefix of prefixes) {
+    const rows = await db
+      .select({
+        id: orderAdjustments.id,
+        orderId: orderAdjustments.orderId,
+        orderNumber: orders.orderNumber,
+        reference: orderAdjustments.paymentReference,
+      })
+      .from(orderAdjustments)
+      .innerJoin(orders, eq(orders.id, orderAdjustments.orderId))
+      .where(
+        and(
+          inArray(orderAdjustments.status, ['PROPOSED', 'CONFIRMED']),
+          sql`${orderAdjustments.paymentReference} LIKE ${`${prefix}-%`}`,
+        ),
+      )
+      .limit(5000);
+    for (const row of rows) {
+      for (const ref of refs) {
+        const distance = referenceDistance(ref.reference, row.reference);
+        if (!distance) continue;
+        adjustmentOf.set(row.orderId, row.id);
+        add(row.orderId, row.orderNumber, distance === 'CHECK_DIGIT' ? 70 : 50, 'ADJUSTMENT');
+        add(
+          row.orderId,
+          row.orderNumber,
+          0,
+          distance === 'CHECK_DIGIT' ? 'REFERENCE_CHECKSUM' : 'REFERENCE_SIMILAR',
+        );
+      }
+    }
+  }
+
   // 2. Sender name ↔ buyer name / company (pg_trgm similarity, word order independent).
   let strongName = false;
   const name = tx.counterpartyName?.trim();
@@ -559,6 +736,7 @@ export async function findCandidates(
       orderNumber: s.orderNumber,
       score: Math.min(99, s.score),
       reasons: [...s.reasons],
+      ...(adjustmentOf.has(orderId) ? { adjustmentId: adjustmentOf.get(orderId) } : {}),
     }))
     .sort((a, b) => b.score - a.score || a.orderNumber.localeCompare(b.orderNumber))
     .slice(0, MAX_CANDIDATES);
@@ -590,6 +768,11 @@ export async function assignBankTransaction(
     amount?: number;
     userId: string;
     note?: string | null;
+    /**
+     * Assign to the open additional payment (tariff change) of the order instead of the order
+     * itself. The assigned amount must equal the adjustment amount exactly.
+     */
+    adjustmentId?: string;
   },
 ): Promise<AssignResult> {
   const locked = await withMutex(ctx, `bank-tx:${params.transactionId}`, MUTEX_TTL_MS, async () => {
@@ -603,9 +786,78 @@ export async function assignBankTransaction(
     const unassigned = tx.amount - already;
     if (unassigned <= 0)
       throw new DomainError('TX_RESOLVED', 'The transaction is fully assigned', 409);
-    const amount = params.amount ?? unassigned;
+    const [adjustment] = params.adjustmentId
+      ? await ctx.db
+          .select()
+          .from(orderAdjustments)
+          .where(eq(orderAdjustments.id, params.adjustmentId))
+      : [];
+    if (params.adjustmentId && (!adjustment || adjustment.orderId !== params.orderId)) {
+      throw new DomainError('ADJUSTMENT_NOT_FOUND', 'Additional payment not found', 404);
+    }
+    const amount = params.amount ?? (adjustment ? adjustment.amount : unassigned);
     if (!Number.isInteger(amount) || amount <= 0 || amount > unassigned) {
       throw new DomainError('AMOUNT_EXCEEDS', 'Amount exceeds the unassigned part', 422);
+    }
+    if (adjustment) {
+      if (amount !== adjustment.amount) {
+        throw new DomainError(
+          'ADJUSTMENT_AMOUNT_MISMATCH',
+          'The amount must equal the additional payment',
+          422,
+          { expected: adjustment.amount },
+        );
+      }
+      if (adjustment.currency !== tx.currency) {
+        throw new DomainError('CURRENCY_MISMATCH', 'Currency differs from the transfer', 422);
+      }
+      const done = await completeAdjustment(ctx, {
+        adjustmentId: adjustment.id,
+        amount,
+        currency: tx.currency,
+        method: 'BANK_TRANSFER',
+        bankTransactionId: tx.id,
+        receivedByUserId: params.userId,
+        capturedAt: bookingInstant(tx.bookingDate),
+        providerResponse: {
+          bankTransactionId: tx.id,
+          method: 'MANUAL',
+          adjustmentId: adjustment.id,
+        },
+        actor: { type: 'ADMIN', userId: params.userId },
+      });
+      if (done.status === 'NOT_PAYABLE') {
+        throw new DomainError(
+          'ADJUSTMENT_NOT_PAYABLE',
+          'This additional payment cannot be paid',
+          409,
+          {
+            reason: done.reason,
+          },
+        );
+      }
+      await persistAllocations(
+        ctx.db,
+        tx.id,
+        [{ orderId: adjustment.orderId, paymentId: done.paymentId, amount }],
+        'MANUAL',
+        params.userId,
+        params.note?.trim() || null,
+      );
+      const left = tx.amount - (await allocatedAmount(ctx.db, tx.id));
+      await setStatus(ctx.db, tx.id, {
+        matchStatus: left <= 0 ? 'MANUALLY_MATCHED' : 'NEEDS_REVIEW',
+        reviewReason: left <= 0 ? null : (tx.reviewReason ?? 'OVERPAYMENT'),
+        reviewedByUserId: params.userId,
+        reviewedAt: new Date(),
+        reviewNote: params.note?.trim() || tx.reviewNote,
+      });
+      return {
+        payment: 'PAID',
+        outstanding: 0,
+        overpayment: 0,
+        unassigned: Math.max(0, left),
+      } satisfies AssignResult;
     }
     const [order] = await ctx.db
       .select(orderColumns)

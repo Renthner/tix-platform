@@ -14,6 +14,12 @@
     "fees": "Gebühren",
     "feeQuantity": "{name} ({quantity} ×)",
     "total": "Gesamt",
+    "refunded": "Erstattet",
+    "remaining": "Verbleibend",
+    "additionalPayment": "Nachzahlung",
+    "priceDifference": "Preisdifferenz",
+    "creditApplied": "Verrechnet mit deiner bisherigen Zahlung",
+    "remainingToPay": "Noch zu zahlen",
     "doorsOpen": "Einlass {time}"
   },
   "invoice": {
@@ -31,6 +37,7 @@
     "creditNoteHeading": "Rechnungskorrektur {number}",
     "intro": "Vielen Dank für deine Bestellung. Wir berechnen dir folgende Leistungen:",
     "creditNoteIntro": "Wir schreiben dir folgende Beträge gut:",
+    "correctionIntro": "Diese Gutschrift korrigiert die Rechnung {invoice} und storniert sie vollständig. Die berechneten Leistungen werden auf der neuen Rechnung erneut ausgewiesen; es wird kein Geld zurückgezahlt.",
     "position": "Pos.",
     "description": "Beschreibung",
     "quantity": "Menge",
@@ -48,10 +55,15 @@
     "page": "Seite {page} von {pages}",
     "notes": {
       "serviceDate": "Sofern nicht anders angegeben, entspricht das Leistungsdatum dem Rechnungsdatum.",
-      "paid": "Der Betrag wurde am {date} per {method} vollständig bezahlt. Vielen Dank!"
+      "paid": "Der Betrag wurde am {date} per {method} vollständig bezahlt. Vielen Dank!",
+      "paidAdditional": "Bereits bezahlt: {previous}. Nachzahlung: {additional} (eingegangen am {date}, {method}). Der Rechnungsbetrag von {total} ist damit vollständig bezahlt; es ist nichts weiter zu zahlen.",
+      "paidByCredit": "Bereits bezahlt: {previous} (darin die Überzahlung von {credit}, die mit der Tarifänderung verrechnet wurde). Der Rechnungsbetrag von {total} ist damit vollständig bezahlt; es ist nichts weiter zu zahlen.",
+      "paidAdditionalCredit": "Bereits bezahlt: {previous} (darin die Überzahlung von {credit}, die mit der Tarifänderung verrechnet wurde). Nachzahlung: {additional} (eingegangen am {date}, {method}). Der Rechnungsbetrag von {total} ist damit vollständig bezahlt; es ist nichts weiter zu zahlen.",
+      "overpaymentLeft": "Eine weitere Überzahlung von {amount} verbleibt bei der Bestellung."
     },
     "fileName": "Rechnung-{number}.pdf",
-    "creditNoteFileName": "Rechnungskorrektur-{number}.pdf"
+    "creditNoteFileName": "Rechnungskorrektur-{number}.pdf",
+    "anonymousBuyer": "Laufkundschaft"
   },
   "ticket": {
     "date": "Datum",

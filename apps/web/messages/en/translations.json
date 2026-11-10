@@ -1,0 +1,74 @@
+{
+  "switcher": {
+    "label": "Content language",
+    "default": "(default)",
+    "completeness": "{done}/{total} texts translated"
+  },
+  "pane": {
+    "intro": "You are editing the {language} texts. The base texts are written in {base}. Empty fields fall back to the base text in the shop.",
+    "base": "base text",
+    "save": "Save translations",
+    "readOnlyGlobal": "These fees apply to all events and are translated under Fees.",
+    "readOnlyLink": "Open Fees",
+    "scopeHint": {
+      "event": "Title, subtitle and description of the event and the name and description of the venue (venue texts apply to all events at this venue).",
+      "pricing": "Names and descriptions of price categories and tariffs.",
+      "fees": "Fee names as shown in the cart, checkout and e-mails. Global fees apply to all events.",
+      "shopPage": "Titles and texts of the info boxes on the event page.",
+      "waitingRoom": "Title and message of the waiting room. Announcements are translated when they are published.",
+      "globalFees": "Names of global fees as shown in the cart, checkout and e-mails.",
+      "globalQueue": "Title and message of the global waiting room."
+    },
+    "empty": {
+      "event": "Nothing to translate.",
+      "pricing": "There are no price categories or tariffs yet.",
+      "fees": "There are no fees.",
+      "shopPage": "This event has no info boxes.",
+      "waitingRoom": "This event uses the global waiting room settings. Save own waiting room settings for this event to translate them here.",
+      "globalFees": "There are no global fees.",
+      "globalQueue": "There are no global waiting room settings yet."
+    }
+  },
+  "notTranslatable": "This tab has no translatable texts. Switch the content language back to the default to edit its settings.",
+  "groups": {
+    "event": "Event",
+    "venue": "Venue",
+    "categories": "Price categories",
+    "ticketTypes": "Tariffs",
+    "eventFees": "Fees of this event",
+    "globalFees": "Global fees",
+    "infoBoxes": "Info boxes",
+    "queue": "Waiting room"
+  },
+  "fields": {
+    "title": "Title",
+    "subtitle": "Subtitle",
+    "description": "Description",
+    "name": "Name",
+    "content": "Text",
+    "message": "Message",
+    "ticketLabel": "Ticket label",
+    "label": "Label",
+    "wheelchairLabelText": "Wheelchair space label",
+    "companionLabelText": "Companion seat label"
+  },
+  "editor": {
+    "banner": "Translation mode ({language}): only the texts of blocks, elements and entrances can be edited. Layout and settings are edited in the default language.",
+    "name": "Name",
+    "ticketLabel": "Ticket label",
+    "label": "Label",
+    "wheelchairLabelText": "Wheelchair space label (max. 3 characters)",
+    "companionLabelText": "Companion seat label (max. 3 characters)",
+    "sections": "Blocks",
+    "elements": "Elements",
+    "entrances": "Entrances",
+    "settings": "Plan settings",
+    "empty": "Nothing to translate.",
+    "categories": "Price categories"
+  },
+  "announcement": {
+    "label": "Message in {language} (optional)",
+    "edit": "Edit text and translations",
+    "save": "Save changes"
+  }
+}

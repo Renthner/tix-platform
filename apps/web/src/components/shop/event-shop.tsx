@@ -1,13 +1,14 @@
 'use client';
 
 import { Clock, KeyRound, Loader2, Megaphone, Users } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { localized, type Translations } from '@tix/shared';
 import { apiFetch, errorCode } from '@/lib/api';
 import { formatCountdown } from '@/lib/format';
 import { onRealtime, subscribeRoom } from '@/lib/realtime';
@@ -18,6 +19,7 @@ import { SeatSelection, type ShopConfig } from './seat-selection';
 export interface Announcement {
   id: string;
   message: string;
+  translations?: Translations;
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
   publishedAt: string;
 }
@@ -35,6 +37,8 @@ interface Props {
   seatColors: SeatColors;
   queue: QueueInfo;
   announcements: Announcement[];
+  /** Shop default language (base language of announcement texts). */
+  defaultLocale: string;
 }
 
 type QueueBroadcast =
@@ -51,7 +55,9 @@ export function EventShop({
   seatColors,
   queue,
   announcements: initialAnnouncements,
+  defaultLocale,
 }: Props) {
+  const locale = useLocale();
   const t = useTranslations('queue');
   const tErr = useTranslations('common.errors');
   const [decision, setDecision] = useState<PublicDecision | null>(null);
@@ -107,10 +113,11 @@ export function EventShop({
             {
               id: message.id,
               message: message.message,
+              translations: message.translations,
               severity: message.severity,
               publishedAt: message.publishedAt,
             },
-            ...list,
+            ...list.filter((a) => a.id !== message.id),
           ].slice(0, 5),
         );
       } else if (message.type === 'cursor') {
@@ -165,7 +172,9 @@ export function EventShop({
       {announcements.map((a) => (
         <Alert key={a.id} variant={a.severity === 'INFO' ? 'default' : 'destructive'}>
           <Megaphone className="size-4" />
-          <AlertDescription>{a.message}</AlertDescription>
+          <AlertDescription>
+            {localized(a, 'message', locale, defaultLocale, a.message)}
+          </AlertDescription>
         </Alert>
       ))}
     </div>

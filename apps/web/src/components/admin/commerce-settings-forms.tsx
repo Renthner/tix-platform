@@ -196,6 +196,7 @@ export interface InvoicingValues {
   invoiceNumberPattern: string;
   creditNoteNumberPattern: string;
   invoiceFooter?: string;
+  smallAmountInvoiceLimit: number;
 }
 
 export function InvoicingSettingsForm({
@@ -238,6 +239,19 @@ export function InvoicingSettingsForm({
         <AlertDescription>{t('gapless')}</AlertDescription>
       </Alert>
       <Field
+        label={t('smallAmountInvoiceLimit')}
+        htmlFor="smallAmountInvoiceLimit"
+        error={err('smallAmountInvoiceLimit')}
+        hint={t('smallAmountInvoiceLimitHint')}
+      >
+        <Input
+          id="smallAmountInvoiceLimit"
+          name="smallAmountInvoiceLimit"
+          inputMode="decimal"
+          defaultValue={centsToInput(initial.smallAmountInvoiceLimit)}
+        />
+      </Field>
+      <Field
         label={t('invoiceFooter')}
         htmlFor="invoiceFooter"
         error={err('invoiceFooter')}
@@ -265,6 +279,7 @@ export interface BankTransferValues {
   countBusinessDaysOnly: boolean;
   holidayRegion: string | null;
   reminderAfterDays: number;
+  adjustmentReminderDays: number;
   /** Null = no automatic cancellation. */
   cancelAfterDays: number | null;
   disableDaysBeforeEvent: number;
@@ -361,6 +376,15 @@ export function BankTransferSettingsForm({
           min={1}
           max={60}
           error={err('reminderAfterDays')}
+        />
+        <NumberField
+          name="adjustmentReminderDays"
+          label={t('adjustmentReminderDays')}
+          hint={t('adjustmentReminderDaysHint')}
+          defaultValue={initial.adjustmentReminderDays}
+          min={1}
+          max={60}
+          error={err('adjustmentReminderDays')}
         />
         <NumberField
           name="cancelAfterDays"
@@ -716,6 +740,7 @@ export interface CustomerAccountsValues {
   passwordMinLength: number;
   emailVerificationTtlHours: number;
   passwordResetTtlMinutes: number;
+  loginLinkTtlMinutes: number;
 }
 
 export function CustomerAccountsSettingsForm({
@@ -783,6 +808,14 @@ export function CustomerAccountsSettingsForm({
           min={5}
           max={1440}
           error={err('passwordResetTtlMinutes')}
+        />
+        <NumberField
+          name="loginLinkTtlMinutes"
+          label={t('loginLinkTtlMinutes')}
+          defaultValue={initial.loginLinkTtlMinutes}
+          min={5}
+          max={1440}
+          error={err('loginLinkTtlMinutes')}
         />
       </div>
       <SubmitButton>{tc('save')}</SubmitButton>

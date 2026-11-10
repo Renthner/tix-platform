@@ -21,6 +21,7 @@ import { useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SplitRowDialog } from './dialogs';
+import { PlanCategoriesSection } from './plan-categories';
 import {
   deleteSelection,
   patchEntity,
@@ -64,7 +65,10 @@ type Apply = (update: (doc: Doc) => Doc, coalesceKey?: string, select?: Selectio
 interface PanelProps {
   doc: Doc;
   selection: Selection;
+  /** Category assignment is available (event plans: price categories, master plans: plan categories). */
   isEventMap: boolean;
+  /** Master plan: plan categories are edited in the plan panel. */
+  planCategories?: boolean;
   categories: { id: string; name: string; color: string }[];
   symbols: EditorSymbol[];
   apply: Apply;
@@ -248,7 +252,7 @@ function SpecialSeatLabelField({
   );
 }
 
-function PlanPanel({ doc, apply, symbols }: PanelProps) {
+function PlanPanel({ doc, apply, symbols, planCategories }: PanelProps) {
   const t = useTranslations('editor');
   const s = doc.settings;
   const setSettings = (patch: Partial<Doc['settings']>, key: string) =>
@@ -281,6 +285,7 @@ function PlanPanel({ doc, apply, symbols }: PanelProps) {
           />
         </div>
       </PanelSection>
+      {planCategories && <PlanCategoriesSection doc={doc} apply={apply} />}
       <PanelSection title={t('panel.display')}>
         <div className="grid grid-cols-2 gap-2">
           <NumberField

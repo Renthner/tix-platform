@@ -32,7 +32,10 @@ export const orderItemKindEnum = pgEnum('order_item_kind', E.ORDER_ITEM_KINDS);
 export const orderItemStatusEnum = pgEnum('order_item_status', E.ORDER_ITEM_STATUSES);
 export const paymentMethodEnum = pgEnum('payment_method', E.PAYMENT_METHODS);
 export const paymentStatusEnum = pgEnum('payment_status', E.PAYMENT_STATUSES);
+export const refundKindEnum = pgEnum('refund_kind', E.REFUND_KINDS);
 export const refundStatusEnum = pgEnum('refund_status', E.REFUND_STATUSES);
+export const adjustmentKindEnum = pgEnum('adjustment_kind', E.ADJUSTMENT_KINDS);
+export const adjustmentStatusEnum = pgEnum('adjustment_status', E.ADJUSTMENT_STATUSES);
 export const invoiceTypeEnum = pgEnum('invoice_type', E.INVOICE_TYPES);
 export const webhookEventStatusEnum = pgEnum('webhook_event_status', E.WEBHOOK_EVENT_STATUSES);
 

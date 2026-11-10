@@ -1,5 +1,5 @@
 import { events, queueConfigs, venues } from '@tix/db';
-import type { QueueAdmissionOrder, QueueMode } from '@tix/shared';
+import type { QueueAdmissionOrder, QueueMode, Translations } from '@tix/shared';
 import { and, eq, isNull, or } from 'drizzle-orm';
 import { DomainError, type CoreContext } from './context';
 import { getSetting } from './settings';
@@ -86,6 +86,8 @@ export interface EffectiveQueueConfig {
   isPaused: boolean;
   title: string | null;
   message: string | null;
+  /** Translations of `title` / `message` (resolve with `localized`). */
+  translations: Translations;
 }
 
 /** Shoppers without heartbeat for this long stop counting as active. */
@@ -115,6 +117,7 @@ export async function effectiveQueueConfig(
       isPaused: false,
       title: null,
       message: null,
+      translations: {},
     };
   }
   return {
@@ -131,6 +134,7 @@ export async function effectiveQueueConfig(
     isPaused: row.isPaused,
     title: row.title,
     message: row.message,
+    translations: row.translations,
   };
 }
 

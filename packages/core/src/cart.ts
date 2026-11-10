@@ -5,6 +5,8 @@ import {
   SEAT_FLAG,
   findBestAvailable,
   findOrphanSeats,
+  localizePublicSeatMap,
+  localized,
   checkCompanionSeats,
   type EventAvailability,
   type PublicSeat,
@@ -17,6 +19,7 @@ import { DomainError, type CoreContext } from './context';
 import { effectiveCheckoutConfig, getEventCached, type EventRow } from './events';
 import { ensureInventory } from './inventory';
 import { publishSeatDelta } from './realtime';
+import { contentLocale } from './content-locale';
 import { getPublicSeatMap } from './seatmaps/public';
 
 /**
@@ -78,7 +81,7 @@ const seatField = (eventId: string, seatId: string) => `tt:${eventId}:${seatId}`
 const gaField = (eventId: string, sectionId: string) => `ga:${eventId}:${sectionId}`;
 const eventField = (eventId: string) => `ev:${eventId}`;
 
-function allowedTypesFor(
+export function allowedTypesFor(
   map: PublicSeatMap,
   categoryId: string,
   seatFlags: number | null,
@@ -104,7 +107,7 @@ function defaultTypeFor(
   return featured ?? allowed.find((t) => t.isDefault) ?? allowed[0] ?? null;
 }
 
-function seatIndex(map: PublicSeatMap): Map<string, PublicSeat> {
+export function seatIndex(map: PublicSeatMap): Map<string, PublicSeat> {
   return new Map(map.seats.map((s) => [s.i, s]));
 }
 
@@ -209,7 +212,7 @@ export async function clearCartAfterOrder(
   );
 }
 
-async function cartEventIds(ctx: CoreContext, sessionId: string): Promise<string[]> {
+export async function cartEventIds(ctx: CoreContext, sessionId: string): Promise<string[]> {
   const fields = await ctx.redis.hkeys(ctx.keys.cart(sessionId));
   return fields.filter((f) => f.startsWith('ev:')).map((f) => f.slice(3));
 }
@@ -859,7 +862,11 @@ export async function getAvailability(
   };
 }
 
-export async function getCart(ctx: CoreContext, sessionId: string): Promise<CartView> {
+export async function getCart(
+  ctx: CoreContext,
+  sessionId: string,
+  locale?: string,
+): Promise<CartView> {
   const expiresAt = await cartExpiry(ctx, sessionId);
   const now = Date.now();
   if (!expiresAt || expiresAt <= now) {
@@ -870,19 +877,20 @@ export async function getCart(ctx: CoreContext, sessionId: string): Promise<Cart
   if (eventIds.length === 0)
     return { expiresAt, events: [], itemCount: 0, totalGross: 0, currencies: [] };
 
+  const { locale: loc, defaultLocale } = await contentLocale(ctx, locale);
   const rows = await ctx.db
-    .select({ event: events, venueName: venues.name })
+    .select({ event: events, venue: venues })
     .from(events)
     .innerJoin(venues, eq(venues.id, events.venueId))
     .where(inArray(events.id, eventIds));
   const fields = await ctx.redis.hgetall(ctx.keys.cart(sessionId));
 
   const views: CartEventView[] = [];
-  for (const { event, venueName } of rows.sort(
+  for (const { event, venue } of rows.sort(
     (a, b) => a.event.startsAt.getTime() - b.event.startsAt.getTime(),
   )) {
     const [map, mine, gaMine, config] = await Promise.all([
-      getPublicSeatMap(ctx, event),
+      getPublicSeatMap(ctx, event).then((m) => localizePublicSeatMap(m, loc, defaultLocale)),
       ctx.seats.sessionSeatIds(event.id, sessionId),
       ctx.seats.sessionGeneralAdmission(event.id, sessionId),
       effectiveCheckoutConfig(ctx, event),
@@ -968,10 +976,10 @@ export async function getCart(ctx: CoreContext, sessionId: string): Promise<Cart
     views.push({
       eventId: event.id,
       slug: event.slug,
-      title: event.title,
+      title: localized(event, 'title', loc, defaultLocale),
       startsAt: event.startsAt.toISOString(),
       timeZone: event.timeZone,
-      venueName,
+      venueName: localized(venue, 'name', loc, defaultLocale),
       currency: event.currency,
       orphanSeatRuleEnabled: config.orphanSeatRuleEnabled,
       ticketTypes: map.ticketTypes,

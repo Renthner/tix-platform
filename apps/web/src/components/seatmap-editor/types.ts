@@ -19,4 +19,11 @@ export interface SeatMapEditorProps {
   backHref: string;
   /** Complete symbol library (both kinds). */
   symbols: EditorSymbol[];
+  /** Content language switch: base language, edited language and completeness per language. */
+  translation?: {
+    baseLocale: string;
+    /** Language being edited; equals `baseLocale` for the normal editor. */
+    editLocale: string;
+    options: { locale: string; done: number; total: number }[];
+  };
 }

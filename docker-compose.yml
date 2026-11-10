@@ -29,6 +29,7 @@ x-app-environment: &app-environment
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
   S3_BUCKET_ASSETS: ${S3_BUCKET_ASSETS:-tix-assets}
   S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-tix-documents}
+  S3_BUCKET_BACKUPS: ${S3_BUCKET_BACKUPS:-tix-backups}
   S3_FORCE_PATH_STYLE: 'true'
 
 x-worker-image: &worker-image
@@ -128,6 +129,7 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       S3_BUCKET_ASSETS: ${S3_BUCKET_ASSETS:-tix-assets}
       S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-tix-documents}
+      S3_BUCKET_BACKUPS: ${S3_BUCKET_BACKUPS:-tix-backups}
     volumes:
       - ./docker/minio:/init:ro
 

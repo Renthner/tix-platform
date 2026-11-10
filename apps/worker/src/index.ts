@@ -1,7 +1,15 @@
 import { createServer, type Server } from 'node:http';
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { JobQueues, createCoreContext, objectStorageFromEnv } from '@tix/core';
+import {
+  DEFAULT_PG_BINARIES,
+  JobQueues,
+  backupBucketsFromEnv,
+  createCoreContext,
+  getRestoreIncomplete,
+  objectStorageFromEnv,
+  type BackupRuntime,
+} from '@tix/core';
 import { createDb, loadRootEnv, pingDb } from '@tix/db';
 import {
   RedisConnections,
@@ -12,10 +20,12 @@ import {
   writeWorkerHeartbeat,
 } from '@tix/redis';
 import { createSecretBox, parseKeyRing } from '@tix/shared/server';
+import { resolve } from 'node:path';
 import { Queue, Worker } from 'bullmq';
 import { loadEnv } from './env';
 import { createLogger } from './logger';
 import { startLoops } from './loops';
+import { warnOnPgToolMismatch } from './processors/backups';
 import { processorRegistrations } from './processors';
 
 const VERSION = process.env.APP_VERSION ?? '0.1.0';
@@ -62,7 +72,29 @@ async function main(): Promise<void> {
 
   // ── Queues & processors ───────────────────────────────────────────────────
   const bullPrefix = keys.bullPrefix();
-  const registrations = processorRegistrations({ core, db: dbHandle.db, logger });
+  const backups: BackupRuntime = {
+    ctx: core,
+    buckets: backupBucketsFromEnv(env),
+    keyRing: parseKeyRing(env.APP_ENCRYPTION_KEYS),
+    databaseUrl: env.DATABASE_URL,
+    migrationsDir: env.MIGRATIONS_DIR ?? resolve(process.cwd(), '../../packages/db/migrations'),
+    appVersion: VERSION,
+    pg: DEFAULT_PG_BINARIES,
+    logger,
+  };
+  // A restore that replaced the database but did not finish keeps the system in maintenance mode.
+  const incomplete = await getRestoreIncomplete(core).catch(() => null);
+  if (incomplete) {
+    logger.error(
+      { backupId: incomplete.backupId, step: incomplete.step },
+      'RESTORE INCOMPLETE: maintenance mode stays on until the restore is run again (Admin > Backups)',
+    );
+  }
+  const serverVersion = await dbHandle.pool.query<{ v: string }>('SHOW server_version_num');
+  await warnOnPgToolMismatch(backups, Number(serverVersion.rows[0]?.v ?? 0), logger).catch((err) =>
+    logger.warn({ err }, 'could not check the PostgreSQL client tools'),
+  );
+  const registrations = processorRegistrations({ core, db: dbHandle.db, logger, backups });
   const schedulerQueues: Queue[] = [];
   for (const registration of registrations) {
     if (!registration.schedulers?.length) continue;

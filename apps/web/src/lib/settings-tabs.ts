@@ -9,5 +9,7 @@ export const SETTINGS_TABS = [
   'email',
   'wallet',
   'accounts',
+  'security',
+  'scanner',
 ] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];

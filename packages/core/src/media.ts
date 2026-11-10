@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { mediaAssets, type Executor } from '@tix/db';
 import {
   MEDIA_ACCEPTED_MIME,
@@ -106,7 +106,7 @@ export function detectImage(bytes: Uint8Array): ImageInfo | null {
   return null;
 }
 
-function safeFileName(name: string, ext: string): string {
+export function safeFileName(name: string, ext: string): string {
   const base = name
     .replace(/[\\/]/g, '_')
     .replace(/[\u0000-\u001f\u007f]/g, '')
@@ -159,7 +159,7 @@ export async function uploadMediaAsset(
   if (existing) return existing;
 
   const year = new Date().getUTCFullYear();
-  const objectKey = `media/${input.kind.toLowerCase()}/${year}/${sha256}.${info.ext}`;
+  const objectKey = `media/${input.kind.toLowerCase()}/${year}/${sha256}-${randomBytes(4).toString('hex')}.${info.ext}`;
   await storage.put('assets', objectKey, bytes, info.mime);
   const [row] = await ctx.db
     .insert(mediaAssets)
@@ -222,45 +222,4 @@ export async function loadMediaBytes(ctx: CoreContext, id: string): Promise<Load
     width: asset.width,
     height: asset.height,
   };
-}
-
-/**
- * Every column that references `media_assets(id)`, discovered from the catalogue so that
- * references added later (new tables) are always honoured by the in-use check.
- */
-async function referencingColumns(db: Executor): Promise<{ table: string; column: string }[]> {
-  const result = await db.execute<{ table: string; column: string }>(sql`
-    SELECT cl.relname AS "table", att.attname AS "column"
-    FROM pg_constraint con
-    JOIN pg_class cl ON cl.oid = con.conrelid
-    JOIN pg_namespace ns ON ns.oid = cl.relnamespace
-    JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY (con.conkey)
-    WHERE con.contype = 'f'
-      AND con.confrelid = 'media_assets'::regclass
-      AND ns.nspname = current_schema()
-  `);
-  return result.rows;
-}
-
-export async function isMediaAssetInUse(ctx: CoreContext, id: string): Promise<boolean> {
-  const columns = await referencingColumns(ctx.db);
-  for (const { table, column } of columns) {
-    const hit = await ctx.db.execute(
-      sql`SELECT 1 FROM ${sql.identifier(table)} WHERE ${sql.identifier(column)} = ${id} LIMIT 1`,
-    );
-    if (hit.rows.length > 0) return true;
-  }
-  return false;
-}
-
-/** Deletes the catalogue row and the object; refuses while any record still references it. */
-export async function deleteMediaAsset(ctx: CoreContext, id: string): Promise<void> {
-  const asset = await getMediaAsset(ctx, id);
-  if (!asset) throw new DomainError('MEDIA_NOT_FOUND', 'Media asset not found', 404);
-  if (await isMediaAssetInUse(ctx, id)) {
-    throw new DomainError('MEDIA_IN_USE', 'The media asset is still in use', 409);
-  }
-  const storage = requireCapability(ctx, 'storage');
-  await ctx.db.delete(mediaAssets).where(eq(mediaAssets.id, id));
-  await storage.delete(asset.bucket as 'assets' | 'documents', asset.objectKey);
 }

@@ -51,4 +51,25 @@ describe('settings registry', () => {
       parseSetting('invoicing', { invoiceNumberPattern: 'R{YY}-{SEQ:5}' }).invoiceNumberPattern,
     ).toBe('R{YY}-{SEQ:5}');
   });
+
+  it('applies the admin security defaults to stored rows without the new fields', () => {
+    const stored = parseSetting('security', {
+      adminSessionTtlHours: 8,
+      maxFailedLogins: 5,
+      lockoutMinutes: 15,
+    });
+    expect(stored).toMatchObject({
+      adminSessionTtlHours: 8,
+      minPasswordLength: 12,
+      requireTwoFactor: false,
+      inviteTtlHours: 72,
+      passwordResetTtlMinutes: 60,
+    });
+    expect(parseSetting('customerAccounts', {}).loginLinkTtlMinutes).toBe(60);
+    expect(() => parseSetting('security', { minPasswordLength: 4 })).toThrow();
+    expect(parseSetting('scanner', {})).toMatchObject({
+      allowCheckOut: true,
+      syncIntervalSeconds: 30,
+    });
+  });
 });

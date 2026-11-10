@@ -1,7 +1,7 @@
 'use server';
 
 import { symbolsByIds } from '@tix/core';
-import { events } from '@tix/db';
+import { events, withTransaction } from '@tix/db';
 import {
   INFO_BOX_SIZES,
   MAX_EVENT_INFO_BOXES,
@@ -65,26 +65,45 @@ export async function updateEventPageAction(
       )
     ).map((s) => s.id),
   );
-  const infoBoxes: EventInfoBox[] = meta.data
-    .map((b) => {
-      const html = sanitizeRichText(text(fd, `content:${b.id}`));
-      return {
-        id: b.id,
-        title: b.title,
-        symbolId: b.symbolId && known.has(b.symbolId) ? b.symbolId : null,
-        content: richTextToPlain(html) !== '' ? html : '',
-        textSize: b.textSize,
-        iconSize: b.iconSize,
-      };
-    })
-    .filter((b) => b.title !== '' || b.content !== '');
-  // Rows of blocks side by side; removed / empty boxes drop out of the layout.
-  const pageLayout = normalizePageLayout(
-    layoutRaw,
-    infoBoxes.map((b) => b.id),
-  );
+  // Read-merge-write under the event row lock: a concurrent translation save (which locks the
+  // same row) cannot be overwritten with a stale copy of the boxes.
+  const { pageLayout, infoBoxes } = await withTransaction(db, async (tx) => {
+    const [locked] = await tx
+      .select({ infoBoxes: events.infoBoxes })
+      .from(events)
+      .where(eq(events.id, eventId))
+      .for('update');
+    if (!locked) return { pageLayout: null, infoBoxes: [] as EventInfoBox[] };
+    // Translations of existing boxes survive a save of the base texts.
+    const existing = new Map(locked.infoBoxes.map((b) => [b.id, b.translations]));
+    const boxes: EventInfoBox[] = meta.data
+      .map((b) => {
+        const translations = existing.get(b.id);
+        const html = sanitizeRichText(text(fd, `content:${b.id}`));
+        return {
+          id: b.id,
+          title: b.title,
+          symbolId: b.symbolId && known.has(b.symbolId) ? b.symbolId : null,
+          content: richTextToPlain(html) !== '' ? html : '',
+          textSize: b.textSize,
+          iconSize: b.iconSize,
+          ...(translations && Object.keys(translations).length ? { translations } : {}),
+        };
+      })
+      .filter((b) => b.title !== '' || b.content !== '');
+    // Rows of blocks side by side; removed / empty boxes drop out of the layout.
+    const layout = normalizePageLayout(
+      layoutRaw,
+      boxes.map((b) => b.id),
+    );
+    await tx
+      .update(events)
+      .set({ pageLayout: layout, infoBoxes: boxes })
+      .where(eq(events.id, eventId));
+    return { pageLayout: layout, infoBoxes: boxes };
+  });
+  if (!pageLayout) return formError('notFound');
 
-  await db.update(events).set({ pageLayout, infoBoxes }).where(eq(events.id, eventId));
   await audit(db, session, 'event.page', 'event', eventId, {
     pageLayout,
     infoBoxes: infoBoxes.map((b) => ({ id: b.id, title: b.title, symbolId: b.symbolId })),

@@ -44,6 +44,7 @@ export const FORM_ERROR_CODES = [
   'eventNotArchived',
   'builtinSymbol',
   'venueHasEvents',
+  'mediaInUse',
 ] as const;
 export type FormErrorCode = (typeof FORM_ERROR_CODES)[number];
 

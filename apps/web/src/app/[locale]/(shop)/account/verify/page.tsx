@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
-import { getCustomerSession } from '@/server/customer-session';
+import { getCustomerSession, readCustomerSessionToken } from '@/server/customer-session';
 import { clientIp, enforceRateLimit } from '@/server/http';
 import { AuthCard, searchParam, withNext } from '../_components/auth-card';
 
@@ -16,14 +16,18 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t('title'), robots: { index: false }, referrer: 'no-referrer' };
 }
 
-type Outcome = 'verified' | 'alreadyVerified' | 'TOKEN_INVALID' | 'RATE_LIMITED';
+type Outcome =
+  'verified' | 'verifiedNoPassword' | 'alreadyVerified' | 'TOKEN_INVALID' | 'RATE_LIMITED';
 
 /** Consumes the e-mail verification token (`?token=`). Opening it twice is harmless. */
 async function verify(token: string): Promise<Outcome> {
   try {
     await enforceRateLimit('customer-token-ip', await clientIp(), 30, 15 * 60_000);
-    const result = await verifyCustomerEmail(getCore(), token);
-    return result.alreadyVerified ? 'alreadyVerified' : 'verified';
+    const result = await verifyCustomerEmail(getCore(), token, {
+      sessionToken: await readCustomerSessionToken(),
+    });
+    if (result.alreadyVerified) return 'alreadyVerified';
+    return result.passwordCleared ? 'verifiedNoPassword' : 'verified';
   } catch (err) {
     if (err instanceof DomainError && err.code === 'RATE_LIMITED') return 'RATE_LIMITED';
     if (err instanceof DomainError && err.code === 'TOKEN_INVALID') return 'TOKEN_INVALID';
@@ -44,7 +48,8 @@ export default async function VerifyEmailPage({
   const outcome = await verify(searchParam(query, 'token') ?? '');
   // After verifying, the session (if any) sees the new state.
   const [t, session] = await Promise.all([getTranslations('account'), getCustomerSession()]);
-  const ok = outcome === 'verified' || outcome === 'alreadyVerified';
+  const ok =
+    outcome === 'verified' || outcome === 'verifiedNoPassword' || outcome === 'alreadyVerified';
   const target = session ? (next ?? '/account') : withNext('/account/login', next ?? '/account');
   return (
     <AuthCard title={t('verify.title')}>

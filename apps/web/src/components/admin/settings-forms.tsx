@@ -16,6 +16,7 @@ import {
   SubmitButton,
   errorOf,
 } from './form-controls';
+import { MediaPicker, type MediaPickerAsset } from './media-picker';
 import { RichTextEditor } from './rich-text-editor';
 import { TimeZoneOptions } from './venue-form';
 
@@ -191,6 +192,8 @@ export function GeneralSettingsForm({
 // ─── Branding ───────────────────────────────────────────────────────────────
 
 export interface BrandingValues {
+  logo: MediaPickerAsset | null;
+  favicon: MediaPickerAsset | null;
   primaryColor: string;
   accentColor: string;
   imprintUrl?: string;
@@ -215,6 +218,35 @@ export function BrandingSettingsForm({
     <ActionForm action={formAction} className="space-y-4">
       <ActionFeedback state={state} />
       <div className="grid gap-4 md:grid-cols-2">
+        <Field
+          label={t('logo')}
+          htmlFor="logoAssetId"
+          error={err('logoAssetId')}
+          hint={t('logoHint')}
+        >
+          <MediaPicker
+            name="logoAssetId"
+            kind="LOGO"
+            initialAsset={initial.logo}
+            previewClassName="max-w-xs"
+            previewAlt={t('logo')}
+          />
+        </Field>
+        <Field
+          label={t('favicon')}
+          htmlFor="faviconAssetId"
+          error={err('faviconAssetId')}
+          hint={t('faviconHint')}
+        >
+          <MediaPicker
+            name="faviconAssetId"
+            kind="LOGO"
+            initialAsset={initial.favicon}
+            aspectRatio={1}
+            previewClassName="max-w-32"
+            previewAlt={t('favicon')}
+          />
+        </Field>
         <ColorField
           name="primaryColor"
           label={t('primaryColor')}
@@ -271,7 +303,6 @@ export function BrandingSettingsForm({
           />
         </Field>
       </div>
-      <p className="text-xs text-muted-foreground">{t('logoLater')}</p>
       <SubmitButton>{tc('save')}</SubmitButton>
     </ActionForm>
   );
@@ -291,6 +322,7 @@ export interface CheckoutValues {
   requireTermsAcceptance: boolean;
   requirePhone: boolean;
   requireBillingAddress: boolean;
+  refundFeesByDefault: boolean;
 }
 
 export function CheckoutSettingsForm({
@@ -445,6 +477,12 @@ export function CheckoutSettingsForm({
           label={t('requireBillingAddress')}
           hint={t('requireBillingAddressHint')}
         />
+        <SwitchRow
+          name="refundFeesByDefault"
+          defaultChecked={initial.refundFeesByDefault}
+          label={t('refundFeesByDefault')}
+          hint={t('refundFeesByDefaultHint')}
+        />
       </div>
       <SubmitButton>{tc('save')}</SubmitButton>
     </ActionForm>
@@ -460,6 +498,9 @@ export interface SeatDisplayValues {
   selectionColor: string;
   selectionStyle: SeatSelectionStyle;
   markUnavailableWithCross: boolean;
+  seatChangeCurrentColor: string;
+  seatChangeReplacedColor: string;
+  seatChangeNewColor: string;
 }
 
 export function SeatDisplaySettingsForm({
@@ -528,6 +569,27 @@ export function SeatDisplaySettingsForm({
               ))}
             </NativeSelect>
           </Field>
+          <ColorField
+            name="seatChangeCurrentColor"
+            label={t('seatChangeCurrentColor')}
+            value={values.seatChangeCurrentColor}
+            onChange={set('seatChangeCurrentColor')}
+            error={err('seatChangeCurrentColor')}
+          />
+          <ColorField
+            name="seatChangeReplacedColor"
+            label={t('seatChangeReplacedColor')}
+            value={values.seatChangeReplacedColor}
+            onChange={set('seatChangeReplacedColor')}
+            error={err('seatChangeReplacedColor')}
+          />
+          <ColorField
+            name="seatChangeNewColor"
+            label={t('seatChangeNewColor')}
+            value={values.seatChangeNewColor}
+            onChange={set('seatChangeNewColor')}
+            error={err('seatChangeNewColor')}
+          />
           <label className="flex items-center gap-3 text-sm sm:col-span-2">
             <Switch
               name="markUnavailableWithCross"

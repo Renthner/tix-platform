@@ -1,0 +1,74 @@
+{
+  "switcher": {
+    "label": "Inhaltssprache",
+    "default": "(Standard)",
+    "completeness": "{done}/{total} Texte übersetzt"
+  },
+  "pane": {
+    "intro": "Du bearbeitest die Texte in {language}. Die Basistexte sind in {base} geschrieben. Leere Felder zeigt der Shop in der Basissprache an.",
+    "base": "Basistext",
+    "save": "Übersetzungen speichern",
+    "readOnlyGlobal": "Diese Gebühren gelten für alle Veranstaltungen und werden unter Gebühren übersetzt.",
+    "readOnlyLink": "Gebühren öffnen",
+    "scopeHint": {
+      "event": "Titel, Untertitel und Beschreibung der Veranstaltung sowie Name und Beschreibung des Veranstaltungsorts (Ortstexte gelten für alle Veranstaltungen an diesem Ort).",
+      "pricing": "Namen und Beschreibungen der Preiskategorien und Tarife.",
+      "fees": "Gebührennamen, wie sie im Warenkorb, an der Kasse und in E-Mails erscheinen. Globale Gebühren gelten für alle Veranstaltungen.",
+      "shopPage": "Titel und Texte der Infoboxen auf der Veranstaltungsseite.",
+      "waitingRoom": "Titel und Nachricht des Warteraums. Durchsagen werden beim Veröffentlichen übersetzt.",
+      "globalFees": "Namen der globalen Gebühren in Warenkorb, Kasse und E-Mails.",
+      "globalQueue": "Titel und Nachricht des globalen Warteraums."
+    },
+    "empty": {
+      "event": "Nichts zu übersetzen.",
+      "pricing": "Es gibt noch keine Preiskategorien oder Tarife.",
+      "fees": "Es gibt keine Gebühren.",
+      "shopPage": "Diese Veranstaltung hat keine Infoboxen.",
+      "waitingRoom": "Diese Veranstaltung nutzt die globalen Warteraum-Einstellungen. Speichere eigene Warteraum-Einstellungen für diese Veranstaltung, um sie hier zu übersetzen.",
+      "globalFees": "Es gibt keine globalen Gebühren.",
+      "globalQueue": "Es gibt noch keine globalen Warteraum-Einstellungen."
+    }
+  },
+  "notTranslatable": "Dieser Tab hat keine übersetzbaren Texte. Stelle die Inhaltssprache auf Standard zurück, um die Einstellungen zu bearbeiten.",
+  "groups": {
+    "event": "Veranstaltung",
+    "venue": "Veranstaltungsort",
+    "categories": "Preiskategorien",
+    "ticketTypes": "Tarife",
+    "eventFees": "Gebühren dieser Veranstaltung",
+    "globalFees": "Globale Gebühren",
+    "infoBoxes": "Infoboxen",
+    "queue": "Warteraum"
+  },
+  "fields": {
+    "title": "Titel",
+    "subtitle": "Untertitel",
+    "description": "Beschreibung",
+    "name": "Name",
+    "content": "Text",
+    "message": "Nachricht",
+    "ticketLabel": "Ticketbezeichnung",
+    "label": "Beschriftung",
+    "wheelchairLabelText": "Beschriftung Rollstuhlplatz",
+    "companionLabelText": "Beschriftung Begleitplatz"
+  },
+  "editor": {
+    "banner": "Übersetzungsmodus ({language}): Nur die Texte von Blöcken, Elementen und Eingängen sind bearbeitbar. Layout und Einstellungen bearbeitest du in der Standardsprache.",
+    "name": "Name",
+    "ticketLabel": "Ticketbezeichnung",
+    "label": "Beschriftung",
+    "wheelchairLabelText": "Beschriftung Rollstuhlplatz (max. 3 Zeichen)",
+    "companionLabelText": "Beschriftung Begleitplatz (max. 3 Zeichen)",
+    "sections": "Blöcke",
+    "elements": "Elemente",
+    "entrances": "Eingänge",
+    "settings": "Planeinstellungen",
+    "empty": "Nichts zu übersetzen.",
+    "categories": "Preiskategorien"
+  },
+  "announcement": {
+    "label": "Nachricht auf {language} (optional)",
+    "edit": "Text und Übersetzungen bearbeiten",
+    "save": "Änderungen speichern"
+  }
+}

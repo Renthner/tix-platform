@@ -1,18 +1,27 @@
 {
   "panelTitle": "Admin-Portal",
+  "menu": "Menü",
   "logout": "Abmelden",
+  "shopLink": "Zum Ticketshop",
   "nav": {
     "dashboard": "Übersicht",
     "events": "Veranstaltungen",
     "orders": "Bestellungen",
+    "customers": "Kunden",
     "banking": "Bank & Zahlungen",
+    "accounting": "Buchhaltung",
     "venues": "Spielstätten & Pläne",
     "waitingRoom": "Warteraum",
+    "media": "Medien",
     "symbols": "Symbolbibliothek",
     "settings": "Einstellungen",
     "fees": "Gebühren & Steuern",
     "emailTemplates": "E-Mail-Vorlagen",
-    "ticketTemplates": "Ticket-Designs"
+    "ticketTemplates": "Ticket-Designs",
+    "refunds": "Offene Erstattungen",
+    "boxOffice": "Abendkasse",
+    "users": "Benutzer",
+    "backups": "Sicherungen"
   },
   "login": {
     "title": "Admin-Anmeldung",
@@ -61,7 +70,8 @@
       "eventHasOrders": "Diese Veranstaltung hat Bestellungen. Bestellungen und Rechnungen müssen für die Buchhaltung aufbewahrt werden und können nicht gelöscht werden.",
       "eventNotArchived": "Nur archivierte Veranstaltungen können gelöscht werden. Setze den Status zuerst auf „Archiviert“.",
       "builtinSymbol": "Mitgelieferte Symbole können nicht gelöscht werden.",
-      "venueHasEvents": "An dieser Spielstätte gibt es noch Veranstaltungen, daher kann sie nicht gelöscht werden."
+      "venueHasEvents": "An dieser Spielstätte gibt es noch Veranstaltungen, daher kann sie nicht gelöscht werden.",
+      "mediaInUse": "Dieses Bild wird noch verwendet. Entferne es zuerst von den aufgeführten Stellen."
     },
     "email": "Bitte eine gültige E-Mail-Adresse eingeben.",
     "fileRequired": "Bitte eine Datei auswählen.",
@@ -116,6 +126,77 @@
       "venue": "Spielstätte",
       "status": "Status",
       "sale": "Verkauf"
+    },
+    "refundsOpen": {
+      "title": "{count, plural, one {# Erstattung offen} other {# Erstattungen offen}}",
+      "text": "Kunden warten auf ihr Geld.",
+      "link": "Offene Erstattungen"
+    },
+    "live": {
+      "title": "Live-Übersicht",
+      "updated": "Aktualisiert {time}",
+      "stale": "Verbindung unterbrochen – zuletzt bekannte Werte.",
+      "kpi": {
+        "revenueToday": "Umsatz heute",
+        "revenue7d": "Umsatz, letzte 7 Tage",
+        "revenueEvent": "Umsatz der Veranstaltung",
+        "netOfRefunds": "brutto, abzüglich Erstattungen",
+        "ordersToday": "Bestellungen heute",
+        "ticketsToday": "Verkaufte Tickets heute",
+        "openVorkasse": "Offene Überweisungen",
+        "openVorkasseCount": "{count, plural, one {# Bestellung} other {# Bestellungen}}",
+        "openRefunds": "Offene Erstattungen"
+      },
+      "inventory": {
+        "title": "Plätze",
+        "capacity": "{count} insgesamt",
+        "sold": "Verkauft",
+        "reserved": "Reserviert (unbezahlt)",
+        "locked": "In Warenkörben",
+        "available": "Frei",
+        "blocked": "Gesperrt",
+        "aria": "Verkauft {sold}, reserviert {reserved}, in Warenkörben {locked}, frei {available}, gesperrt {blocked}"
+      },
+      "queue": {
+        "title": "Warteraum",
+        "value": "{active} gerade im Shop (live), {waiting} wartend",
+        "lobby": "{count} in der Lobby"
+      },
+      "payments": {
+        "title": "Zahlungsarten",
+        "none": "Noch keine bezahlten Tickets.",
+        "tickets": "{count, plural, one {# Ticket} other {# Tickets}}"
+      },
+      "checkIn": {
+        "title": "Check-in"
+      },
+      "overview": {
+        "title": "Alle Veranstaltungen",
+        "events": "{count, plural, one {# Veranstaltung} other {# Veranstaltungen}}",
+        "none": "Keine Veranstaltung passt zu den gewählten Status.",
+        "revenue": "Umsatz",
+        "revenueHint": "brutto, bestätigte Tickets",
+        "otherCurrency": "{count, plural, one {# Veranstaltung in anderer Währung ist} other {# Veranstaltungen in anderen Währungen sind}} im Umsatz und bei den Zahlungsarten nicht enthalten.",
+        "statusLabel": "Status-Filter"
+      },
+      "cards": {
+        "title": "Veranstaltungen",
+        "showing": "{shown} von {total} Veranstaltungen angezeigt.",
+        "handle": "Karte „{title}“ verschieben",
+        "handleHint": "Zum Umsortieren ziehen oder die Pfeiltasten drücken.",
+        "moved": "„{title}“ steht jetzt an Position {position} von {total}.",
+        "saveFailed": "Die Reihenfolge konnte nicht gespeichert werden."
+      }
+    },
+    "adjustmentsOpen": {
+      "title": "{count, plural, one {# Nachzahlung ist unbezahlt} other {# Nachzahlungen sind unbezahlt}}",
+      "text": "Die Erinnerung wurde gesendet – setze den Tarif zurück oder storniere das Ticket.",
+      "link": "Liste öffnen"
+    },
+    "invoiceCorrections": {
+      "title": "{count, plural, one {# Rechnung muss korrigiert werden} other {# Rechnungen müssen korrigiert werden}}",
+      "text": "Eine Nachzahlung ist eingegangen, die Rechnung wurde aber nicht automatisch korrigiert.",
+      "link": "Liste öffnen"
     }
   },
   "venues": {
@@ -152,6 +233,36 @@
       "mapsUrl": "Google-Maps-Link",
       "mapsUrlHint": "Wird im Shop für „Auf Karte anzeigen“ verwendet. Leer = Link wird aus Adresse bzw. Koordinaten erzeugt."
     },
+    "import": {
+      "title": "Saalplan importieren",
+      "description": "Lade eine aus einem anderen System exportierte Plandatei (.tixplan.json) hoch. Sie wird als neuer Hauptplan angelegt; bestehende Pläne werden nie verändert.",
+      "file": "Saalplan-Datei",
+      "name": "Name des neuen Plans",
+      "submit": "Plan importieren",
+      "summary": {
+        "sections": "{count, plural, one {# Block} other {# Blöcke}}",
+        "rows": "{count, plural, one {# Reihe} other {# Reihen}}",
+        "seats": "{count, plural, one {# Platz} other {# Plätze}}",
+        "elements": "{count, plural, one {# Element} other {# Elemente}}",
+        "symbols": "{count, plural, one {# eigenes Symbol} other {# eigene Symbole}}",
+        "background": "Hintergrundbild enthalten",
+        "noBackground": "Kein Hintergrundbild"
+      },
+      "categoriesNote": "Die Datei enthält die Kategorien {names}. Sie werden als Plan-Kategorien angelegt; Veranstaltungen aus diesem Plan erhalten sie als Preiskategorien, die Preise werden je Veranstaltung eingetragen.",
+      "errors": {
+        "GENERIC": "Der Plan konnte nicht importiert werden.",
+        "SEATMAP_FILE_INVALID": "Das ist keine gültige Saalplan-Datei.",
+        "SEATMAP_VERSION_UNSUPPORTED": "Diese Version der Plandatei wird nicht unterstützt.",
+        "SEATMAP_FILE_TOO_LARGE": "Die Plandatei ist zu groß.",
+        "MEDIA_UNSUPPORTED_TYPE": "Ein Bild in der Datei ist weder PNG, JPEG noch WebP.",
+        "MEDIA_TOO_LARGE": "Ein Bild in der Datei ist zu groß (max. 10 MB).",
+        "MEDIA_DIMENSIONS": "Ein Bild in der Datei hat nicht unterstützte Abmessungen.",
+        "SVG_INVALID": "Ein Symbol in der Datei ist kein gültiges SVG.",
+        "SVG_EMPTY": "Ein Symbol in der Datei enthält keine zeichenbaren Formen.",
+        "SVG_TOO_LARGE": "Ein Symbol in der Datei ist zu groß.",
+        "SVG_TOO_COMPLEX": "Ein Symbol in der Datei ist zu komplex."
+      }
+    },
     "plans": {
       "title": "Master-Saalpläne",
       "description": "Wiederverwendbare Pläne. Jede Veranstaltung erhält beim Anlegen eine eigene, bearbeitbare Kopie.",
@@ -161,6 +272,7 @@
       "updated": "Letzte Änderung",
       "actions": "Aktionen",
       "openEditor": "Editor öffnen",
+      "export": "Exportieren",
       "rename": "Umbenennen",
       "duplicate": "Duplizieren",
       "duplicateTitle": "Plan duplizieren?",
@@ -299,6 +411,24 @@
       "accountsHideForEvent": "Für diese Veranstaltung ausblenden (nur Gastbestellung)"
     },
     "deletedNotice": "Die Veranstaltung wurde endgültig gelöscht.",
+    "duplicate": {
+      "button": "Duplizieren",
+      "title": "Veranstaltung duplizieren",
+      "description": "Erstellt eine neue Veranstaltung als Entwurf mit den Einstellungen dieser Veranstaltung.",
+      "copyTitle": "{title} (Kopie)",
+      "fields": {
+        "title": "Titel",
+        "startsAt": "Beginn",
+        "slug": "URL-Kurzname (optional)"
+      },
+      "startsAtHint": "Einlass, Ende, Vorverkaufs- und Verkaufstermine werden um dieselbe Differenz verschoben. Bitte den Beginn ändern.",
+      "slugHint": "Leer lassen, um ihn aus dem Titel abzuleiten.",
+      "copied": "Kopiert: Einstellungen, Saalplan (inkl. Änderungen und gesperrter Plätze), Kategorien, Tarife, Preise, Gebühren, Veranstaltungsseite, Warteraum, Ticketvorlagen, Wallet-Design und E-Mail-Anpassungen.",
+      "notCopied": "Nicht kopiert: Bestellungen, Tickets, Check-in-Daten, Zugangscodes. Die neue Veranstaltung erhält einen eigenen Ticket-Signaturschlüssel und startet als Entwurf.",
+      "confirm": "Duplizieren",
+      "pending": "Dupliziere…",
+      "notice": "Die Veranstaltung wurde dupliziert. Bitte Termine, Preise und Saalplan prüfen, bevor du sie veröffentlichst. Zugangscodes wurden nicht kopiert."
+    },
     "danger": {
       "title": "Veranstaltung endgültig löschen",
       "description": "Entfernt die Veranstaltung mit Saalplan, Preisen, Tarifen, Zugangscodes und Warteraum-Daten. Das kann nicht rückgängig gemacht werden.",
@@ -683,7 +813,10 @@
       "privacyUrl": "Datenschutz-URL",
       "termsUrl": "AGB-URL",
       "footerText": "Fußzeilentext",
-      "logoLater": "Logo- und Favicon-Upload folgen mit der Medienbibliothek."
+      "logo": "Logo",
+      "logoHint": "Wird im Shop-Header statt des Shop-Namens angezeigt. PNG, JPEG oder WebP.",
+      "favicon": "Favicon",
+      "faviconHint": "Symbol im Browser-Tab von Shop und Admin. Quadratisches PNG, mindestens 64 × 64 px."
     },
     "checkout": {
       "title": "Platzauswahl & Warenkorb",
@@ -716,7 +849,9 @@
         "checkout": "Kasse: Öffnet der Käufer die Kasse, wird die verbleibende Zeit einmalig um {minutes} Min. verlängert (also höchstens auf {total} Min.), damit die Plätze beim Ausfüllen und Bezahlen nicht verfallen. Deshalb springt der Timer im Kopfbereich an dieser Stelle nach oben.",
         "checkoutNone": "Kasse: Es wird keine Zusatzzeit addiert – die Reservierung des Warenkorbs läuft einfach weiter.",
         "order": "Nach „Zahlungspflichtig bestellen“ hält die Bestellung die Plätze: bei Überweisung bis zur Stornofrist (Zahlungen → Überweisung), bei PayPal bis zum Zeitlimit für die Freigabe (Zahlungen → PayPal)."
-      }
+      },
+      "refundFeesByDefault": "Gebühren bei Stornierung bezahlter Bestellungen standardmäßig erstatten",
+      "refundFeesByDefaultHint": "Setzt „Gebühren erstatten“ im Formular „Stornieren & erstatten“ einer Bestellung vor. Bei jeder Stornierung kann es geändert werden."
     },
     "seatDisplay": {
       "title": "Farben im Saalplan",
@@ -739,7 +874,10 @@
         "RING": "Ring um den Platz",
         "FILL": "Platz vollständig einfärben",
         "BOTH": "Einfärben und Ring"
-      }
+      },
+      "seatChangeCurrentColor": "Bestellte Plätze (unverändert) – Platzänderung",
+      "seatChangeReplacedColor": "Zu ersetzender Platz – Platzänderung",
+      "seatChangeNewColor": "Neuer Platz – Platzänderung"
     },
     "secret": {
       "stored": "gespeichert",
@@ -781,7 +919,9 @@
       "patternHint": "Platzhalter: '{YYYY}' Jahr, '{YY}' zweistelliges Jahr, '{SEQ}' oder '{SEQ:6}' fortlaufender Zähler (mit Nullen aufgefüllt). Mit Jahresplatzhalter beginnt der Zähler jedes Jahr neu.",
       "gapless": "Rechnungsnummern werden lückenlos vergeben. Ausgestellte Rechnungen können nie geändert oder gelöscht werden – Korrekturen erfolgen über Rechnungskorrekturen.",
       "invoiceFooter": "Rechnungsfußzeile",
-      "invoiceFooterHint": "Optionaler Text unten auf jeder Rechnungsseite, z. B. Bankverbindung oder Grußformel."
+      "invoiceFooterHint": "Optionaler Text unten auf jeder Rechnungsseite, z. B. Bankverbindung oder Grußformel.",
+      "smallAmountInvoiceLimit": "Kleinbetragsgrenze für Rechnungen",
+      "smallAmountInvoiceLimitHint": "Abendkasse: Über diesem Bruttobetrag braucht eine Rechnung Name und vollständige Anschrift des Käufers (Standard 250,00, die Grenze für Kleinbetragsrechnungen). Freikarten sind ausgenommen."
     },
     "bankTransfer": {
       "title": "Überweisung (Vorkasse)",
@@ -824,7 +964,9 @@
         "ST": "Sachsen-Anhalt",
         "SH": "Schleswig-Holstein",
         "TH": "Thüringen"
-      }
+      },
+      "adjustmentReminderDays": "Erinnerung bei Nachzahlungen (Tage)",
+      "adjustmentReminderDaysHint": "Eine unbezahlte Tarifwechsel-Anforderung erhält nach so vielen Tagen eine Erinnerung. Sie wird nie automatisch storniert."
     },
     "paypal": {
       "title": "PayPal",
@@ -909,7 +1051,8 @@
       "sessionTtlDays": "Angemeldet bleiben (Tage)",
       "passwordMinLength": "Mindestlänge des Passworts",
       "emailVerificationTtlHours": "Bestätigungslink gültig (Stunden)",
-      "passwordResetTtlMinutes": "Link zum Zurücksetzen gültig (Minuten)"
+      "passwordResetTtlMinutes": "Link zum Zurücksetzen gültig (Minuten)",
+      "loginLinkTtlMinutes": "Anmeldelink gültig (Minuten)"
     },
     "tabs": {
       "label": "Einstellungsbereiche",
@@ -921,8 +1064,96 @@
       "invoicing": "Rechnungen",
       "email": "E-Mail",
       "accounts": "Kundenkonten",
-      "wallet": "Wallet"
+      "wallet": "Wallet",
+      "security": "Sicherheit",
+      "scanner": "Scanner"
     }
+  },
+  "mediaLibrary": {
+    "title": "Medien",
+    "description": "Alle hochgeladenen Bilder: Verwendung ansehen, umbenennen und alte Bilder löschen.",
+    "toSymbols": "Symbolbibliothek",
+    "summary": {
+      "total": "Bilder",
+      "totalSize": "Speicherbedarf",
+      "unused": "Unbenutzte Bilder",
+      "unusedSize": "Unbenutzter Speicher"
+    },
+    "uploadTitle": "Bilder hochladen",
+    "uploadDescription": "PNG, JPEG oder WebP, max. 10 MB je Datei. Der Typ bestimmt, wo das Bild in Auswahlfeldern angeboten wird.",
+    "kind": "Typ",
+    "kinds": {
+      "EVENT_IMAGE": "Veranstaltungsbild",
+      "VENUE_BACKGROUND": "Spielstätten-Hintergrund",
+      "TICKET_BACKGROUND": "Ticket-Hintergrund",
+      "LOGO": "Logo / Favicon",
+      "WALLET_IMAGE": "Wallet-Bild",
+      "EMAIL_IMAGE": "E-Mail-Bild",
+      "DOCUMENT": "Dokument",
+      "OTHER": "Sonstiges"
+    },
+    "file": "Bilddateien",
+    "fileHint": "Du kannst mehrere Dateien auf einmal auswählen.",
+    "upload": "Hochladen",
+    "uploading": "Wird hochgeladen…",
+    "uploadedCount": "{count, plural, one {# Bild hochgeladen.} other {# Bilder hochgeladen.}}",
+    "uploadNetworkError": "Der Upload ist fehlgeschlagen. Bitte versuche es erneut.",
+    "search": "Dateiname",
+    "searchPlaceholder": "Nach Namen suchen",
+    "usageFilter": "Verwendung",
+    "filterAll": "Alle",
+    "filterUsed": "In Verwendung",
+    "filterUnused": "Unbenutzt",
+    "sort": "Sortieren nach",
+    "sortDate": "Upload-Datum",
+    "sortSize": "Dateigröße",
+    "direction": "Reihenfolge",
+    "dirDesc": "Absteigend",
+    "dirAsc": "Aufsteigend",
+    "apply": "Anwenden",
+    "results": "{count, plural, =0 {Keine Bilder gefunden} one {# Bild} other {# Bilder}}",
+    "empty": "Keine Bilder entsprechen diesen Filtern.",
+    "unused": "Unbenutzt",
+    "usedCount": "{count, plural, one {An # Stelle verwendet} other {An # Stellen verwendet}}",
+    "usedBy": "Verwendet von",
+    "usage": {
+      "EVENT_COVER": "Titelbild der Veranstaltung",
+      "SERIES_IMAGE": "Veranstaltungsreihe",
+      "VENUE_IMAGE": "Spielstättenbild",
+      "SEAT_MAP_BACKGROUND": "Saalplan-Hintergrund",
+      "SEAT_MAP_IMAGE": "Saalplan-Bild",
+      "TICKET_TEMPLATE_BACKGROUND": "Ticket-Design-Hintergrund",
+      "TICKET_TEMPLATE_IMAGE": "Ticket-Design-Bild",
+      "WALLET_DESIGN": "Wallet-Design",
+      "EMAIL_TEMPLATE": "E-Mail-Vorlage",
+      "SETTING": "Einstellung",
+      "OTHER": "Sonstige Verwendung"
+    },
+    "dimensions": "Größe",
+    "size": "Dateigröße",
+    "uploaded": "Hochgeladen",
+    "name": "Name",
+    "rename": "Umbenennen",
+    "renameHint": "Nur der angezeigte Name ändert sich, nicht die gespeicherte Datei.",
+    "open": "Öffnen",
+    "download": "Herunterladen",
+    "delete": "Löschen",
+    "deleteBlocked": "Noch in Verwendung – entferne es zuerst von den aufgeführten Stellen.",
+    "deleteTitle": "Bild löschen?",
+    "deleteDescription": "„{name}“ wird nirgends verwendet und wird endgültig gelöscht.",
+    "bulkDelete": "Unbenutzte löschen…",
+    "bulkTitle": "Alle unbenutzten Bilder löschen?",
+    "bulkDescription": "{count, plural, one {# unbenutztes Bild} other {# unbenutzte Bilder}} ({size}) werden endgültig gelöscht. Bilder, die inzwischen verwendet werden, bleiben erhalten.",
+    "bulkCapped": "Insgesamt gibt es {total, number} unbenutzte Bilder, die Vorschau zeigt höchstens 500. Führe die Aktion danach erneut aus.",
+    "bulkConfirm": "Unbenutzte löschen",
+    "sweep": "Speicher bereinigen",
+    "sweepTitle": "Speicher bereinigen?",
+    "sweepDescription": "Entfernt gespeicherte Bilddateien, die zu keinem Eintrag mehr gehören (Reste fehlgeschlagener Löschungen). Frische Uploads bleiben unberührt.",
+    "sweepConfirm": "Bereinigen",
+    "pagination": "Seiten",
+    "prev": "Zurück",
+    "next": "Weiter",
+    "pageOf": "Seite {page} von {pages}"
   },
   "symbols": {
     "title": "Symbolbibliothek",
@@ -949,7 +1180,8 @@
     "delete": "Löschen",
     "deleteTitle": "Symbol löschen?",
     "deleteUsed": "„{name}“ wird {count, plural, one {# Mal} other {# Mal}} verwendet. Plätze erhalten wieder die Standardform, Symbole werden aus Elementen entfernt.",
-    "deleteUnused": "„{name}“ wird nirgends verwendet."
+    "deleteUnused": "„{name}“ wird nirgends verwendet.",
+    "toMedia": "Medienübersicht"
   },
   "wallet": {
     "title": "Wallet-Pässe",

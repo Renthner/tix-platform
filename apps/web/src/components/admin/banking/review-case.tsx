@@ -14,6 +14,7 @@ import { Link } from '@/i18n/navigation';
 import { BANKING_IDLE } from '@/lib/banking-action-state';
 import { parseMoneyToCents } from '@/lib/money';
 import {
+  assignAdjustmentAction,
   assignTransactionAction,
   ignoreTransactionAction,
   rematchTransactionAction,
@@ -22,6 +23,7 @@ import {
 } from '@/server/admin/banking-actions';
 import { BankingConfirm } from './account-form';
 import { BankingActionButton } from './connection-actions';
+import { ReverseAllocationButton } from './reverse-allocation';
 import {
   BankField,
   BankingFeedback,
@@ -37,6 +39,8 @@ export interface CandidateView {
   score: number;
   reasons: MatchCandidateReason[];
   order: AssignableOrder | null;
+  /** The candidate is the open additional payment (tariff change) of this order. */
+  adjustmentId?: string;
 }
 
 export interface AllocationItemView {
@@ -47,6 +51,9 @@ export interface AllocationItemView {
   method: string;
   note: string | null;
   reversed: boolean;
+  reversedAt: string | null;
+  reversedBy: string | null;
+  reversalReason: string | null;
 }
 
 export interface ReviewCaseView {
@@ -142,12 +149,36 @@ export function ReviewCase({
           <div className="space-y-1 text-sm">
             <div className="font-medium">{t('allocations')}</div>
             {view.allocations.map((a) => (
-              <div key={a.id} className={a.reversed ? 'line-through opacity-60' : ''}>
-                <Link href={`/admin/orders/${a.orderId}`} className="hover:underline">
-                  {a.orderNumber}
-                </Link>{' '}
-                · {money(a.amount)} · {a.method}
-                {a.note ? <span className="text-muted-foreground"> – {a.note}</span> : null}
+              <div
+                key={a.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-2 py-1.5"
+              >
+                <div className={a.reversed ? 'opacity-60' : ''}>
+                  <span className={a.reversed ? 'line-through' : ''}>
+                    <Link href={`/admin/orders/${a.orderId}`} className="hover:underline">
+                      {a.orderNumber}
+                    </Link>{' '}
+                    · {money(a.amount)} · {a.method}
+                  </span>
+                  {a.note ? <span className="text-muted-foreground"> – {a.note}</span> : null}
+                  {a.reversed ? (
+                    <div className="text-xs text-muted-foreground">
+                      {t('reversedInfo', {
+                        who: a.reversedBy ?? '–',
+                        when: a.reversedAt
+                          ? format.dateTime(new Date(a.reversedAt), {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })
+                          : '–',
+                      })}
+                      {a.reversalReason ? ` – ${a.reversalReason}` : ''}
+                    </div>
+                  ) : null}
+                </div>
+                {!a.reversed ? (
+                  <ReverseAllocationButton allocationId={a.id} orderNumber={a.orderNumber} />
+                ) : null}
               </div>
             ))}
             {view.unassigned > 0 ? (
@@ -171,6 +202,7 @@ export function ReviewCase({
                       key={c.orderId}
                       transactionId={view.id}
                       order={c.order}
+                      adjustmentId={c.adjustmentId}
                       fallbackNumber={c.orderNumber}
                       amount={effective}
                       currency={view.currency}
@@ -276,6 +308,7 @@ export function ReviewCase({
 function OrderRow({
   transactionId,
   order,
+  adjustmentId,
   fallbackNumber,
   amount,
   currency,
@@ -285,6 +318,7 @@ function OrderRow({
 }: {
   transactionId: string;
   order: AssignableOrder | null;
+  adjustmentId?: string;
   fallbackNumber: string;
   amount: number;
   currency: string;
@@ -296,7 +330,9 @@ function OrderRow({
   const ts = useTranslations('orders.status');
   const format = useFormatter();
   const [state, formAction] = useActionState(
-    assignTransactionAction.bind(null, transactionId, order?.id ?? ''),
+    adjustmentId
+      ? assignAdjustmentAction.bind(null, transactionId, order?.id ?? '', adjustmentId)
+      : assignTransactionAction.bind(null, transactionId, order?.id ?? ''),
     BANKING_IDLE,
   );
   const money = (cents: number) => format.number(cents / 100, { style: 'currency', currency });
@@ -304,16 +340,20 @@ function OrderRow({
     return <div className="p-3 text-sm text-muted-foreground">{fallbackNumber}</div>;
   }
   const outstanding = order.totalGross - order.amountPaid;
-  const payable = PAYABLE.includes(order.status) && order.currency === currency;
+  const payable =
+    (adjustmentId ? order.status === 'PAID' : PAYABLE.includes(order.status)) &&
+    order.currency === currency;
   const preview = !payable
     ? t('notPayable')
-    : order.status === 'PAID'
-      ? t('previewPaid')
-      : amount === outstanding
-        ? t('previewExact')
-        : amount < outstanding
-          ? t('previewPartial', { amount: money(outstanding - amount) })
-          : t('previewOver', { amount: money(amount - outstanding) });
+    : adjustmentId
+      ? t('previewAdjustment')
+      : order.status === 'PAID'
+        ? t('previewPaid')
+        : amount === outstanding
+          ? t('previewExact')
+          : amount < outstanding
+            ? t('previewPartial', { amount: money(outstanding - amount) })
+            : t('previewOver', { amount: money(amount - outstanding) });
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 p-3">
       <div className="min-w-0 space-y-1 text-sm">

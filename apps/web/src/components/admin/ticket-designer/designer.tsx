@@ -7,6 +7,7 @@ import {
   TICKET_LABEL_KEYS,
   DEFAULT_TICKET_PAGE_MM,
   defaultTicketDesign,
+  mergeLocaleTranslations,
   type TicketLayout,
   type TicketLayoutElement,
   type TicketTextElement,
@@ -72,6 +73,9 @@ export interface TicketDesignerProps {
   coverAspect: number | null;
   /** Events offered as preview data source (library templates). */
   events: DesignerEventOption[];
+  /** Shop default language (language of the base texts) and the languages static texts can be translated into. */
+  baseLocale: string;
+  translationLocales: string[];
 }
 
 type Draft = TicketDesignerProps['initial'];
@@ -823,6 +827,8 @@ export function TicketDesigner(props: TicketDesignerProps) {
               <ElementProps
                 element={selectedElement}
                 fieldOptions={fieldOptions}
+                baseLocale={props.baseLocale}
+                translationLocales={props.translationLocales}
                 onChange={(patch) => patchElement(selectedElement.id, patch)}
               />
             )}
@@ -1144,13 +1150,21 @@ function StaticTextField({ value, onChange }: { value: string; onChange: (text: 
 function ElementProps({
   element,
   fieldOptions,
+  baseLocale,
+  translationLocales,
   onChange,
 }: {
   element: TicketLayoutElement;
   fieldOptions: { value: TicketTextElement['field']; label: string }[];
+  baseLocale: string;
+  translationLocales: string[];
   onChange: (patch: ElementPatch) => void;
 }) {
   const t = useTranslations('ticketDesigner.props');
+  const uiLocale = useLocale();
+  const [textLocale, setTextLocale] = useState(baseLocale);
+  const languageName = (l: string) =>
+    new Intl.DisplayNames([uiLocale], { type: 'language' }).of(l) ?? l;
   const geometry = (
     <div className="grid grid-cols-4 gap-2">
       <NumberField label="X" value={element.x} min={0} onChange={(x) => onChange({ x })} />
@@ -1191,7 +1205,42 @@ function ElementProps({
           onChange={(field) => onChange({ field })}
         />
         {element.field === 'STATIC_TEXT' && (
-          <StaticTextField value={element.text ?? ''} onChange={(text) => onChange({ text })} />
+          <>
+            {translationLocales.length > 0 && (
+              <Select
+                label={t('textLanguage')}
+                value={textLocale}
+                options={[baseLocale, ...translationLocales].map((l) => ({
+                  value: l,
+                  label:
+                    l === baseLocale
+                      ? `${languageName(l)} ${t('textLanguageDefault')}`
+                      : languageName(l),
+                }))}
+                onChange={setTextLocale}
+              />
+            )}
+            <StaticTextField
+              key={textLocale}
+              value={
+                textLocale === baseLocale
+                  ? (element.text ?? '')
+                  : ((
+                      element.translations as
+                        Record<string, Record<string, string> | undefined> | undefined
+                    )?.[textLocale]?.text ?? '')
+              }
+              onChange={(text) =>
+                textLocale === baseLocale
+                  ? onChange({ text })
+                  : onChange({
+                      translations: mergeLocaleTranslations(element.translations, textLocale, {
+                        text,
+                      }),
+                    })
+              }
+            />
+          </>
         )}
         {geometry}
         <div className="grid grid-cols-2 gap-2">

@@ -1,4 +1,4 @@
-import type { AnnouncementSeverity, SeatDeltaMessage } from '@tix/shared';
+import type { AnnouncementSeverity, SeatDeltaMessage, Translations } from '@tix/shared';
 import type { CoreContext } from './context';
 
 /**
@@ -15,6 +15,8 @@ export type QueueBroadcast =
       eventId: string;
       id: string;
       message: string;
+      /** Translations of `message`; clients resolve them for their locale. */
+      translations?: Translations;
       severity: AnnouncementSeverity;
       publishedAt: string;
     };

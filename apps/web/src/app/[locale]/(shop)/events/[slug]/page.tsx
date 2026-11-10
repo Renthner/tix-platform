@@ -1,14 +1,18 @@
 import {
+  contentLocale,
   effectiveCheckoutConfig,
   effectiveQueueConfig,
   getEventWithVenueBySlug,
   getMediaAsset,
   getSetting,
+  localizeEventRow,
+  localizeVenueRow,
   symbolsByIds,
   type VenueRow,
 } from '@tix/core';
 import {
   INFO_BOX_ICON_PX,
+  localized,
   normalizePageLayout,
   type InfoBoxSize,
   type PageBlockRef,
@@ -51,8 +55,13 @@ const loadEvent = cache(async (slug: string) => {
 });
 
 export async function generateMetadata({ params }: Params) {
-  const found = await loadEvent((await params).slug);
-  if (!found) return {};
+  const raw = await loadEvent((await params).slug);
+  if (!raw) return {};
+  const content = await contentLocale(getCore(), (await params).locale);
+  const found = {
+    event: localizeEventRow(raw.event, content.locale, content.defaultLocale),
+    venue: raw.venue,
+  };
   const description =
     found.event.subtitle ?? richTextToPlain(found.event.description).slice(0, 160);
   return {
@@ -65,11 +74,13 @@ export async function generateMetadata({ params }: Params) {
 }
 
 export default async function EventPage({ params }: Params) {
-  await resolveLocale(params);
+  const locale = await resolveLocale(params);
   const found = await loadEvent((await params).slug);
   if (!found) notFound();
-  const { event, venue } = found;
   const core = getCore();
+  const content = await contentLocale(core, locale);
+  const event = localizeEventRow(found.event, content.locale, content.defaultLocale);
+  const venue = localizeVenueRow(found.venue, content.locale, content.defaultLocale);
   const [checkout, queue, format, t, announcements, seatDisplay, cover] = await Promise.all([
     effectiveCheckoutConfig(core, event),
     effectiveQueueConfig(core, event.id),
@@ -250,14 +261,17 @@ export default async function EventPage({ params }: Params) {
         }}
         seatColors={seatDisplay}
         queue={{
-          title: queue.title,
-          message: queue.message,
+          title: localized(queue, 'title', locale, content.defaultLocale, queue.title) || null,
+          message:
+            localized(queue, 'message', locale, content.defaultLocale, queue.message) || null,
           admissionBatchSize: queue.admissionBatchSize,
           admissionIntervalSeconds: queue.admissionIntervalSeconds,
         }}
+        defaultLocale={content.defaultLocale}
         announcements={announcements.map((a) => ({
           id: a.id,
           message: a.message,
+          translations: a.translations,
           severity: a.severity,
           publishedAt: a.publishedAt.toISOString(),
         }))}

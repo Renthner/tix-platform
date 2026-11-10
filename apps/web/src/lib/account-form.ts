@@ -46,7 +46,9 @@ export type AccountFormState =
       values?: AccountFormValues;
       at: number;
     }
-  | { status: 'success'; message: AccountFormMessage; values?: AccountFormValues; at: number };
+  | { status: 'success'; message: AccountFormMessage; values?: AccountFormValues; at: number }
+  /** Password accepted, a second factor is required (shop sign-in of an admin account). */
+  | { status: 'twoFactor'; at: number };
 
 export const ACCOUNT_IDLE: AccountFormState = { status: 'idle' };
 

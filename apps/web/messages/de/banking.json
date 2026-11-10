@@ -60,7 +60,8 @@
     "AMOUNT_NEAR": "Betrag (innerhalb der Toleranz)",
     "ORDER_NOT_PAYABLE": "Bestellung nicht bezahlbar",
     "ALREADY_PAID": "Bereits bezahlt",
-    "CURRENCY": "Andere Währung"
+    "CURRENCY": "Andere Währung",
+    "ADJUSTMENT": "Nachzahlung (Tarifwechsel)"
   },
   "syncStatus": {
     "RUNNING": "Läuft",
@@ -345,7 +346,9 @@
     "ignoreNote": "Begründung",
     "rematch": "Abgleich erneut ausführen",
     "details": "Details",
-    "reference": "Gefundene Referenz"
+    "reference": "Gefundene Referenz",
+    "reversedInfo": "Aufgehoben von {who} am {when}",
+    "previewAdjustment": "Ordnet den genauen Betrag der offenen Nachzahlung zu."
   },
   "transactions": {
     "title": "Bankumsätze",
@@ -447,7 +450,9 @@
     "webFormReady": "Die Bankanmeldung ist bereit – öffne sie über die Schaltfläche.",
     "upToDate": "Die Bankanmeldung ist gültig – nichts zu tun.",
     "refreshed": "Status aktualisiert.",
-    "imapOk": "Anmeldung erfolgreich – {messages} Mails im Ordner."
+    "imapOk": "Anmeldung erfolgreich – {messages} Mails im Ordner.",
+    "reversed": "Zuordnung aufgehoben – die Zahlung von {order} wurde entfernt.",
+    "reversedReopened": "Zuordnung aufgehoben – {order} wartet wieder auf Zahlung, die Tickets sind ungültig."
   },
   "errors": {
     "field": {
@@ -483,7 +488,15 @@
       "notSupported": "Nicht unterstützt.",
       "provider": "Die Bank / der Dienstleister hat einen Fehler gemeldet.",
       "imap": "Das Postfach konnte nicht geöffnet werden.",
-      "noCredentials": "Keine Zugangsdaten gespeichert."
+      "noCredentials": "Keine Zugangsdaten gespeichert.",
+      "alreadyReversed": "Diese Zuordnung wurde bereits aufgehoben.",
+      "reversalBlockedRefunds": "Geld dieser Zahlung wurde bereits erstattet – die Zuordnung lässt sich nicht aufheben.",
+      "reversalBlockedCheckedIn": "Ein Ticket dieser Bestellung wurde bereits eingelöst – die Zuordnung lässt sich nicht aufheben.",
+      "reversalBlockedState": "Die Zuordnung lässt sich im aktuellen Bestellstatus nicht aufheben.",
+      "reversalBlockedPaypalOrder": "Die Bestellung wurde per PayPal angelegt. Storniere sie stattdessen und kläre die Fehlbuchung manuell.",
+      "reversalBlockedEventStarted": "Eine Veranstaltung dieser Bestellung hat bereits begonnen. Storniere die Bestellung stattdessen.",
+      "reversalBlockedAdjustment": "Die Zuordnung gehört zu einer Nachzahlung (Tarifwechsel) und kann hier nicht rückgängig gemacht werden.",
+      "adjustmentAmount": "Der Betrag muss genau der Nachzahlung entsprechen."
     },
     "upload": {
       "ACCOUNT_REQUIRED": "Bitte ein Konto auswählen.",
@@ -510,5 +523,18 @@
     "reference": "Referenz",
     "orders": "Bestellungen",
     "note": "Notiz"
+  },
+  "reverse": {
+    "button": "Zuordnung aufheben",
+    "title": "Zuordnung zu Bestellung {order} aufheben?",
+    "description": "Nutze dies, wenn eine Überweisung der falschen Bestellung zugeordnet wurde. Folgen:",
+    "consequencePayment": "Die Zahlung wird storniert und der Betrag gilt wieder als nicht zugeordnet.",
+    "consequenceOrder": "Eine bezahlte Bestellung geht zurück auf „Zahlung offen“ (gleicher Verwendungszweck, die Plätze bleiben reserviert).",
+    "consequenceTickets": "Ihre Tickets werden sofort ungültig und können nicht mehr gescannt werden.",
+    "consequenceCreditNote": "Wurde eine Rechnung erstellt, storniert eine Gutschrift sie vollständig. Bei erneuter Zahlung entstehen eine neue Rechnung und neue Tickets.",
+    "consequenceTransaction": "Der Umsatz erscheint wieder in den Klärfällen und kann der richtigen Bestellung zugeordnet werden. Der Kunde wird nicht benachrichtigt.",
+    "reason": "Begründung (Pflichtfeld)",
+    "reasonPlaceholder": "z. B. Überweisung gehört zu Bestellung T-2026-0042",
+    "confirm": "Zuordnung aufheben"
   }
 }

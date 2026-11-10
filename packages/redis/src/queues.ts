@@ -16,6 +16,12 @@ export const QUEUE_NAMES = {
   documents: 'documents',
   /** Transactional e-mail dispatch (Phase 4). */
   email: 'email',
+  /** Provider refunds (PayPal) and the sweeper for stuck ones (Phase 5). */
+  refunds: 'refunds',
+  /** Full backups, verification and restore (Phase 5). */
+  backups: 'backups',
+  /** GDPR retention: e-mail log purge, erasure of expired order data (Phase 5). */
+  privacy: 'privacy',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

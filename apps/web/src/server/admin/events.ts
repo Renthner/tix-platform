@@ -1,6 +1,13 @@
 'use server';
 
-import { DomainError, cloneSeatMap, deleteArchivedEvent, getSetting } from '@tix/core';
+import {
+  DomainError,
+  applyTemplateCategoriesToEvent,
+  cloneSeatMap,
+  deleteArchivedEvent,
+  duplicateEvent,
+  getSetting,
+} from '@tix/core';
 import {
   events,
   isUniqueViolation,
@@ -158,6 +165,9 @@ export async function createEventAction(_prev: ActionState, fd: FormData): Promi
           createdByUserId: session.userId,
         })
         .returning({ id: events.id });
+      if (data.templateId) {
+        await applyTemplateCategoriesToEvent(tx, { eventId: created!.id, seatMapId });
+      }
       await tx.insert(ticketTypes).values({
         eventId: created!.id,
         name: t('defaultTicketType'),
@@ -427,4 +437,56 @@ export async function deleteEventAction(
   revalidatePath('/', 'layout');
   redirect({ href: '/admin/events?deleted=1', locale: await getLocale() });
   return success('deleted');
+}
+
+/**
+ * Duplicates an event (settings, seating plan, categories, tariffs, fees, templates …) into a
+ * new DRAFT event. The admin gives title, start and optionally a slug; other dates shift by
+ * the same offset. Redirects to the new event.
+ */
+export async function duplicateEventAction(
+  sourceEventId: string,
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  const session = await requireAdmin(['EVENT_MANAGER']);
+  const row = await getEventWithVenue(sourceEventId);
+  if (!row) return formError('notFound');
+  const errors: Partial<Record<string, FieldErrorCode>> = {};
+  const title = text(fd, 'title') ?? '';
+  if (!title) errors.title = 'required';
+  else if (title.length > 200) errors.title = 'tooLong';
+  const slug = text(fd, 'slug');
+  if (slug && (slug.length > 80 || !SLUG_PATTERN.test(slug))) errors.slug = 'slugFormat';
+  const dates = readDates(fd, row.event.timeZone, ['startsAt'], errors);
+  if (!dates.startsAt && !errors.startsAt) errors.startsAt = 'required';
+  if (Object.keys(errors).length > 0) return fieldError(errors);
+
+  const core = getCore();
+  let newId: string;
+  try {
+    const created = await duplicateEvent(core, {
+      sourceEventId,
+      userId: session.userId,
+      title,
+      slug: slug ?? null,
+      startsAt: dates.startsAt!,
+    });
+    newId = created.eventId;
+    await audit(core.db, session, 'event.duplicate', 'event', newId, {
+      sourceEventId,
+      title,
+      slug: created.slug,
+    });
+  } catch (err) {
+    if (err instanceof DomainError) {
+      if (err.code === 'SLUG_TAKEN') return fieldError({ slug: 'slugTaken' });
+      if (err.code === 'INVALID_DATES') return fieldError({ startsAt: 'dateOrder' });
+      if (err.code === 'EVENT_NOT_FOUND') return formError('notFound');
+    }
+    throw err;
+  }
+  revalidatePath('/', 'layout');
+  redirect({ href: `/admin/events/${newId}?duplicated=1`, locale: await getLocale() });
+  return success('created');
 }

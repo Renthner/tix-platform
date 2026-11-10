@@ -1,7 +1,10 @@
 {
   "nav": {
     "signIn": "Sign in",
-    "myAccount": "My account"
+    "myAccount": "My account",
+    "dashboard": "To dashboard",
+    "dashboardSetup": "Set up two-factor sign-in",
+    "signOut": "Sign out"
   },
   "fields": {
     "email": "E-mail address",
@@ -23,7 +26,21 @@
     "linkHint": "No password needed – we will send you a link that signs you in.",
     "forgot": "Forgot your password?",
     "noAccount": "No account yet?",
-    "register": "Create an account"
+    "register": "Create an account",
+    "twoFactor": {
+      "intro": "Enter the 6-digit code from your authenticator app, or one of your recovery codes.",
+      "code": "Code",
+      "hint": "A recovery code can only be used once.",
+      "verify": "Verify",
+      "back": "Back to sign-in",
+      "errors": {
+        "INVALID_CODE": "The code is not correct.",
+        "LOCKED": "Too many failed attempts. Please try again later.",
+        "RATE_LIMITED": "Too many attempts. Please wait a few minutes.",
+        "EXPIRED": "The sign-in expired. Please enter your password again.",
+        "INVALID": "The e-mail address or password is not correct."
+      }
+    }
   },
   "register": {
     "title": "Create an account",
@@ -56,7 +73,8 @@
     "alreadyVerified": "Your e-mail address has already been confirmed.",
     "invalid": "This confirmation link is invalid or has expired. Sign in and request a new link in your account.",
     "continue": "Continue",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "verifiedNoPassword": "Your e-mail address is confirmed. As a precaution, a password set before the confirmation was removed – please sign in with an e-mail link or choose \"Forgot your password?\" to set a new one."
   },
   "overview": {
     "title": "My account",
@@ -115,7 +133,8 @@
     "setDescription": "Set a password to sign in without an e-mail link.",
     "current": "Current password",
     "submit": "Change password",
-    "submitSet": "Set password"
+    "submitSet": "Set password",
+    "adminCurrent": "Your admin password (to confirm)"
   },
   "errors": {
     "INVALID_CREDENTIALS": "The e-mail address or password is not correct.",

@@ -60,7 +60,8 @@
     "AMOUNT_NEAR": "Amount (within tolerance)",
     "ORDER_NOT_PAYABLE": "Order not payable",
     "ALREADY_PAID": "Already paid",
-    "CURRENCY": "Other currency"
+    "CURRENCY": "Other currency",
+    "ADJUSTMENT": "Additional payment (tariff change)"
   },
   "syncStatus": {
     "RUNNING": "Running",
@@ -345,7 +346,9 @@
     "ignoreNote": "Reason",
     "rematch": "Run matching again",
     "details": "Details",
-    "reference": "Reference found"
+    "reference": "Reference found",
+    "reversedInfo": "Reversed by {who} on {when}",
+    "previewAdjustment": "Assigns the exact amount to the open additional payment."
   },
   "transactions": {
     "title": "Bank transactions",
@@ -447,7 +450,9 @@
     "webFormReady": "The bank login is ready – open it with the button.",
     "upToDate": "The bank login is valid – no action needed.",
     "refreshed": "Status updated.",
-    "imapOk": "Login successful – {messages} mails in the folder."
+    "imapOk": "Login successful – {messages} mails in the folder.",
+    "reversed": "Assignment reversed – the payment of {order} was removed.",
+    "reversedReopened": "Assignment reversed – {order} awaits payment again, its tickets are void."
   },
   "errors": {
     "field": {
@@ -483,7 +488,15 @@
       "notSupported": "Not supported.",
       "provider": "The bank / provider reported an error.",
       "imap": "The mailbox could not be opened.",
-      "noCredentials": "No credentials stored."
+      "noCredentials": "No credentials stored.",
+      "alreadyReversed": "This assignment was already reversed.",
+      "reversalBlockedRefunds": "Money of this payment was already refunded – it cannot be reversed.",
+      "reversalBlockedCheckedIn": "A ticket of this order was already checked in – it cannot be reversed.",
+      "reversalBlockedState": "The assignment cannot be reversed in the current order state.",
+      "reversalBlockedPaypalOrder": "The order was placed with PayPal. Cancel it instead and clear the wrong booking manually.",
+      "reversalBlockedEventStarted": "An event of this order has already started. Cancel the order instead.",
+      "reversalBlockedAdjustment": "The assignment belongs to an additional payment (tariff change) and cannot be reversed here.",
+      "adjustmentAmount": "The amount must equal the additional payment exactly."
     },
     "upload": {
       "ACCOUNT_REQUIRED": "Select an account.",
@@ -510,5 +523,18 @@
     "reference": "Reference",
     "orders": "Orders",
     "note": "Note"
+  },
+  "reverse": {
+    "button": "Reverse assignment",
+    "title": "Reverse the assignment to order {order}?",
+    "description": "Use this when a transfer was matched to the wrong order. Consequences:",
+    "consequencePayment": "The payment is cancelled and the amount counts as not yet assigned.",
+    "consequenceOrder": "A paid order goes back to \"awaiting payment\" (same payment reference; the seats stay reserved).",
+    "consequenceTickets": "Its tickets become invalid immediately and cannot be scanned any more.",
+    "consequenceCreditNote": "If an invoice was issued, a credit note cancels it completely. Paying the order again issues a new invoice and new tickets.",
+    "consequenceTransaction": "The transaction returns to the review cases so you can assign it to the right order. The customer is not notified.",
+    "reason": "Reason (required)",
+    "reasonPlaceholder": "e.g. Transfer belongs to order T-2026-0042",
+    "confirm": "Reverse assignment"
   }
 }

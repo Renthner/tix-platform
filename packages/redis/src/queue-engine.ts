@@ -348,6 +348,27 @@ export class QueueEngine {
     };
   }
 
+  /** Active / waiting / lobby counters of many events in one Redis round trip (dashboard). */
+  async countsMany(
+    eventIds: readonly string[],
+  ): Promise<Map<string, { active: number; waiting: number; lobby: number }>> {
+    const result = new Map<string, { active: number; waiting: number; lobby: number }>();
+    if (eventIds.length === 0) return result;
+    const k = this.keys;
+    const pipeline = this.redis.pipeline();
+    for (const id of eventIds) {
+      pipeline.zcard(k.queueActive(id));
+      pipeline.zcard(k.queueWaiting(id));
+      pipeline.zcard(k.queueLobby(id));
+    }
+    const replies = (await pipeline.exec()) ?? [];
+    eventIds.forEach((id, i) => {
+      const n = (offset: number) => Number(replies[i * 3 + offset]?.[1] ?? 0) || 0;
+      result.set(id, { active: n(0), waiting: n(1), lobby: n(2) });
+    });
+    return result;
+  }
+
   /** Clears the whole waiting room of an event (admin reset / event finished). */
   async reset(eventId: string): Promise<void> {
     const k = this.keys;

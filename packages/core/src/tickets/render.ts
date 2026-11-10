@@ -14,6 +14,7 @@ import {
   formatTicketCode,
   ticketLayoutSchema,
   type TicketLayout,
+  localizeTicketLayout,
 } from '@tix/shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import { PDFDocument } from 'pdf-lib';
@@ -215,7 +216,11 @@ async function planOrderTickets(
     planned.push({
       ticketId: ticket.id,
       ticketCode: ticket.ticketCode,
-      template,
+      // Static texts of the layout in the order's language.
+      template: {
+        ...template,
+        layout: localizeTicketLayout(template.layout, order.locale, general.defaultLocale),
+      },
       coverAssetId: hero.get(item.eventId) ?? null,
       data: {
         locale,

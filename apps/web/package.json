@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "node scripts/next.mjs start --port 3000",
     "typecheck": "next typegen && tsc -p tsconfig.json",
-    "test": "node scripts/check-messages.mjs"
+    "test": "node scripts/check-messages.mjs && node scripts/check-i18n-usage.mjs"
   },
   "dependencies": {
     "@tiptap/extension-text-align": "^3.32.2",

@@ -53,7 +53,9 @@ export default async function AccountPage({
     getFormatter(),
     getSetting(core, 'customerAccounts'),
     getSetting(core, 'organizer'),
-    session.emailVerified ? listCustomerOrders(core, session.customerId) : Promise.resolve([]),
+    session.emailVerified
+      ? listCustomerOrders(core, session.customerId, { locale })
+      : Promise.resolve([]),
   ]);
   const passwordReset = searchParam(await searchParams, 'passwordReset') === '1';
 
@@ -201,6 +203,7 @@ export default async function AccountPage({
           <CardContent>
             <PasswordForm
               hasPassword={session.hasPassword}
+              adminConfirm={!session.hasPassword && session.linkedAdminUserId !== null}
               minLength={settings.passwordMinLength}
             />
           </CardContent>

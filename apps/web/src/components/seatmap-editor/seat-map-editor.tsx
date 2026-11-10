@@ -36,6 +36,8 @@ import {
   type Tool,
   type View,
 } from './model';
+import { EditLocaleSwitcher } from '@/components/admin/edit-locale-switcher';
+import { PlanTranslationPanel } from './plan-translations';
 import { PropertiesPanel } from './properties-panel';
 import { useEditorState } from './state';
 import { useSymbolImagesVersion } from './symbols';
@@ -86,7 +88,16 @@ const isTypingTarget = (target: EventTarget | null) =>
 
 export function SeatMapEditor(props: SeatMapEditorProps) {
   const t = useTranslations('editor');
-  const { state, dispatch, apply, select } = useEditorState(props.initialDocument);
+  const { state, dispatch, apply: applyRaw, select } = useEditorState(props.initialDocument);
+  // Translation mode: only the text panel edits the plan, everything else is read-only.
+  const translating =
+    !!props.translation && props.translation.editLocale !== props.translation.baseLocale;
+  const apply = useCallback<typeof applyRaw>(
+    (update, coalesceKey, selection) => {
+      if (!translating) applyRaw(update, coalesceKey, selection);
+    },
+    [applyRaw, translating],
+  );
   const { doc, selection } = state;
   const isEventMap = props.kind === 'EVENT';
   const [tool, setTool] = useState<Tool>('select');
@@ -98,9 +109,11 @@ export function SeatMapEditor(props: SeatMapEditorProps) {
   const canvasRef = useRef<CanvasHandle>(null);
 
   const dirty = doc !== state.saved;
+  // Event plans assign the event's price categories, master plans their own plan categories.
+  const categories = isEventMap ? props.categories : doc.categories;
   const categoryColors = useMemo(
-    () => new Map(props.categories.map((c) => [c.id, c.color])),
-    [props.categories],
+    () => new Map(categories.map((c) => [c.id, c.color])),
+    [categories],
   );
   const stats = useMemo(() => computeStats(doc), [doc]);
   const symbolMap = useMemo(() => new Map(props.symbols.map((s) => [s.id, s])), [props.symbols]);
@@ -333,9 +346,19 @@ export function SeatMapEditor(props: SeatMapEditorProps) {
         onFit={() => canvasRef.current?.fit()}
         onSave={() => void save()}
         confirmLeave={dirty ? t('confirm.leave') : null}
+        localeSlot={
+          props.translation && props.translation.options.length > 0 ? (
+            <EditLocaleSwitcher
+              compact
+              baseLocale={props.translation.baseLocale}
+              current={props.translation.editLocale}
+              options={props.translation.options}
+            />
+          ) : null
+        }
       />
       <div className="flex min-h-0 flex-1">
-        <ToolPalette tool={tool} onTool={setTool} />
+        {!translating && <ToolPalette tool={tool} onTool={setTool} />}
         <div className="relative min-w-0 flex-1">
           <EditorCanvas
             ref={canvasRef}
@@ -359,21 +382,31 @@ export function SeatMapEditor(props: SeatMapEditorProps) {
           className="w-80 shrink-0 overflow-y-auto border-l bg-background"
           aria-label={t('panel.label')}
         >
-          <PropertiesPanel
-            doc={doc}
-            selection={selection}
-            isEventMap={isEventMap}
-            categories={props.categories}
-            symbols={props.symbols}
-            apply={apply}
-            select={select}
-          />
+          {translating && props.translation ? (
+            <PlanTranslationPanel
+              doc={doc}
+              apply={applyRaw}
+              editLocale={props.translation.editLocale}
+              baseLocale={props.translation.baseLocale}
+            />
+          ) : (
+            <PropertiesPanel
+              doc={doc}
+              selection={selection}
+              isEventMap
+              planCategories={!isEventMap}
+              categories={categories}
+              symbols={props.symbols}
+              apply={apply}
+              select={select}
+            />
+          )}
         </aside>
       </div>
       <StatusBar
         stats={stats}
-        isEventMap={isEventMap}
-        categories={props.categories}
+        isEventMap
+        categories={categories}
         hint={t(`hints.tools.${hintKey}`)}
         selectedCount={selectionCount(selection)}
         pointer={pointer}

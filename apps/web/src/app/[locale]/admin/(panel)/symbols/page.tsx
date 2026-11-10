@@ -1,8 +1,10 @@
 import { listSymbols } from '@tix/core';
 import { SYMBOL_KINDS, type SymbolKind } from '@tix/shared';
+import { Images } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/admin/form-controls';
 import { SymbolGrid, SymbolUploadForm } from '@/components/admin/symbol-library';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
@@ -38,7 +40,17 @@ export default async function SymbolsPage({
 
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
+      <PageHeader
+        title={t('title')}
+        description={t('description')}
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/admin/media">
+              <Images /> {t('toMedia')}
+            </Link>
+          </Button>
+        }
+      />
       <div className="space-y-6 p-6">
         <Card>
           <CardHeader>

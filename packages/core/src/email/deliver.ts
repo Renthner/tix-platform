@@ -1,4 +1,4 @@
-import { emailMessages } from '@tix/db';
+import { emailMessages, orderAdjustments } from '@tix/db';
 import { and, eq, lt, or, sql } from 'drizzle-orm';
 import type { SendMailOptions } from 'nodemailer';
 import { DomainError, requireCapability, type CoreContext } from '../context';
@@ -15,6 +15,15 @@ import {
 import { estimateMessageBytes, exceedsMaxMessageSize } from './size';
 import { TemplateSyntaxError } from './template';
 import { isPermanentSmtpError, smtpSender, type MailSender } from './transport';
+
+/** Templates carrying a sign-in / set-password link (never BCC'd). */
+const CREDENTIAL_LINK_KEYS: ReadonlySet<string> = new Set([
+  'ADMIN_INVITE',
+  'ADMIN_PASSWORD_RESET',
+  'CUSTOMER_PASSWORD_RESET',
+  'CUSTOMER_LOGIN_LINK',
+  'CUSTOMER_EMAIL_VERIFICATION',
+]);
 
 /** Delivery failed; `permanent` errors are not retried (unknown template, rejected recipient). */
 export class EmailDeliveryError extends Error {
@@ -38,7 +47,9 @@ export interface DeliverOptions {
 export type DeliverResult =
   | { status: 'SENT'; providerMessageId: string | null }
   /** Sent before (job retried after the success was recorded). */
-  | { status: 'ALREADY_SENT' };
+  | { status: 'ALREADY_SENT' }
+  /** The additional payment it refers to is no longer open: not sent, marked FAILED. */
+  | { status: 'OBSOLETE' };
 
 /** A message stuck in SENDING longer than this is considered abandoned (crashed worker). */
 const SENDING_TIMEOUT = sql`now() - interval '2 minutes'`;
@@ -93,6 +104,28 @@ export async function deliverEmailMessage(
           EMAIL_VARIABLES_CONTEXT,
         )
       : {};
+    // Request / reminder of an additional payment that was paid or cancelled meanwhile.
+    if (
+      (message.templateKey === 'ADDITIONAL_PAYMENT_REQUEST' ||
+        message.templateKey === 'ADDITIONAL_PAYMENT_REMINDER') &&
+      typeof variables.adjustmentId === 'string'
+    ) {
+      const [adjustment] = await ctx.db
+        .select({ status: orderAdjustments.status })
+        .from(orderAdjustments)
+        .where(eq(orderAdjustments.id, variables.adjustmentId));
+      if (!adjustment || (adjustment.status !== 'PROPOSED' && adjustment.status !== 'CONFIRMED')) {
+        await ctx.db
+          .update(emailMessages)
+          .set({
+            status: 'FAILED',
+            lastError: 'obsolete: the additional payment is no longer open',
+            updatedAt: new Date(),
+          })
+          .where(eq(emailMessages.id, messageId));
+        return { status: 'OBSOLETE' };
+      }
+    }
     const invoiceIds = payload.attachments.flatMap((a) =>
       a.type === 'invoice' ? [a.invoiceId] : [],
     );
@@ -133,7 +166,8 @@ export async function deliverEmailMessage(
       from: sender.from,
       to: message.toEmail,
       replyTo: sender.replyTo,
-      bcc: sender.bcc,
+      // One-time credential links must not leak into the archive mailbox.
+      bcc: CREDENTIAL_LINK_KEYS.has(message.templateKey!) ? undefined : sender.bcc,
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,

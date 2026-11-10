@@ -4,8 +4,10 @@ import { asc, eq } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { resolveLocale } from '@/i18n/locale';
 import { notFound } from 'next/navigation';
+import { translationCompleteness, translationLocales } from '@tix/shared';
 import { SeatMapEditorLoader } from '@/components/seatmap-editor/loader';
 import { requireAdmin } from '@/server/auth';
+import { getBaseContentLocale, getEditLocale } from '@/server/admin/edit-locale';
 import { getCore } from '@/server/core';
 
 export async function generateMetadata() {
@@ -57,8 +59,35 @@ export default async function SeatMapEditorPage({
     colorize: s.colorize,
   }));
 
+  // Content language: texts of blocks, elements and entrances (+ wheelchair / companion label texts).
+  const baseLocale = await getBaseContentLocale();
+  const editLocale = (await getEditLocale()) ?? baseLocale;
+  const items = [
+    ...doc.sections.map((s) => ({
+      translations: s.translations,
+      base: { name: s.name, ticketLabel: s.ticketLabel },
+    })),
+    ...doc.elements.map((el) => ({ translations: el.translations, base: { label: el.label } })),
+    ...doc.categories.map((c) => ({ translations: c.translations, base: { name: c.name } })),
+    ...doc.entrances.map((en) => ({ translations: en.translations, base: { name: en.name } })),
+    {
+      translations: doc.settings.translations,
+      base: {
+        wheelchairLabelText:
+          doc.settings.wheelchairLabel?.mode === 'TEXT' ? doc.settings.wheelchairLabel.text : null,
+        companionLabelText:
+          doc.settings.companionLabel?.mode === 'TEXT' ? doc.settings.companionLabel.text : null,
+      },
+    },
+  ];
+  const options = translationLocales(baseLocale).map((locale) => ({
+    locale,
+    ...translationCompleteness(items, locale),
+  }));
+
   return (
     <SeatMapEditorLoader
+      translation={{ baseLocale, editLocale, options }}
       symbols={symbols}
       seatMapId={id}
       kind={meta.kind}

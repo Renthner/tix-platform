@@ -1,4 +1,6 @@
 import { listSymbols } from '@tix/core';
+import { EventTranslationPane } from '@/components/admin/event-translation-pane';
+import { getEditLocale } from '@/server/admin/edit-locale';
 import { normalizePageLayout } from '@tix/shared';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -27,6 +29,10 @@ export default async function EventShopPage({
   const row = await getEventWithVenue(id);
   if (!row) notFound();
   const { event } = row;
+  const editLocale = await getEditLocale();
+  if (editLocale) {
+    return <EventTranslationPane eventId={event.id} scope="shopPage" editLocale={editLocale} />;
+  }
   const [t, symbolRows] = await Promise.all([
     getTranslations('admin.events.page'),
     listSymbols(getCore().db, 'ELEMENT'),

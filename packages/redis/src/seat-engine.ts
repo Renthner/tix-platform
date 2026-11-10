@@ -405,6 +405,40 @@ export class SeatLockEngine {
     return this.redis.zrangebyscore(this.keys.seatLockExpiries(eventId), `(${now}`, '+inf');
   }
 
+  /** Live cart holds: seats with an unexpired lock and general-admission spots held in carts. */
+  async liveHoldCounts(
+    eventId: string,
+    now = Date.now(),
+  ): Promise<{ seats: number; gaSpots: number }> {
+    const k = this.keys;
+    const [seatCount, held] = await Promise.all([
+      this.redis.zcount(k.seatLockExpiries(eventId), `(${now}`, '+inf'),
+      this.redis.hvals(k.generalAdmissionHeld(eventId)),
+    ]);
+    return { seats: seatCount, gaSpots: held.reduce((sum, v) => sum + (Number(v) || 0), 0) };
+  }
+
+  /** `liveHoldCounts` for many events in one Redis round trip (dashboard overview). */
+  async liveHoldCountsMany(
+    eventIds: readonly string[],
+    now = Date.now(),
+  ): Promise<Map<string, { seats: number; gaSpots: number }>> {
+    const result = new Map<string, { seats: number; gaSpots: number }>();
+    if (eventIds.length === 0) return result;
+    const pipeline = this.redis.pipeline();
+    for (const id of eventIds) {
+      pipeline.zcount(this.keys.seatLockExpiries(id), `(${now}`, '+inf');
+      pipeline.hvals(this.keys.generalAdmissionHeld(id));
+    }
+    const replies = (await pipeline.exec()) ?? [];
+    eventIds.forEach((id, i) => {
+      const seats = Number(replies[i * 2]?.[1] ?? 0) || 0;
+      const held = (replies[i * 2 + 1]?.[1] as string[] | undefined) ?? [];
+      result.set(id, { seats, gaSpots: held.reduce((sum, v) => sum + (Number(v) || 0), 0) });
+    });
+    return result;
+  }
+
   async takenSeats(eventId: string): Promise<Record<string, TakenCode>> {
     return (await this.redis.hgetall(this.keys.seatsTaken(eventId))) as Record<string, TakenCode>;
   }

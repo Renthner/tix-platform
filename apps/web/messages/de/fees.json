@@ -16,7 +16,7 @@
     "perTicket": "Pro Ticket – für jedes Ticket einer Veranstaltung: fester Betrag oder Prozentsatz des Ticketpreises (nach Ermäßigungen).",
     "perEvent": "Einmal pro Veranstaltung – einmal je Veranstaltung in der Bestellung: fester Betrag oder Prozentsatz der Tickets dieser Veranstaltung.",
     "perOrder": "Einmal pro Bestellung – einmal je Bestellung, unabhängig davon, wie viele Veranstaltungen sie enthält. Nur als globale Gebühr möglich, immer mit eigenem Steuersatz.",
-    "filters": "Gebühren lassen sich auf Zahlungsarten (z. B. PayPal-Aufschlag) und Verkaufskanäle beschränken. Beträge sind brutto – die Steuer ist enthalten.",
+    "filters": "Gebühren lassen sich auf Zahlungsarten (z. B. PayPal-Aufschlag) und Vertriebskanäle beschränken. Standardmäßig wird eine Gebühr nur online erhoben – für die Abendkasse „Abendkasse“ ankreuzen. Beträge sind brutto – die Steuer ist enthalten.",
     "events": "Jede Veranstaltung übernimmt die globalen Gebühren. Im Reiter „Gebühren“ der Veranstaltung kann eine globale Gebühr angepasst (eigene Werte) oder erlassen werden; zusätzlich sind veranstaltungseigene Gebühren möglich.",
     "snapshots": "Bestellungen speichern ihre Gebühren und Steuerbeträge – Änderungen gelten nur für neue Bestellungen."
   },

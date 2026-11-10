@@ -220,4 +220,37 @@ describe('invoice PDF', () => {
     expect(texts).toContain('Credit note GS-2026-000001');
     expect(texts).toContain('RE-2026-000042');
   });
+
+  it('a correction credit note says which invoice it corrects; a refund credit note does not', async () => {
+    const credit = {
+      ...input,
+      type: 'CREDIT_NOTE' as const,
+      invoiceNumber: 'GS-2026-000001',
+      correctsInvoiceNumber: 'RE-2026-000042',
+      lines: lines.slice(0, 1),
+      locale: 'en',
+    };
+    const t = mailTranslator('en');
+    const correction = (
+      await extractPdfText(await renderInvoicePdfDocument({ ...credit, isCorrection: true }, t))
+    ).join(' ');
+    expect(correction).toContain('corrects invoice RE-2026-000042');
+    const refund = (await extractPdfText(await renderInvoicePdfDocument(credit, t))).join(' ');
+    expect(refund).not.toContain('corrects invoice RE-2026-000042');
+  });
+
+  it('prints the frozen payment note (previous + additional payment, nothing due)', async () => {
+    const note =
+      'Previously paid: €58.00. Additional payment: €5.00 (received Nov 10, 2026, PayPal). The invoice total of €63.00 is paid in full; nothing is due.';
+    const texts = (
+      await extractPdfText(
+        await renderInvoicePdfDocument(
+          { ...input, lines: lines.slice(0, 1), locale: 'en', legalNotes: note },
+          mailTranslator('en'),
+        ),
+      )
+    ).join(' ');
+    expect(texts).toContain('Previously paid: €58.00');
+    expect(texts).toContain('nothing is due');
+  });
 });

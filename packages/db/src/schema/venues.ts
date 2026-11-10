@@ -23,7 +23,7 @@ import type {
   SectionGeometry,
   SectionLabel,
 } from '@tix/shared';
-import { id, timestamps, tstz } from './_columns';
+import { id, timestamps, tstz, translationsColumn } from './_columns';
 import { adminUsers } from './auth';
 import {
   seatBlockReasonEnum,
@@ -50,6 +50,7 @@ export const venues = pgTable(
     longitude: doublePrecision('longitude'),
     timeZone: text('time_zone').notNull(),
     description: text('description'),
+    translations: translationsColumn(),
     websiteUrl: text('website_url'),
     /** Link to the venue on Google Maps (shown in the shop); generated from address if empty. */
     mapsUrl: text('maps_url'),
@@ -146,6 +147,35 @@ export const seatMaps = pgTable(
   ],
 );
 
+/**
+ * Price category templates of a master plan (TEMPLATE maps): name + colour. Master plans carry
+ * no prices; when an event is created from the plan these become the event's price_categories
+ * (prices are entered afterwards in the pricing matrix) and the assignments are translated.
+ * Event plans do not use this table – they assign real `price_categories`.
+ */
+export const seatMapCategories = pgTable(
+  'seat_map_categories',
+  {
+    id: id(),
+    seatMapId: uuid('seat_map_id')
+      .notNull()
+      .references(() => seatMaps.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    color: text('color').notNull(),
+    translations: translationsColumn(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    ...timestamps(),
+  },
+  (t) => [
+    unique('seat_map_categories_name_uq').on(t.seatMapId, t.name),
+    index('seat_map_categories_map_idx').on(t.seatMapId, t.sortOrder),
+    check(
+      'seat_map_categories_color_format',
+      sql`${t.color} ~ '^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$'`,
+    ),
+  ],
+);
+
 /** Entrances (drawn as markers). Sections and scanner devices are assigned to an entrance. */
 export const seatMapEntrances = pgTable(
   'seat_map_entrances',
@@ -155,6 +185,7 @@ export const seatMapEntrances = pgTable(
       .notNull()
       .references(() => seatMaps.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
+    translations: translationsColumn(),
     code: text('code').notNull(),
     x: real('x').notNull(),
     y: real('y').notNull(),
@@ -181,6 +212,7 @@ export const seatMapSections = pgTable(
     name: text('name').notNull(),
     /** Printed on tickets, e.g. "Block A", "Parkett links", "Stehplatz". */
     ticketLabel: text('ticket_label').notNull(),
+    translations: translationsColumn(),
     geometry: jsonb('geometry').$type<SectionGeometry>().notNull(),
     label: jsonb('label').$type<SectionLabel>(),
     color: text('color'),
@@ -190,6 +222,10 @@ export const seatMapSections = pgTable(
     }),
     /** Category for STANDING sections; default category for new seats in SEATED sections. */
     priceCategoryId: uuid('price_category_id').references((): AnyPgColumn => priceCategories.id, {
+      onDelete: 'set null',
+    }),
+    /** Plan category (TEMPLATE maps only; event maps use `price_category_id`). */
+    templateCategoryId: uuid('template_category_id').references(() => seatMapCategories.id, {
       onDelete: 'set null',
     }),
     capacity: integer('capacity'),
@@ -267,6 +303,7 @@ export const seatMapElements = pgTable(
     sectionId: uuid('section_id').references(() => seatMapSections.id, { onDelete: 'set null' }),
     type: seatMapElementTypeEnum('type').notNull(),
     label: text('label'),
+    translations: translationsColumn(),
     geometry: jsonb('geometry').$type<ElementGeometry>().notNull(),
     style: jsonb('style').$type<ElementStyle>().notNull().default({}),
     assetId: uuid('asset_id').references(() => mediaAssets.id, { onDelete: 'set null' }),
@@ -311,6 +348,10 @@ export const seats = pgTable(
     y: real('y').notNull(),
     rotation: real('rotation').notNull().default(0),
     priceCategoryId: uuid('price_category_id').references((): AnyPgColumn => priceCategories.id, {
+      onDelete: 'set null',
+    }),
+    /** Plan category (TEMPLATE maps only; event maps use `price_category_id`). */
+    templateCategoryId: uuid('template_category_id').references(() => seatMapCategories.id, {
       onDelete: 'set null',
     }),
     /** Lower = better. Precomputed by the editor (row rank, centre distance, view quality). */

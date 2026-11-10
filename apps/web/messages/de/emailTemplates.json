@@ -55,6 +55,34 @@
     "SMTP_TEST": {
       "name": "SMTP-Testnachricht",
       "description": "Wird über „Test-E-Mail senden“ in den E-Mail-Einstellungen gesendet."
+    },
+    "ADMIN_INVITE": {
+      "name": "Admin-Portal: Einladung",
+      "description": "Einladung mit einem Einmal-Link zum Festlegen des Passworts."
+    },
+    "ADMIN_PASSWORD_RESET": {
+      "name": "Admin-Portal: Passwort zurücksetzen",
+      "description": "Link zum Festlegen eines neuen Admin-Passworts."
+    },
+    "ADDITIONAL_PAYMENT_REQUEST": {
+      "name": "Nachzahlungsaufforderung",
+      "description": "Wird gesendet, wenn ein Admin Tickets auf einen höheren Tarif umstellt: alter und neuer Preis, Link zum Bestätigen und Bezahlen."
+    },
+    "ADDITIONAL_PAYMENT_REMINDER": {
+      "name": "Erinnerung zur Nachzahlung",
+      "description": "Eine Erinnerung für eine unbezahlte Tarifwechsel-Anforderung."
+    },
+    "ADDITIONAL_PAYMENT_CANCELLED": {
+      "name": "Nachzahlung zurückgenommen",
+      "description": "Wird gesendet, wenn eine Tarifwechsel-Anforderung storniert wird: es ist nichts zu zahlen."
+    },
+    "ADDITIONAL_PAYMENT_RECEIVED": {
+      "name": "Nachzahlung eingegangen",
+      "description": "Wird gesendet, wenn eine Nachzahlung (Tarifwechsel) gebucht wurde: erhaltener Betrag, alter und neuer Tarif je Ticket, Erklärung der Rechnungskorrektur, neue Rechnung und neue Tickets im Anhang."
+    },
+    "ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT": {
+      "name": "Tarif geändert – mit Guthaben verrechnet",
+      "description": "Wird gesendet, wenn eine Tarifänderung vollständig mit einer bereits geleisteten Überzahlung verrechnet wird: nichts zu zahlen, alter und neuer Tarif pro Ticket, Rechnungskorrektur und neue Tickets im Anhang."
     }
   },
   "page": {
@@ -116,7 +144,8 @@
       "order": "Bestellung",
       "tickets": "Tickets",
       "account": "Konto-Links",
-      "smtpTest": "Test"
+      "smtpTest": "Test",
+      "adjustment": "Nachzahlung"
     }
   },
   "preview": {
@@ -132,6 +161,7 @@
     "testSent": "Test-E-Mail an {to} gesendet.",
     "testFailed": "Die Test-E-Mail konnte nicht gesendet werden: {message}",
     "testInvalid": "Die Vorlage kann noch nicht gesendet werden. Bitte zuerst die Fehler beheben.",
+    "testNotConfigured": "SMTP ist noch nicht eingerichtet. Bitte zuerst unter Einstellungen → E-Mail konfigurieren.",
     "emptyText": "Die Nur-Text-Version wird beim Versand aus dem HTML erzeugt."
   },
   "issues": {

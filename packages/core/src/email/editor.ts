@@ -117,6 +117,10 @@ const SAMPLE = {
     holder: 'Sample Club e.V.',
     wallet: 'Add to wallet',
     downloadPdf: 'Download PDF',
+    reduced: 'Reduced',
+    normal: 'Normal',
+    additional: 'Additional payment',
+    adjustmentReason: 'Reduced tariff not applicable',
   },
   de: {
     firstName: 'Alex',
@@ -135,6 +139,10 @@ const SAMPLE = {
     holder: 'Musterverein e.V.',
     wallet: 'Zur Wallet hinzufügen',
     downloadPdf: 'PDF herunterladen',
+    reduced: 'Ermäßigt',
+    normal: 'Normal',
+    additional: 'Nachzahlung',
+    adjustmentReason: 'Ermäßigung nicht anwendbar',
   },
 } as const;
 
@@ -173,7 +181,25 @@ export function sampleEmailVariables(
     )
     .join('\n\n');
 
-  const paid = key === 'PAYMENT_RECEIVED_TICKETS' || key === 'TICKETS_RESENT';
+  const adjustmentRows = [s.seat, s.seat2].map((place) => ({
+    label: `${place}: ${s.reduced} → ${s.normal}`,
+    price: '20,00 € → 24,00 €',
+  }));
+  const adjustmentHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;line-height:1.45">${adjustmentRows
+    .map(
+      (r) =>
+        `<tr><td style="${CELL}">${escapeHtml(r.label)}</td><td align="right" style="${CELL};white-space:nowrap">${escapeHtml(r.price)}</td></tr>`,
+    )
+    .join(
+      '',
+    )}<tr><td style="padding:10px 0;border-top:2px solid #18181b;font-weight:700">${escapeHtml(s.additional)}</td><td align="right" style="padding:10px 0;border-top:2px solid #18181b;font-weight:700;white-space:nowrap">8,00 €</td></tr></table>`;
+  const adjustmentText = `${adjustmentRows.map((r) => `  - ${r.label}: ${r.price}`).join('\n')}\n${s.additional}: 8,00 €`;
+
+  const paid =
+    key === 'PAYMENT_RECEIVED_TICKETS' ||
+    key === 'TICKETS_RESENT' ||
+    key === 'ADDITIONAL_PAYMENT_RECEIVED' ||
+    key === 'ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT';
   const variables: TemplateVariables = {
     ...shop,
     recipientEmail: options.recipient ?? 'alex.sample@example.org',
@@ -207,6 +233,20 @@ export function sampleEmailVariables(
     reminderCount: 1,
     cancellationReason: s.reason,
     invoiceNumber: 'RE-2026-000045',
+    adjustmentAmount: '8,00 €',
+    adjustmentCreditUsed: '3,00 €',
+    adjustmentReference: 'TIX-2026-654321-8',
+    adjustmentReason: s.adjustmentReason,
+    adjustmentItems: trustedHtml(adjustmentHtml, adjustmentText),
+    adjustmentNewTotal: '48,00 €',
+    adjustmentPreviouslyPaid: '40,00 €',
+    adjustmentOldInvoiceNumber: 'RE-2026-000045',
+    adjustmentNewInvoiceNumber: 'RE-2026-000052',
+    adjustmentCreditNoteNumber: 'GS-2026-000013',
+    refundAmount: '48,00 €',
+    creditNoteNumber: 'GS-2026-000012',
+    refundViaPaypal: 'yes',
+    refundManual: null,
     walletLinks: trustedHtml(walletHtml, `${s.wallet}: https://wallet.example.org/pass`),
     ticketLinks: trustedHtml(ticketLinksHtml, ticketLinksText),
     ticketsAttached: 'yes',
@@ -214,6 +254,7 @@ export function sampleEmailVariables(
     verificationUrl: `${base}/account/verify?token=sample`,
     resetUrl: `${base}/account/reset?token=sample`,
     loginUrl: `${base}/account/login-link?token=sample`,
+    inviteUrl: `${base}/admin/accept-invite?token=sample`,
     expiresAt: locale === 'de' ? '01.03.2026, 18:00 Uhr' : '1 March 2026, 6:00 PM',
     sentAt: locale === 'de' ? '01.03.2026, 12:00 Uhr' : '1 March 2026, 12:00 PM',
   };

@@ -16,7 +16,7 @@
     "perTicket": "Per ticket – for every ticket of an event: a fixed amount or a percentage of the ticket price (after reductions).",
     "perEvent": "Once per event – once for each event in the order: a fixed amount or a percentage of that event's tickets.",
     "perOrder": "Once per order – once per order, however many events it contains. Only possible as a global fee, always with its own tax rate.",
-    "filters": "Fees can be limited to payment methods (e.g. a PayPal surcharge) and sales channels. Amounts are gross – the tax is included.",
+    "filters": "Fees can be limited to payment methods (e.g. a PayPal surcharge) and sales channels. By default a fee is charged online only – tick \"Box office\" to charge it at the counter as well. Amounts are gross – the tax is included.",
     "events": "Every event inherits the global fees. In the event's “Fees” tab a global fee can be adjusted (own values) or waived, and event-only fees can be added.",
     "snapshots": "Orders store their fees and tax amounts – changes only apply to new orders."
   },

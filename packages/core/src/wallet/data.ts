@@ -8,6 +8,7 @@ import {
   walletPassDesigns,
   type Executor,
 } from '@tix/db';
+import { localized, type Translations } from '@tix/shared';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { formatDateTime, formatTime } from '../format';
@@ -27,8 +28,16 @@ export interface WalletTicketData {
   orderNumber: string;
   locale: string;
   eventId: string;
+  /** Event / venue texts resolved for the order's locale (Apple pass, Google ticket objects). */
   eventTitle: string;
   eventSubtitle: string | null;
+  /** Base (shop default language) texts + translations for the shared Google class (`translatedValues`). */
+  classTexts?: {
+    eventTitle: string;
+    venueName: string;
+    eventTranslations: Translations;
+    venueTranslations: Translations;
+  };
   startsAt: Date;
   endsAt: Date | null;
   doorsOpenAt: Date | null;
@@ -83,6 +92,8 @@ export async function loadWalletTicketData(
       eventId: events.id,
       eventTitle: events.title,
       eventSubtitle: events.subtitle,
+      eventTranslations: events.translations,
+      venueTranslations: venues.translations,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
       doorsOpenAt: events.doorsOpenAt,
@@ -111,6 +122,7 @@ export async function loadWalletTicketData(
     .innerJoin(venues, eq(venues.id, events.venueId))
     .where(condition)
     .orderBy(...placeOrderBy());
+  const { defaultLocale } = await getSetting({ db }, 'general');
   return rows
     .filter((r) => r.status === 'VALID')
     .map((r) => ({
@@ -122,15 +134,42 @@ export async function loadWalletTicketData(
       orderNumber: r.orderNumber,
       locale: r.locale,
       eventId: r.eventId,
-      eventTitle: r.eventTitle,
-      eventSubtitle: r.eventSubtitle,
+      eventTitle: localized(
+        { translations: r.eventTranslations },
+        'title',
+        r.locale,
+        defaultLocale,
+        r.eventTitle,
+      ),
+      eventSubtitle:
+        r.eventSubtitle === null
+          ? null
+          : localized(
+              { translations: r.eventTranslations },
+              'subtitle',
+              r.locale,
+              defaultLocale,
+              r.eventSubtitle,
+            ),
+      classTexts: {
+        eventTitle: r.eventTitle,
+        venueName: r.venueName,
+        eventTranslations: r.eventTranslations,
+        venueTranslations: r.venueTranslations,
+      },
       startsAt: r.startsAt,
       endsAt: r.endsAt,
       doorsOpenAt: r.doorsOpenAt,
       timeZone: r.timeZone,
       googleWalletClassId: r.googleWalletClassId,
       heroImageAssetId: r.heroImageAssetId,
-      venueName: r.venueName,
+      venueName: localized(
+        { translations: r.venueTranslations },
+        'name',
+        r.locale,
+        defaultLocale,
+        r.venueName,
+      ),
       venueAddress:
         [r.street, [r.postalCode, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') ||
         null,

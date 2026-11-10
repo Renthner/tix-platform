@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { CartView } from '@tix/core';
+import { useLocale } from 'next-intl';
 import { apiFetch } from '@/lib/api';
 
 interface CartContextValue {
@@ -22,16 +23,17 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartView | null>(null);
+  const locale = useLocale();
 
   const refresh = useCallback(async () => {
     try {
-      const next = await apiFetch<CartView>('/api/cart');
+      const next = await apiFetch<CartView>(`/api/cart?locale=${locale}`);
       setCart(next);
       return next;
     } catch {
       return null;
     }
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     void refresh();

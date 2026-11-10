@@ -132,12 +132,15 @@
       "standing": "Standing",
       "total": "Total",
       "vat": "incl. {rate}% VAT",
-      "paid": "Paid"
+      "paid": "Paid",
+      "refundedItem": "refunded",
+      "refunded": "Refunded"
     },
     "documents": {
       "title": "Documents",
       "invoice": "Invoice {number} (PDF)",
-      "creditNote": "Credit note {number} (PDF)"
+      "creditNote": "Credit note {number} (PDF)",
+      "correction": "Invoice correction {number} for {invoice} (PDF)"
     },
     "contact": "Questions about your order? Simply reply to the confirmation e-mail sent to {email}.",
     "copy": "Copy",
@@ -150,6 +153,38 @@
       "downloadOneLabel": "Download ticket {code} as PDF",
       "addApple": "Add to Apple Wallet",
       "addGoogle": "Add to Google Wallet"
+    },
+    "refunded": {
+      "title": "This order has been cancelled and refunded.",
+      "text": "The tickets are no longer valid."
+    },
+    "partiallyRefunded": {
+      "title": "Some tickets have been cancelled.",
+      "text": "The cancelled tickets are no longer valid and have been refunded; the remaining tickets stay valid."
+    },
+    "refundedAmount": "Refunded amount: {amount}.",
+    "adjustment": {
+      "title": "Additional payment required",
+      "intro": "The tariff of the following tickets was changed to a higher-priced one.",
+      "reason": "Reason: {reason}",
+      "amount": "Additional payment",
+      "ticketsStayValid": "Your tickets stay valid until the additional payment is settled.",
+      "confirm": "Confirm obligation to pay",
+      "confirmHint": "After you confirm, you can pay by PayPal or bank transfer.",
+      "payPaypal": "Pay with PayPal",
+      "bankTitle": "Pay by bank transfer",
+      "bankHint": "Please use exactly this payment reference so that we can assign your transfer.",
+      "noMethod": "No payment method is available online. Please contact us.",
+      "paypalNotice": {
+        "pending": "PayPal is still processing your payment. We will confirm it by e-mail as soon as it is completed.",
+        "cancelled": "The PayPal payment was cancelled. You can try again below.",
+        "failed": "The PayPal payment could not be completed. Please try again.",
+        "expired": "This additional payment is no longer open. If money was taken, it is refunded automatically.",
+        "unavailable": "PayPal is temporarily unavailable. Please try again in a moment."
+      },
+      "difference": "Price difference",
+      "alreadyPaid": "Already paid (overpayment)",
+      "rest": "Remaining amount"
     }
   },
   "account": {

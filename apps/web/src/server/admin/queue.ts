@@ -1,9 +1,16 @@
 'use server';
 
-import { publishQueueUpdate } from '@tix/core';
+import { getSetting, publishQueueUpdate } from '@tix/core';
 import { events, queueAnnouncements, queueConfigs } from '@tix/db';
-import { ANNOUNCEMENT_SEVERITIES, QUEUE_ADMISSION_ORDERS, QUEUE_MODES } from '@tix/shared';
-import { eq, isNull } from 'drizzle-orm';
+import {
+  ANNOUNCEMENT_SEVERITIES,
+  QUEUE_ADMISSION_ORDERS,
+  QUEUE_MODES,
+  mergeLocaleTranslations,
+  translationLocales,
+  type Translations,
+} from '@tix/shared';
+import { eq, inArray, isNull } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState } from '@/lib/action-state';
@@ -133,11 +140,21 @@ export async function createAnnouncementAction(
   if (!parsed.success) return fieldError(zodFieldErrors(parsed.error));
   const core = getCore();
   const now = new Date();
+  const defaultLocale = (await getSetting(core, 'general')).defaultLocale;
+  let translations: Translations = {};
+  for (const locale of translationLocales(defaultLocale)) {
+    const value = text(fd, `translation:${locale}`);
+    if (value)
+      translations = mergeLocaleTranslations(translations, locale, {
+        message: value.slice(0, 1_000),
+      });
+  }
   const [row] = await core.db
     .insert(queueAnnouncements)
     .values({
       eventId,
       message: parsed.data.message,
+      translations,
       severity: parsed.data.severity,
       publishedAt: now,
       expiresAt: parsed.data.expiresInMinutes
@@ -151,12 +168,72 @@ export async function createAnnouncementAction(
     eventId,
     id: row!.id,
     message: parsed.data.message,
+    translations,
     severity: parsed.data.severity,
     publishedAt: now.toISOString(),
   });
   await audit(core.db, session, 'queue.announcement', 'event', eventId, parsed.data);
   revalidatePath('/', 'layout');
   return success('created');
+}
+
+/**
+ * Edits a published announcement (text and translations). Active announcements are broadcast
+ * again with the same id, so open waiting rooms replace the old text; others see it on next load.
+ */
+export async function updateAnnouncementAction(
+  announcementId: string,
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  const session = await requireAdmin(['EVENT_MANAGER']);
+  if (!z.uuid().safeParse(announcementId).success) return formError('notFound');
+  const core = getCore();
+  const message = text(fd, 'message');
+  if (!message || message.length > 1_000)
+    return fieldError({ message: message ? 'tooLong' : 'required' });
+  const defaultLocale = (await getSetting(core, 'general')).defaultLocale;
+  let translations: Translations = {};
+  for (const locale of translationLocales(defaultLocale)) {
+    const value = text(fd, `translation:${locale}`);
+    if (value) {
+      translations = mergeLocaleTranslations(translations, locale, {
+        message: value.slice(0, 1_000),
+      });
+    }
+  }
+  const [row] = await core.db
+    .update(queueAnnouncements)
+    .set({ message, translations })
+    .where(eq(queueAnnouncements.id, announcementId))
+    .returning();
+  if (!row) return formError('notFound');
+  if (!row.expiresAt || row.expiresAt > new Date()) {
+    // A global announcement (no event) is shown in every shop room: re-broadcast it to all
+    // events that can have one open.
+    const targets = row.eventId
+      ? [row.eventId]
+      : (
+          await core.db
+            .select({ id: events.id })
+            .from(events)
+            .where(inArray(events.status, ['PUBLISHED', 'POSTPONED']))
+        ).map((e) => e.id);
+    for (const eventId of targets) {
+      await publishQueueUpdate(core, {
+        type: 'announcement',
+        eventId,
+        id: row.id,
+        message: row.message,
+        translations: row.translations,
+        severity: row.severity,
+        publishedAt: row.publishedAt.toISOString(),
+      });
+    }
+  }
+  await audit(core.db, session, 'queue.announcement.update', 'queue_announcement', announcementId);
+  revalidatePath('/', 'layout');
+  return success('saved');
 }
 
 /** Ends an announcement immediately (keeps it for history). */

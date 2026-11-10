@@ -6,7 +6,8 @@ import type { EmailTemplateKey } from './enums';
  * how to find the editable content region inside a full HTML e-mail document.
  */
 
-export type EmailVariableGroup = 'shop' | 'customer' | 'order' | 'tickets' | 'account' | 'smtpTest';
+export type EmailVariableGroup =
+  'shop' | 'customer' | 'order' | 'adjustment' | 'tickets' | 'account' | 'smtpTest';
 
 export interface EmailVariableInfo {
   name: string;
@@ -75,6 +76,28 @@ const ORDER = [
   ...names('order', ['eventList', 'itemsTable'], 'html'),
 ];
 
+const ADJUSTMENT = [
+  ...names('adjustment', [
+    'adjustmentAmount',
+    'adjustmentCreditUsed',
+    'adjustmentReference',
+    'adjustmentReason',
+  ]),
+  ...names('adjustment', ['adjustmentItems'], 'html'),
+];
+
+/** ADDITIONAL_PAYMENT_RECEIVED: the corrected documents and what was paid before / now. */
+const ADJUSTMENT_PAID = [
+  ...ADJUSTMENT,
+  ...names('adjustment', [
+    'adjustmentNewTotal',
+    'adjustmentPreviouslyPaid',
+    'adjustmentOldInvoiceNumber',
+    'adjustmentNewInvoiceNumber',
+    'adjustmentCreditNoteNumber',
+  ]),
+];
+
 const WALLET = [
   ...names('tickets', ['walletLinks', 'ticketLinks'], 'html'),
   ...names('tickets', ['ticketsPdfUrl', 'ticketsAttached']),
@@ -89,12 +112,23 @@ const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
   PAYMENT_RECEIVED_TICKETS: [...SHOP, ...ORDER, ...WALLET],
   PAYMENT_REMINDER: [...SHOP, ...ORDER],
   ORDER_CANCELLED: [...SHOP, ...ORDER],
-  REFUND_CONFIRMATION: [...SHOP, ...ORDER, ...names('order', ['refundAmount', 'creditNoteNumber'])],
+  REFUND_CONFIRMATION: [
+    ...SHOP,
+    ...ORDER,
+    ...names('order', ['refundAmount', 'creditNoteNumber', 'refundViaPaypal', 'refundManual']),
+  ],
+  ADDITIONAL_PAYMENT_REQUEST: [...SHOP, ...ORDER, ...ADJUSTMENT],
+  ADDITIONAL_PAYMENT_REMINDER: [...SHOP, ...ORDER, ...ADJUSTMENT],
+  ADDITIONAL_PAYMENT_CANCELLED: [...SHOP, ...ORDER, ...ADJUSTMENT],
+  ADDITIONAL_PAYMENT_RECEIVED: [...SHOP, ...ORDER, ...ADJUSTMENT_PAID, ...WALLET],
+  ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT: [...SHOP, ...ORDER, ...ADJUSTMENT_PAID, ...WALLET],
   TICKETS_RESENT: [...SHOP, ...ORDER, ...WALLET],
   CUSTOMER_EMAIL_VERIFICATION: [...SHOP, ...CUSTOMER, ...account('verificationUrl')],
   CUSTOMER_PASSWORD_RESET: [...SHOP, ...CUSTOMER, ...account('resetUrl')],
   CUSTOMER_LOGIN_LINK: [...SHOP, ...CUSTOMER, ...account('loginUrl')],
   SMTP_TEST: [...SHOP, ...names('smtpTest', ['sentAt'])],
+  ADMIN_INVITE: [...SHOP, ...account('inviteUrl')],
+  ADMIN_PASSWORD_RESET: [...SHOP, ...account('resetUrl')],
 };
 
 /** Variables a template of this key can use (de-duplicated, in display order). */
@@ -179,7 +213,8 @@ export function joinEmailContent(parts: EmailContentParts, content: string): str
 
 const LOGIC_TOKEN = /\{\{\s*(?:#if\b|#unless\b|else\b|\/if\b|\/unless\b)[^{}]*\}\}/g;
 /** Block-level placeholders: only protected when they stand alone between blocks. */
-const BLOCK_VARIABLE = /\{\{\s*(?:itemsTable|eventList|walletLinks|ticketLinks)\s*\}\}/g;
+const BLOCK_VARIABLE =
+  /\{\{\s*(?:itemsTable|eventList|walletLinks|ticketLinks|adjustmentItems)\s*\}\}/g;
 const TOKEN = new RegExp(`${LOGIC_TOKEN.source}|${BLOCK_VARIABLE.source}`, 'g');
 
 const BLOCK_TAGS = 'p|table|h[1-6]|ul|ol|blockquote|div|hr';

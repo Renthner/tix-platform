@@ -1,28 +1,41 @@
-import type { AdminRole } from '@tix/shared';
-import { getAdminSession, hasRole } from '@/server/auth';
-import { AdminNavLinks, type NavKey } from './admin-nav-links';
-
-/** Required roles per navigation entry (empty = every admin). SUPER_ADMIN sees everything. */
-const ACCESS: [NavKey, AdminRole[]][] = [
-  ['dashboard', []],
-  ['events', ['EVENT_MANAGER']],
-  ['orders', ['FINANCE', 'EVENT_MANAGER']],
-  ['banking', ['FINANCE']],
-  ['fees', ['FINANCE', 'EVENT_MANAGER']],
-  ['emailTemplates', ['SUPER_ADMIN']],
-  ['ticketTemplates', ['EVENT_MANAGER']],
-  ['venues', ['EVENT_MANAGER']],
-  ['symbols', ['EVENT_MANAGER']],
-  ['waitingRoom', ['EVENT_MANAGER']],
-  ['settings', ['SUPER_ADMIN']],
-];
+import {
+  countAdjustmentsNeedingAttention,
+  countInvoiceCorrections,
+  countOpenRefunds,
+} from '@tix/core';
+import { allowedNavKeys } from '@/lib/admin-nav-access';
+import { getAdminSession } from '@/server/auth';
+import { getCore } from '@/server/core';
+import type { ReactNode } from 'react';
+import { AdminMobileMenu, AdminNavLinks } from './admin-nav-links';
 
 /** Server component: filters the navigation by the signed-in admin's roles. */
-export async function AdminNav() {
+export async function AdminNav({
+  mobile = false,
+  mobileFooter,
+}: {
+  mobile?: boolean;
+  mobileFooter?: ReactNode;
+} = {}) {
   const session = await getAdminSession();
-  if (!session) return null;
-  const keys = ACCESS.filter(([, roles]) => roles.length === 0 || hasRole(session, roles)).map(
-    ([key]) => key,
-  );
-  return <AdminNavLinks keys={keys} />;
+  if (!session || session.twoFactorSetupRequired) return null;
+  const keys = allowedNavKeys(session.roles);
+  const badges = keys.includes('refunds')
+    ? {
+        // Open refunds plus unpaid additional payments (tariff changes) whose reminder went out.
+        refunds: await Promise.all([
+          countOpenRefunds(getCore()).catch(() => 0),
+          countAdjustmentsNeedingAttention(getCore()).catch(() => 0),
+          countInvoiceCorrections(getCore()).catch(() => 0),
+        ]).then(([refunds, adjustments, invoices]) => refunds + adjustments + invoices),
+      }
+    : {};
+  if (mobile) {
+    return (
+      <AdminMobileMenu keys={keys} badges={badges}>
+        {mobileFooter}
+      </AdminMobileMenu>
+    );
+  }
+  return <AdminNavLinks keys={keys} badges={badges} />;
 }

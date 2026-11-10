@@ -114,6 +114,8 @@
     "custom": "Custom"
   },
   "props": {
+    "textLanguage": "Text language",
+    "textLanguageDefault": "(default)",
     "page": "Page",
     "qr": "QR code",
     "text": "Text",

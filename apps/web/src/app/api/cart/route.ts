@@ -3,15 +3,16 @@ import { NextResponse } from 'next/server';
 import { getCore } from '@/server/core';
 import { handle } from '@/server/http';
 import { readSessionId } from '@/server/session';
+import { localeParam } from '@/server/http';
 
 export const dynamic = 'force-dynamic';
 
 /** GET – the multi-event cart of this browser session. */
-export async function GET() {
+export async function GET(req: Request) {
   return handle(async () => {
     const sid = await readSessionId();
     const cart = sid
-      ? await getCart(getCore(), sid)
+      ? await getCart(getCore(), sid, localeParam(req))
       : { expiresAt: null, events: [], itemCount: 0, totalGross: 0, currencies: [] };
     return NextResponse.json(cart, { headers: { 'cache-control': 'no-store' } });
   });

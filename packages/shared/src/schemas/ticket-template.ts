@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { hexColorSchema } from './common';
+import { localized, translationsSchema } from '../translations';
 
 /**
  * Layout of a PDF ticket template (ticket_templates.layout). All positions/sizes are
@@ -40,6 +41,8 @@ const textElementSchema = z.object({
   field: z.enum(TICKET_FIELD_KEYS),
   /** Only for STATIC_TEXT; may contain {{placeholders}}. */
   text: z.string().max(2_000).optional(),
+  /** Translations of `text` per locale: `{ en: { text: '…' } }` (STATIC_TEXT only). */
+  translations: translationsSchema.optional(),
   x: mm,
   y: mm,
   width: mm,
@@ -122,6 +125,27 @@ export const ticketLayoutSchema = z.object({
 export type TicketLayout = z.infer<typeof ticketLayoutSchema>;
 
 export type TicketLayoutElement = TicketLayout['elements'][number];
+/** Layout with static texts resolved for `locale` (translation if not blank, else the base text). */
+export function localizeTicketLayout(
+  layout: TicketLayout,
+  locale: string | null | undefined,
+  defaultLocale: string,
+): TicketLayout {
+  if (!layout.elements.some((el) => el.kind === 'text' && el.translations)) return layout;
+  return {
+    ...layout,
+    elements: layout.elements.map((el) =>
+      el.kind === 'text' && el.field === 'STATIC_TEXT' && el.translations
+        ? {
+            ...el,
+            text: localized(el, 'text', locale, defaultLocale, el.text ?? ''),
+            translations: undefined,
+          }
+        : el,
+    ),
+  };
+}
+
 export type TicketTextElement = Extract<TicketLayoutElement, { kind: 'text' }>;
 
 /**

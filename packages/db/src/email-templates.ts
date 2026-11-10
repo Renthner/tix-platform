@@ -489,8 +489,17 @@ ${COMMON.de.regardsText}`,
       html: [
         paragraph(COMMON.en.hello),
         paragraph(
-          '{{#if refundAmount}}we have refunded <strong>{{refundAmount}}</strong>{{else}}we have issued a refund{{/if}} for your order {{orderNumber}}. The money will be returned via your original payment method ({{paymentMethod}}); depending on your bank, it may take a few days to appear on your account.',
+          '{{#if refundAmount}}we are refunding <strong>{{refundAmount}}</strong>{{else}}we have cancelled tickets{{/if}} for your order {{orderNumber}}.',
         ),
+        '{{#if refundViaPaypal}}' +
+          paragraph(
+            'The money is going back to your PayPal account; it usually shows up within a few days.',
+          ) +
+          '{{/if}}{{#if refundManual}}' +
+          paragraph(
+            'We will transfer the amount to you (to the account you paid from, if we know it). This can take a few days.',
+          ) +
+          '{{/if}}',
         '{{#if creditNoteNumber}}' +
           paragraph('Your credit note {{creditNoteNumber}} is attached to this e-mail.') +
           '{{/if}}',
@@ -499,9 +508,13 @@ ${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hello{{#if firstName}} {{firstName}}{{/if}},
 
-{{#if refundAmount}}we have refunded {{refundAmount}}{{else}}we have issued a refund{{/if}} for your order {{orderNumber}}. The money will be returned via your original payment method ({{paymentMethod}}); depending on your bank, it may take a few days to appear on your account.
+{{#if refundAmount}}we are refunding {{refundAmount}}{{else}}we have cancelled tickets{{/if}} for your order {{orderNumber}}.
 
-{{#if creditNoteNumber}}Your credit note {{creditNoteNumber}} is attached to this e-mail.
+{{#if refundViaPaypal}}The money is going back to your PayPal account; it usually shows up within a few days.
+
+{{/if}}{{#if refundManual}}We will transfer the amount to you (to the account you paid from, if we know it). This can take a few days.
+
+{{/if}}{{#if creditNoteNumber}}Your credit note {{creditNoteNumber}} is attached to this e-mail.
 
 {{/if}}${orderLink('en')}${COMMON.en.regardsText}`,
     }),
@@ -510,8 +523,17 @@ ${COMMON.de.regardsText}`,
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          '{{#if refundAmount}}wir haben dir <strong>{{refundAmount}}</strong> erstattet{{else}}wir haben eine Erstattung veranlasst{{/if}} (Bestellung {{orderNumber}}). Das Geld bekommst du über deine ursprüngliche Zahlungsart ({{paymentMethod}}) zurück; je nach Bank kann die Gutschrift einige Tage dauern.',
+          '{{#if refundAmount}}wir erstatten dir <strong>{{refundAmount}}</strong>{{else}}wir haben Tickets storniert{{/if}} (Bestellung {{orderNumber}}).',
         ),
+        '{{#if refundViaPaypal}}' +
+          paragraph(
+            'Das Geld geht zurück auf dein PayPal-Konto; es erscheint dort meist innerhalb weniger Tage.',
+          ) +
+          '{{/if}}{{#if refundManual}}' +
+          paragraph(
+            'Wir überweisen dir den Betrag (auf das Konto, von dem du bezahlt hast, sofern uns das bekannt ist). Das kann einige Tage dauern.',
+          ) +
+          '{{/if}}',
         '{{#if creditNoteNumber}}' +
           paragraph(
             'Deine Rechnungskorrektur {{creditNoteNumber}} findest du im Anhang dieser E-Mail.',
@@ -522,11 +544,299 @@ ${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-{{#if refundAmount}}wir haben dir {{refundAmount}} erstattet{{else}}wir haben eine Erstattung veranlasst{{/if}} (Bestellung {{orderNumber}}). Das Geld bekommst du über deine ursprüngliche Zahlungsart ({{paymentMethod}}) zurück; je nach Bank kann die Gutschrift einige Tage dauern.
+{{#if refundAmount}}wir erstatten dir {{refundAmount}}{{else}}wir haben Tickets storniert{{/if}} (Bestellung {{orderNumber}}).
 
-{{#if creditNoteNumber}}Deine Rechnungskorrektur {{creditNoteNumber}} findest du im Anhang dieser E-Mail.
+{{#if refundViaPaypal}}Das Geld geht zurück auf dein PayPal-Konto; es erscheint dort meist innerhalb weniger Tage.
+
+{{/if}}{{#if refundManual}}Wir überweisen dir den Betrag (auf das Konto, von dem du bezahlt hast, sofern uns das bekannt ist). Das kann einige Tage dauern.
+
+{{/if}}{{#if creditNoteNumber}}Deine Rechnungskorrektur {{creditNoteNumber}} findest du im Anhang dieser E-Mail.
 
 {{/if}}${orderLink('de')}${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ADDITIONAL_PAYMENT_REQUEST: {
+    en: () => ({
+      subject: 'Additional payment for your order {{orderNumber}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'the tariff of the following tickets in your order {{orderNumber}} has been changed to a higher-priced one. This results in an additional payment of <strong>{{adjustmentAmount}}</strong>.{{#if adjustmentReason}} Reason: {{adjustmentReason}}{{/if}}',
+        ),
+        '{{adjustmentItems}}',
+        paragraph(
+          'Your tickets stay valid in the meantime. Please open your order, check the change and confirm that you want to pay; afterwards you can pay by PayPal or bank transfer.',
+        ),
+        button('en', 'orderUrl', 'Review and confirm'),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+the tariff of the following tickets in your order {{orderNumber}} has been changed to a higher-priced one. This results in an additional payment of {{adjustmentAmount}}.{{#if adjustmentReason}} Reason: {{adjustmentReason}}{{/if}}
+
+{{adjustmentItems}}
+
+Your tickets stay valid in the meantime. Please open your order, check the change and confirm that you want to pay; afterwards you can pay by PayPal or bank transfer.
+
+${orderLink('en')}${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Nachzahlung zu deiner Bestellung {{orderNumber}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'der Tarif der folgenden Tickets in deiner Bestellung {{orderNumber}} wurde auf einen höheren Preis geändert. Daraus ergibt sich eine Nachzahlung von <strong>{{adjustmentAmount}}</strong>.{{#if adjustmentReason}} Grund: {{adjustmentReason}}{{/if}}',
+        ),
+        '{{adjustmentItems}}',
+        paragraph(
+          'Deine Tickets bleiben in der Zwischenzeit gültig. Bitte öffne deine Bestellung, prüfe die Änderung und bestätige die Zahlungspflicht; anschließend kannst du per PayPal oder Überweisung bezahlen.',
+        ),
+        button('de', 'orderUrl', 'Prüfen und bestätigen'),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+der Tarif der folgenden Tickets in deiner Bestellung {{orderNumber}} wurde auf einen höheren Preis geändert. Daraus ergibt sich eine Nachzahlung von {{adjustmentAmount}}.{{#if adjustmentReason}} Grund: {{adjustmentReason}}{{/if}}
+
+{{adjustmentItems}}
+
+Deine Tickets bleiben in der Zwischenzeit gültig. Bitte öffne deine Bestellung, prüfe die Änderung und bestätige die Zahlungspflicht; anschließend kannst du per PayPal oder Überweisung bezahlen.
+
+${orderLink('de')}${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ADDITIONAL_PAYMENT_REMINDER: {
+    en: () => ({
+      subject: 'Reminder: additional payment for your order {{orderNumber}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'the additional payment of <strong>{{adjustmentAmount}}</strong> for your order {{orderNumber}} is still open. If you have already paid, please disregard this e-mail.',
+        ),
+        '{{adjustmentItems}}',
+        paragraph(
+          'Please open your order, confirm the additional payment and pay by PayPal or bank transfer.',
+        ),
+        button('en', 'orderUrl', 'Review and pay'),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+the additional payment of {{adjustmentAmount}} for your order {{orderNumber}} is still open. If you have already paid, please disregard this e-mail.
+
+{{adjustmentItems}}
+
+Please open your order, confirm the additional payment and pay by PayPal or bank transfer.
+
+${orderLink('en')}${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Erinnerung: Nachzahlung zu deiner Bestellung {{orderNumber}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'die Nachzahlung von <strong>{{adjustmentAmount}}</strong> zu deiner Bestellung {{orderNumber}} ist noch offen. Hast du bereits bezahlt, betrachte diese E-Mail bitte als gegenstandslos.',
+        ),
+        '{{adjustmentItems}}',
+        paragraph(
+          'Bitte öffne deine Bestellung, bestätige die Nachzahlung und bezahle per PayPal oder Überweisung.',
+        ),
+        button('de', 'orderUrl', 'Prüfen und bezahlen'),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+die Nachzahlung von {{adjustmentAmount}} zu deiner Bestellung {{orderNumber}} ist noch offen. Hast du bereits bezahlt, betrachte diese E-Mail bitte als gegenstandslos.
+
+{{adjustmentItems}}
+
+Bitte öffne deine Bestellung, bestätige die Nachzahlung und bezahle per PayPal oder Überweisung.
+
+${orderLink('de')}${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ADDITIONAL_PAYMENT_CANCELLED: {
+    en: () => ({
+      subject: 'Additional payment for your order {{orderNumber}} withdrawn',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'the additional payment of <strong>{{adjustmentAmount}}</strong> for your order {{orderNumber}} has been withdrawn. You do not have to pay anything. If you have already transferred the amount, please contact us.',
+        ),
+        button('en', 'orderUrl', COMMON.en.viewOrder),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+the additional payment of {{adjustmentAmount}} for your order {{orderNumber}} has been withdrawn. You do not have to pay anything. If you have already transferred the amount, please contact us.
+
+${orderLink('en')}${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Nachzahlung zu deiner Bestellung {{orderNumber}} zurückgenommen',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'die Nachzahlung von <strong>{{adjustmentAmount}}</strong> zu deiner Bestellung {{orderNumber}} wurde zurückgenommen. Du musst nichts bezahlen. Hast du den Betrag bereits überwiesen, melde dich bitte bei uns.',
+        ),
+        button('de', 'orderUrl', COMMON.de.viewOrder),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+die Nachzahlung von {{adjustmentAmount}} zu deiner Bestellung {{orderNumber}} wurde zurückgenommen. Du musst nichts bezahlen. Hast du den Betrag bereits überwiesen, melde dich bitte bei uns.
+
+${orderLink('de')}${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ADDITIONAL_PAYMENT_RECEIVED: {
+    en: () => ({
+      subject: 'Additional payment received – your order {{orderNumber}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'we have received your additional payment of <strong>{{adjustmentAmount}}</strong> for your order {{orderNumber}} – thank you very much! The tickets below now have the new tariff:',
+        ),
+        '{{adjustmentItems}}',
+        '{{#if adjustmentNewInvoiceNumber}}' +
+          paragraph(
+            '{{#if adjustmentCreditNoteNumber}}Attached you will find the invoice correction <strong>{{adjustmentCreditNoteNumber}}</strong>, which cancels the original invoice {{adjustmentOldInvoiceNumber}}, and the new invoice <strong>{{adjustmentNewInvoiceNumber}}</strong>.{{else}}Attached you will find your invoice <strong>{{adjustmentNewInvoiceNumber}}</strong>.{{/if}} The new invoice shows the total amount of {{adjustmentNewTotal}}, of which {{adjustmentPreviouslyPaid}} were already paid plus the additional payment of {{adjustmentAmount}}. Nothing else is due.',
+          ) +
+          '{{/if}}',
+        paragraph(
+          ticketsSentence(
+            'Your new tickets are attached as PDF; they replace the previous ones. You can also download them at any time on your order page.',
+            'Your new tickets replace the previous ones. You can download them individually below or at any time on your order page.',
+          ),
+        ),
+        ticketLinksBlock('en'),
+        button('en', 'orderUrl', COMMON.en.viewOrder),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+we have received your additional payment of {{adjustmentAmount}} for your order {{orderNumber}} – thank you very much! The tickets below now have the new tariff:
+
+{{adjustmentItems}}
+
+{{#if adjustmentNewInvoiceNumber}}{{#if adjustmentCreditNoteNumber}}Attached you will find the invoice correction {{adjustmentCreditNoteNumber}}, which cancels the original invoice {{adjustmentOldInvoiceNumber}}, and the new invoice {{adjustmentNewInvoiceNumber}}.{{else}}Attached you will find your invoice {{adjustmentNewInvoiceNumber}}.{{/if}} The new invoice shows the total amount of {{adjustmentNewTotal}}, of which {{adjustmentPreviouslyPaid}} were already paid plus the additional payment of {{adjustmentAmount}}. Nothing else is due.
+
+{{/if}}{{#if ticketsAttached}}Your new tickets are attached as PDF; they replace the previous ones. You can also download them at any time on your order page.{{else}}Your new tickets replace the previous ones. You can download them individually below or at any time on your order page.{{/if}}
+
+${ticketLinksText('en')}${orderLink('en')}${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Nachzahlung eingegangen – deine Bestellung {{orderNumber}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'wir haben deine Nachzahlung von <strong>{{adjustmentAmount}}</strong> zu deiner Bestellung {{orderNumber}} erhalten – vielen Dank! Die folgenden Tickets haben jetzt den neuen Tarif:',
+        ),
+        '{{adjustmentItems}}',
+        '{{#if adjustmentNewInvoiceNumber}}' +
+          paragraph(
+            '{{#if adjustmentCreditNoteNumber}}Im Anhang findest du die Rechnungskorrektur <strong>{{adjustmentCreditNoteNumber}}</strong>, die die ursprüngliche Rechnung {{adjustmentOldInvoiceNumber}} storniert, und die neue Rechnung <strong>{{adjustmentNewInvoiceNumber}}</strong>.{{else}}Im Anhang findest du deine Rechnung <strong>{{adjustmentNewInvoiceNumber}}</strong>.{{/if}} Die neue Rechnung weist den Gesamtbetrag von {{adjustmentNewTotal}} aus, davon bereits bezahlt {{adjustmentPreviouslyPaid}} + Nachzahlung {{adjustmentAmount}}. Es ist nichts weiter zu zahlen.',
+          ) +
+          '{{/if}}',
+        paragraph(
+          ticketsSentence(
+            'Deine neuen Tickets hängen als PDF an; sie ersetzen die bisherigen. Du kannst sie außerdem jederzeit auf deiner Bestellseite herunterladen.',
+            'Deine neuen Tickets ersetzen die bisherigen. Du kannst sie unten einzeln oder jederzeit auf deiner Bestellseite herunterladen.',
+          ),
+        ),
+        ticketLinksBlock('de'),
+        button('de', 'orderUrl', COMMON.de.viewOrder),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+wir haben deine Nachzahlung von {{adjustmentAmount}} zu deiner Bestellung {{orderNumber}} erhalten – vielen Dank! Die folgenden Tickets haben jetzt den neuen Tarif:
+
+{{adjustmentItems}}
+
+{{#if adjustmentNewInvoiceNumber}}{{#if adjustmentCreditNoteNumber}}Im Anhang findest du die Rechnungskorrektur {{adjustmentCreditNoteNumber}}, die die ursprüngliche Rechnung {{adjustmentOldInvoiceNumber}} storniert, und die neue Rechnung {{adjustmentNewInvoiceNumber}}.{{else}}Im Anhang findest du deine Rechnung {{adjustmentNewInvoiceNumber}}.{{/if}} Die neue Rechnung weist den Gesamtbetrag von {{adjustmentNewTotal}} aus, davon bereits bezahlt {{adjustmentPreviouslyPaid}} + Nachzahlung {{adjustmentAmount}}. Es ist nichts weiter zu zahlen.
+
+{{/if}}{{#if ticketsAttached}}Deine neuen Tickets hängen als PDF an; sie ersetzen die bisherigen. Du kannst sie außerdem jederzeit auf deiner Bestellseite herunterladen.{{else}}Deine neuen Tickets ersetzen die bisherigen. Du kannst sie unten einzeln oder jederzeit auf deiner Bestellseite herunterladen.{{/if}}
+
+${ticketLinksText('de')}${orderLink('de')}${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT: {
+    en: () => ({
+      subject: 'Tariff changed – settled with your payment – order {{orderNumber}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'the tariff of the tickets below in your order {{orderNumber}} has been changed. The price difference of <strong>{{adjustmentCreditUsed}}</strong> has been settled with the payment you already made (your overpayment) – <strong>you do not have to pay anything</strong>.',
+        ),
+        '{{adjustmentItems}}',
+        '{{#if adjustmentNewInvoiceNumber}}' +
+          paragraph(
+            '{{#if adjustmentCreditNoteNumber}}Attached you will find the invoice correction <strong>{{adjustmentCreditNoteNumber}}</strong>, which cancels the original invoice {{adjustmentOldInvoiceNumber}}, and the new invoice <strong>{{adjustmentNewInvoiceNumber}}</strong>.{{else}}Attached you will find your invoice <strong>{{adjustmentNewInvoiceNumber}}</strong>.{{/if}} The new invoice shows the total amount of {{adjustmentNewTotal}}, of which {{adjustmentPreviouslyPaid}} were already paid (including the credited overpayment). Nothing else is due.',
+          ) +
+          '{{/if}}',
+        paragraph(
+          ticketsSentence(
+            'Your new tickets are attached as PDF; they replace the previous ones. You can also download them at any time on your order page.',
+            'Your new tickets replace the previous ones. You can download them individually below or at any time on your order page.',
+          ),
+        ),
+        ticketLinksBlock('en'),
+        button('en', 'orderUrl', COMMON.en.viewOrder),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+the tariff of the tickets below in your order {{orderNumber}} has been changed. The price difference of {{adjustmentCreditUsed}} has been settled with the payment you already made (your overpayment) – you do not have to pay anything.
+
+{{adjustmentItems}}
+
+{{#if adjustmentNewInvoiceNumber}}{{#if adjustmentCreditNoteNumber}}Attached you will find the invoice correction {{adjustmentCreditNoteNumber}}, which cancels the original invoice {{adjustmentOldInvoiceNumber}}, and the new invoice {{adjustmentNewInvoiceNumber}}.{{else}}Attached you will find your invoice {{adjustmentNewInvoiceNumber}}.{{/if}} The new invoice shows the total amount of {{adjustmentNewTotal}}, of which {{adjustmentPreviouslyPaid}} were already paid (including the credited overpayment). Nothing else is due.
+
+{{/if}}{{#if ticketsAttached}}Your new tickets are attached as PDF; they replace the previous ones. You can also download them at any time on your order page.{{else}}Your new tickets replace the previous ones. You can download them individually below or at any time on your order page.{{/if}}
+
+${ticketLinksText('en')}${orderLink('en')}${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject:
+        'Tarif geändert – mit deiner bereits geleisteten Zahlung verrechnet – Bestellung {{orderNumber}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'der Tarif der folgenden Tickets in deiner Bestellung {{orderNumber}} wurde geändert. Die Preisdifferenz von <strong>{{adjustmentCreditUsed}}</strong> wurde mit deiner bereits geleisteten Zahlung (deiner Überzahlung) verrechnet – <strong>du musst nichts nachzahlen</strong>.',
+        ),
+        '{{adjustmentItems}}',
+        '{{#if adjustmentNewInvoiceNumber}}' +
+          paragraph(
+            '{{#if adjustmentCreditNoteNumber}}Im Anhang findest du die Rechnungskorrektur <strong>{{adjustmentCreditNoteNumber}}</strong>, die die ursprüngliche Rechnung {{adjustmentOldInvoiceNumber}} storniert, und die neue Rechnung <strong>{{adjustmentNewInvoiceNumber}}</strong>.{{else}}Im Anhang findest du deine Rechnung <strong>{{adjustmentNewInvoiceNumber}}</strong>.{{/if}} Die neue Rechnung weist den Gesamtbetrag von {{adjustmentNewTotal}} aus, davon bereits bezahlt {{adjustmentPreviouslyPaid}} (einschließlich der verrechneten Überzahlung). Es ist nichts weiter zu zahlen.',
+          ) +
+          '{{/if}}',
+        paragraph(
+          ticketsSentence(
+            'Deine neuen Tickets hängen als PDF an; sie ersetzen die bisherigen. Du kannst sie außerdem jederzeit auf deiner Bestellseite herunterladen.',
+            'Deine neuen Tickets ersetzen die bisherigen. Du kannst sie unten einzeln oder jederzeit auf deiner Bestellseite herunterladen.',
+          ),
+        ),
+        ticketLinksBlock('de'),
+        button('de', 'orderUrl', COMMON.de.viewOrder),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+der Tarif der folgenden Tickets in deiner Bestellung {{orderNumber}} wurde geändert. Die Preisdifferenz von {{adjustmentCreditUsed}} wurde mit deiner bereits geleisteten Zahlung (deiner Überzahlung) verrechnet – du musst nichts nachzahlen.
+
+{{adjustmentItems}}
+
+{{#if adjustmentNewInvoiceNumber}}{{#if adjustmentCreditNoteNumber}}Im Anhang findest du die Rechnungskorrektur {{adjustmentCreditNoteNumber}}, die die ursprüngliche Rechnung {{adjustmentOldInvoiceNumber}} storniert, und die neue Rechnung {{adjustmentNewInvoiceNumber}}.{{else}}Im Anhang findest du deine Rechnung {{adjustmentNewInvoiceNumber}}.{{/if}} Die neue Rechnung weist den Gesamtbetrag von {{adjustmentNewTotal}} aus, davon bereits bezahlt {{adjustmentPreviouslyPaid}} (einschließlich der verrechneten Überzahlung). Es ist nichts weiter zu zahlen.
+
+{{/if}}{{#if ticketsAttached}}Deine neuen Tickets hängen als PDF an; sie ersetzen die bisherigen. Du kannst sie außerdem jederzeit auf deiner Bestellseite herunterladen.{{else}}Deine neuen Tickets ersetzen die bisherigen. Du kannst sie unten einzeln oder jederzeit auf deiner Bestellseite herunterladen.{{/if}}
+
+${ticketLinksText('de')}${orderLink('de')}${COMMON.de.regardsText}`,
     }),
   },
 
@@ -792,6 +1102,128 @@ ${COMMON.en.regardsText}`,
 dies ist eine Test-E-Mail aus dem Admin-Portal von {{shopName}}{{#if sentAt}}, gesendet am {{sentAt}}{{/if}} an {{recipientEmail}}.
 
 Wenn du diese Nachricht lesen kannst, ist dein Postausgangsserver richtig eingerichtet.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ADMIN_INVITE: {
+    en: () => ({
+      subject: 'You have been invited to the {{shopName}} Admin Portal',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'you have been invited to the Admin Portal of {{shopName}}. Click the button below to choose your password and activate your account.',
+        ),
+        button('en', 'inviteUrl', 'Set password and sign in'),
+        '{{#if expiresAt}}' +
+          paragraph(
+            `<span style="${MUTED}">The link is valid until {{expiresAt}} and can only be used once.</span>`,
+          ) +
+          '{{/if}}',
+        paragraph(
+          `<span style="${MUTED}">If you did not expect this invitation, you can ignore this e-mail.</span>`,
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+you have been invited to the Admin Portal of {{shopName}}. Open the following link to choose your password and activate your account:
+
+{{inviteUrl}}
+
+{{#if expiresAt}}The link is valid until {{expiresAt}} and can only be used once.
+{{/if}}If you did not expect this invitation, you can ignore this e-mail.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Einladung in das Admin-Portal von {{shopName}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'du wurdest in das Admin-Portal von {{shopName}} eingeladen. Über den Button unten legst du dein Passwort fest und aktivierst dein Konto.',
+        ),
+        button('de', 'inviteUrl', 'Passwort festlegen und anmelden'),
+        '{{#if expiresAt}}' +
+          paragraph(
+            `<span style="${MUTED}">Der Link ist gültig bis {{expiresAt}} und kann nur einmal verwendet werden.</span>`,
+          ) +
+          '{{/if}}',
+        paragraph(
+          `<span style="${MUTED}">Wenn du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.</span>`,
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+du wurdest in das Admin-Portal von {{shopName}} eingeladen. Öffne den folgenden Link, um dein Passwort festzulegen und dein Konto zu aktivieren:
+
+{{inviteUrl}}
+
+{{#if expiresAt}}Der Link ist gültig bis {{expiresAt}} und kann nur einmal verwendet werden.
+{{/if}}Wenn du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ADMIN_PASSWORD_RESET: {
+    en: () => ({
+      subject: 'Reset your Admin Portal password for {{shopName}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'we have received a request to reset the password of your Admin Portal account. Click the button below to choose a new password.',
+        ),
+        button('en', 'resetUrl', 'Choose a new password'),
+        '{{#if expiresAt}}' +
+          paragraph(
+            `<span style="${MUTED}">The link is valid until {{expiresAt}} and can only be used once.</span>`,
+          ) +
+          '{{/if}}',
+        paragraph(
+          `<span style="${MUTED}">If you did not request this, you can ignore this e-mail – your password remains unchanged.</span>`,
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+we have received a request to reset the password of your Admin Portal account. Open the following link to choose a new password:
+
+{{resetUrl}}
+
+{{#if expiresAt}}The link is valid until {{expiresAt}} and can only be used once.
+{{/if}}If you did not request this, you can ignore this e-mail – your password remains unchanged.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Passwort für das Admin-Portal von {{shopName}} zurücksetzen',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'wir haben eine Anfrage erhalten, das Passwort deines Admin-Portal-Kontos zurückzusetzen. Über den Button unten kannst du ein neues Passwort festlegen.',
+        ),
+        button('de', 'resetUrl', 'Neues Passwort festlegen'),
+        '{{#if expiresAt}}' +
+          paragraph(
+            `<span style="${MUTED}">Der Link ist gültig bis {{expiresAt}} und kann nur einmal verwendet werden.</span>`,
+          ) +
+          '{{/if}}',
+        paragraph(
+          `<span style="${MUTED}">Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren – dein Passwort bleibt unverändert.</span>`,
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+wir haben eine Anfrage erhalten, das Passwort deines Admin-Portal-Kontos zurückzusetzen. Öffne den folgenden Link, um ein neues Passwort festzulegen:
+
+{{resetUrl}}
+
+{{#if expiresAt}}Der Link ist gültig bis {{expiresAt}} und kann nur einmal verwendet werden.
+{{/if}}Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren – dein Passwort bleibt unverändert.
 
 ${COMMON.de.regardsText}`,
     }),

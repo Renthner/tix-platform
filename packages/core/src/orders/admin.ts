@@ -1,9 +1,10 @@
-import { orderHistory, orders } from '@tix/db';
+import { orderAdjustments, orderHistory, orders } from '@tix/db';
 import type { EmailTemplateKey } from '@tix/shared';
 import { and, eq, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { enqueueEmail } from '../email';
 import { listOrderTickets } from '../tickets/issue';
+import { completeAdjustment, type CompleteAdjustmentResult } from './adjustments';
 import { cancelOrder, recordPayment, type RecordPaymentResult } from './fulfillment';
 
 /** Admin / customer actions on single orders (box office features follow in phase 5). */
@@ -94,12 +95,50 @@ export async function recordManualPayment(
   return result;
 }
 
+/**
+ * Payment of an additional payment (tariff change) received outside the automatic channels
+ * (cash, transfer matched by hand …). The amount is always the adjustment amount.
+ */
+export async function recordManualAdjustmentPayment(
+  ctx: CoreContext,
+  params: {
+    adjustmentId: string;
+    method: 'BANK_TRANSFER' | 'CASH' | 'CARD' | 'PAYPAL';
+    note?: string | null;
+    receivedAt?: Date;
+    userId: string;
+  },
+): Promise<CompleteAdjustmentResult> {
+  const [adjustment] = await ctx.db
+    .select()
+    .from(orderAdjustments)
+    .where(eq(orderAdjustments.id, params.adjustmentId));
+  if (!adjustment)
+    throw new DomainError('ADJUSTMENT_NOT_FOUND', 'Additional payment not found', 404);
+  const result = await completeAdjustment(ctx, {
+    adjustmentId: adjustment.id,
+    amount: adjustment.amount,
+    currency: adjustment.currency,
+    method: params.method,
+    capturedAt: params.receivedAt,
+    receivedByUserId: params.userId,
+    providerResponse: params.note?.trim() ? { note: params.note.trim() } : null,
+    actor: { type: 'ADMIN', userId: params.userId },
+  });
+  if (result.status === 'NOT_PAYABLE') {
+    throw new DomainError('ADJUSTMENT_NOT_PAYABLE', 'This additional payment cannot be paid', 409, {
+      reason: result.reason,
+    });
+  }
+  return result;
+}
+
 /** E-mail matching the current state of the order. */
 export function resendableEmail(status: string, method: string): EmailTemplateKey | null {
   if (status === 'AWAITING_PAYMENT' && method === 'BANK_TRANSFER') {
     return 'ORDER_CONFIRMATION_BANK_TRANSFER';
   }
-  if (status === 'PAID') return 'PAYMENT_RECEIVED_TICKETS';
+  if (status === 'PAID' || status === 'PARTIALLY_REFUNDED') return 'PAYMENT_RECEIVED_TICKETS';
   if (status === 'CANCELLED' || status === 'EXPIRED') return 'ORDER_CANCELLED';
   return null;
 }
@@ -129,7 +168,7 @@ export async function resendOrderTickets(
   params: { orderId: string; userId: string },
 ): Promise<void> {
   const order = await loadOrder(ctx, params.orderId);
-  if (order.status !== 'PAID') {
+  if (order.status !== 'PAID' && order.status !== 'PARTIALLY_REFUNDED') {
     throw new DomainError('ORDER_NOT_PAID', 'Tickets exist for paid orders only', 409);
   }
   const issued = await listOrderTickets(ctx, order.id);
@@ -151,12 +190,21 @@ export async function updateInternalNote(
   params: { orderId: string; note: string | null; userId: string },
 ): Promise<void> {
   const note = params.note?.trim() || null;
-  const updated = await ctx.db
-    .update(orders)
-    .set({ internalNote: note, version: sql`${orders.version} + 1` })
-    .where(eq(orders.id, params.orderId))
-    .returning({ id: orders.id });
-  if (updated.length === 0) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
+  await ctx.db.transaction(async (tx) => {
+    const updated = await tx
+      .update(orders)
+      .set({ internalNote: note, version: sql`${orders.version} + 1` })
+      .where(eq(orders.id, params.orderId))
+      .returning({ id: orders.id });
+    if (updated.length === 0) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
+    await tx.insert(orderHistory).values({
+      orderId: params.orderId,
+      type: 'note_changed',
+      actorType: 'ADMIN',
+      actorUserId: params.userId,
+      data: { note },
+    });
+  });
 }
 
 /** The buyer abandons an unpaid PayPal order on the order page (seats are released). */

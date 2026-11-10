@@ -89,6 +89,12 @@ export function createKeyspace(prefix: string) {
     /** SET of eventIds with an active waiting room (iterated by the admission ticker). */
     activeQueueEvents: () => `${prefix}:queue:events`,
 
+    // ── Shop presence (dashboard) ─────────────────────────────────────────
+    /** ZSET sessionId → last heartbeat (epoch ms) of shoppers currently on the event. */
+    presence: (eventId: string) => `${ev(eventId)}:presence`,
+    /** ZSET sessionId → last heartbeat (epoch ms) of shoppers anywhere in the shop. */
+    presenceShop: () => `${prefix}:presence:shop`,
+
     // ── Cross-cutting ────────────────────────────────────────────────────
     /** Fixed-window rate limiter bucket. */
     rateLimit: (bucket: string, subject: string) =>
@@ -109,6 +115,18 @@ export function createKeyspace(prefix: string) {
      */
     bankTanResponse: (challengeId: string) =>
       `${prefix}:bank:tan:${seg(challengeId, 'challengeId')}`,
+
+    // ── Backups ──────────────────────────────────────────────────────────
+    /** STRING JSON maintenance flag (restore running); TTL + heartbeat, so it heals itself. */
+    maintenance: () => `${prefix}:maintenance`,
+    /** STRING JSON marker without TTL: a restore replaced the database but did not finish. */
+    restoreIncomplete: () => `${prefix}:maintenance:restore-incomplete`,
+    /** STRING token (NX, TTL) of a queued restore request: at most one at a time. */
+    restoreRequest: () => `${prefix}:backup:restore-request`,
+    /** STRING JSON progress of the running / last backup operation. */
+    backupStatus: () => `${prefix}:backup:status`,
+    /** STRING JSON last failed scheduled backup (dashboard alert, cleared by the next success). */
+    backupFailure: () => `${prefix}:backup:failure`,
 
     // ── Infrastructure ───────────────────────────────────────────────────
     /** ZSET workerId → last heartbeat (epoch ms). */

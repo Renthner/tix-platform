@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import {
-  emailMessages,
   events,
   eventSigningKeys,
   orderItems,
@@ -17,6 +16,7 @@ import { generateHumanCode } from '@tix/shared/server';
 import { and, asc, eq, inArray, notExists, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
+import { currentPaidCycle, hasPaymentMailForCycle, orderPaidJobId } from '../orders/paid-cycle';
 import { placeOrderBy } from './order';
 import { ensureEventSigningKeyTx, type TicketSigningKey } from './keys';
 
@@ -26,6 +26,14 @@ const CODE_LENGTH = 10;
 const MAX_CODE_ATTEMPTS = 8;
 const orderLockSql = (orderId: string) =>
   sql`SELECT pg_advisory_xact_lock(hashtext(${`order-tickets:${orderId}`}))`;
+
+/**
+ * Per-order ticket advisory lock (shared by issuance, re-issue, cancellation and allocation
+ * reversal). Take it FIRST, before the order row lock, so ticket changes cannot interleave.
+ */
+export async function lockOrderTickets(tx: Transaction, orderId: string): Promise<void> {
+  await tx.execute(orderLockSql(orderId));
+}
 
 interface ItemForTicket {
   id: string;
@@ -147,7 +155,9 @@ export async function ensureOrderTickets(ctx: CoreContext, orderId: string): Pro
       .where(eq(orders.id, orderId))
       .for('share');
     if (!order) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
-    if (order.status !== 'PAID') return [];
+    // PARTIALLY_REFUNDED: the remaining CONFIRMED items still get their tickets (refunded items
+    // are REFUNDED and never selected below).
+    if (order.status !== 'PAID' && order.status !== 'PARTIALLY_REFUNDED') return [];
 
     const missing = await tx
       .select(itemColumns)
@@ -210,41 +220,54 @@ export async function reissueTicket(
       .where(eq(tickets.id, ticketId));
     if (!head) throw new DomainError('TICKET_NOT_FOUND', 'Ticket not found', 404);
     await tx.execute(orderLockSql(head.orderId));
-    const [old] = await tx.select().from(tickets).where(eq(tickets.id, ticketId)).for('update');
-    if (!old) throw new DomainError('TICKET_NOT_FOUND', 'Ticket not found', 404);
-    if (old.status !== 'VALID') {
-      throw new DomainError('TICKET_NOT_VALID', 'Only a valid ticket can be re-issued', 409);
-    }
-    const [item] = await tx
-      .select(itemColumns)
-      .from(orderItems)
-      .innerJoin(seatMapSections, eq(seatMapSections.id, orderItems.sectionId))
-      .where(eq(orderItems.id, old.orderItemId));
-    if (!item) throw new DomainError('ORDER_ITEM_NOT_FOUND', 'Order item not found', 404);
-
-    const key = await ensureEventSigningKeyTx(ctx, tx, item.eventId);
-    await tx
-      .update(tickets)
-      .set({ status: 'REPLACED', voidedAt: sql`now()` })
-      .where(eq(tickets.id, old.id));
-    const created = await insertTicket(
-      tx,
-      old.orderId,
-      item,
-      key,
-      options.attendeeName === undefined ? old.attendeeName : options.attendeeName,
-      {
-        checkInState: old.checkInState,
-        firstCheckedInAt: old.firstCheckedInAt,
-        firstCheckedInDeviceId: old.firstCheckedInDeviceId,
-        checkInCount: old.checkInCount,
-        lastScanAt: old.lastScanAt,
-      },
-    );
-    if (!created) throw new DomainError('TICKET_CONFLICT', 'Concurrent ticket change', 409);
-    await tx.update(tickets).set({ replacedByTicketId: created.id }).where(eq(tickets.id, old.id));
-    return created;
+    return reissueTicketInTransaction(ctx, tx, ticketId, options);
   });
+}
+
+/**
+ * `reissueTicket` inside the caller's transaction. The caller MUST already hold the per-order
+ * ticket advisory lock (`lockOrderTickets`); it is not re-entrant across connections.
+ */
+export async function reissueTicketInTransaction(
+  ctx: CoreContext,
+  tx: Transaction,
+  ticketId: string,
+  options: ReissueOptions = {},
+): Promise<TicketRow> {
+  const [old] = await tx.select().from(tickets).where(eq(tickets.id, ticketId)).for('update');
+  if (!old) throw new DomainError('TICKET_NOT_FOUND', 'Ticket not found', 404);
+  if (old.status !== 'VALID') {
+    throw new DomainError('TICKET_NOT_VALID', 'Only a valid ticket can be re-issued', 409);
+  }
+  const [item] = await tx
+    .select(itemColumns)
+    .from(orderItems)
+    .innerJoin(seatMapSections, eq(seatMapSections.id, orderItems.sectionId))
+    .where(eq(orderItems.id, old.orderItemId));
+  if (!item) throw new DomainError('ORDER_ITEM_NOT_FOUND', 'Order item not found', 404);
+
+  const key = await ensureEventSigningKeyTx(ctx, tx, item.eventId);
+  await tx
+    .update(tickets)
+    .set({ status: 'REPLACED', voidedAt: sql`now()` })
+    .where(eq(tickets.id, old.id));
+  const created = await insertTicket(
+    tx,
+    old.orderId,
+    item,
+    key,
+    options.attendeeName === undefined ? old.attendeeName : options.attendeeName,
+    {
+      checkInState: old.checkInState,
+      firstCheckedInAt: old.firstCheckedInAt,
+      firstCheckedInDeviceId: old.firstCheckedInDeviceId,
+      checkInCount: old.checkInCount,
+      lastScanAt: old.lastScanAt,
+    },
+  );
+  if (!created) throw new DomainError('TICKET_CONFLICT', 'Concurrent ticket change', 409);
+  await tx.update(tickets).set({ replacedByTicketId: created.id }).where(eq(tickets.id, old.id));
+  return created;
 }
 
 export interface RevokedKeyReissueResult {
@@ -352,12 +375,12 @@ export async function backfillMissingTickets(
 ): Promise<BackfillResult> {
   const limit = options.batchSize ?? 200;
   const candidates = await ctx.db
-    .selectDistinct({ orderId: orderItems.orderId, paidAt: orders.paidAt })
+    .selectDistinct({ orderId: orderItems.orderId, paidAt: orders.paidAt, channel: orders.channel })
     .from(orderItems)
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
     .where(
       and(
-        eq(orders.status, 'PAID'),
+        inArray(orders.status, ['PAID', 'PARTIALLY_REFUNDED']),
         eq(orderItems.status, 'CONFIRMED'),
         notExists(
           ctx.db
@@ -370,25 +393,16 @@ export async function backfillMissingTickets(
     .limit(limit);
   const result: BackfillResult = { orders: 0, tickets: 0, failed: 0, requeued: 0, reissued: 0 };
   const recentSince = Date.now() - BACKFILL_REQUEUE_WINDOW_MS;
-  for (const { orderId, paidAt } of candidates) {
+  for (const { orderId, paidAt, channel } of candidates) {
     try {
-      if (ctx.jobs && paidAt && paidAt.getTime() >= recentSince) {
-        const [mail] = await ctx.db
-          .select({ id: emailMessages.id })
-          .from(emailMessages)
-          .where(
-            and(
-              eq(emailMessages.orderId, orderId),
-              eq(emailMessages.templateKey, 'PAYMENT_RECEIVED_TICKETS'),
-            ),
-          )
-          .limit(1);
-        if (!mail) {
+      // Box-office orders are fulfilled synchronously; their mail is only sent on request.
+      if (ctx.jobs && channel === 'ONLINE' && paidAt && paidAt.getTime() >= recentSince) {
+        if (!(await hasPaymentMailForCycle(ctx.db, orderId))) {
           await ctx.jobs.add(
             QUEUE_NAMES.documents,
             'order-paid',
-            { orderId },
-            { jobId: `order-paid-${orderId}` },
+            { orderId, paidCycle: await currentPaidCycle(ctx.db, orderId) },
+            { jobId: await orderPaidJobId(ctx.db, orderId) },
           );
           result.requeued += 1;
           continue;

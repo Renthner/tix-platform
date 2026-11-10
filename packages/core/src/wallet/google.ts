@@ -1,6 +1,6 @@
 import { createHash, createSign } from 'node:crypto';
 import { events, tickets } from '@tix/db';
-import { SUPPORTED_LOCALES, isPublicMediaKind } from '@tix/shared';
+import { SUPPORTED_LOCALES, isBlankText, isPublicMediaKind, type Translations } from '@tix/shared';
 import { eq } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { documentLocale, mailTranslator } from '../i18n/mail-messages';
@@ -255,6 +255,24 @@ export const googleObjectId = (config: GoogleWalletConfig, ticketId: string) =>
 
 const localized = (language: string, value: string) => ({ defaultValue: { language, value } });
 
+/** Like `localized`, plus `translatedValues` from content translations (non-blank ones only). */
+function translatedText(
+  language: string,
+  value: string,
+  translations: Translations | undefined,
+  field: string,
+) {
+  const base = documentLocale(language);
+  const translatedValues = SUPPORTED_LOCALES.filter((l) => l !== base).flatMap((l) => {
+    const text = translations?.[l]?.[field];
+    return text && !isBlankText(text) ? [{ language: l, value: text }] : [];
+  });
+  return {
+    defaultValue: { language, value },
+    ...(translatedValues.length ? { translatedValues } : {}),
+  };
+}
+
 /**
  * Label with `defaultValue` in `language` and `translatedValues` for every other app locale, taken
  * from the `mail` catalogue. Without custom labels Google shows its own literal translation of
@@ -330,9 +348,19 @@ export function buildGoogleClass(
     issuerName: config.organizationName.slice(0, 100),
     // Required on insert and patch; Google promotes the class to APPROVED itself.
     reviewStatus: 'UNDER_REVIEW',
-    eventName: localized(language, data.eventTitle),
+    eventName: translatedText(
+      language,
+      data.classTexts?.eventTitle ?? data.eventTitle,
+      data.classTexts?.eventTranslations,
+      'title',
+    ),
     venue: {
-      name: localized(language, data.venueName),
+      name: translatedText(
+        language,
+        data.classTexts?.venueName ?? data.venueName,
+        data.classTexts?.venueTranslations,
+        'name',
+      ),
       address: localized(language, data.venueAddress ?? data.venueName),
     },
     dateTime,

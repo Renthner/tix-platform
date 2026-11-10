@@ -1,6 +1,7 @@
 import { DomainError, handlePayPalWebhook } from '@tix/core';
 import { NextResponse } from 'next/server';
 import { getCore } from '@/server/core';
+import { readMaintenance } from '@/server/maintenance-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,13 @@ const MAX_BODY_BYTES = 256 * 1024;
  * retry the delivery.
  */
 export async function POST(request: Request) {
+  // Restore running: answer 503 so PayPal redelivers the webhook later (nothing is lost).
+  if ((await readMaintenance()).active) {
+    return NextResponse.json(
+      { error: 'MAINTENANCE' },
+      { status: 503, headers: { 'retry-after': '60' } },
+    );
+  }
   const raw = await request.text();
   if (raw.length > MAX_BODY_BYTES) {
     return NextResponse.json({ error: 'PAYLOAD_TOO_LARGE' }, { status: 413 });

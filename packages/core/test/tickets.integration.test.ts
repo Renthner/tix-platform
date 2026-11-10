@@ -479,7 +479,7 @@ describe.skipIf(!adminUrl || !redisUrl)('ticket issuance & signing keys (integra
     expect(added).toEqual([
       {
         jobName: 'order-paid',
-        data: { orderId: recent.order.id },
+        data: { orderId: recent.order.id, paidCycle: 0 },
         jobId: `order-paid-${recent.order.id}`,
       },
     ]);

@@ -5,7 +5,7 @@ import { DomainError, type CoreContext } from '../context';
 import { loadOrderDocumentData } from '../documents/order-data';
 import { getSetting } from '../settings';
 import { htmlToText, renderTemplate, type TemplateVariables } from './template';
-import { customerVariables, orderVariables, shopVariables } from './variables';
+import { adjustmentVariables, customerVariables, orderVariables, shopVariables } from './variables';
 
 export type EmailTemplateRow = typeof emailTemplates.$inferSelect;
 
@@ -111,6 +111,15 @@ export async function renderEmail(
     ...(customer?.variables ?? {}),
     ...(data
       ? await orderVariables(ctx, data, shopContext, { invoiceIds: params.invoiceIds })
+      : {}),
+    ...(data && typeof params.variables?.adjustmentId === 'string'
+      ? await adjustmentVariables(
+          ctx,
+          params.variables.adjustmentId,
+          data.order.currency,
+          shopContext,
+          params.variables,
+        )
       : {}),
     ...(params.variables ?? {}),
   };

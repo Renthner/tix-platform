@@ -3,12 +3,17 @@
 import {
   DomainError,
   adminCancelOrder,
+  cancelPaidOrder,
   recordManualPayment,
   resendOrderEmail,
   resendOrderTickets,
   setKeepReserved,
   updateInternalNote,
 } from '@tix/core';
+import { orders } from '@tix/db';
+import { parseCancelPaidForm } from '@tix/shared';
+import { eq } from 'drizzle-orm';
+import { getFormatter } from 'next-intl/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { parseMoneyToCents } from '@/lib/money';
@@ -23,10 +28,15 @@ import { flag, text } from './form';
  */
 export type OrderActionState =
   | { status: 'idle' }
-  | { status: 'success'; message: string; at: number }
+  | { status: 'success'; message: string; at: number; values?: Record<string, string> }
   | { status: 'error'; code: string; at: number };
 
-const ok = (message: string): OrderActionState => ({ status: 'success', message, at: Date.now() });
+const ok = (message: string, values?: Record<string, string>): OrderActionState => ({
+  status: 'success',
+  message,
+  at: Date.now(),
+  ...(values ? { values } : {}),
+});
 const fail = (code: string): OrderActionState => ({ status: 'error', code, at: Date.now() });
 
 async function run(
@@ -37,6 +47,7 @@ async function run(
   try {
     const result = await fn();
     revalidatePath('/[locale]/admin/orders', 'layout');
+    revalidatePath('/[locale]/admin/refunds', 'layout');
     return result;
   } catch (err) {
     if (err instanceof DomainError) return fail(err.code);
@@ -74,6 +85,58 @@ export async function cancelOrderAction(
     await adminCancelOrder(core, { orderId, reason, notifyCustomer, userId: session.userId });
     await audit(core.db, session, 'order.cancel', 'order', orderId, { reason, notifyCustomer });
     return ok('cancelled');
+  });
+}
+
+/** Cancels items of a PAID order (whole order or single tickets) with refund + credit note. */
+export async function cancelPaidOrderAction(
+  orderId: string,
+  _prev: OrderActionState,
+  fd: FormData,
+): Promise<OrderActionState> {
+  const session = await requireAdmin(['FINANCE']);
+  return run(orderId, async () => {
+    const input = parseCancelPaidForm(fd);
+    if (!input) return fail('VALIDATION_FAILED');
+    const core = getCore();
+    const result = await cancelPaidOrder(core, {
+      orderId,
+      orderItemIds: input.orderItemIds,
+      refundFees: input.refundFees,
+      reason: input.reason,
+      notify: input.notify,
+      userId: session.userId,
+      expectedVersion: input.expectedVersion,
+    });
+    await audit(core.db, session, 'order.paid_cancelled', 'order', orderId, {
+      orderItemIds: input.orderItemIds,
+      refundFees: input.refundFees,
+      notify: input.notify,
+      reason: input.reason,
+      creditTotal: result.creditTotal,
+      refundTotal: result.refundTotal,
+      creditNote: result.creditNote?.number ?? null,
+    });
+    const format = await getFormatter();
+    const [order] = await core.db
+      .select({ currency: orders.currency })
+      .from(orders)
+      .where(eq(orders.id, orderId));
+    const amount = format.number(result.refundTotal / 100, {
+      style: 'currency',
+      currency: order?.currency ?? 'EUR',
+    });
+    const automatic = result.refunds.some((r) => r.kind === 'AUTOMATIC');
+    const manual = result.refunds.some((r) => r.kind === 'MANUAL');
+    const key =
+      result.refundTotal === 0
+        ? 'paidCancelledNoRefund'
+        : automatic && manual
+          ? 'paidCancelledMixed'
+          : automatic
+            ? 'paidCancelledAutomatic'
+            : 'paidCancelledManual';
+    return ok(key, { amount, count: String(result.cancelledItems) });
   });
 }
 

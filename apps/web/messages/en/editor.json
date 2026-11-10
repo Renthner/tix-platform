@@ -373,5 +373,14 @@
     "downLeft": "Facing down left",
     "left": "Facing left",
     "upLeft": "Facing up left"
+  },
+  "planCategories": {
+    "title": "Price categories",
+    "help": "Define the categories of this plan and assign them to blocks and seats. Events created from this plan get them as price categories; prices are entered per event.",
+    "name": "Name",
+    "color": "Colour",
+    "add": "Add category",
+    "remove": "Remove category",
+    "defaultName": "Category"
   }
 }

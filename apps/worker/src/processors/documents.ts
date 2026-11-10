@@ -1,10 +1,16 @@
-import { DomainError, backfillMissingTickets, processPaidOrder, renderInvoicePdf } from '@tix/core';
+import {
+  DomainError,
+  backfillMissingInvoices,
+  backfillMissingTickets,
+  processPaidOrder,
+  renderInvoicePdf,
+} from '@tix/core';
 import { QUEUE_NAMES } from '@tix/redis';
 import { UnrecoverableError, type Job } from 'bullmq';
 import type { ProcessorRegistration, WorkerDeps } from './index';
 
 export const DOCUMENT_JOBS = {
-  /** `{ orderId }` – queued by `recordPayment` once an order is PAID (jobId order-paid-<id>). */
+  /** `{ orderId, paidCycle, sendPaymentMail? }` – queued by `recordPayment` once an order is PAID (jobId order-paid-<id>[-c<cycle>]). */
   orderPaid: 'order-paid',
   /** `{ invoiceId }` – renders and archives the invoice PDF. */
   renderInvoice: 'render-invoice',
@@ -31,7 +37,13 @@ export function createDocumentsProcessor(deps: WorkerDeps) {
       switch (job.name) {
         case DOCUMENT_JOBS.orderPaid: {
           const orderId = stringField(job, 'orderId');
-          const result = await processPaidOrder(deps.core, orderId);
+          const cycle = (job.data as Record<string, unknown>).paidCycle;
+          const result = await processPaidOrder(
+            deps.core,
+            orderId,
+            typeof cycle === 'number' ? cycle : undefined,
+            { sendPaymentMail: (job.data as Record<string, unknown>).sendPaymentMail === true },
+          );
           if (result.invoiceError) {
             deps.logger.error(
               { orderId, error: result.invoiceError },
@@ -59,7 +71,13 @@ export function createDocumentsProcessor(deps: WorkerDeps) {
           ) {
             deps.logger.info({ ...result }, 'ticket backfill finished');
           }
-          return result;
+          const invoices = await backfillMissingInvoices(deps.core, {
+            log: (message, data) => deps.logger.error(data, message),
+          });
+          if (invoices.issued > 0 || invoices.failed > 0) {
+            deps.logger.info({ ...invoices }, 'invoice backfill finished');
+          }
+          return { ...result, invoices };
         }
         default:
           deps.logger.warn({ job: job.name }, 'unknown documents job');

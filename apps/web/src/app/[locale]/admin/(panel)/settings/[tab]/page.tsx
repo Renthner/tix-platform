@@ -1,4 +1,4 @@
-import { getSecretSetting, getSetting, hasSecretSetting } from '@tix/core';
+import { getMediaAsset, getSecretSetting, getSetting, hasSecretSetting } from '@tix/core';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import {
@@ -18,6 +18,10 @@ import {
   SeatDisplaySettingsForm,
   SettingsSection,
 } from '@/components/admin/settings-forms';
+import {
+  ScannerSettingsForm,
+  SecuritySettingsForm,
+} from '@/components/admin/security-settings-forms';
 import { SettingsTabs } from '@/components/admin/settings-tabs';
 import {
   AppleWalletForm,
@@ -72,6 +76,12 @@ export default async function SettingsTabPage({
   );
 }
 
+async function pickerAsset(id: string | undefined) {
+  if (!id) return null;
+  const row = await getMediaAsset(getCore(), id);
+  return row ? { id: row.id, fileName: row.fileName, width: row.width, height: row.height } : null;
+}
+
 async function TabContent({
   tab,
   locale,
@@ -83,6 +93,7 @@ async function TabContent({
 }) {
   const core = getCore();
   const t = await getTranslations('admin.settings');
+  const ts = await getTranslations('adminSecurity');
   const section = (
     id: 'general' | 'branding' | 'organizer' | 'checkout' | 'seatDisplay' | 'bankTransfer',
     children: React.ReactNode,
@@ -113,6 +124,8 @@ async function TabContent({
             <BrandingSettingsForm
               action={saveSettingsAction.bind(null, 'branding')}
               initial={{
+                logo: await pickerAsset(branding.logoAssetId),
+                favicon: await pickerAsset(branding.faviconAssetId),
                 primaryColor: branding.primaryColor,
                 accentColor: branding.accentColor,
                 imprintUrl: branding.imprintUrl,
@@ -337,6 +350,33 @@ async function TabContent({
         </>
       );
     }
+    case 'security':
+      return (
+        <SettingsSection
+          id="security"
+          title={ts('settings.security.title')}
+          description={ts('settings.security.description')}
+        >
+          <SecuritySettingsForm
+            action={saveSettingsAction.bind(null, 'security')}
+            initial={await getSetting(core, 'security')}
+          />
+        </SettingsSection>
+      );
+    case 'scanner':
+      return (
+        <SettingsSection
+          id="scanner"
+          title={ts('settings.scanner.title')}
+          description={ts('settings.scanner.description')}
+        >
+          <p className="mb-4 rounded-md bg-muted p-3 text-sm">{ts('settings.scanner.phaseNote')}</p>
+          <ScannerSettingsForm
+            action={saveSettingsAction.bind(null, 'scanner')}
+            initial={await getSetting(core, 'scanner')}
+          />
+        </SettingsSection>
+      );
     case 'accounts':
       return (
         <SettingsSection

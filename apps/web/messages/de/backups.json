@@ -1,0 +1,235 @@
+{
+  "title": "Sicherungen",
+  "description": "Vollständige Sicherungen der Datenbank und aller gespeicherten Dateien (Bilder, Rechnungen, Tickets, Kontoauszüge). Sicherungen sind verschlüsselt und liegen in einem eigenen Speicher-Bucket; ein externes S3-Ziel ist optional.",
+  "keyNote": "Die Archive sind mit dem Schlüsselbund dieser Installation verschlüsselt (Schlüssel \"{keyId}\"). Um eine Sicherung auf einem anderen Server wiederherzustellen, braucht dieser dieselben APP_ENCRYPTION_KEYS – bewahre eine Kopie außerhalb dieses Systems auf.",
+  "maintenance": {
+    "title": "Wartungsarbeiten",
+    "text": "Das System wird aus einer Sicherung wiederhergestellt und ist kurz nicht erreichbar. Diese Seite lädt sich automatisch neu.",
+    "steps": {
+      "VALIDATE": "Sicherung wird geprüft…",
+      "DRAINING": "System wird angehalten…",
+      "SAFETY_BACKUP": "Sicherheitskopie wird erstellt…",
+      "SNAPSHOT": "Sicherheitskopie wird erstellt…",
+      "DATABASE": "Sicherheitskopie wird erstellt…",
+      "FILES_ASSETS": "Sicherheitskopie wird erstellt…",
+      "FILES_DOCUMENTS": "Sicherheitskopie wird erstellt…",
+      "EXTERNAL": "Sicherheitskopie wird erstellt…",
+      "DATABASE_RESTORE": "Datenbank wird wiederhergestellt…",
+      "MIGRATIONS": "Datenbankstruktur wird aktualisiert…",
+      "SEQUENCES": "Nummernkreise werden fortgeführt…",
+      "FILES_RESTORE": "Dateien werden wiederhergestellt…",
+      "FILES_CLEANUP": "Dateien werden bereinigt…",
+      "REDIS_CLEANUP": "Zwischenspeicher und Reservierungen werden zurückgesetzt…",
+      "ERASURE_REPLAY": "Aufgezeichnete Löschungen werden erneut angewendet…",
+      "RESTORE_INCOMPLETE": "Wiederherstellung unvollständig – das System bleibt im Wartungsmodus"
+    }
+  },
+  "actions": {
+    "backupNow": "Jetzt sichern",
+    "upload": "Sicherungsdatei hochladen",
+    "uploading": "Wird hochgeladen… {percent} %",
+    "download": "Herunterladen",
+    "verify": "Prüfen",
+    "restore": "Wiederherstellen",
+    "delete": "Löschen",
+    "cancel": "Abbrechen"
+  },
+  "status": {
+    "title": "Aktueller Vorgang",
+    "operation": {
+      "BACKUP": "Sicherung",
+      "VERIFY": "Prüfung",
+      "RESTORE": "Wiederherstellung",
+      "IMPORT": "Import der hochgeladenen Datei"
+    },
+    "state": {
+      "RUNNING": "Läuft",
+      "SUCCEEDED": "Abgeschlossen",
+      "FAILED": "Fehlgeschlagen"
+    },
+    "stale": "Seit mehreren Minuten kein Fortschrittsbericht – möglicherweise wurde der Worker beendet. Ein neuer Vorgang kann gestartet werden, sobald das System als frei gemeldet wird.",
+    "restoreRunning": "Eine Wiederherstellung läuft. Der Shop ist im Wartungsmodus und der Admin-Bereich kann kurz nicht erreichbar sein. Danach wirst du eventuell abgemeldet, wenn deine Sitzung nicht Teil der wiederhergestellten Daten ist.",
+    "steps": {
+      "START": "Wird gestartet…",
+      "SNAPSHOT": "Konsistenter Schnappschuss wird erstellt…",
+      "DATABASE": "Datenbank wird gesichert…",
+      "FILES_ASSETS": "Bilder werden kopiert…",
+      "FILES_DOCUMENTS": "Dokumente werden kopiert…",
+      "EXTERNAL": "Upload auf das externe Ziel…",
+      "RETENTION": "Aufbewahrungsregeln werden angewendet…",
+      "CHECKSUM": "Prüfsumme und Entschlüsselung werden geprüft…",
+      "TEST_RESTORE": "Wiederherstellung in eine temporäre Datenbank…",
+      "VALIDATE": "Wird geprüft…",
+      "DRAINING": "System wird angehalten…",
+      "SAFETY_BACKUP": "Sicherheitskopie wird erstellt…",
+      "DATABASE_RESTORE": "Datenbank wird wiederhergestellt…",
+      "MIGRATIONS": "Datenbankstruktur wird aktualisiert…",
+      "SEQUENCES": "Nummernkreise werden fortgeführt…",
+      "FILES_RESTORE": "Dateien werden wiederhergestellt…",
+      "FILES_CLEANUP": "Dateien werden bereinigt…",
+      "REDIS_CLEANUP": "Zwischenspeicher und Reservierungen werden zurückgesetzt…",
+      "DONE": "Fertig",
+      "FAILED": "Fehlgeschlagen",
+      "VERIFY_FAILED": "Prüfung fehlgeschlagen",
+      "IMPORT_FAILED": "Die hochgeladene Datei ist keine gültige Sicherung",
+      "REJECTED_MIGRATION_NEWER": "Abgelehnt: Die Sicherung stammt von einer neueren Softwareversion",
+      "REJECTED_KEY_UNKNOWN": "Abgelehnt: Der Verschlüsselungsschlüssel dieser Sicherung ist hier nicht vorhanden",
+      "REJECTED_ARCHIVE_INVALID": "Abgelehnt: Das Archiv ist beschädigt oder wurde verändert",
+      "REJECTED_CHECKSUM_MISMATCH": "Abgelehnt: Die Prüfsumme stimmt nicht",
+      "REJECTED_NOT_FOUND": "Abgelehnt: Sicherung nicht gefunden",
+      "ERASURE_REPLAY": "Aufgezeichnete Löschungen werden erneut angewendet…"
+    }
+  },
+  "list": {
+    "title": "Sicherungen",
+    "empty": "Noch keine Sicherungen.",
+    "columns": {
+      "date": "Erstellt",
+      "kind": "Art",
+      "size": "Größe",
+      "external": "Externe Kopie",
+      "verify": "Prüfung",
+      "actions": "Aktionen"
+    },
+    "kind": {
+      "MANUAL": "Manuell",
+      "SCHEDULED": "Geplant",
+      "PRE_RESTORE": "Sicherheitskopie"
+    },
+    "external": {
+      "NONE": "–",
+      "UPLOADED": "Hochgeladen",
+      "FAILED": "Fehlgeschlagen"
+    },
+    "verify": {
+      "NONE": "Nicht geprüft",
+      "OK": "Geprüft {date}",
+      "FAILED": "Fehlgeschlagen {date}"
+    },
+    "details": "{orders} Bestellungen, {assets} Bilder, {documents} Dokumente · Migration {migration}",
+    "uploaded": "hochgeladene Datei"
+  },
+  "verifyDetail": {
+    "ARCHIVE_MISMATCH": "Das Archiv stimmt nicht mit seiner Beschreibung überein.",
+    "ROW_COUNT_MISMATCH": "Die Testwiederherstellung hat andere Datensatzzahlen als die Sicherung.",
+    "CREATEDB_MISSING": "Prüfsumme und Entschlüsselung sind in Ordnung, aber der Datenbankbenutzer darf keine Datenbanken anlegen – eine Testwiederherstellung war nicht möglich.",
+    "TEST_RESTORE_FAILED": "Die Testwiederherstellung ist fehlgeschlagen.",
+    "NOT_A_BACKUP": "Keine Sicherungsdatei.",
+    "KEY_UNKNOWN": "Der Verschlüsselungsschlüssel dieser Sicherung ist nicht vorhanden.",
+    "CORRUPT": "Die Sicherung ist beschädigt oder wurde verändert.",
+    "TRUNCATED": "Die Sicherungsdatei ist unvollständig.",
+    "BAD_ARCHIVE": "Die Archivstruktur ist ungültig."
+  },
+  "restore": {
+    "title": "Diese Sicherung wiederherstellen?",
+    "description": "Datenbank und alle Dateien werden durch den Stand vom {date} ersetzt. Vorher wird eine Sicherheitskopie des aktuellen Stands erstellt; während der Wiederherstellung ist der Shop nicht erreichbar.",
+    "loading": "Es wird geprüft, was verloren ginge…",
+    "lossTitle": "Nach dieser Sicherung entstanden und durch die Wiederherstellung verloren:",
+    "loss": "{orders} Bestellungen, {invoices} Rechnungen, {payments} Zahlungen, {refunds} Erstattungen",
+    "lossNone": "Nach dieser Sicherung ist im Live-System nichts entstanden.",
+    "gobd": "Rechnungs- und Bestellnummern werden nie erneut vergeben: Die Nummernkreise behalten die höheren Live-Werte, daher können Lücken in der Nummernfolge entstehen.",
+    "password": "Dein Passwort",
+    "code": "Authenticator- oder Wiederherstellungscode",
+    "acknowledge": "Ich verstehe, dass nach der Sicherung entstandene Daten verloren gehen und das System während der Wiederherstellung nicht erreichbar ist.",
+    "submit": "Jetzt wiederherstellen",
+    "submitting": "Wird gestartet…",
+    "twoFactorSetup": "Zum Wiederherstellen ist die Zwei-Faktor-Authentifizierung nötig, dein Konto hat aber keine. Richte zuerst eine Authenticator-App ein.",
+    "twoFactorSetupLink": "Mein Konto öffnen"
+  },
+  "deleteConfirm": {
+    "title": "Diese Sicherung löschen?",
+    "description": "Die Sicherung wird von diesem Server und vom externen Ziel entfernt. Das kann nicht rückgängig gemacht werden.",
+    "external": "Auch die Kopie auf dem externen Ziel löschen"
+  },
+  "upload": {
+    "hint": "Eine Sicherung von einem anderen Server oder vom externen Ziel wiederherstellen: Lade die .tixbak-Datei hoch. Sie wird vollständig geprüft, bevor sie in der Liste erscheint. Zum Wiederherstellen werden dieselben Verschlüsselungsschlüssel benötigt.",
+    "accepted": "Upload erhalten – die Datei wird geprüft.",
+    "failed": "Der Upload ist fehlgeschlagen.",
+    "notABackup": "Diese Datei ist kein Sicherungsarchiv."
+  },
+  "settings": {
+    "title": "Zeitplan, Aufbewahrung und externe Kopie",
+    "description": "Zeiten gelten in der Zeitzone des Shops ({timeZone}).",
+    "scheduleEnabled": "Geplante Sicherungen ausführen",
+    "scheduleHint": "Eine um mehr als sechs Stunden verpasste Sicherung (z. B. weil das System aus war) entfällt bis zum nächsten Termin.",
+    "frequency": "Häufigkeit",
+    "frequencies": {
+      "DAILY": "Täglich",
+      "WEEKLY": "Wöchentlich"
+    },
+    "weekday": "Wochentag",
+    "time": "Uhrzeit",
+    "keepScheduled": "Geplante Sicherungen aufbewahren",
+    "keepScheduledHint": "Ältere geplante Sicherungen werden gelöscht, auch auf dem externen Ziel. Manuelle Sicherungen bleiben, bis du sie löschst.",
+    "alertEmail": "Alarm-E-Mail bei fehlgeschlagener geplanter Sicherung",
+    "alertEmailHint": "Wird über den konfigurierten Mailserver gesendet; Fehler erscheinen auch im Dashboard.",
+    "external": {
+      "title": "Externe S3-Kopie",
+      "enabled": "Jede Sicherung zusätzlich auf ein externes S3-kompatibles Ziel hochladen",
+      "endpoint": "Endpoint-URL",
+      "endpointHint": "z. B. https://s3.example.org",
+      "bucket": "Bucket",
+      "region": "Region",
+      "prefix": "Ordner-Präfix",
+      "prefixHint": "Optional, z. B. tix-backups",
+      "forcePathStyle": "Path-Style-Adressierung (für MinIO und viele Anbieter nötig)",
+      "accessKeyId": "Access Key ID",
+      "secretAccessKey": "Secret Access Key",
+      "stored": "Gespeichert",
+      "notStored": "Nicht gesetzt",
+      "replaceHint": "Leer lassen, um die gespeicherten Schlüssel zu behalten.",
+      "enterHint": "Beide Schlüssel werden verschlüsselt gespeichert und nie wieder angezeigt.",
+      "clear": "Gespeicherte Schlüssel entfernen",
+      "test": "Verbindung testen",
+      "testing": "Wird getestet…"
+    },
+    "save": "Speichern",
+    "manualMaxAgeDays": "Manuelle und Sicherheitskopien löschen nach (Tagen)",
+    "manualMaxAgeDaysHint": "0 = behalten, bis du sie löschst. Sicherungen enthalten personenbezogene Daten: Eine Frist hilft bei Löschanträgen (DSGVO Art. 17). Die neueste geprüfte Sicherung wird nie gelöscht. Löschungen werden nach einer Wiederherstellung erneut angewendet.",
+    "maxUploadMb": "Größter Upload (MB)",
+    "restoreRequiresTwoFactor": "Wiederherstellen erfordert Zwei-Faktor-Authentifizierung (empfohlen)",
+    "allowInsecureEndpoint": "Unverschlüsselte http://-Endpoints erlauben",
+    "allowPrivateNetwork": "Endpoints in privaten Netzen erlauben (z. B. MinIO im eigenen LAN)",
+    "credentialsChangeHint": "Bei Änderung von Endpoint oder Bucket müssen die Schlüssel neu eingegeben werden."
+  },
+  "feedback": {
+    "queued": "Gestartet – den Fortschritt siehst du oben.",
+    "deleted": "Sicherung gelöscht.",
+    "connectionOk": "Verbindung funktioniert: Eine Testdatei wurde geschrieben, gelesen und gelöscht.",
+    "generic": "Etwas ist schiefgelaufen.",
+    "busy": "Ein anderer Sicherungsvorgang läuft. Bitte warte, bis er beendet ist.",
+    "notFound": "Sicherung nicht gefunden.",
+    "password": "Das Passwort ist nicht korrekt.",
+    "twoFactorRequired": "Gib den Code deiner Authenticator-App (oder einen Wiederherstellungscode) ein.",
+    "twoFactorInvalid": "Der Code ist nicht korrekt.",
+    "acknowledge": "Bitte bestätige, dass du die Folgen verstanden hast.",
+    "locked": "Das Konto ist vorübergehend gesperrt.",
+    "rateLimited": "Zu viele Versuche. Bitte warte einige Minuten.",
+    "connectionFailed": "Verbindung fehlgeschlagen ({detail}).",
+    "connectionIncomplete": "Bitte zuerst Endpoint, Bucket und beide Zugangsschlüssel eintragen.",
+    "endpointNotAllowed": "Dieser Endpoint ist nicht erlaubt: Nutze https und eine öffentliche Adresse (oder aktiviere die passende Option unten).",
+    "protected": "Die neueste geprüfte Sicherung kann nicht gelöscht werden.",
+    "twoFactorSetupRequired": "Zum Wiederherstellen ist die Zwei-Faktor-Authentifizierung nötig. Richte sie zuerst in deinem Konto ein."
+  },
+  "dashboardAlert": {
+    "title": "Die letzte geplante Sicherung ist fehlgeschlagen",
+    "text": "{message}",
+    "link": "Sicherungen öffnen"
+  },
+  "weekdays": {
+    "0": "Sonntag",
+    "1": "Montag",
+    "2": "Dienstag",
+    "3": "Mittwoch",
+    "4": "Donnerstag",
+    "5": "Freitag",
+    "6": "Samstag"
+  },
+  "incomplete": {
+    "title": "Wiederherstellung unvollständig – das System bleibt im Wartungsmodus",
+    "text": "Die Datenbank wurde ersetzt, die Wiederherstellung wurde aber nicht abgeschlossen (Schritt: {step}). Führe die Wiederherstellung erneut aus oder stelle die davor erstellte Sicherheitskopie wieder her.",
+    "retry": "Wiederherstellung erneut ausführen",
+    "safety": "Sicherheitskopie wiederherstellen",
+    "error": "Fehler: {error}"
+  }
+}

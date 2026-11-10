@@ -1,7 +1,10 @@
 {
   "nav": {
     "signIn": "Anmelden",
-    "myAccount": "Mein Konto"
+    "myAccount": "Mein Konto",
+    "dashboard": "Zum Dashboard",
+    "dashboardSetup": "Zwei-Faktor-Anmeldung einrichten",
+    "signOut": "Abmelden"
   },
   "fields": {
     "email": "E-Mail-Adresse",
@@ -23,7 +26,21 @@
     "linkHint": "Ohne Passwort – wir schicken dir einen Link, mit dem du angemeldet wirst.",
     "forgot": "Passwort vergessen?",
     "noAccount": "Noch kein Konto?",
-    "register": "Konto erstellen"
+    "register": "Konto erstellen",
+    "twoFactor": {
+      "intro": "Gib den 6-stelligen Code aus deiner Authenticator-App oder einen deiner Wiederherstellungscodes ein.",
+      "code": "Code",
+      "hint": "Ein Wiederherstellungscode kann nur einmal verwendet werden.",
+      "verify": "Bestätigen",
+      "back": "Zurück zur Anmeldung",
+      "errors": {
+        "INVALID_CODE": "Der Code ist nicht korrekt.",
+        "LOCKED": "Zu viele Fehlversuche. Bitte versuche es später erneut.",
+        "RATE_LIMITED": "Zu viele Versuche. Bitte warte einige Minuten.",
+        "EXPIRED": "Die Anmeldung ist abgelaufen. Bitte gib dein Passwort erneut ein.",
+        "INVALID": "Die E-Mail-Adresse oder das Passwort ist nicht korrekt."
+      }
+    }
   },
   "register": {
     "title": "Konto erstellen",
@@ -56,7 +73,8 @@
     "alreadyVerified": "Deine E-Mail-Adresse wurde bereits bestätigt.",
     "invalid": "Dieser Bestätigungslink ist ungültig oder abgelaufen. Melde dich an und fordere in deinem Konto einen neuen Link an.",
     "continue": "Weiter",
-    "signIn": "Anmelden"
+    "signIn": "Anmelden",
+    "verifiedNoPassword": "Deine E-Mail-Adresse ist bestätigt. Vorsichtshalber wurde ein vor der Bestätigung gesetztes Passwort entfernt – bitte melde dich per E-Mail-Link an oder wähle „Passwort vergessen?“, um ein neues festzulegen."
   },
   "overview": {
     "title": "Mein Konto",
@@ -115,7 +133,8 @@
     "setDescription": "Lege ein Passwort fest, um dich ohne E-Mail-Link anzumelden.",
     "current": "Aktuelles Passwort",
     "submit": "Passwort ändern",
-    "submitSet": "Passwort festlegen"
+    "submitSet": "Passwort festlegen",
+    "adminCurrent": "Dein Admin-Passwort (zur Bestätigung)"
   },
   "errors": {
     "INVALID_CREDENTIALS": "E-Mail-Adresse oder Passwort ist nicht korrekt.",

@@ -145,9 +145,12 @@ export function ProfileForm({
 
 export function PasswordForm({
   hasPassword,
+  adminConfirm = false,
   minLength,
 }: {
   hasPassword: boolean;
+  /** Linked admin session without a customer password: the admin password confirms ownership. */
+  adminConfirm?: boolean;
   minLength: number;
 }) {
   const t = useTranslations('account');
@@ -164,11 +167,11 @@ export function PasswordForm({
       noValidate
     >
       <FormStatus state={state} />
-      {hasPassword && (
+      {(hasPassword || adminConfirm) && (
         <TextField
           name="currentPassword"
           type="password"
-          label={t('password.current')}
+          label={adminConfirm ? t('password.adminCurrent') : t('password.current')}
           autoComplete="current-password"
           state={state}
         />

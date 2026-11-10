@@ -1,0 +1,240 @@
+{
+  "login": {
+    "codeIntro": "Enter the 6-digit code from your authenticator app, or one of your recovery codes.",
+    "code": "Code",
+    "codeHint": "A recovery code can only be used once.",
+    "verify": "Verify",
+    "back": "Back to sign-in",
+    "forgot": "Forgot your password?",
+    "notice": {
+      "reset": "Your password was changed. Please sign in.",
+      "invited": "Your password is set. Please sign in."
+    },
+    "errors": {
+      "INVALID": "E-mail or password is incorrect.",
+      "LOCKED": "Too many failed attempts. The account is temporarily locked.",
+      "RATE_LIMITED": "Too many attempts. Please wait a few minutes.",
+      "INVALID_CODE": "The code is not correct.",
+      "EXPIRED": "The sign-in expired. Please enter your password again."
+    }
+  },
+  "forgot": {
+    "title": "Reset password",
+    "intro": "Enter your e-mail address. If it belongs to an admin account, we send a reset link.",
+    "email": "E-mail",
+    "submit": "Send reset link",
+    "sent": "If the address belongs to an admin account, a reset link is on its way.",
+    "backToLogin": "Back to sign-in"
+  },
+  "setPassword": {
+    "inviteTitle": "Activate your account",
+    "resetTitle": "Choose a new password",
+    "inviteIntro": "Choose a password to activate your Admin Portal account.",
+    "resetIntro": "Choose a new password. All your other sessions will be signed out.",
+    "password": "New password",
+    "hint": "At least {min} characters.",
+    "confirm": "Repeat password",
+    "inviteSubmit": "Set password",
+    "resetSubmit": "Change password",
+    "invalidLink": "This link is invalid or has expired. Ask an administrator for a new one.",
+    "backToLogin": "Back to sign-in"
+  },
+  "errors": {
+    "GENERIC": "Something went wrong. Please try again.",
+    "VALIDATION": "Please check your input.",
+    "MISMATCH": "The passwords do not match.",
+    "WRONG_PASSWORD": "The password is not correct.",
+    "INVALID_CODE": "The code is not correct.",
+    "WEAK_PASSWORD": "The password must have at least {min} characters.",
+    "PASSWORD_TOO_LONG": "The password is too long.",
+    "TWO_FACTOR_REQUIRED": "Two-factor authentication is mandatory for all admins.",
+    "TWO_FACTOR_ALREADY_ENABLED": "Two-factor authentication is already on.",
+    "TWO_FACTOR_NO_SETUP": "There is no pending setup. Start again.",
+    "ACCOUNT_LOCKED": "Too many failed attempts. The account is temporarily locked.",
+    "RATE_LIMITED": "Too many attempts. Please wait a few minutes.",
+    "TOKEN_INVALID": "This link is invalid or has expired.",
+    "EMAIL_TAKEN": "This e-mail address is already used.",
+    "LAST_SUPER_ADMIN": "The last active super admin cannot be changed, deactivated or removed.",
+    "CANNOT_DEACTIVATE_SELF": "You cannot deactivate yourself.",
+    "INVITE_NOT_PENDING": "This user has already accepted the invitation.",
+    "USER_HAS_SIGNED_IN": "Only invitations that were never accepted can be deleted.",
+    "ADMIN_USER_NOT_FOUND": "User not found."
+  },
+  "messages": {
+    "invited": "Invitation sent.",
+    "userSaved": "User saved.",
+    "reactivated": "User reactivated.",
+    "deactivated": "User deactivated, sessions ended.",
+    "twoFactorReset": "Two-factor authentication reset, sessions ended.",
+    "inviteResent": "New invitation sent.",
+    "inviteDeleted": "Invitation deleted.",
+    "profileSaved": "Profile saved.",
+    "passwordChanged": "Password changed. Your other sessions were signed out.",
+    "twoFactorEnabled": "Two-factor authentication is on.",
+    "twoFactorDisabled": "Two-factor authentication is off.",
+    "recoveryCodesRegenerated": "New recovery codes created.",
+    "resetRequested": "Reset link requested.",
+    "unlocked": "User unlocked.",
+    "verificationSent": "Confirmation link sent. Please check your inbox.",
+    "alreadyVerified": "Your e-mail address is already confirmed."
+  },
+  "account": {
+    "title": "My account",
+    "description": "Your profile, password and two-factor authentication.",
+    "setupRequired": "Two-factor authentication is mandatory. Set it up with an authenticator app to continue.",
+    "twoFactor": {
+      "title": "Two-factor authentication",
+      "description": "Protect your sign-in with a code from an authenticator app."
+    },
+    "profile": {
+      "title": "Profile",
+      "description": "The name shown in the Admin Portal.",
+      "email": "E-mail",
+      "displayName": "Name",
+      "save": "Save"
+    },
+    "password": {
+      "title": "Password",
+      "description": "Change your password.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Repeat new password",
+      "hint": "At least {min} characters.",
+      "sessionsNote": "Your other sessions are signed out when the password changes.",
+      "save": "Change password"
+    },
+    "emailVerify": {
+      "title": "Confirm e-mail address",
+      "description": "Confirming that this address belongs to you unlocks \"My account\" in the ticket shop: the next time you sign in there (or at the Admin Portal), you are also signed in as a customer with your own orders under this address. Without confirmation you still get the dashboard button in the shop, but \"My account\" is not linked – so nobody can reach someone else's orders just because an administrator was created with a mistyped or foreign address.",
+      "verified": "Your e-mail address is confirmed.",
+      "unverified": "Your e-mail address ({email}) is not confirmed yet.",
+      "send": "Send confirmation link"
+    }
+  },
+  "twoFactor": {
+    "recoveryTitle": "Recovery codes",
+    "recoveryHint": "Store these codes safely. Each works once if you lose your authenticator. They are shown only now.",
+    "copy": "Copy codes",
+    "copied": "Copied.",
+    "password": "Password",
+    "code": "Code",
+    "codeHintAny": "Authenticator code or a recovery code.",
+    "enabledNow": "Two-factor authentication is on. Save your recovery codes now.",
+    "done": "Done",
+    "offIntro": "Two-factor authentication is off. You can protect your account with an authenticator app (e.g. a TOTP app on your phone).",
+    "start": "Set up two-factor authentication",
+    "scanIntro": "Scan the QR code with your authenticator app, then enter the 6-digit code.",
+    "qrAlt": "QR code for the authenticator app",
+    "manualKey": "Or enter this key manually:",
+    "confirmCode": "6-digit code",
+    "confirmHint": "Turns on two-factor authentication once the code is correct.",
+    "verifying": "Checking…",
+    "enable": "Turn on",
+    "onStatus": "Two-factor authentication is on. Unused recovery codes: {count}.",
+    "requiredNote": "It is mandatory for all admins and cannot be turned off.",
+    "regenerateTitle": "New recovery codes",
+    "regenerateHint": "Creates 10 new codes; the old ones stop working.",
+    "regenerate": "Create new codes",
+    "disableTitle": "Turn off",
+    "disableHint": "Needs your password and a current code.",
+    "disable": "Turn off two-factor authentication"
+  },
+  "users": {
+    "title": "Users",
+    "description": "Admin Portal accounts, roles and invitations.",
+    "back": "All users",
+    "columns": {
+      "name": "Name",
+      "roles": "Roles",
+      "status": "Status",
+      "twoFactor": "2FA",
+      "lastLogin": "Last sign-in"
+    },
+    "roles": "Roles",
+    "role": {
+      "SUPER_ADMIN": "Super admin",
+      "EVENT_MANAGER": "Event manager",
+      "FINANCE": "Finance",
+      "DOOR_STAFF": "Door staff"
+    },
+    "roleHint": {
+      "SUPER_ADMIN": "Everything, including settings and users.",
+      "EVENT_MANAGER": "Events, seating plans, pricing, orders.",
+      "FINANCE": "Orders, banking, refunds, fees.",
+      "DOOR_STAFF": "Box office and check-in."
+    },
+    "status": {
+      "inactive": "Deactivated",
+      "invited": "Invited",
+      "active": "Active",
+      "locked": "Locked"
+    },
+    "on": "On",
+    "off": "Off",
+    "never": "Never",
+    "invite": {
+      "title": "Invite a user",
+      "description": "The user receives an e-mail with a one-time link to choose a password.",
+      "displayName": "Name",
+      "email": "E-mail",
+      "submit": "Send invitation",
+      "sending": "Sending…"
+    },
+    "edit": {
+      "title": "Name and roles",
+      "displayName": "Name",
+      "rolesNote": "A role change signs the user out of all sessions.",
+      "save": "Save"
+    },
+    "operations": {
+      "title": "Account",
+      "resendInvite": "Resend invitation",
+      "activate": "Reactivate",
+      "deactivate": "Deactivate",
+      "resetTwoFactor": "Reset two-factor authentication",
+      "deleteInvite": "Delete invitation",
+      "confirmDeactivate": "Deactivate this user? All their sessions end.",
+      "confirmResetTwoFactor": "Reset two-factor authentication of this user? They are signed out and must set it up again.",
+      "confirmDeleteInvite": "Delete this invitation?",
+      "unlock": "Unlock"
+    }
+  },
+  "settings": {
+    "security": {
+      "title": "Security",
+      "description": "Sessions, lockout, passwords and two-factor authentication of admin users.",
+      "requireTwoFactor": "Two-factor authentication mandatory",
+      "requireTwoFactorHint": "Every admin must use an authenticator app. Users without one are taken to the setup right after signing in.",
+      "adminSessionTtlHours": "Session lifetime (hours)",
+      "adminSessionTtlHoursHint": "Applies to new sign-ins.",
+      "minPasswordLength": "Minimum password length",
+      "maxFailedLogins": "Failed attempts before lockout",
+      "lockoutMinutes": "Lockout duration (minutes)",
+      "inviteTtlHours": "Invitation link valid (hours)",
+      "passwordResetTtlMinutes": "Password reset link valid (minutes)"
+    },
+    "scanner": {
+      "title": "Check-in scanner",
+      "description": "Behaviour of the Android check-in app.",
+      "phaseNote": "The check-in app arrives in a later phase. These values are stored now and used once devices can pair.",
+      "allowCheckOut": "Allow check-out",
+      "allowCheckOutHint": "Door staff can check a guest out again (pass-out / re-entry).",
+      "offlineModeAllowed": "Allow offline mode",
+      "offlineModeAllowedHint": "Devices may download all tickets and scan without a connection.",
+      "lanSyncEnabled": "Sync between devices on the local network",
+      "lanSyncEnabledHint": "Scanners on the same WiFi exchange scans so no ticket enters twice.",
+      "syncIntervalSeconds": "Sync interval (seconds)",
+      "syncIntervalSecondsHint": "How often online devices fetch changes.",
+      "pairingCodeTtlMinutes": "Pairing code valid (minutes)",
+      "pairingCodeTtlMinutesHint": "Lifetime of the QR code used to pair a device."
+    }
+  },
+  "verifyEmail": {
+    "title": "Confirm e-mail address",
+    "intro": "Press the button to confirm that this e-mail address belongs to you.",
+    "confirm": "Confirm e-mail address",
+    "done": "Your e-mail address is confirmed. At your next sign-in in the shop, \"My account\" is linked.",
+    "invalid": "This link is invalid or has expired. You can request a new one in your account settings.",
+    "backToLogin": "To sign-in"
+  }
+}

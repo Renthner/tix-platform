@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * Public kinds (event / venue images, logos, e-mail images; see `PUBLIC_MEDIA_KINDS`) are served
  * to everyone with immutable caching: an asset id always maps to the same bytes (sha256 ETag).
  * Private kinds (ticket backgrounds, wallet images, documents, other) require an admin session
- * and are never cached by shared caches.
+ * and are never cached by shared caches. `?download=1` forces a download instead of inline display.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
@@ -48,7 +48,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         ...headers,
         'content-type': media.mimeType,
         'content-length': String(media.bytes.byteLength),
-        'content-disposition': `inline; filename="${asset.fileName.replace(/[^\w.-]/g, '_')}"`,
+        'content-disposition': `${new URL(request.url).searchParams.get('download') === '1' ? 'attachment' : 'inline'}; filename="${asset.fileName.replace(/[^\w.-]/g, '_')}"`,
       },
     });
   });

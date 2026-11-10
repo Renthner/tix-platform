@@ -1,5 +1,11 @@
 import { createServer } from 'node:http';
-import { RedisConnections, QueueEngine, createChannels, createKeyspace } from '@tix/redis';
+import {
+  PresenceTracker,
+  RedisConnections,
+  QueueEngine,
+  createChannels,
+  createKeyspace,
+} from '@tix/redis';
 import type { SeatDeltaMessage, SeatDeltaStatus } from '@tix/shared';
 import { verifyToken } from '@tix/shared/server';
 import { pino } from 'pino';
@@ -37,10 +43,34 @@ const keys = createKeyspace(env.REDIS_KEY_PREFIX);
 const channels = createChannels(env.REDIS_KEY_PREFIX);
 const redis = new RedisConnections(env.REDIS_URL, { serviceName: 'realtime', logger });
 const queue = new QueueEngine(redis.command, keys);
+const presence = new PresenceTracker(redis.command, keys);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_EVENT_ROOMS = 8;
 const PING_INTERVAL_MS = 10_000;
+/** Shop clients send a presence heartbeat about every 15 s; faster beats are ignored. */
+const PRESENCE_MIN_INTERVAL_MS = 5_000;
+
+/**
+ * Per-event presence only counts events whose inventory exists in Redis (= events that were put
+ * on sale): random UUIDs from a client cannot grow the presence sets. Answers are cached briefly.
+ */
+const KNOWN_EVENT_TTL_MS = 30_000;
+const UNKNOWN_EVENT_TTL_MS = 5_000;
+const KNOWN_EVENT_CACHE_MAX = 2_000;
+const knownEvents = new Map<string, { known: boolean; until: number }>();
+async function isShopEvent(eventId: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = knownEvents.get(eventId);
+  if (cached && cached.until > now) return cached.known;
+  const known = (await redis.command.exists(keys.inventoryReady(eventId))) === 1;
+  if (knownEvents.size >= KNOWN_EVENT_CACHE_MAX) knownEvents.clear();
+  knownEvents.set(eventId, {
+    known,
+    until: now + (known ? KNOWN_EVENT_TTL_MS : UNKNOWN_EVENT_TTL_MS),
+  });
+  return known;
+}
 
 const origins = (env.REALTIME_CORS_ORIGINS ?? env.APP_URL)
   .split(',')
@@ -72,7 +102,22 @@ interface SocketData {
   sid: string;
   rooms: Set<string>;
   lastPing: Map<string, number>;
+  /** Events the socket reported presence for (removed again on disconnect). */
+  presenceEvents: Set<string>;
+  lastPresence: Map<string, number>;
 }
+
+// Maintenance (backup restore): no new subscriptions while the database is being replaced.
+let maintenanceCache = { at: 0, active: false };
+io.use(async (_socket, next) => {
+  if (Date.now() - maintenanceCache.at > 1_500) {
+    const active = await redis.command
+      .exists(keys.maintenance(), keys.restoreIncomplete())
+      .catch(() => 0);
+    maintenanceCache = { at: Date.now(), active: active > 0 };
+  }
+  next(maintenanceCache.active ? new Error('maintenance') : undefined);
+});
 
 io.use((socket, next) => {
   const token = (socket.handshake.auth as { token?: unknown }).token;
@@ -82,7 +127,13 @@ io.use((socket, next) => {
     env.SESSION_SECRET,
   );
   if (!claims || typeof claims.sid !== 'string') return next(new Error('unauthorized'));
-  const data: SocketData = { sid: claims.sid, rooms: new Set(), lastPing: new Map() };
+  const data: SocketData = {
+    sid: claims.sid,
+    rooms: new Set(),
+    lastPing: new Map(),
+    presenceEvents: new Set(),
+    lastPresence: new Map(),
+  };
   socket.data = data;
   next();
 });
@@ -109,6 +160,30 @@ io.on('connection', (socket) => {
       data.rooms.delete(room);
       void socket.leave(room);
     }
+  });
+  // Shop presence for the dashboard ("im Shop"): connect/join + heartbeat every ~15 s. Sent by shop
+  // pages only (admin sockets never emit it) and independent of the waiting-room counter below.
+  socket.on('presence:beat', (eventId: unknown) => {
+    if (typeof eventId !== 'string' || !UUID.test(eventId)) return;
+    const now = Date.now();
+    if (now - (data.lastPresence.get(eventId) ?? 0) < PRESENCE_MIN_INTERVAL_MS) return;
+    if (!data.presenceEvents.has(eventId) && data.presenceEvents.size >= MAX_EVENT_ROOMS) return;
+    data.lastPresence.set(eventId, now);
+    isShopEvent(eventId)
+      .then((known) => {
+        if (!known) return;
+        data.presenceEvents.add(eventId);
+        return presence.touch(data.sid, [eventId], now);
+      })
+      .catch((err: unknown) => logger.warn({ err }, 'presence beat failed'));
+  });
+  socket.on('disconnect', () => {
+    if (data.presenceEvents.size === 0) return;
+    // Another tab of the same shopper on this instance keeps the shop-wide entry alive.
+    const stillHere = (io.sockets.adapter.rooms.get(`sid:${data.sid}`)?.size ?? 0) > 0;
+    presence
+      .remove(data.sid, [...data.presenceEvents], !stillHere)
+      .catch((err: unknown) => logger.warn({ err }, 'presence remove failed'));
   });
   // Shoppers holding a pass report activity → counted against the waiting-room threshold.
   socket.on('shop:ping', (eventId: unknown) => {

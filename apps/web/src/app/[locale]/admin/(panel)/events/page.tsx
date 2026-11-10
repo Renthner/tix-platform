@@ -3,6 +3,7 @@ import { EVENT_STATUSES, type EventStatus } from '@tix/shared';
 import { ArrowUpDown, Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
+import { EventDuplicateDialog } from '@/components/admin/event-duplicate-dialog';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -17,9 +18,10 @@ import {
 } from '@/components/ui/table';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
-import { formatInZone } from '@/lib/datetime';
+import { formatInZone, utcToZonedWallTime } from '@/lib/datetime';
 import { cn } from '@/lib/utils';
 import { requireAdmin } from '@/server/auth';
+import { duplicateEventAction } from '@/server/admin/events';
 import { listEvents } from '@/server/admin/queries';
 
 export async function generateMetadata() {
@@ -101,6 +103,7 @@ export default async function EventsPage({
                     <TableHead>{t('columns.venue')}</TableHead>
                     <TableHead>{t('columns.status')}</TableHead>
                     <TableHead>{t('columns.sale')}</TableHead>
+                    <TableHead className="w-0" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -120,6 +123,14 @@ export default async function EventsPage({
                       </TableCell>
                       <TableCell>
                         <SaleStateBadge state={computeSaleState(event)} />
+                      </TableCell>
+                      <TableCell>
+                        <EventDuplicateDialog
+                          size="sm"
+                          action={duplicateEventAction.bind(null, event.id)}
+                          title={event.title}
+                          startsAt={utcToZonedWallTime(event.startsAt, event.timeZone)}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

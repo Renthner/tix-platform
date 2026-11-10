@@ -192,8 +192,20 @@ export const PAYMENT_STATUSES = values(
 );
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
+/** AUTOMATIC = executed via the provider API; MANUAL = open to-do for the finance team. */
+export const REFUND_KINDS = values('AUTOMATIC', 'MANUAL');
+export type RefundKind = (typeof REFUND_KINDS)[number];
+
 export const REFUND_STATUSES = values('PENDING', 'SUCCEEDED', 'FAILED');
 export type RefundStatus = (typeof REFUND_STATUSES)[number];
+
+/** Additional payment requested for a paid order (see `order_adjustments`). */
+export const ADJUSTMENT_KINDS = values('TARIFF_UPGRADE');
+export type AdjustmentKind = (typeof ADJUSTMENT_KINDS)[number];
+
+/** PROPOSED (customer has not confirmed) → CONFIRMED → PAID, or CANCELLED (admin reset). */
+export const ADJUSTMENT_STATUSES = values('PROPOSED', 'CONFIRMED', 'PAID', 'CANCELLED');
+export type AdjustmentStatus = (typeof ADJUSTMENT_STATUSES)[number];
 
 /** INVOICE = Rechnung, CREDIT_NOTE = Rechnungskorrektur/Stornorechnung (references the original). */
 export const INVOICE_TYPES = values('INVOICE', 'CREDIT_NOTE');
@@ -311,11 +323,18 @@ export const EMAIL_TEMPLATE_KEYS = values(
   'PAYMENT_REMINDER',
   'ORDER_CANCELLED',
   'REFUND_CONFIRMATION',
+  'ADDITIONAL_PAYMENT_REQUEST',
+  'ADDITIONAL_PAYMENT_REMINDER',
+  'ADDITIONAL_PAYMENT_CANCELLED',
+  'ADDITIONAL_PAYMENT_RECEIVED',
+  'ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT',
   'TICKETS_RESENT',
   'CUSTOMER_EMAIL_VERIFICATION',
   'CUSTOMER_PASSWORD_RESET',
   'CUSTOMER_LOGIN_LINK',
   'SMTP_TEST',
+  'ADMIN_INVITE',
+  'ADMIN_PASSWORD_RESET',
 );
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 

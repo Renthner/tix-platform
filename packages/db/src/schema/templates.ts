@@ -130,6 +130,8 @@ export const emailMessages = pgTable(
     lastError: text('last_error'),
     providerMessageId: text('provider_message_id'),
     jobId: text('job_id'),
+    /** Paid cycle of the order the payment confirmation belongs to (`orders.paid_cycle`). */
+    paidCycle: integer('paid_cycle'),
     sentAt: tstz('sent_at'),
     ...timestamps(),
   },

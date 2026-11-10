@@ -1,0 +1,1 @@
+ALTER TABLE "seat_map_categories" ADD COLUMN "translations" jsonb DEFAULT '{}'::jsonb NOT NULL;

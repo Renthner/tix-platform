@@ -1,10 +1,23 @@
-import { getOrderAdminView, orderUrl, resendableEmail } from '@tix/core';
+import {
+  getOrderAdminView,
+  getSetting,
+  getTariffChangeOptions,
+  listOrderAdjustments,
+  getOrderCredit,
+  listOrderRefundBatches,
+  orderUrl,
+  resendableEmail,
+} from '@tix/core';
 import { formatTicketCode } from '@tix/shared';
 import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
+import { ReverseAllocationButton } from '@/components/admin/banking/reverse-allocation';
 import { OrderAdminActions } from '@/components/admin/order-actions';
+import { OrderAdjustmentCard } from '@/components/admin/order-adjustment';
 import { OrderStatusBadge } from '@/components/admin/order-badges';
+import { OrderTimeline } from '@/components/admin/order-timeline';
+import { OverpaymentCard, RefundBatchList } from '@/components/admin/refund-batches';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,11 +50,18 @@ export default async function OrderDetailPage({
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const core = getCore();
-  const view = await getOrderAdminView(core, id);
+  const [view, refundBatches, checkout, adjustments, orderCredit] = await Promise.all([
+    getOrderAdminView(core, id),
+    listOrderRefundBatches(core, id),
+    getSetting(core, 'checkout'),
+    listOrderAdjustments(core, id),
+    getOrderCredit(core.db, id),
+  ]);
   if (!view) notFound();
   const { order } = view;
-  const [t, tMethod, tPayment, tStatus, format] = await Promise.all([
+  const [t, tChannel, tMethod, tPayment, tStatus, format] = await Promise.all([
     getTranslations('orders.admin'),
+    getTranslations('orders.channel'),
     getTranslations('orders.method'),
     getTranslations('orders.paymentStatus'),
     getTranslations('orders.status'),
@@ -53,6 +73,41 @@ export default async function OrderDetailPage({
     d ? format.dateTime(new Date(d), { dateStyle: 'medium', timeStyle: 'short' }) : '–';
   const open = order.status === 'PENDING' || order.status === 'AWAITING_PAYMENT';
   const address = order.billingAddress;
+  const canRefund = hasRole(session, ['FINANCE']);
+  const placeLabel = (item: (typeof view.events)[number]['items'][number]) =>
+    `${item.sectionLabel}${
+      item.kind === 'SEAT'
+        ? ` · ${t('items.rowSeat', { row: item.rowLabel ?? '–', seat: item.seatLabel ?? '–' })}`
+        : ` · ${t('items.standing')}`
+    }`;
+  const openAdjustment =
+    adjustments.find((a) => a.status === 'PROPOSED' || a.status === 'CONFIRMED') ?? null;
+  // Same as the core: what an open tariff change reserves cannot be refunded.
+  const refundableCredit = ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(order.status)
+    ? orderCredit.credit - (openAdjustment?.creditApplied ?? 0)
+    : 0;
+  const tariffOptions =
+    order.status === 'PAID' && !openAdjustment && order.paymentMethod !== 'COMPLIMENTARY'
+      ? new Map((await getTariffChangeOptions(core, id)).map((o) => [o.orderItemId, o.options]))
+      : new Map<string, { id: string; name: string; priceGross: number }[]>();
+  const paidCancel =
+    canRefund && (order.status === 'PAID' || order.status === 'PARTIALLY_REFUNDED')
+      ? {
+          version: order.version,
+          currency: order.currency,
+          refundFeesDefault: checkout.refundFeesByDefault,
+          items: view.events.flatMap((event) =>
+            event.items
+              .filter((item) => item.status === 'CONFIRMED')
+              .map((item) => ({
+                id: item.id,
+                label: `${event.title} · ${placeLabel(item)}`,
+                detail: `${item.categoryName} · ${item.ticketTypeName}`,
+                price: item.priceGross,
+              })),
+          ),
+        }
+      : null;
 
   return (
     <>
@@ -91,11 +146,13 @@ export default async function OrderDetailPage({
                   {order.firstName} {order.lastName}
                 </div>
                 {order.company && <div>{order.company}</div>}
-                <div>
-                  <a href={`mailto:${order.email}`} className="hover:underline">
-                    {order.email}
-                  </a>
-                </div>
+                {order.email && (
+                  <div>
+                    <a href={`mailto:${order.email}`} className="hover:underline">
+                      {order.email}
+                    </a>
+                  </div>
+                )}
                 {order.phone && <div>{order.phone}</div>}
                 {address && (
                   <div className="pt-2 text-muted-foreground">
@@ -123,10 +180,26 @@ export default async function OrderDetailPage({
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
                   <dt className="text-muted-foreground">{t('payment.method')}</dt>
                   <dd>{tMethod(order.paymentMethod)}</dd>
+                  <dt className="text-muted-foreground">{tChannel('title')}</dt>
+                  <dd>
+                    {tChannel(order.channel)}
+                    {view.soldByName && (
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · {tChannel('soldBy')} {view.soldByName}
+                      </span>
+                    )}
+                  </dd>
                   <dt className="text-muted-foreground">{t('payment.total')}</dt>
                   <dd className="tabular-nums">{money(order.totalGross)}</dd>
                   <dt className="text-muted-foreground">{t('payment.paid')}</dt>
                   <dd className="tabular-nums">{money(order.amountPaid)}</dd>
+                  {order.amountRefunded > 0 && (
+                    <>
+                      <dt className="text-muted-foreground">{t('payment.refunded')}</dt>
+                      <dd className="tabular-nums">−{money(order.amountRefunded)}</dd>
+                    </>
+                  )}
                   {view.outstanding > 0 && open && (
                     <>
                       <dt className="text-muted-foreground">{t('payment.outstanding')}</dt>
@@ -356,34 +429,84 @@ export default async function OrderDetailPage({
                       <TableHead>{t('payments.status')}</TableHead>
                       <TableHead>{t('payments.reference')}</TableHead>
                       <TableHead className="text-right">{t('payments.amount')}</TableHead>
+                      {canRefund && <TableHead />}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {view.payments.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="whitespace-nowrap">
-                          {dateTime(p.capturedAt ?? p.createdAt)}
-                        </TableCell>
-                        <TableCell>{tMethod(p.method)}</TableCell>
-                        <TableCell>
-                          {tPayment(p.status)}
-                          {p.failureCode && (
-                            <div className="text-xs text-destructive">{p.failureCode}</div>
+                    {view.payments.map((p) => {
+                      const allocation = view.allocations.find((a) => a.paymentId === p.id);
+                      return (
+                        <TableRow
+                          key={p.id}
+                          className={p.status === 'CANCELLED' ? 'opacity-60' : ''}
+                        >
+                          <TableCell className="whitespace-nowrap">
+                            {dateTime(p.capturedAt ?? p.createdAt)}
+                          </TableCell>
+                          <TableCell>{tMethod(p.method)}</TableCell>
+                          <TableCell>
+                            {tPayment(p.status)}
+                            {allocation?.reversedAt ? (
+                              <div className="text-xs text-muted-foreground">
+                                {t('payments.reversed', {
+                                  who: allocation.reversedByName ?? '–',
+                                  when: dateTime(allocation.reversedAt),
+                                })}
+                                {allocation.reversalReason ? ` – ${allocation.reversalReason}` : ''}
+                              </div>
+                            ) : (
+                              p.failureCode && (
+                                <div className="text-xs text-destructive">{p.failureCode}</div>
+                              )
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {p.providerCaptureId ??
+                              p.providerOrderId ??
+                              (p.bankTransactionId ? t('payments.bank') : '–')}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(p.amount)}
+                          </TableCell>
+                          {canRefund && (
+                            <TableCell className="text-right">
+                              {allocation && !allocation.reversedAt && p.status === 'CAPTURED' && (
+                                <ReverseAllocationButton
+                                  allocationId={allocation.id}
+                                  orderNumber={order.orderNumber}
+                                />
+                              )}
+                            </TableCell>
                           )}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {p.providerCaptureId ??
-                            p.providerOrderId ??
-                            (p.bankTransactionId ? t('payments.bank') : '–')}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{money(p.amount)}</TableCell>
-                      </TableRow>
-                    ))}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
             </CardContent>
           </Card>
+
+          {refundableCredit > 0 && (
+            <OverpaymentCard
+              orderId={order.id}
+              amount={refundableCredit}
+              currency={order.currency}
+              reserved={openAdjustment?.creditApplied ?? 0}
+              canRefund={canRefund}
+            />
+          )}
+
+          {refundBatches.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('refunds.title')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RefundBatchList batches={refundBatches} canAct={canRefund} />
+              </CardContent>
+            </Card>
+          )}
 
           {view.invoices.length > 0 && (
             <Card>
@@ -399,7 +522,14 @@ export default async function OrderDetailPage({
                         className="inline-flex items-center gap-2 hover:underline"
                       >
                         <Download className="size-4" /> {invoice.invoiceNumber} ·{' '}
-                        {dateTime(invoice.issuedAt)}
+                        {invoice.isCorrection && invoice.correctsNumber
+                          ? t('documents.correction', { invoice: invoice.correctsNumber })
+                          : t(
+                              invoice.type === 'CREDIT_NOTE'
+                                ? 'documents.creditNote'
+                                : 'documents.invoice',
+                            )}{' '}
+                        · {dateTime(invoice.issuedAt)}
                       </a>
                     </li>
                   ))}
@@ -413,34 +543,55 @@ export default async function OrderDetailPage({
               <CardTitle>{t('history.title')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <ol className="space-y-3 text-sm">
-                {view.history.map((h) => (
-                  <li key={h.id} className="flex gap-3">
-                    <span className="w-36 shrink-0 text-xs text-muted-foreground">
-                      {dateTime(h.createdAt)}
-                    </span>
-                    <div>
-                      <div>
-                        {t.has(`history.types.${h.type}` as never)
-                          ? t(`history.types.${h.type}` as never)
-                          : h.type}
-                        {h.toStatus && ` → ${tStatus(h.toStatus)}`}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {h.actorName ?? t(`history.actors.${h.actorType}`)}
-                        {h.data && typeof h.data === 'object' && 'reason' in h.data && h.data.reason
-                          ? ` · ${String(h.data.reason)}`
-                          : ''}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <OrderTimeline view={view} />
             </CardContent>
           </Card>
         </div>
 
         <aside className="space-y-6">
+          <OrderAdjustmentCard
+            orderId={order.id}
+            version={order.version}
+            currency={order.currency}
+            hasEmail={Boolean(order.email)}
+            canManage={hasRole(session, ['FINANCE', 'EVENT_MANAGER'])}
+            canRecordPayment={hasRole(session, ['FINANCE'])}
+            proposable={order.status === 'PAID' && order.paymentMethod !== 'COMPLIMENTARY'}
+            credit={orderCredit.credit}
+            canUseCredit={hasRole(session, ['FINANCE'])}
+            items={view.events.flatMap((event) =>
+              event.items
+                .filter((item) => item.status === 'CONFIRMED')
+                .map((item) => ({
+                  id: item.id,
+                  label: `${event.title} · ${placeLabel(item)}`,
+                  detail: `${item.categoryName} · ${item.ticketTypeName} · ${money(item.priceGross)}`,
+                  paid: item.priceGross,
+                  options: tariffOptions.get(item.id) ?? [],
+                })),
+            )}
+            open={
+              openAdjustment
+                ? {
+                    id: openAdjustment.id,
+                    status: openAdjustment.status as 'PROPOSED' | 'CONFIRMED',
+                    amount: openAdjustment.amount,
+                    creditApplied: openAdjustment.creditApplied,
+                    reference: openAdjustment.paymentReference,
+                    reason: openAdjustment.reason,
+                    createdAt: openAdjustment.createdAt.toISOString(),
+                    confirmedAt: openAdjustment.confirmedAt?.toISOString() ?? null,
+                    reminderSentAt: openAdjustment.reminderSentAt?.toISOString() ?? null,
+                    items: openAdjustment.items.map((i) => ({
+                      from: i.fromName,
+                      to: i.toName,
+                      fromPrice: i.fromPriceGross,
+                      toPrice: i.toPriceGross,
+                    })),
+                  }
+                : null
+            }
+          />
           <OrderAdminActions
             orderId={order.id}
             status={order.status}
@@ -450,7 +601,10 @@ export default async function OrderDetailPage({
             currency={order.currency}
             internalNote={order.internalNote}
             canRecordPayment={hasRole(session, ['FINANCE'])}
-            canResend={resendableEmail(order.status, order.paymentMethod) !== null}
+            canResend={
+              Boolean(order.email) && resendableEmail(order.status, order.paymentMethod) !== null
+            }
+            paidCancel={paidCancel}
           />
         </aside>
       </div>

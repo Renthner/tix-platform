@@ -1,4 +1,12 @@
-import { bankAccounts, customers, invoices, tickets, type Executor } from '@tix/db';
+import {
+  bankAccounts,
+  customers,
+  invoices,
+  orderAdjustments,
+  orderItems,
+  tickets,
+  type Executor,
+} from '@tix/db';
 import type { PaymentMethod } from '@tix/shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { CoreContext } from '../context';
@@ -71,15 +79,37 @@ export const EMAIL_VARIABLES = {
     'cancellationReason',
     'invoiceNumber',
   ],
-  /** Passed by the refund flow as extra variables (REFUND_CONFIRMATION). */
-  refund: ['refundAmount', 'creditNoteNumber'],
+  /**
+   * Passed by the refund flow (REFUND_CONFIRMATION): `refundViaPaypal` / `refundManual` are "yes" or
+   * empty – PayPal pays back automatically, everything else is transferred by hand.
+   */
+  refund: ['refundAmount', 'creditNoteNumber', 'refundViaPaypal', 'refundManual'],
+  /**
+   * ADDITIONAL_PAYMENT_REQUEST / _REMINDER: the mail only carries the `adjustmentId`; amount,
+   * reference and the old / new price table are built when the message is rendered.
+   */
+  adjustment: [
+    'adjustmentAmount',
+    // Overpayment credited against the price difference (empty without credit).
+    'adjustmentCreditUsed',
+    'adjustmentReference',
+    'adjustmentReason',
+    'adjustmentItems',
+    // ADDITIONAL_PAYMENT_RECEIVED only: passed when the payment is booked; the two amounts are
+    // formatted at render time from `adjustmentNewTotalCents` / `adjustmentPreviouslyPaidCents`.
+    'adjustmentNewTotal',
+    'adjustmentPreviouslyPaid',
+    'adjustmentOldInvoiceNumber',
+    'adjustmentNewInvoiceNumber',
+    'adjustmentCreditNoteNumber',
+  ],
   /**
    * PAYMENT_RECEIVED_TICKETS / TICKETS_RESENT: `walletLinks` is generated HTML (empty when wallet passes are off),
    * `ticketLinks` one block per valid ticket (single PDF + wallet buttons), `ticketsPdfUrl` the combined tickets PDF
    * download (empty without valid tickets), `ticketsAttached` "yes" when the tickets PDF is attached (set on delivery).
    */
   tickets: ['walletLinks', 'ticketLinks', 'ticketsPdfUrl', 'ticketsAttached'],
-  account: ['verificationUrl', 'resetUrl', 'loginUrl', 'expiresAt'],
+  account: ['verificationUrl', 'resetUrl', 'loginUrl', 'inviteUrl', 'expiresAt'],
   smtpTest: ['sentAt'],
 } as const;
 
@@ -282,6 +312,22 @@ function itemsTable(
     `<tr><td style="padding:10px 0;border-top:2px solid #18181b;font-weight:700">${escapeHtml(t('items.total'))}</td><td align="right" style="padding:10px 0;border-top:2px solid #18181b;font-weight:700;white-space:nowrap">${escapeHtml(money(order.totalGross))}</td></tr>`,
   );
   text.push(`${t('items.total')}: ${money(order.totalGross)}`);
+  if (
+    (order.status === 'PARTIALLY_REFUNDED' || order.status === 'REFUNDED') &&
+    order.amountRefunded > 0
+  ) {
+    const remaining = Math.max(order.totalGross - order.amountRefunded, 0);
+    const row = (label: string, value: string) =>
+      `<tr><td style="${CELL}">${escapeHtml(label)}</td><td align="right" style="${CELL};white-space:nowrap">${escapeHtml(value)}</td></tr>`;
+    html.push(
+      row(t('items.refunded'), `−${money(order.amountRefunded)}`),
+      row(t('items.remaining'), money(remaining)),
+    );
+    text.push(
+      `${t('items.refunded')}: −${money(order.amountRefunded)}`,
+      `${t('items.remaining')}: ${money(remaining)}`,
+    );
+  }
   return trustedHtml(
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;line-height:1.45">${html.join('')}</table>`,
     text.join('\n'),
@@ -327,4 +373,90 @@ async function ticketsPdfUrl(ctx: CoreContext, orderId: string): Promise<string 
     .limit(1);
   if (!valid) return null;
   return `${ctx.appUrl}/api/orders/${orderId}/tickets?t=${encodeURIComponent(orderAccessToken(ctx, orderId))}`;
+}
+
+/** Variables of ADDITIONAL_PAYMENT_REQUEST / _REMINDER, built from the stored adjustment. */
+export async function adjustmentVariables(
+  ctx: CoreContext,
+  adjustmentId: string,
+  currency: string,
+  shop: ShopContext,
+  /** Mail variables of the message (ADDITIONAL_PAYMENT_RECEIVED passes the booked amounts). */
+  extra: TemplateVariables = {},
+): Promise<TemplateVariables> {
+  const [adjustment] = await ctx.db
+    .select()
+    .from(orderAdjustments)
+    .where(eq(orderAdjustments.id, adjustmentId));
+  if (!adjustment) return {};
+  const locale = shop.locale;
+  const t = mailTranslator(locale);
+  const money = (cents: number) => formatMoney(cents, currency, locale);
+  // The place of each ticket, so two changed tickets are distinguishable.
+  const places = new Map(
+    (adjustment.items.length > 0
+      ? await ctx.db
+          .select({
+            id: orderItems.id,
+            kind: orderItems.kind,
+            sectionLabel: orderItems.sectionLabel,
+            rowLabel: orderItems.rowLabel,
+            seatLabel: orderItems.seatLabel,
+          })
+          .from(orderItems)
+          .where(
+            inArray(
+              orderItems.id,
+              adjustment.items.map((i) => i.orderItemId),
+            ),
+          )
+      : []
+    ).map((r) => [r.id, describeOrderItem(r, t)] as const),
+  );
+  const rows = adjustment.items.map((item) => ({
+    label: [places.get(item.orderItemId), `${item.fromName} → ${item.toName}`]
+      .filter(Boolean)
+      .join(': '),
+    price: `${money(item.fromPriceGross)} → ${money(item.toPriceGross)}`,
+  }));
+  const html = rows
+    .map(
+      (r) =>
+        `<tr><td style="${CELL}">${escapeHtml(r.label)}</td><td align="right" style="${CELL};white-space:nowrap">${escapeHtml(r.price)}</td></tr>`,
+    )
+    .join('');
+  // With an overpayment credited: difference, credit and the rest still to pay add up visibly.
+  const credited = adjustment.creditApplied > 0;
+  const difference = adjustment.amount + adjustment.creditApplied;
+  const totalLabel = t(credited ? 'items.remainingToPay' : 'items.additionalPayment');
+  const creditRows = credited
+    ? [
+        [t('items.priceDifference'), money(difference)],
+        [t('items.creditApplied'), `−${money(adjustment.creditApplied)}`],
+      ]
+    : [];
+  const creditHtml = creditRows
+    .map(
+      ([label, value]) =>
+        `<tr><td style="${CELL}">${escapeHtml(label!)}</td><td align="right" style="${CELL};white-space:nowrap">${escapeHtml(value!)}</td></tr>`,
+    )
+    .join('');
+  const total = `${creditHtml}<tr><td style="padding:10px 0;border-top:2px solid #18181b;font-weight:700">${escapeHtml(totalLabel)}</td><td align="right" style="padding:10px 0;border-top:2px solid #18181b;font-weight:700;white-space:nowrap">${escapeHtml(money(adjustment.amount))}</td></tr>`;
+  const cents = (value: unknown) => (typeof value === 'number' ? money(value) : null);
+  return {
+    adjustmentNewTotal: cents(extra.adjustmentNewTotalCents),
+    adjustmentPreviouslyPaid: cents(extra.adjustmentPreviouslyPaidCents),
+    adjustmentAmount: money(adjustment.amount),
+    adjustmentCreditUsed: credited ? money(adjustment.creditApplied) : null,
+    adjustmentReference: adjustment.paymentReference,
+    adjustmentReason: adjustment.reason,
+    adjustmentItems: trustedHtml(
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;line-height:1.45">${html}${total}</table>`,
+      [
+        ...rows.map((r) => `  - ${r.label}: ${r.price}`),
+        ...creditRows.map(([label, value]) => `${label}: ${value}`),
+        `${totalLabel}: ${money(adjustment.amount)}`,
+      ].join('\n'),
+    ),
+  };
 }

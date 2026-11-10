@@ -2,8 +2,9 @@
 
 import { Mail } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { ActionForm } from '@/components/admin/form-controls';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import { ACCOUNT_IDLE, type AccountFormState } from '@/lib/account-form';
@@ -16,6 +17,7 @@ import {
 } from '../actions';
 import { withNext } from './auth-card';
 import { FormStatus, TextField } from './form-bits';
+import { TwoFactorStep } from './two-factor-step';
 
 type Action = (prev: AccountFormState, fd: FormData) => Promise<AccountFormState>;
 
@@ -30,14 +32,38 @@ const NextField = ({ next }: { next: string | null }) =>
 export function LoginForm({
   next,
   loginLinkEnabled,
+  initialCodeStep = false,
 }: {
   next: string | null;
   loginLinkEnabled: boolean;
+  /** A two-factor sign-in is pending in this browser (page reloaded during the code step). */
+  initialCodeStep?: boolean;
 }) {
   const t = useTranslations('account');
   const [state, action, pending] = useAccountAction(loginAction);
+  // The code step (admin accounts with two-factor) replaces the form until the user goes back.
+  const [dismissed, setDismissed] = useState<number | 'initial' | null>(null);
+  const [expired, setExpired] = useState(false);
+  const inCodeStep =
+    state.status === 'twoFactor' ? state.at !== dismissed : initialCodeStep && dismissed === null;
+  if (inCodeStep) {
+    return (
+      <TwoFactorStep
+        next={next}
+        onBack={(wasExpired) => {
+          setExpired(Boolean(wasExpired));
+          setDismissed(state.status === 'twoFactor' ? state.at : 'initial');
+        }}
+      />
+    );
+  }
   return (
     <ActionForm action={action} className="space-y-4" noValidate>
+      {expired && state.status !== 'error' && (
+        <Alert variant="destructive">
+          <AlertDescription>{t('login.twoFactor.errors.EXPIRED')}</AlertDescription>
+        </Alert>
+      )}
       <FormStatus state={state} />
       <NextField next={next} />
       <TextField

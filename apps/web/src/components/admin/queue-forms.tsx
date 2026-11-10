@@ -6,7 +6,7 @@ import {
   QUEUE_MODES,
   type QueueMode,
 } from '@tix/shared';
-import { useFormatter, useTranslations } from 'next-intl';
+import { useFormatter, useLocale, useTranslations } from 'next-intl';
 import { useActionState, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -230,11 +230,72 @@ export interface AnnouncementRow {
   severity: (typeof ANNOUNCEMENT_SEVERITIES)[number];
   publishedAt: string;
   expiresAt: string | null;
+  translations: Record<string, Record<string, string> | undefined>;
   expire: Action;
+  edit: Action;
 }
 
-export function Announcements({ create, items }: { create: Action; items: AnnouncementRow[] }) {
+function AnnouncementEditor({
+  row,
+  translationLocales,
+}: {
+  row: AnnouncementRow;
+  translationLocales: string[];
+}) {
   const t = useTranslations('admin.queue.announcements');
+  const tr = useTranslations('translations.announcement');
+  const uiLocale = useLocale();
+  const [state, formAction] = useActionState(row.edit, IDLE);
+  const names = new Intl.DisplayNames([uiLocale], { type: 'language' });
+  return (
+    <details className="mt-2 text-sm">
+      <summary className="cursor-pointer text-muted-foreground">{tr('edit')}</summary>
+      <ActionForm action={formAction} className="mt-2 space-y-3">
+        <ActionFeedback state={state} />
+        <Field label={t('message')} htmlFor={`e-${row.id}`} error={errorOf(state, 'message')}>
+          <Textarea
+            id={`e-${row.id}`}
+            name="message"
+            rows={2}
+            maxLength={1000}
+            defaultValue={row.message}
+            required
+          />
+        </Field>
+        {translationLocales.map((l) => (
+          <Field
+            key={l}
+            label={tr('label', { language: names.of(l) ?? l })}
+            htmlFor={`e-${row.id}-${l}`}
+          >
+            <Textarea
+              id={`e-${row.id}-${l}`}
+              name={`translation:${l}`}
+              rows={2}
+              maxLength={1000}
+              defaultValue={row.translations[l]?.message ?? ''}
+            />
+          </Field>
+        ))}
+        <SubmitButton>{tr('save')}</SubmitButton>
+      </ActionForm>
+    </details>
+  );
+}
+
+export function Announcements({
+  create,
+  items,
+  translationLocales = [],
+}: {
+  create: Action;
+  items: AnnouncementRow[];
+  /** Languages besides the shop default the message can be translated into. */
+  translationLocales?: string[];
+}) {
+  const t = useTranslations('admin.queue.announcements');
+  const tr = useTranslations('translations.announcement');
+  const uiLocale = useLocale();
   const format = useFormatter();
   const [state, formAction] = useActionState(create, IDLE);
   const now = Date.now();
@@ -245,6 +306,17 @@ export function Announcements({ create, items }: { create: Action; items: Announ
         <Field label={t('message')} htmlFor="a-message" error={errorOf(state, 'message')}>
           <Textarea id="a-message" name="message" rows={2} maxLength={1000} required />
         </Field>
+        {translationLocales.map((l) => (
+          <Field
+            key={l}
+            label={tr('label', {
+              language: new Intl.DisplayNames([uiLocale], { type: 'language' }).of(l) ?? l,
+            })}
+            htmlFor={`a-message-${l}`}
+          >
+            <Textarea id={`a-message-${l}`} name={`translation:${l}`} rows={2} maxLength={1000} />
+          </Field>
+        ))}
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <Field label={t('severity')} htmlFor="a-severity">
             <NativeSelect id="a-severity" name="severity" defaultValue="INFO">
@@ -287,7 +359,12 @@ export function Announcements({ create, items }: { create: Action; items: Announ
               const active = !a.expiresAt || new Date(a.expiresAt).getTime() > now;
               return (
                 <TableRow key={a.id}>
-                  <TableCell className="max-w-md whitespace-normal">{a.message}</TableCell>
+                  <TableCell className="max-w-md whitespace-normal">
+                    {a.message}
+                    {active && (
+                      <AnnouncementEditor row={a} translationLocales={translationLocales} />
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={

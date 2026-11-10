@@ -8,3 +8,4 @@ export * from './banking';
 export * from './templates';
 export * from './checkin';
 export * from './relations';
+export * from './retained';

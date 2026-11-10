@@ -1,3 +1,4 @@
+import { getSetting } from '@tix/core';
 import { getTranslations } from 'next-intl/server';
 import { hasLocale } from 'next-intl';
 import { routing } from '@/i18n/routing';
@@ -7,6 +8,7 @@ import {
   parseTransactionFilters,
 } from '@/server/admin/banking-queries';
 import { adminForApi } from '@/server/auth';
+import { getCore } from '@/server/core';
 import { apiError, handle } from '@/server/http';
 
 export const dynamic = 'force-dynamic';
@@ -69,7 +71,14 @@ export async function GET(request: Request) {
         .join(';'),
     );
     const body = `﻿${[header.map(cell).join(';'), ...lines].join('\r\n')}\r\n`;
-    const date = new Date().toISOString().slice(0, 10);
+    // Calendar date in the shop time zone (UTC would show yesterday just after midnight).
+    const { defaultTimeZone } = await getSetting(getCore(), 'general');
+    const date = new Intl.DateTimeFormat('en-CA', {
+      timeZone: defaultTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
     return new Response(body, {
       headers: {
         'content-type': 'text/csv; charset=utf-8',

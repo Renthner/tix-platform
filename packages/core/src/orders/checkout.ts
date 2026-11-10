@@ -4,6 +4,7 @@ import {
   customers,
   isUniqueViolation,
   orderFees,
+  orderAdjustments,
   orderHistory,
   orderItems,
   orders,
@@ -13,9 +14,7 @@ import {
 } from '@tix/db';
 import {
   INVENTORY_HOLDING_ITEM_STATUSES,
-  addPaymentDays,
   buildPaymentReference,
-  endOfDayInZone,
   type CheckoutInput,
   type OrderStatus,
 } from '@tix/shared';
@@ -29,8 +28,8 @@ import { nextNumber } from '../numbering';
 import { publishSeatDelta } from '../realtime';
 import { getSetting } from '../settings';
 import { orderAccessToken } from './access';
-import { resolveCancelDays } from './cancel-terms';
 import { mirrorSeats } from './fulfillment';
+import { computeBankTransferTerms } from './payment-terms';
 import { quoteForMethod, type CheckoutQuote } from './pricing';
 
 /**
@@ -105,7 +104,11 @@ export async function placeOrder(ctx: CoreContext, params: PlaceOrderParams): Pr
     throw new DomainError('ADDRESS_REQUIRED', 'Please enter your billing address', 422);
   }
 
-  const { quote, events: eventRows, maps } = await quoteForMethod(ctx, sessionId, input.method);
+  const {
+    quote,
+    events: eventRows,
+    maps,
+  } = await quoteForMethod(ctx, sessionId, input.method, input.locale);
   const accountsOffered = customerAccountsOffered(accountSettings, [...eventRows.values()]);
   if (accountsOffered && !accountSettings.guestCheckoutEnabled && !params.account) {
     throw new DomainError('LOGIN_REQUIRED', 'Please sign in to complete your order', 401);
@@ -228,6 +231,41 @@ type CreatedOrder = Omit<PlacedOrder, 'accessToken' | 'locale'> & {
   emailMessageId: string | null;
 };
 
+/**
+ * Standing areas: claims the capacity of the quoted GA items in the DB (authoritative
+ * counter, one conditional UPDATE per section). Returns the claimed spots per event/section.
+ */
+export async function claimStandingCapacity(
+  tx: Transaction,
+  quote: Pick<CheckoutQuote, 'events'>,
+): Promise<Map<string, Record<string, number>>> {
+  const gaByEvent = new Map<string, Record<string, number>>();
+  for (const quoted of quote.events) {
+    const sections: Record<string, number> = {};
+    for (const item of quoted.items) {
+      if (item.kind === 'GENERAL_ADMISSION')
+        sections[item.sectionId] = (sections[item.sectionId] ?? 0) + 1;
+    }
+    for (const [sectionId, n] of Object.entries(sections)) {
+      const updated = await tx
+        .update(seatMapSections)
+        .set({ allocatedCount: sql`${seatMapSections.allocatedCount} + ${n}` })
+        .where(
+          and(
+            eq(seatMapSections.id, sectionId),
+            sql`${seatMapSections.allocatedCount} + ${n} <= coalesce(${seatMapSections.capacity}, 0)`,
+          ),
+        )
+        .returning({ id: seatMapSections.id });
+      if (updated.length === 0) {
+        throw new DomainError('SECTION_SOLD_OUT', 'Not enough spots left in this area', 409);
+      }
+    }
+    if (Object.keys(sections).length > 0) gaByEvent.set(quoted.eventId, sections);
+  }
+  return gaByEvent;
+}
+
 async function createOrderRows(
   ctx: CoreContext,
   tx: Transaction,
@@ -324,30 +362,7 @@ async function createOrderRows(
   }
 
   // Standing areas: claim capacity in the DB (authoritative counter).
-  const gaByEvent = new Map<string, Record<string, number>>();
-  for (const quoted of c.quote.events) {
-    const sections: Record<string, number> = {};
-    for (const item of quoted.items) {
-      if (item.kind === 'GENERAL_ADMISSION')
-        sections[item.sectionId] = (sections[item.sectionId] ?? 0) + 1;
-    }
-    for (const [sectionId, n] of Object.entries(sections)) {
-      const updated = await tx
-        .update(seatMapSections)
-        .set({ allocatedCount: sql`${seatMapSections.allocatedCount} + ${n}` })
-        .where(
-          and(
-            eq(seatMapSections.id, sectionId),
-            sql`${seatMapSections.allocatedCount} + ${n} <= coalesce(${seatMapSections.capacity}, 0)`,
-          ),
-        )
-        .returning({ id: seatMapSections.id });
-      if (updated.length === 0) {
-        throw new DomainError('SECTION_SOLD_OUT', 'Not enough spots left in this area', 409);
-      }
-    }
-    if (Object.keys(sections).length > 0) gaByEvent.set(quoted.eventId, sections);
-  }
+  const gaByEvent = await claimStandingCapacity(tx, c.quote);
 
   // Payment terms.
   const [general, invoicing, bank] = await Promise.all([
@@ -357,44 +372,32 @@ async function createOrderRows(
   ]);
   const timeZone = general.defaultTimeZone;
   const eventList = [...c.eventRows.values()];
-  const firstEventStart = Math.min(...eventList.map((e) => e.startsAt.getTime()));
-  // Vorkasse terms: event override ?? global; a multi-event order uses the strictest value.
-  const strictest = (pick: (e: (typeof eventList)[number]) => number | null, global: number) =>
-    Math.min(...eventList.map((e) => pick(e) ?? global));
-  const termDays = strictest((e) => e.bankTransferPaymentTermDays, bank.paymentTermDays);
-  const reminderDays = strictest((e) => e.bankTransferReminderAfterDays, bank.reminderAfterDays);
-  const cancelDays = resolveCancelDays(eventList, bank.cancelAfterDays, termDays);
-  const capAtEvent = (d: Date) => new Date(Math.min(d.getTime(), firstEventStart));
   const isBankTransfer = input.method === 'BANK_TRANSFER';
-  const dayOptions = {
-    businessDaysOnly: bank.countBusinessDaysOnly,
-    state: bank.holidayRegion,
-    timeZone,
-  };
   let paymentReference: string | null = null;
   let paymentDueAt: Date | null = null;
   let nextReminderAt: Date | null = null;
   let autoCancelAt: Date | null = null;
   if (isBankTransfer) {
     const year = Number(new Intl.DateTimeFormat('en', { timeZone, year: 'numeric' }).format(now));
-    paymentReference = buildPaymentReference(
-      bank.paymentReferencePrefix,
-      year,
-      String(randomInt(10 ** (REFERENCE_DIGITS - 1), 10 ** REFERENCE_DIGITS)),
-    );
-    paymentDueAt = capAtEvent(endOfDayInZone(addPaymentDays(now, termDays, dayOptions), timeZone));
-    if (cancelDays !== null) {
-      autoCancelAt = capAtEvent(
-        endOfDayInZone(addPaymentDays(now, cancelDays, dayOptions), timeZone),
+    // References are unique across orders AND additional payments (order_adjustments).
+    for (let n = 0; n < 8; n += 1) {
+      paymentReference = buildPaymentReference(
+        bank.paymentReferencePrefix,
+        year,
+        String(randomInt(10 ** (REFERENCE_DIGITS - 1), 10 ** REFERENCE_DIGITS)),
       );
+      const [clash] = await tx
+        .select({ id: orderAdjustments.id })
+        .from(orderAdjustments)
+        .where(eq(orderAdjustments.paymentReference, paymentReference));
+      if (!clash) break;
     }
-    // Reminder on the morning after day X (end of day X + 9 h ≈ 09:00 local time). It must fall
-    // before the auto-cancel (if any) or, without auto-cancel, before the event starts.
-    const reminder = new Date(
-      endOfDayInZone(addPaymentDays(now, reminderDays, dayOptions), timeZone).getTime() +
-        9 * 3600_000,
-    );
-    nextReminderAt = reminder < (autoCancelAt ?? new Date(firstEventStart)) ? reminder : null;
+    ({ paymentDueAt, nextReminderAt, autoCancelAt } = computeBankTransferTerms({
+      bank,
+      timeZone,
+      events: eventList,
+      now,
+    }));
   }
   const free = c.quote.totalGross === 0;
   const status: OrderStatus = free ? 'PAID' : isBankTransfer ? 'AWAITING_PAYMENT' : 'PENDING';
@@ -518,19 +521,28 @@ async function createOrderRows(
  * company of a customer account are never overwritten by checkout input. A newly entered
  * phone / address wins (the invoice needs them) but stored values are never blanked out.
  */
-async function upsertCustomer(tx: Transaction, input: CheckoutInput): Promise<string> {
+export async function upsertCustomer(
+  tx: Transaction,
+  input: Pick<
+    CheckoutInput,
+    'email' | 'firstName' | 'lastName' | 'company' | 'phone' | 'address' | 'locale'
+  >,
+  /** Box office: stored locale / company are kept when the seller leaves them empty or differs. */
+  options: { keepStored?: boolean } = {},
+): Promise<string> {
+  const keep = options.keepStored === true;
   const address = input.address ? JSON.stringify(input.address) : null;
   const result = await tx.execute<{ id: string }>(sql`
     INSERT INTO ${customers} (email, first_name, last_name, company, phone, address, locale)
     VALUES (${input.email}, ${input.firstName}, ${input.lastName}, ${input.company ?? null},
             ${input.phone ?? null}, ${address}::jsonb, ${input.locale})
     ON CONFLICT ((lower(email))) DO UPDATE SET
-      first_name = CASE WHEN ${customers.passwordHash} IS NULL THEN EXCLUDED.first_name ELSE ${customers.firstName} END,
-      last_name  = CASE WHEN ${customers.passwordHash} IS NULL THEN EXCLUDED.last_name ELSE ${customers.lastName} END,
-      company    = CASE WHEN ${customers.passwordHash} IS NULL THEN EXCLUDED.company ELSE ${customers.company} END,
+      first_name = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(NULLIF(EXCLUDED.first_name, ''), ${customers.firstName}) ELSE ${customers.firstName} END,
+      last_name  = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(NULLIF(EXCLUDED.last_name, ''), ${customers.lastName}) ELSE ${customers.lastName} END,
+      company    = CASE WHEN ${customers.passwordHash} IS NULL THEN (CASE WHEN ${keep}::boolean THEN COALESCE(NULLIF(EXCLUDED.company, ''), ${customers.company}) ELSE EXCLUDED.company END) ELSE ${customers.company} END,
       phone      = COALESCE(EXCLUDED.phone, ${customers.phone}),
       address    = COALESCE(EXCLUDED.address, ${customers.address}),
-      locale     = EXCLUDED.locale,
+      locale     = CASE WHEN ${keep}::boolean THEN COALESCE(${customers.locale}, EXCLUDED.locale) ELSE EXCLUDED.locale END,
       updated_at = now()
     RETURNING id`);
   const id = result.rows[0]?.id;

@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { Link, redirect } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
+import { getAdminSession, readPendingAdminLogin } from '@/server/auth';
 import { getCustomerSession } from '@/server/customer-session';
 import { LoginForm } from '../_components/auth-forms';
 import { AuthCard, searchParam, withNext } from '../_components/auth-card';
@@ -22,6 +23,8 @@ export default async function CustomerLoginPage({
   const locale = await resolveLocale(params);
   const next = safeReturnPath(searchParam(await searchParams, 'next'));
   if (await getCustomerSession()) redirect({ href: next ?? '/account', locale });
+  if (await getAdminSession()) redirect({ href: next ?? '/', locale });
+  const pendingTwoFactor = (await readPendingAdminLogin()) !== null;
   const [t, settings] = await Promise.all([
     getTranslations('account'),
     getSetting(getCore(), 'customerAccounts'),
@@ -49,7 +52,11 @@ export default async function CustomerLoginPage({
         </>
       }
     >
-      <LoginForm next={next} loginLinkEnabled={settings.loginLinkEnabled} />
+      <LoginForm
+        next={next}
+        loginLinkEnabled={settings.loginLinkEnabled}
+        initialCodeStep={pendingTwoFactor}
+      />
     </AuthCard>
   );
 }

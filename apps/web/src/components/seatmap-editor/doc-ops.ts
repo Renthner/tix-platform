@@ -103,6 +103,7 @@ export function newSection(
     isActive: true,
     showNameOnMap: true,
     showLabelOnTicket: true,
+    translations: {},
   };
 }
 
@@ -120,6 +121,7 @@ export function newElement(
     geometry,
     style: extra.style ?? {},
     assetId: null,
+    translations: {},
     zIndex: doc.elements.reduce((m, e) => Math.max(m, e.zIndex), 0) + 1,
   };
 }
@@ -132,6 +134,7 @@ export function newEntrance(name: string, code: string, p: Point, doc: Doc): Doc
     x: round2(p.x),
     y: round2(p.y),
     sortOrder: doc.entrances.length + 1,
+    translations: {},
   };
 }
 

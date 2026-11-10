@@ -1,9 +1,10 @@
-import { orderHistory, orders } from '@tix/db';
-import { and, asc, eq, lte, sql } from 'drizzle-orm';
+import { orderAdjustments, orderHistory, orders } from '@tix/db';
+import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
 import type { CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
-import { reconcilePayPalOrder } from '../payments/paypal';
+import { reconcileAdjustmentPayPal, reconcilePayPalOrder } from '../payments/paypal';
 import { getSetting } from '../settings';
+import { OPEN_ADJUSTMENT_STATUSES, sendAdjustmentReminders } from './adjustments';
 import { cancelOrder } from './fulfillment';
 
 /**
@@ -17,6 +18,8 @@ import { cancelOrder } from './fulfillment';
  *     (partial payment → manual review in the admin).
  *  3. PayPal expiry: PENDING PayPal orders older than the approval window are checked at
  *     PayPal first (approved → captured), otherwise EXPIRED and their seats released.
+ *  4. Additional payments (tariff changes): open PayPal attempts are reconciled and one reminder
+ *     is sent after `bankTransfer.adjustmentReminderDays`. Never cancelled automatically.
  */
 
 const BATCH = 200;
@@ -25,13 +28,20 @@ const PAYPAL_FORCE_EXPIRE_MS = 24 * 3600 * 1000;
 
 export interface DunningResult {
   reminded: number;
+  adjustmentsReminded: number;
   cancelled: number;
   expired: number;
   errors: number;
 }
 
 export async function runDunning(ctx: CoreContext, now = new Date()): Promise<DunningResult> {
-  const result: DunningResult = { reminded: 0, cancelled: 0, expired: 0, errors: 0 };
+  const result: DunningResult = {
+    reminded: 0,
+    adjustmentsReminded: 0,
+    cancelled: 0,
+    expired: 0,
+    errors: 0,
+  };
   const report = (scope: string, orderId: string, err: unknown) => {
     result.errors += 1;
     console.error(`[dunning] ${scope} failed for order ${orderId}`, err);
@@ -148,6 +158,33 @@ export async function runDunning(ctx: CoreContext, now = new Date()): Promise<Du
     } catch (err) {
       report('paypal-expiry', order.id, err);
     }
+  }
+
+  // 4. Additional payments: PayPal reconciliation, then the single reminder.
+  const openAdjustments = await ctx.db
+    .select({ id: orderAdjustments.id })
+    .from(orderAdjustments)
+    .where(
+      and(
+        inArray(orderAdjustments.status, [...OPEN_ADJUSTMENT_STATUSES]),
+        // Only those with a PayPal attempt in flight: the rest has nothing to reconcile, so a
+        // large backlog cannot starve the ones that do.
+        sql`exists (select 1 from payments p where p.adjustment_id = ${orderAdjustments.id} and p.method = 'PAYPAL' and p.status in ('CREATED','APPROVED'))`,
+      ),
+    )
+    .orderBy(asc(orderAdjustments.updatedAt))
+    .limit(BATCH);
+  for (const { id } of openAdjustments) {
+    try {
+      await reconcileAdjustmentPayPal(ctx, id, now);
+    } catch (err) {
+      report('adjustment-paypal', id, err);
+    }
+  }
+  try {
+    result.adjustmentsReminded = await sendAdjustmentReminders(ctx, now);
+  } catch (err) {
+    report('adjustment-reminder', 'all', err);
   }
   return result;
 }

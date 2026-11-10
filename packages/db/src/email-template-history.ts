@@ -67,7 +67,12 @@ export const PREVIOUS_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly str
     '91714505ac78e34458ceb2c9aa9a9cadb8c83784e9d089bb63770967dfed8ec7',
   ],
   'ORDER_CANCELLED|de': ['951c6b844fb1858a25e541259bf99c54c36819ca780e573dd4030b2ced7d6a0e'],
-  'REFUND_CONFIRMATION|de': ['1a1c5d169e5e587f3c7f7f25bc09b0f270cfd3ec34b7adf40700b2fd5c9f6226'],
+  // Phase 4 text: one generic sentence (replaced by the PayPal / manual-transfer variants).
+  'REFUND_CONFIRMATION|en': ['92a61fbef9353fe73f170c19e3fe830444bcee3f07bd23616b7559e59a197e96'],
+  'REFUND_CONFIRMATION|de': [
+    '1a1c5d169e5e587f3c7f7f25bc09b0f270cfd3ec34b7adf40700b2fd5c9f6226',
+    'e22dc64700bbeeed9e9f9f0eab49ed36ea422596550fa817f04d8161c1ae2f77',
+  ],
   'CUSTOMER_EMAIL_VERIFICATION|de': [
     'ecff97e8ab454b04c2d8758294068bd913ac967041ff52a084ef4c3d45bc7522',
   ],

@@ -415,7 +415,7 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
     expect(jobs.add).toHaveBeenCalledWith(
       'documents',
       'order-paid',
-      { orderId: order!.id },
+      { orderId: order!.id, paidCycle: 0 },
       { jobId: `order-paid-${order!.id}` },
     );
   });

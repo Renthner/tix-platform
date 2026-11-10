@@ -44,6 +44,8 @@ export interface StoredEmailRequest {
   /** Files attached when the message was sent (delivery log). */
   /** The tickets PDF was left out because the message would exceed the maximum mail size. */
   ticketsOmitted?: boolean;
+  /** Set when the stored variables were erased (retention / GDPR): the message cannot be re-sent. */
+  purgedAt?: string;
   sentFiles?: { fileName: string; contentType: string; size: number }[];
 }
 
@@ -97,7 +99,7 @@ export async function createEmailMessage(
       .from(orders)
       .where(eq(orders.id, request.orderId));
     if (!order) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
-    to = order.email;
+    to = order.email ?? undefined;
   }
   if (!to && request.customerId) {
     const [customer] = await db

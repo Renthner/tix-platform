@@ -493,7 +493,9 @@ export function EmailTemplateEditor({
                     ? t('preview.testSent', { to: testResult.to })
                     : testResult.code === 'invalid'
                       ? t('preview.testInvalid')
-                      : t('preview.testFailed', { message: testResult.message ?? '' })}
+                      : testResult.code === 'notConfigured'
+                        ? t('preview.testNotConfigured')
+                        : t('preview.testFailed', { message: testResult.message ?? '' })}
                 </AlertDescription>
               </Alert>
             )}

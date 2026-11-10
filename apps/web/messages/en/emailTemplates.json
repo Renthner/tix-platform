@@ -55,6 +55,34 @@
     "SMTP_TEST": {
       "name": "SMTP test message",
       "description": "Sent by “Send test e-mail” in the e-mail settings."
+    },
+    "ADMIN_INVITE": {
+      "name": "Admin portal: invitation",
+      "description": "Invitation with a one-time link to set the password."
+    },
+    "ADMIN_PASSWORD_RESET": {
+      "name": "Admin portal: reset password",
+      "description": "Link to choose a new admin password."
+    },
+    "ADDITIONAL_PAYMENT_REQUEST": {
+      "name": "Additional payment request",
+      "description": "Sent when an admin changes tickets to a higher tariff: old and new price, link to confirm and pay."
+    },
+    "ADDITIONAL_PAYMENT_REMINDER": {
+      "name": "Additional payment reminder",
+      "description": "One reminder for an unpaid tariff-change request."
+    },
+    "ADDITIONAL_PAYMENT_CANCELLED": {
+      "name": "Additional payment withdrawn",
+      "description": "Sent when a tariff-change request is cancelled: nothing has to be paid."
+    },
+    "ADDITIONAL_PAYMENT_RECEIVED": {
+      "name": "Additional payment received",
+      "description": "Sent when an additional payment (tariff change) is booked: amount received, old and new tariff per ticket, explanation of the invoice correction, new invoice and new tickets attached."
+    },
+    "ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT": {
+      "name": "Tariff changed – settled with credit",
+      "description": "Sent when a tariff change is settled completely with an overpayment the customer already made: nothing to pay, old and new tariff per ticket, invoice correction and new tickets attached."
     }
   },
   "page": {
@@ -116,7 +144,8 @@
       "order": "Order",
       "tickets": "Tickets",
       "account": "Account links",
-      "smtpTest": "Test"
+      "smtpTest": "Test",
+      "adjustment": "Additional payment"
     }
   },
   "preview": {
@@ -132,6 +161,7 @@
     "testSent": "Test e-mail sent to {to}.",
     "testFailed": "The test e-mail could not be sent: {message}",
     "testInvalid": "The template cannot be sent yet. Fix the errors first.",
+    "testNotConfigured": "SMTP is not configured yet. Set it up under Settings → E-mail first.",
     "emptyText": "The plain-text version is generated from the HTML when the e-mail is sent."
   },
   "issues": {

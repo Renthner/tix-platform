@@ -107,6 +107,6 @@ export function onConnectionChange(listener: (connected: boolean) => void): () =
   return () => state.statusListeners.delete(listener);
 }
 
-export function emitRealtime(event: 'shop:ping', payload: string): void {
+export function emitRealtime(event: 'shop:ping' | 'presence:beat', payload: string): void {
   if (state.socket?.connected) state.socket.emit(event, payload);
 }

@@ -1,5 +1,6 @@
 import 'server-only';
 import {
+  adminUsers,
   bankAccounts,
   bankConnections,
   bankStatementImports,
@@ -227,7 +228,7 @@ export interface CandidateOrder {
   orderNumber: string;
   status: string;
   name: string;
-  email: string;
+  email: string | null;
   paymentReference: string | null;
   totalGross: number;
   amountPaid: number;
@@ -280,6 +281,8 @@ export interface AllocationView {
   note: string | null;
   createdAt: Date;
   reversedAt: Date | null;
+  reversedBy: string | null;
+  reversalReason: string | null;
 }
 
 async function allocationsFor(transactionIds: string[]): Promise<Map<string, AllocationView[]>> {
@@ -297,9 +300,12 @@ async function allocationsFor(transactionIds: string[]): Promise<Map<string, All
       note: bankTransactionAllocations.note,
       createdAt: bankTransactionAllocations.createdAt,
       reversedAt: bankTransactionAllocations.reversedAt,
+      reversedBy: adminUsers.displayName,
+      reversalReason: bankTransactionAllocations.reversalReason,
     })
     .from(bankTransactionAllocations)
     .innerJoin(orders, eq(orders.id, bankTransactionAllocations.orderId))
+    .leftJoin(adminUsers, eq(adminUsers.id, bankTransactionAllocations.reversedByUserId))
     .where(inArray(bankTransactionAllocations.bankTransactionId, transactionIds))
     .orderBy(bankTransactionAllocations.createdAt);
   for (const { transactionId, ...rest } of rows) {
@@ -507,6 +513,9 @@ export function toReviewCaseView(rc: ReviewCase): ReviewCaseView {
       method: a.method,
       note: a.note,
       reversed: a.reversedAt !== null,
+      reversedAt: a.reversedAt?.toISOString() ?? null,
+      reversedBy: a.reversedBy,
+      reversalReason: a.reversalReason,
     })),
     unassigned: rc.unassigned,
   };

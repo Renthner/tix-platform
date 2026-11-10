@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import {
   createDb,
   customerSessions,
+  customerTokens,
   customers,
   emailMessages,
   events,
@@ -128,7 +129,13 @@ describe.skipIf(!adminUrl || !redisUrl)('customer accounts (integration)', () =>
       locale: 'en',
     });
     const mail = await lastMail(email);
-    const { customerId } = await verifyCustomerEmail(ctx, tokenOf(mail.variables.verificationUrl));
+    // Confirmed from the registrant's own signed-in browser (otherwise the password is dropped).
+    const auth = await authenticateCustomer(ctx, { email, password });
+    const own = await createCustomerSession(ctx, auth.customerId);
+    const { customerId } = await verifyCustomerEmail(ctx, tokenOf(mail.variables.verificationUrl), {
+      sessionToken: own.token,
+    });
+    await revokeCustomerSession(ctx, own.token);
     return customerId;
   }
 
@@ -240,7 +247,12 @@ describe.skipIf(!adminUrl || !redisUrl)('customer accounts (integration)', () =>
     expect(resolved).toMatchObject({ customerId, emailVerified: false, hasPassword: true });
 
     const token = tokenOf(mail.variables.verificationUrl);
-    expect(await verifyCustomerEmail(ctx, token)).toEqual({ customerId, alreadyVerified: false });
+    // The registrant confirms in the browser they are signed in with: password and session stay.
+    expect(await verifyCustomerEmail(ctx, token, { sessionToken: session.token })).toEqual({
+      customerId,
+      alreadyVerified: false,
+      passwordCleared: false,
+    });
     // Opened again (or by a mail scanner first): still a success.
     expect(await verifyCustomerEmail(ctx, token)).toEqual({ customerId, alreadyVerified: true });
     await expectCode(verifyCustomerEmail(ctx, 'A'.repeat(43)), 'TOKEN_INVALID');
@@ -368,6 +380,26 @@ describe.skipIf(!adminUrl || !redisUrl)('customer accounts (integration)', () =>
       passwordCleared: false,
     });
     expect(await authenticateCustomer(ctx, { email, password: PASSWORD })).toEqual({ customerId });
+  });
+
+  it('gives login links their own lifetime, independent of password reset links', async () => {
+    const email = `ttl-${randomUUID().slice(0, 8)}@example.com`;
+    const customerId = await verifiedAccount(email);
+    await setAccounts({ passwordResetTtlMinutes: 120, loginLinkTtlMinutes: 10 });
+    try {
+      await requestLoginLink(ctx, { email, locale: 'en' });
+      const [link] = await handle.db
+        .select()
+        .from(customerTokens)
+        .where(eq(customerTokens.customerId, customerId))
+        .orderBy(sql`created_at desc`)
+        .limit(1);
+      expect(link!.purpose).toBe('LOGIN_LINK');
+      const minutes = (link!.expiresAt.getTime() - link!.createdAt.getTime()) / 60_000;
+      expect(Math.round(minutes)).toBe(10);
+    } finally {
+      await setAccounts({});
+    }
   });
 
   it('resets the password, revoking every session and the link itself', async () => {

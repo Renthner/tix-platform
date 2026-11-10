@@ -14,6 +14,12 @@
     "fees": "Fees",
     "feeQuantity": "{name} ({quantity} ×)",
     "total": "Total",
+    "refunded": "Refunded",
+    "remaining": "Remaining",
+    "additionalPayment": "Additional payment",
+    "priceDifference": "Price difference",
+    "creditApplied": "Credited from your earlier payment",
+    "remainingToPay": "Still to pay",
     "doorsOpen": "Doors open {time}"
   },
   "invoice": {
@@ -31,6 +37,7 @@
     "creditNoteHeading": "Credit note {number}",
     "intro": "Thank you for your order. We invoice you for the following services:",
     "creditNoteIntro": "We credit you the following amounts:",
+    "correctionIntro": "This credit note corrects invoice {invoice} and cancels it in full. The invoiced services are shown again on the new invoice; no money is paid back.",
     "position": "Pos.",
     "description": "Description",
     "quantity": "Qty",
@@ -48,10 +55,15 @@
     "page": "Page {page} of {pages}",
     "notes": {
       "serviceDate": "Unless stated otherwise, the date of supply is the invoice date.",
-      "paid": "Paid in full on {date} via {method}. Thank you!"
+      "paid": "Paid in full on {date} via {method}. Thank you!",
+      "paidAdditional": "Previously paid: {previous}. Additional payment: {additional} (received {date}, {method}). The invoice total of {total} is paid in full; nothing is due.",
+      "paidByCredit": "Previously paid: {previous} (including the overpayment of {credit}, which was credited against the tariff change). The invoice total of {total} is paid in full; nothing is due.",
+      "paidAdditionalCredit": "Previously paid: {previous} (including the overpayment of {credit}, which was credited against the tariff change). Additional payment: {additional} (received {date}, {method}). The invoice total of {total} is paid in full; nothing is due.",
+      "overpaymentLeft": "A further overpayment of {amount} remains with the order."
     },
     "fileName": "Invoice-{number}.pdf",
-    "creditNoteFileName": "Credit-note-{number}.pdf"
+    "creditNoteFileName": "Credit-note-{number}.pdf",
+    "anonymousBuyer": "Walk-in customer"
   },
   "ticket": {
     "date": "Date",

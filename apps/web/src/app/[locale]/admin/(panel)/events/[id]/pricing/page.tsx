@@ -1,4 +1,6 @@
 import { getTranslations } from 'next-intl/server';
+import { EventTranslationPane } from '@/components/admin/event-translation-pane';
+import { getEditLocale } from '@/server/admin/edit-locale';
 import { notFound } from 'next/navigation';
 import { PricingManager } from '@/components/admin/pricing-manager';
 import { resolveLocale } from '@/i18n/locale';
@@ -28,6 +30,10 @@ export default async function EventPricingPage({
   const row = await getEventWithVenue(id);
   if (!row) notFound();
   const { event } = row;
+  const editLocale = await getEditLocale();
+  if (editLocale) {
+    return <EventTranslationPane eventId={event.id} scope="pricing" editLocale={editLocale} />;
+  }
   const { categories, types, matrix } = await getPricing(event.id);
 
   return (

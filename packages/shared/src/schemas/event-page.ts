@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { INFO_BOX_SIZES, type InfoBoxSize } from '../enums';
+import { translationsSchema } from '../translations';
 
 /** Info box on the event page, e.g. "Accepted proofs of reduction" or accessibility notes. */
 export const eventInfoBoxSchema = z
@@ -14,6 +15,8 @@ export const eventInfoBoxSchema = z
     textSize: z.enum(INFO_BOX_SIZES).optional(),
     /** Icon size; absent = M. */
     iconSize: z.enum(INFO_BOX_SIZES).optional(),
+    /** Translations of `title` / `content` per locale (see `translations.ts`). */
+    translations: translationsSchema.optional(),
   })
   .strict();
 export type EventInfoBox = z.infer<typeof eventInfoBoxSchema>;

@@ -1,25 +1,30 @@
-import type { CoreContext } from '@tix/core';
+import type { BackupRuntime, CoreContext } from '@tix/core';
 import type { Database } from '@tix/db';
 import { QUEUE_NAMES, type QueueName } from '@tix/redis';
 import type { Job } from 'bullmq';
 import type { Logger } from '../logger';
+import { backupsRegistration, withMaintenancePause } from './backups';
 import { bankSyncRegistration } from './bank-sync';
 import { documentsRegistration } from './documents';
 import { DUNNING_INTERVAL_MS, DUNNING_JOBS, createDunningProcessor } from './dunning';
 import { emailRegistration } from './email';
+import { privacyRegistration } from './privacy';
+import { refundsRegistration } from './refunds';
 import { MAINTENANCE_JOBS, PURGE_INTERVAL_MS, createMaintenanceProcessor } from './maintenance';
 
 export interface WorkerDeps {
   core: CoreContext;
   db: Database;
   logger: Logger;
+  /** Backup / restore runtime (pg tools, buckets, key ring). */
+  backups: BackupRuntime;
 }
 
 /** One BullMQ consumer: queue, processor, concurrency and optional repeatable jobs. */
 export interface ProcessorRegistration {
   queue: QueueName;
   concurrency: number;
-  processor: (job: Job) => Promise<unknown>;
+  processor: (job: Job, token?: string) => Promise<unknown>;
   /** Repeatable jobs (job scheduler id = job name). */
   schedulers?: { name: string; everyMs: number; data?: Record<string, unknown> }[];
 }
@@ -29,7 +34,8 @@ export interface ProcessorRegistration {
  * module (documents, e-mail, bank sync, dunning …) – keep additions to a single line here.
  */
 export function processorRegistrations(deps: WorkerDeps): ProcessorRegistration[] {
-  return [
+  // Every queue except `backups` pauses while a restore holds the maintenance flag.
+  return withMaintenancePause(deps, [
     {
       queue: QUEUE_NAMES.maintenance,
       concurrency: 1,
@@ -45,5 +51,8 @@ export function processorRegistrations(deps: WorkerDeps): ProcessorRegistration[
     documentsRegistration(deps),
     emailRegistration(deps),
     bankSyncRegistration(deps),
-  ];
+    refundsRegistration(deps),
+    privacyRegistration(deps),
+    backupsRegistration(deps.backups),
+  ]);
 }

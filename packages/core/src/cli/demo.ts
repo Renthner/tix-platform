@@ -59,6 +59,7 @@ function buildTemplate(version: number, symbols: SymbolIds): SeatMapDocument {
     isActive: true,
     showNameOnMap: true,
     showLabelOnTicket: true,
+    translations: {},
   };
   sections.push(
     {
@@ -172,6 +173,7 @@ function buildTemplate(version: number, symbols: SymbolIds): SeatMapDocument {
     canvasWidth: 1600,
     canvasHeight: 1100,
     backgroundAssetId: null,
+    categories: [],
     settings: {
       gridSize: 10,
       snapToGrid: true,
@@ -180,7 +182,17 @@ function buildTemplate(version: number, symbols: SymbolIds): SeatMapDocument {
       backgroundOpacity: 0.35,
       defaultSeatSymbolId: symbols.get('seat-theatre') ?? null,
     },
-    entrances: [{ id: entrance, name: 'Main entrance', code: 'A', x: 700, y: 1080, sortOrder: 0 }],
+    entrances: [
+      {
+        id: entrance,
+        name: 'Main entrance',
+        code: 'A',
+        x: 700,
+        y: 1080,
+        sortOrder: 0,
+        translations: {},
+      },
+    ],
     sections,
     rows,
     elements: [
@@ -200,6 +212,7 @@ function buildTemplate(version: number, symbols: SymbolIds): SeatMapDocument {
         },
         style: {},
         assetId: null,
+        translations: {},
         zIndex: 0,
       },
       {
@@ -212,6 +225,7 @@ function buildTemplate(version: number, symbols: SymbolIds): SeatMapDocument {
           ? { symbolId: symbols.get('icon-exit')!, symbolSize: 26 }
           : {},
         assetId: null,
+        translations: {},
         zIndex: 1,
       },
       ...(['icon-bar', 'icon-wc'] as const).map((key, i) => ({
@@ -224,6 +238,7 @@ function buildTemplate(version: number, symbols: SymbolIds): SeatMapDocument {
           ? { symbolId: symbols.get(key)!, symbolSize: 30 }
           : { icon: key === 'icon-bar' ? '🍸' : 'WC' },
         assetId: null,
+        translations: {},
         zIndex: 2,
       })),
     ],

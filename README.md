@@ -16,12 +16,14 @@ Every business parameter (prices, fees, tax rates, layouts, templates, credentia
 rules, branding) is configured in the Admin Portal – nothing organisation-specific is
 hard-coded.
 
-> **Status:** Phase 4 of 6 – seating plan editor, seat locking, multi-event cart, virtual
+> **Status:** Phase 5 of 6 – seating plan editor, seat locking, multi-event cart, virtual
 > waiting room, checkout (PayPal + bank transfer), bank reconciliation (FinTS, finAPI,
 > camt/MT940/CSV, IMAP), invoices, signed QR tickets (PDF designer, Apple/Google Wallet) and
-> an e-mail template editor. Admin completion and box office follow in phase 5.
-> See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATABASE.md](docs/DATABASE.md),
-> [docs/REDIS.md](docs/REDIS.md) and [docs/TICKETS.md](docs/TICKETS.md).
+> an e-mail template editor, refunds and credit notes, box office, admin users with 2FA,
+> customer management (GDPR), backups and accounting exports. The Android check-in app follows
+> in phase 6. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATABASE.md](docs/DATABASE.md),
+> [docs/REDIS.md](docs/REDIS.md), [docs/TICKETS.md](docs/TICKETS.md), [docs/BACKUP.md](docs/BACKUP.md)
+> and [docs/ACCOUNTING.md](docs/ACCOUNTING.md).
 
 ## Requirements
 

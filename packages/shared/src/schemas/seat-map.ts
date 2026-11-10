@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { translationsSchema } from '../translations';
 import { SEAT_ORIENTATION_MODES, SPECIAL_SEAT_LABEL_MODES } from '../enums';
 import { hexColorSchema } from './common';
 
@@ -164,6 +165,8 @@ export const seatMapSettingsSchema = z
     /** How wheelchair spaces and companion seats are labelled on the plan. */
     wheelchairLabel: specialSeatLabelSchema.optional(),
     companionLabel: specialSeatLabelSchema.optional(),
+    /** Translations of the short wheelchair / companion label texts. */
+    translations: translationsSchema.optional(),
   })
   .strict();
 export type SeatMapSettings = z.infer<typeof seatMapSettingsSchema>;

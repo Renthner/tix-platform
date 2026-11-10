@@ -16,11 +16,19 @@ import '../globals.css';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const general = await getSetting(getCore(), 'general');
+  const core = getCore();
+  const [general, branding] = await Promise.all([
+    getSetting(core, 'general'),
+    getSetting(core, 'branding'),
+  ]);
   const t = await getTranslations('common');
   return {
     title: { default: general.shopName, template: `%s · ${general.shopName}` },
     description: t('meta.description'),
+    // Shop and admin portal; the asset id in the URL busts caches when the favicon changes.
+    icons: {
+      icon: branding.faviconAssetId ? `/api/media/${branding.faviconAssetId}` : '/icon.svg',
+    },
   };
 }
 
