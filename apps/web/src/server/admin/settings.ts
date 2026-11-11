@@ -9,6 +9,7 @@ import {
   saveSetting,
   sendTestEmail,
 } from '@tix/core';
+import { SCAN_RESULT_COLOR_KEYS } from '@tix/shared';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
@@ -273,6 +274,9 @@ async function readInput(
           syncIntervalSeconds: requiredInt(fd, 'syncIntervalSeconds', errors),
           pairingCodeTtlMinutes: requiredInt(fd, 'pairingCodeTtlMinutes', errors),
           serverUrl: text(fd, 'serverUrl'),
+          resultColors: Object.fromEntries(
+            SCAN_RESULT_COLOR_KEYS.map((k) => [k, text(fd, `resultColors.${k}`)]),
+          ),
         },
       };
     case 'customerAccounts':

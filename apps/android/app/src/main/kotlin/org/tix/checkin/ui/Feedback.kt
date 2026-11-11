@@ -45,6 +45,14 @@ class Feedback(context: Context) {
         }
     }
 
+    /** Neutral information (e.g. "ticket not synced yet"): one soft beep and a short tick, no alarm tone. */
+    fun playInfo(sound: Boolean, vibrate: Boolean) {
+        if (sound) tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+        if (vibrate && vibrator?.hasVibrator() == true) {
+            vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 40), -1))
+        }
+    }
+
     fun release() {
         tone?.release()
     }

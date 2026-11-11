@@ -93,7 +93,58 @@ class LocalScanAuthorityTest {
         assertTrue(stub.provisional)
         assertTrue(stub.localDirty)
         assertEquals(ScanResult.REJECTED_ALREADY_CHECKED_IN, scan(7).result)
-        assertEquals(ScanResult.REJECTED_UNKNOWN_TICKET, scan(8, ScanAction.CHECK_OUT).result)
+    }
+
+    // ─── offline box-office ticket (sold after the last sync) ───
+
+    @Test
+    fun `box office ticket sold after the last sync is admitted offline - box office payload shape (GA seat info, long seat info)`() {
+        for ((n, seat) in listOf(11 to "GA:", 12 to "GA:Stalls", 13 to "|", 14 to "Balcony Left Extra Wide|Row AAAAAAAAAA|Seat 1234567890")) {
+            val v = scan(n, payload = TestKeys.payload(ticketId(n), seatInfo = seat))
+            assertEquals(ScanResult.ACCEPTED, v.result, seat)
+            assertTrue(v.provisional, seat)
+            assertEquals(ScanColor.GREEN, v.color)
+        }
+        assertEquals(4, db.journal.size)
+    }
+
+    @Test
+    fun `key missing in the manifest is an invalid signature, never an unknown ticket`() {
+        // first ticket of an event created after the last manifest: the key is not known yet
+        assertEquals(ScanResult.REJECTED_INVALID_SIGNATURE, scan(9, payload = TestKeys.payload(ticketId(9), keyId = "k2")).result)
+    }
+
+    @Test
+    fun `check-out of a validly signed but unsynced ticket is an info notice, not recorded`() {
+        val v = scan(8, ScanAction.CHECK_OUT)
+        assertNull(v.result)
+        assertEquals(VerdictNotice.NOT_SYNCED_CHECK_OUT, v.notice)
+        assertTrue(v.notice!!.isInfo)
+        assertTrue(db.journal.isEmpty())
+        assertTrue(db.tickets.isEmpty())
+        // check-in of the same ticket is still admitted (the toggle only changes the answer for this ticket)
+        assertEquals(ScanResult.ACCEPTED, scan(8).result)
+    }
+
+    @Test
+    fun `check-out of an unsynced ticket with a bad signature stays red`() {
+        assertEquals(ScanResult.REJECTED_INVALID_SIGNATURE, scan(8, ScanAction.CHECK_OUT, TestKeys.payload(ticketId(8), signWith = TestKeys.otherSeed)).result)
+    }
+
+    @Test
+    fun `manual scan of a ticket this device does not know is an info notice, not recorded`() {
+        for (action in ScanAction.entries) {
+            val v = runBlocking { coordinator.scanTicket(ticketId(99), EVENT_A, action) }
+            assertEquals(VerdictNotice.NOT_IN_OFFLINE_LIST, v.notice)
+            assertNull(v.result)
+        }
+        assertTrue(db.journal.isEmpty())
+    }
+
+    @Test
+    fun `manual scan by ticket code that is not in the local list is an info notice`() {
+        val v = runBlocking { LocalScanAuthority({ cfg }, db).scan(ScanCommand("c1", EVENT_A, ScanAction.CHECK_IN, ScanSource.MANUAL, ticketCode = "ZZZZZZZZZZ", scannedAtMillis = 1L)) }
+        assertEquals(VerdictNotice.NOT_IN_OFFLINE_LIST, v.notice)
     }
 
     @Test
@@ -169,7 +220,6 @@ class LocalScanAuthorityTest {
         val v = runBlocking { coordinator.scanTicket(ticketId(1), EVENT_A, ScanAction.CHECK_IN) }
         assertEquals(ScanResult.ACCEPTED, v.result)
         assertEquals(ScanSource.MANUAL, db.journal.single().source)
-        assertEquals(ScanResult.REJECTED_UNKNOWN_TICKET, runBlocking { coordinator.scanTicket(ticketId(99), EVENT_A, ScanAction.CHECK_IN) }.result)
     }
 
     @Test
@@ -288,6 +338,40 @@ class FallbackAuthorityTest {
         assertTrue(System.currentTimeMillis() - started < 2_000)
         assertEquals(DecidedBy.LOCAL, v.decidedBy)
         assertEquals(ScanResult.ACCEPTED, v.result)
+    }
+
+    @Test
+    fun `unsynced box office ticket is admitted when the server is unreachable (timeout, network error, link down)`() {
+        api.scanHandler = { throw NetworkException("airplane mode") }
+        val first = scan(21)
+        assertEquals(ScanResult.ACCEPTED, first.result)
+        assertEquals(DecidedBy.LOCAL, first.decidedBy)
+        assertTrue(first.provisional)
+        // link is down now: no server attempt at all
+        assertEquals(ScanResult.ACCEPTED, scan(22).result)
+        // slow server
+        usable = true
+        api.scanHandler = { delay(5_000); error("never") }
+        assertEquals(ScanResult.ACCEPTED, scan(23).result)
+    }
+
+    @Test
+    fun `an offline check-out of an unsynced ticket gives the info notice through the fallback chain`() {
+        usable = false
+        val v = runBlocking { coordinator.scanCode(TestKeys.payload(ticketId(24)), ScanAction.CHECK_OUT, EVENT_A) }
+        assertEquals(VerdictNotice.NOT_SYNCED_CHECK_OUT, v.notice)
+        assertTrue(db.journal.isEmpty())
+    }
+
+    @Test
+    fun `a LAN master that cannot decide falls back to the local notice`() {
+        val lan = object : ScanAuthority {
+            override suspend fun scan(command: ScanCommand): ScanVerdict = throw NetworkException("master says: no decision")
+        }
+        usable = false
+        val a = FallbackScanAuthority(server, local, link, db, lan)
+        val v = runBlocking { ScanCoordinator(a, { cfg }, FixedClock()).scanCode(TestKeys.payload(ticketId(25)), ScanAction.CHECK_OUT, EVENT_A) }
+        assertEquals(VerdictNotice.NOT_SYNCED_CHECK_OUT, v.notice)
     }
 
     @Test

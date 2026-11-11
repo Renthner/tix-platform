@@ -288,8 +288,8 @@ export function ScannerDevices({
         </TableHeader>
         <TableBody>
           {devices.map((device) => (
-            <TableRow key={device.id} className={device.isActive ? undefined : 'opacity-60'}>
-              <TableCell>
+            <TableRow key={device.id}>
+              <TableCell className={device.isActive ? undefined : 'opacity-60'}>
                 <div className="font-medium">{device.name}</div>
                 {device.deviceModel ? (
                   <div className="text-xs text-muted-foreground">{device.deviceModel}</div>
@@ -344,7 +344,7 @@ export function ScannerDevices({
                   ) : (
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="destructive"
                       size="sm"
                       onClick={() => setDeleting(device.id)}
                     >

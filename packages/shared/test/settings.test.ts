@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { PUBLIC_SETTING_KEYS, SETTINGS, defaultSetting, parseSetting } from '../src';
+import {
+  PUBLIC_SETTING_KEYS,
+  SETTINGS,
+  defaultSetting,
+  parseSetting,
+  readableTextColor,
+  scanResultColor,
+} from '../src';
 
 describe('settings registry', () => {
   it('every non-secret setting has a complete, valid default', () => {
@@ -71,5 +78,42 @@ describe('settings registry', () => {
       allowCheckOut: true,
       syncIntervalSeconds: 30,
     });
+  });
+
+  it('parses scanner result colours with defaults and validates hex', () => {
+    const defaults = {
+      accepted: '#16A34A',
+      rejected: '#DC2626',
+      discountProof: '#FACC15',
+      seatFeature: '#14B8A6',
+      wrongEntrance: '#2563EB',
+      additionalPaymentOpen: '#F97316',
+    };
+    expect(parseSetting('scanner', {}).resultColors).toEqual(defaults);
+    expect(
+      parseSetting('scanner', { resultColors: { seatFeature: '#00FF00' } }).resultColors,
+    ).toEqual({
+      ...defaults,
+      seatFeature: '#00FF00',
+    });
+    expect(() => parseSetting('scanner', { resultColors: { accepted: 'green' } })).toThrow();
+  });
+
+  it('picks the screen colour by warning priority and readable text colour', () => {
+    const colors = parseSetting('scanner', {}).resultColors;
+    expect(scanResultColor('REJECTED_TICKET_VOID', [], colors)).toBe(colors.rejected);
+    expect(scanResultColor('ACCEPTED', [], colors)).toBe(colors.accepted);
+    expect(
+      scanResultColor('ACCEPTED_WITH_WARNING', ['SEAT_FEATURE', 'ADDITIONAL_PAYMENT_OPEN'], colors),
+    ).toBe(colors.additionalPaymentOpen);
+    expect(
+      scanResultColor(
+        'ACCEPTED_WITH_WARNING',
+        ['SEAT_FEATURE', 'WRONG_ENTRANCE', 'DISCOUNT_PROOF_REQUIRED'],
+        colors,
+      ),
+    ).toBe(colors.discountProof);
+    expect(readableTextColor('#FACC15')).toBe('#000000');
+    expect(readableTextColor('#2563EB')).toBe('#FFFFFF');
   });
 });

@@ -2,6 +2,7 @@ package org.tix.checkin.ui
 
 import android.content.Context
 import android.text.format.DateFormat
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import java.util.Date
 import org.tix.checkin.R
@@ -17,6 +18,8 @@ import org.tix.checkin.core.scan.VerdictNotice
 fun verdictHeadline(v: ScanVerdict): Int = when {
     v.notice == VerdictNotice.OFFLINE_NOT_ALLOWED -> R.string.verdict_offline_not_allowed
     v.notice == VerdictNotice.EVENT_NOT_ASSIGNED -> R.string.result_wrong_event
+    v.notice == VerdictNotice.NOT_SYNCED_CHECK_OUT -> R.string.result_not_synced_check_out
+    v.notice == VerdictNotice.NOT_IN_OFFLINE_LIST -> R.string.result_not_in_offline_list
     else -> resultHeadline(v.result, v.action)
 }
 
@@ -45,6 +48,16 @@ fun warningText(context: Context, v: ScanVerdict, w: ScanWarning): String {
         ScanWarning.ADDITIONAL_PAYMENT_OPEN -> context.getString(R.string.warning_additional_payment)
         ScanWarning.UNKNOWN -> context.getString(R.string.warning_other)
     }
+}
+
+/** One distinct icon per warning type (vector drawables, tinted to the text colour of the background). */
+@DrawableRes
+fun warningIcon(w: ScanWarning): Int = when (w) {
+    ScanWarning.DISCOUNT_PROOF_REQUIRED -> R.drawable.ic_warn_proof
+    ScanWarning.WRONG_ENTRANCE -> R.drawable.ic_warn_entrance
+    ScanWarning.SEAT_FEATURE -> R.drawable.ic_warn_seat_feature
+    ScanWarning.ADDITIONAL_PAYMENT_OPEN -> R.drawable.ic_warn_payment
+    ScanWarning.UNKNOWN -> R.drawable.ic_warn_generic
 }
 
 @StringRes

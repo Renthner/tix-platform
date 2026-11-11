@@ -1,5 +1,10 @@
-import { getCheckInStats, listScanLog, listScanLogDevices } from '@tix/core';
-import { SCAN_RESULTS, type ScanResult } from '@tix/shared';
+import { getCheckInStats, getSetting, listScanLog, listScanLogDevices } from '@tix/core';
+import {
+  SCAN_RESULTS,
+  SCAN_WARNING_COLOR_KEY,
+  readableTextColor,
+  scanResultColor,
+} from '@tix/shared';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,12 +30,6 @@ export interface CheckInFilters {
 
 const PAGE_SIZE = 50;
 
-function resultVariant(result: ScanResult): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (result === 'ACCEPTED') return 'default';
-  if (result === 'ACCEPTED_WITH_WARNING') return 'secondary';
-  return 'destructive';
-}
-
 /** Live check-in statistics and the filterable scan journal of one event. */
 export async function CheckInPanel({
   eventId,
@@ -47,11 +46,13 @@ export async function CheckInPanel({
   const result = SCAN_RESULTS.find((r) => r === filters.result);
   const deviceId = /^[0-9a-f-]{36}$/i.test(filters.device ?? '') ? filters.device : undefined;
   const page = Math.max(1, Number.parseInt(filters.page ?? '1', 10) || 1);
-  const [stats, log, devices] = await Promise.all([
+  const [stats, log, devices, scannerSettings] = await Promise.all([
     getCheckInStats(core, eventId),
     listScanLog(core, { eventId, result, deviceId, page, pageSize: PAGE_SIZE }),
     listScanLogDevices(core, eventId),
+    getSetting(core, 'scanner'),
   ]);
+  const colors = scannerSettings.resultColors;
   const pages = Math.max(1, Math.ceil(log.total / PAGE_SIZE));
   const percent = stats.valid > 0 ? Math.round((stats.checkedIn / stats.valid) * 100) : 0;
   const dateTime = (d: Date) => format.dateTime(d, { dateStyle: 'short', timeStyle: 'medium' });
@@ -210,17 +211,36 @@ export async function CheckInPanel({
                       : '–'}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={resultVariant(entry.result)}>
-                      {t(`results.${entry.result}`)}
-                    </Badge>
+                    {(() => {
+                      const bg = scanResultColor(entry.result, entry.warnings, colors);
+                      return (
+                        <Badge
+                          className="border-transparent"
+                          style={{ backgroundColor: bg, color: readableTextColor(bg) }}
+                        >
+                          {t(`results.${entry.result}`)}
+                        </Badge>
+                      );
+                    })()}
                     {entry.message === 'DUPLICATE_ENTRY' ? (
                       <Badge variant="outline" className="ml-1">
                         {t('log.duplicateEntry')}
                       </Badge>
                     ) : null}
                     {entry.warnings.length > 0 ? (
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {entry.warnings.map((w) => t(`warnings.${w}`)).join(', ')}
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {entry.warnings.map((w) => {
+                          const bg = colors[SCAN_WARNING_COLOR_KEY[w]];
+                          return (
+                            <Badge
+                              key={w}
+                              className="border-transparent text-[11px]"
+                              style={{ backgroundColor: bg, color: readableTextColor(bg) }}
+                            >
+                              {t(`warnings.${w}`)}
+                            </Badge>
+                          );
+                        })}
                       </span>
                     ) : null}
                   </TableCell>

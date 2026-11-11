@@ -9,7 +9,7 @@ import {
   ticketTypes,
   venues,
 } from '@tix/db';
-import { SCANNER_API_VERSION, type Manifest } from '@tix/shared';
+import { SCANNER_API_VERSION, SCAN_WARNING_PRIORITY, type Manifest } from '@tix/shared';
 import { generateToken } from '@tix/shared/server';
 import { asc, eq } from 'drizzle-orm';
 import { requireCapability, type CoreContext } from '../context';
@@ -159,6 +159,8 @@ export async function buildManifest(
       offlineModeAllowed: settings.offlineModeAllowed,
       lanSyncEnabled: settings.lanSyncEnabled,
       syncIntervalSeconds: settings.syncIntervalSeconds,
+      resultColors: settings.resultColors,
+      warningPriority: [...SCAN_WARNING_PRIORITY],
     },
     events: manifestEvents,
   };

@@ -78,6 +78,29 @@ sealed interface UpdateUi {
     data object ServerUrlMissing : UpdateUi
 }
 
+/** Why an in-app update stopped (each has its own text in the settings screen). */
+enum class UpdateFailure {
+    HASH_MISSING, HASH_MISMATCH, NETWORK, HTTP, TOO_LARGE, STORAGE, URL_REFUSED, NOT_A_VALID_UPDATE,
+    SIGNATURE, USER_CANCELLED, BLOCKED, INVALID, OTHER,
+}
+
+/** State of the in-app update (download + system installer), separate from "is there a newer version". */
+sealed interface InstallUi {
+    data object Idle : InstallUi
+
+    /** Scans were not uploaded yet: offer "sync first" before installing. */
+    data class UnsentScans(val count: Int) : InstallUi
+
+    /** "Install unknown apps" is not allowed for this app yet: guide the operator to the system setting. */
+    data object NeedInstallPermission : InstallUi
+    data class Downloading(val read: Long, val total: Long) : InstallUi
+    data object Syncing : InstallUi
+
+    /** Handed to the system installer; waiting for the operator's confirmation there. */
+    data object Installing : InstallUi
+    data class Failed(val reason: UpdateFailure, val detail: String? = null) : InstallUi
+}
+
 class LookupResult(val rows: List<TicketRow>, val fromServer: Boolean)
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -157,6 +180,11 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
     fun setLanManual(text: String) = settings.setLanManual(text)
     fun isValidLanManual(text: String) = c.lan.isValidManual(text)
 
+    /** Screen colours + warning priority from the manifest (defaults until the first manifest with them). */
+    val resultPalette: StateFlow<org.tix.checkin.core.scan.ResultPalette> = c.dao.deviceConfigFlow()
+        .map { org.tix.checkin.core.scan.ResultPalette.fromJson(it?.resultStyleJson) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, org.tix.checkin.core.scan.ResultPalette.DEFAULT)
+
     val mode = MutableStateFlow(ScanAction.CHECK_IN)
     private val _verdict = MutableStateFlow<VerdictUi?>(null)
     val verdict: StateFlow<VerdictUi?> = _verdict
@@ -200,7 +228,12 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
 
     private fun show(v: ScanVerdict) {
         _verdict.value = VerdictUi(++verdictSeq, v)
-        c.feedback.play(v.color, settings.sound.value, settings.vibrate.value)
+        if (v.notice?.isInfo == true) {
+            c.feedback.playInfo(settings.sound.value, settings.vibrate.value)
+        } else {
+            // One tone/pattern per ScanColor: every warning colour on screen keeps the (yellow) warning tone.
+            c.feedback.play(v.color, settings.sound.value, settings.vibrate.value)
+        }
         // An offline decision is journaled: make sure it is uploaded as soon as a network exists.
         if (v.decidedBy != DecidedBy.SERVER && v.notice == null) SyncScheduler.uploadSoon(app)
     }
@@ -346,6 +379,139 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
      * address policy (https, or http in the local network only): the link is not opened.
      */
     fun downloadUrl(info: AppLatest): String? = DownloadUrl.resolve(config.value?.serverUrl.orEmpty(), info.downloadUrl)
+
+    // ─── in-app update ───
+
+    private val _install = MutableStateFlow<InstallUi>(InstallUi.Idle)
+    val install: StateFlow<InstallUi> = _install
+    private val downloader = org.tix.checkin.update.ApkDownloader(app.cacheDir)
+    private var updateJob: kotlinx.coroutines.Job? = null
+    private var updateInfo: AppLatest? = null
+    private var unsentWarned = false
+
+    init {
+        viewModelScope.launch {
+            org.tix.checkin.update.ApkInstaller.results.collect { r ->
+                if (_install.value !is InstallUi.Installing) return@collect
+                if (r.status == android.content.pm.PackageInstaller.STATUS_SUCCESS) {
+                    _install.value = InstallUi.Idle
+                } else {
+                    _install.value = InstallUi.Failed(
+                        when (org.tix.checkin.core.ApkUpdate.installFailure(r.status)) {
+                            org.tix.checkin.core.ApkUpdate.InstallFailure.SIGNATURE -> UpdateFailure.SIGNATURE
+                            org.tix.checkin.core.ApkUpdate.InstallFailure.USER_CANCELLED -> UpdateFailure.USER_CANCELLED
+                            org.tix.checkin.core.ApkUpdate.InstallFailure.STORAGE -> UpdateFailure.STORAGE
+                            org.tix.checkin.core.ApkUpdate.InstallFailure.BLOCKED -> UpdateFailure.BLOCKED
+                            org.tix.checkin.core.ApkUpdate.InstallFailure.INVALID -> UpdateFailure.INVALID
+                            org.tix.checkin.core.ApkUpdate.InstallFailure.OTHER -> UpdateFailure.OTHER
+                        },
+                        r.message,
+                    )
+                }
+                downloader.clean()
+            }
+        }
+    }
+
+    /** "Update now": unsent-scan warning, install permission, download + verify, system installer. */
+    fun startUpdate(info: AppLatest) {
+        if (updateJob?.isActive == true) return
+        updateInfo = info
+        unsentWarned = false
+        proceedUpdate(info)
+    }
+
+    private fun proceedUpdate(info: AppLatest) {
+        val unsent = pendingCount.value
+        if (org.tix.checkin.core.ApkUpdate.gate(unsent, unsentWarned) == org.tix.checkin.core.ApkUpdate.Gate.WARN_UNSENT_SCANS) {
+            _install.value = InstallUi.UnsentScans(unsent)
+            return
+        }
+        if (!org.tix.checkin.update.ApkInstaller.canInstall(app)) {
+            _install.value = InstallUi.NeedInstallPermission
+            return
+        }
+        val url = downloadUrl(info)
+        if (url == null) {
+            _install.value = InstallUi.Failed(UpdateFailure.URL_REFUSED)
+            return
+        }
+        _install.value = InstallUi.Downloading(0, info.sizeBytes)
+        updateJob = viewModelScope.launch {
+            try {
+                val file = downloader.download(url, info.sha256, info.sizeBytes) { read, total ->
+                    _install.value = InstallUi.Downloading(read, total)
+                }
+                if (!isValidUpdate(file)) {
+                    downloader.clean()
+                    _install.value = InstallUi.Failed(UpdateFailure.NOT_A_VALID_UPDATE)
+                    return@launch
+                }
+                _install.value = InstallUi.Installing
+                withContext(Dispatchers.IO) { org.tix.checkin.update.ApkInstaller.install(app, file) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                downloader.clean()
+                _install.value = InstallUi.Idle
+                throw e
+            } catch (e: org.tix.checkin.update.UpdateException) {
+                _install.value = InstallUi.Failed(
+                    when (e.kind) {
+                        org.tix.checkin.update.UpdateException.Kind.HASH_MISSING -> UpdateFailure.HASH_MISSING
+                        org.tix.checkin.update.UpdateException.Kind.HASH_MISMATCH -> UpdateFailure.HASH_MISMATCH
+                        org.tix.checkin.update.UpdateException.Kind.NETWORK -> UpdateFailure.NETWORK
+                        org.tix.checkin.update.UpdateException.Kind.HTTP -> UpdateFailure.HTTP
+                        org.tix.checkin.update.UpdateException.Kind.TOO_LARGE -> UpdateFailure.TOO_LARGE
+                        org.tix.checkin.update.UpdateException.Kind.STORAGE -> UpdateFailure.STORAGE
+                        org.tix.checkin.update.UpdateException.Kind.URL_REFUSED -> UpdateFailure.URL_REFUSED
+                    },
+                    e.message,
+                )
+            } catch (e: Exception) {
+                downloader.clean()
+                _install.value = InstallUi.Failed(UpdateFailure.OTHER, e.message)
+            }
+        }
+    }
+
+    /** The downloaded file must be an APK of this app with a higher version code (cheap guard before the installer). */
+    private suspend fun isValidUpdate(file: java.io.File): Boolean = withContext(Dispatchers.IO) {
+        val info = app.packageManager.getPackageArchiveInfo(file.absolutePath, 0) ?: return@withContext false
+        info.packageName == app.packageName &&
+            androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(info) > org.tix.checkin.BuildConfig.VERSION_CODE
+    }
+
+    /** "Upload first": syncs, then continues the update when nothing is pending any more. */
+    fun syncThenUpdate() {
+        val info = updateInfo ?: return
+        _install.value = InstallUi.Syncing
+        updateJob = viewModelScope.launch {
+            c.sync.syncOnce()
+            // Still unsent after the sync (no network?): the operator decides again ("install anyway").
+            if (pendingCount.value == 0) proceedUpdate(info) else _install.value = InstallUi.UnsentScans(pendingCount.value)
+        }
+    }
+
+    fun installAnyway() {
+        val info = updateInfo ?: return
+        unsentWarned = true
+        proceedUpdate(info)
+    }
+
+    /** Back from the system "Install unknown apps" page: continue when it is allowed now. */
+    fun onResumedFromSettings() {
+        val info = updateInfo ?: return
+        if (_install.value is InstallUi.NeedInstallPermission && org.tix.checkin.update.ApkInstaller.canInstall(app)) {
+            proceedUpdate(info)
+        }
+    }
+
+    /** Cancels the download (or dismisses a message); partial files are deleted. */
+    fun cancelUpdate() {
+        updateJob?.cancel()
+        updateJob = null
+        downloader.clean()
+        _install.value = InstallUi.Idle
+    }
 
     companion object {
         fun factory(app: Application) = object : ViewModelProvider.Factory {

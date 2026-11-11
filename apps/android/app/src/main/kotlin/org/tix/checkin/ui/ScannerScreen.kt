@@ -1,7 +1,14 @@
 package org.tix.checkin.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.painterResource
+import org.tix.checkin.core.scan.ResultStyle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +50,8 @@ import org.tix.checkin.core.scan.ScanVerdict
 import org.tix.checkin.core.scan.seatText
 import org.tix.checkin.sync.Connection
 
+/** Neutral information screen (ticket not synced yet ...): not an alarm colour. */
+private val InfoBg = Color(0xFF475569)
 private val GreenBg = Color(0xFF1B8E3E)
 private val YellowBg = Color(0xFFF2B600)
 internal val RedBg = Color(0xFFC62828)
@@ -151,11 +160,16 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
         delay((if (v.color == ScanColor.GREEN) greenSeconds else alertSeconds) * 1000L)
         vm.dismissVerdict(ui.seq)
     }
-    val fg = resultForeground(v.color)
-    // Bars stay visible (edge to edge); their icons switch to dark on yellow, light on green/red,
+    val palette by vm.resultPalette.collectAsState()
+    // Information (not an alarm): neutral slate, no result colour. Otherwise the server's colours decide.
+    val info = v.notice?.isInfo == true
+    val style = if (info) ResultStyle(InfoBg.toArgb(), false, null, emptyList()) else palette.style(v.result, v.warnings)
+    val bg = Color(style.background)
+    val fg = if (style.darkContent) Color.Black else Color.White
+    // Bars stay visible (edge to edge); their icons follow the text colour (dark on light backgrounds)
     // and are restored when the result is dismissed.
     val view = LocalView.current
-    DisposableEffect(view, v.color) {
+    DisposableEffect(view, style.darkContent) {
         val window = (view.context as? android.app.Activity)?.window
         if (window == null) {
             onDispose { }
@@ -163,9 +177,8 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
             val controller = WindowCompat.getInsetsController(window, view)
             val prevStatus = controller.isAppearanceLightStatusBars
             val prevNav = controller.isAppearanceLightNavigationBars
-            val light = v.color == ScanColor.YELLOW
-            controller.isAppearanceLightStatusBars = light
-            controller.isAppearanceLightNavigationBars = light
+            controller.isAppearanceLightStatusBars = style.darkContent
+            controller.isAppearanceLightNavigationBars = style.darkContent
             onDispose {
                 controller.isAppearanceLightStatusBars = prevStatus
                 controller.isAppearanceLightNavigationBars = prevNav
@@ -173,7 +186,7 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
         }
     }
     Box(
-        Modifier.fillMaxSize().background(resultBackground(v.color)).clickable { vm.dismissVerdict(ui.seq) },
+        Modifier.fillMaxSize().background(bg).clickable { vm.dismissVerdict(ui.seq) },
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -181,26 +194,31 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                when (v.color) {
-                    ScanColor.GREEN -> "✓"
-                    ScanColor.YELLOW -> "!"
-                    ScanColor.RED -> "✕"
-                },
-                fontSize = 120.sp, fontWeight = FontWeight.Bold, color = fg,
-            )
+            val lead = style.lead
+            if (lead != null) {
+                Icon(painterResource(warningIcon(lead)), contentDescription = null, tint = fg, modifier = Modifier.size(120.dp))
+            } else {
+                Text(
+                    when {
+                        info -> "i"
+                        v.result?.isAccepted == true -> "✓"
+                        else -> "✕"
+                    },
+                    fontSize = 120.sp, fontWeight = FontWeight.Bold, color = fg,
+                )
+            }
             Text(
                 stringResource(verdictHeadline(v)),
                 fontSize = 34.sp, fontWeight = FontWeight.Bold, color = fg, textAlign = TextAlign.Center,
             )
-            ResultDetails(v, fg)
+            ResultDetails(v, style, fg)
             Text(stringResource(R.string.result_tap_dismiss), color = fg.copy(alpha = 0.75f), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
 
 @Composable
-private fun ResultDetails(v: ScanVerdict, fg: Color) {
+private fun ResultDetails(v: ScanVerdict, style: ResultStyle, fg: Color) {
     val context = LocalContext.current
     val t = v.ticket
     if (t != null) {
@@ -211,8 +229,22 @@ private fun ResultDetails(v: ScanVerdict, fg: Color) {
         val seat = seatText(t.sectionLabel, t.rowLabel, t.seatLabel)
         if (seat.isNotEmpty()) Text(seat, style = big, fontWeight = FontWeight.Bold, color = fg, textAlign = TextAlign.Center)
     }
-    for (w in v.warnings) {
-        Text("⚠ " + warningText(context, v, w), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = fg, textAlign = TextAlign.Center)
+    // The leading warning decided the screen colour: plain text. Every other warning is a chip in its own colour.
+    style.lead?.let { w ->
+        Text(warningText(context, v, w), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = fg, textAlign = TextAlign.Center)
+    }
+    for (chip in style.others) {
+        val chipFg = if (chip.darkContent) Color.Black else Color.White
+        // The outline in the screen's text colour keeps a chip visible when its colour is close to the background.
+        Surface(
+            color = Color(chip.color), contentColor = chipFg, shape = RoundedCornerShape(50),
+            border = BorderStroke(2.dp, fg),
+        ) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(painterResource(warningIcon(chip.warning)), contentDescription = null, tint = chipFg, modifier = Modifier.size(28.dp))
+                Text(warningText(context, v, chip.warning), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = chipFg)
+            }
+        }
     }
     if (v.result == org.tix.checkin.core.contract.ScanResult.REJECTED_ALREADY_CHECKED_IN) {
         v.firstScan?.let {

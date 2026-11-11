@@ -88,6 +88,20 @@ content hash; 304 when unchanged). Fetch on start, after pairing and every sync 
     "offlineModeAllowed": true,
     "lanSyncEnabled": true,
     "syncIntervalSeconds": 30,
+    "resultColors": {
+      "accepted": "#16A34A",
+      "rejected": "#DC2626",
+      "discountProof": "#FACC15",
+      "seatFeature": "#14B8A6",
+      "wrongEntrance": "#2563EB",
+      "additionalPaymentOpen": "#F97316",
+    },
+    "warningPriority": [
+      "DISCOUNT_PROOF_REQUIRED",
+      "WRONG_ENTRANCE",
+      "ADDITIONAL_PAYMENT_OPEN",
+      "SEAT_FEATURE",
+    ],
   },
   "events": [
     {
@@ -327,6 +341,28 @@ Warnings (CHECK_IN only, collected in this order, never block entry):
 | `WRONG_ENTRANCE`          | device entrance and the block's entrance are both set and differ  | app text                       |
 | `SEAT_FEATURE`            | seat is a wheelchair space / companion seat                       | app text (`seatFeature`)       |
 | `ADDITIONAL_PAYMENT_OPEN` | a tariff-change additional payment is open (PROPOSED / CONFIRMED) | app text                       |
+
+### Result colours
+
+The screen colours are admin settings (Settings -> Scanner -> Result colours) and are shipped in the
+manifest as `settings.resultColors` (hex `#RRGGBB`, additive field; the manifest `etag` changes with them).
+Defaults: `accepted` #16A34A (green), `rejected` #DC2626 (red), `discountProof` #FACC15 (yellow),
+`seatFeature` #14B8A6 (turquoise), `wrongEntrance` #2563EB (blue), `additionalPaymentOpen` #F97316 (orange).
+
+| Scan                        | Screen colour           |
+| --------------------------- | ----------------------- |
+| `REJECTED_*`                | `rejected`              |
+| `ACCEPTED` without warnings | `accepted`              |
+| `DISCOUNT_PROOF_REQUIRED`   | `discountProof`         |
+| `WRONG_ENTRANCE`            | `wrongEntrance`         |
+| `ADDITIONAL_PAYMENT_OPEN`   | `additionalPaymentOpen` |
+| `SEAT_FEATURE`              | `seatFeature`           |
+
+With several warnings the screen colour is that of the first warning in `settings.warningPriority`
+(`DISCOUNT_PROOF_REQUIRED` > `WRONG_ENTRANCE` > `ADDITIONAL_PAYMENT_OPEN` > `SEAT_FEATURE`); the other
+warnings are shown as chips in their own colour. The app must not hardcode the order or the colours (fall
+back to the defaults above only when the manifest lacks the fields, e.g. an old server). Text on a colour:
+black or white by luminance.
 
 Check-out is allowed when `scanner.allowCheckOut` AND the device's `allow_check_out` for the event.
 

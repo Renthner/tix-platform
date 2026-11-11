@@ -251,6 +251,17 @@ export const SCAN_WARNINGS = values(
 );
 export type ScanWarning = (typeof SCAN_WARNINGS)[number];
 
+/**
+ * Which warning decides the screen colour when a scan has several (first match wins); the other
+ * warnings are shown as chips in their own colour. Shipped in the scanner manifest.
+ */
+export const SCAN_WARNING_PRIORITY: readonly ScanWarning[] = [
+  'DISCOUNT_PROOF_REQUIRED',
+  'WRONG_ENTRANCE',
+  'ADDITIONAL_PAYMENT_OPEN',
+  'SEAT_FEATURE',
+];
+
 // ─── Banking & reconciliation ───────────────────────────────────────────────
 export const BANK_ADAPTERS = values(
   'FINTS',

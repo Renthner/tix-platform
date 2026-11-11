@@ -102,8 +102,24 @@ class ConfigSnapshot(
 /** SERVER = the server; LOCAL = this device alone; LAN = the LAN master device (upload still pending). */
 enum class DecidedBy { SERVER, LOCAL, LAN }
 
-/** Why a verdict carries no scan result (nothing was recorded). */
-enum class VerdictNotice { OFFLINE_NOT_ALLOWED, EVENT_NOT_ASSIGNED }
+/**
+ * Why a verdict carries no scan result (nothing was recorded). [NOT_SYNCED_CHECK_OUT] and [NOT_IN_OFFLINE_LIST] are
+ * information, not an alarm: the ticket may be perfectly valid, this device just cannot know yet.
+ */
+enum class VerdictNotice {
+    OFFLINE_NOT_ALLOWED,
+    EVENT_NOT_ASSIGNED,
+
+    /** Camera check-out of a validly signed ticket that is not in the local list (sold after the last sync). */
+    NOT_SYNCED_CHECK_OUT,
+
+    /** Manual scan of a ticket this device has no record of (code entry / server lookup result while offline). */
+    NOT_IN_OFFLINE_LIST,
+    ;
+
+    /** Shown in a neutral style with a soft tone instead of the red alarm. */
+    val isInfo: Boolean get() = this == NOT_SYNCED_CHECK_OUT || this == NOT_IN_OFFLINE_LIST
+}
 
 /** What the scanner UI shows after a scan. */
 data class ScanVerdict(

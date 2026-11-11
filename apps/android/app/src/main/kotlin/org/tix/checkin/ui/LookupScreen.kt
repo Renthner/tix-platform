@@ -79,7 +79,7 @@ fun LookupScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
                 stringResource(if (r.fromServer) R.string.lookup_source_server else R.string.lookup_source_local),
                 style = MaterialTheme.typography.bodySmall,
             )
-            if (r.rows.isEmpty()) Text(stringResource(R.string.lookup_empty))
+            if (r.rows.isEmpty()) Text(stringResource(if (r.fromServer) R.string.lookup_empty else R.string.lookup_empty_offline))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(r.rows, key = { it.id }) { t ->
                     Card(Modifier.fillMaxWidth().clickable { selected = t }) {

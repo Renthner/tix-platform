@@ -151,10 +151,14 @@ class LocalScanAuthority(
         // 3. Unknown ticket with a valid signature: it may have been sold after the last sync, so
         //    a check-in is admitted on the signature alone (uploaded and merged later).
         if (ticket == null) {
-            if (parsed == null || command.action != ScanAction.CHECK_IN) {
-                return rejected(cfg, command, ScanResult.REJECTED_UNKNOWN_TICKET, eventId, ticketId, ctx)
+            if (parsed != null && command.action == ScanAction.CHECK_IN) {
+                return admitProvisional(command, event, parsed, deviceName, entrance, lan)
             }
-            return admitProvisional(command, event, parsed, deviceName, entrance, lan)
+            // Not alarms and not recorded: the server re-decides every uploaded scan, so a journaled check-out of a
+            // ticket this device cannot see could wrongly check a guest out. The operator is told what to do instead.
+            if (parsed != null) return info(command, VerdictNotice.NOT_SYNCED_CHECK_OUT, decidedBy)
+            if (command.source == ScanSource.MANUAL) return info(command, VerdictNotice.NOT_IN_OFFLINE_LIST, decidedBy)
+            return rejected(cfg, command, ScanResult.REJECTED_UNKNOWN_TICKET, eventId, ticketId, ctx)
         }
 
         // 4. The decision table.
@@ -259,6 +263,14 @@ class LocalScanAuthority(
         }
         return Decided(ScanVerdict(command.clientScanId, command.action, result, result.color, decidedBy = decidedBy), entry, null, null)
     }
+
+    private fun info(command: ScanCommand, notice: VerdictNotice, decidedBy: DecidedBy) = Decided(
+        ScanVerdict(
+            command.clientScanId, command.action, result = null, color = ScanColor.RED,
+            decidedBy = decidedBy, notice = notice,
+        ),
+        null, null, null,
+    )
 
     private fun notAssigned(command: ScanCommand, decidedBy: DecidedBy) = Decided(
         ScanVerdict(

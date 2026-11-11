@@ -228,7 +228,21 @@
       "pairingCodeTtlMinutes": "Pairing code valid (minutes)",
       "pairingCodeTtlMinutesHint": "Lifetime of the QR code used to pair a device.",
       "serverUrl": "Server address for the app",
-      "serverUrlHint": "Address a phone can reach this server at, e.g. http://192.168.1.20:8080 on the venue network. Used in the pairing QR code and download links. Empty = public shop address (localhost does not work on phones)."
+      "serverUrlHint": "Address a phone can reach this server at, e.g. http://192.168.1.20:8080 on the venue network. Used in the pairing QR code and download links. Empty = public shop address (localhost does not work on phones).",
+      "resultColors": {
+        "title": "Result colours",
+        "hint": "Screen colour of the scan result. Reduced tariffs show the yellow; rarer hints have their own colour. If a ticket has several hints, the most important one decides the screen colour (reduction, wrong entrance, additional payment, wheelchair / companion); the others appear as chips.",
+        "labels": {
+          "accepted": "Valid",
+          "rejected": "Invalid",
+          "discountProof": "Reduction – check proof",
+          "seatFeature": "Wheelchair / companion",
+          "wrongEntrance": "Wrong entrance",
+          "additionalPaymentOpen": "Additional payment open"
+        },
+        "preview": "Preview",
+        "reset": "Reset to defaults"
+      }
     }
   },
   "verifyEmail": {

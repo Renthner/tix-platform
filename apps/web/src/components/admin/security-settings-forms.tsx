@@ -1,9 +1,17 @@
 'use client';
 
+import {
+  SCAN_RESULT_COLOR_KEYS,
+  defaultSetting,
+  readableTextColor,
+  type ScanResultColors,
+} from '@tix/shared';
 import { useTranslations } from 'next-intl';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ActionFeedback, ActionForm, Field, SubmitButton } from './form-controls';
-import { SwitchRow, useSettingsForm, type Action } from './settings-forms';
+import { ColorField, SwitchRow, useSettingsForm, type Action } from './settings-forms';
 
 /* Settings tabs "Security" (admin sessions, lockout, passwords, two-factor, links) and
  * "Scanner" (behaviour of the Android check-in app). */
@@ -133,6 +141,61 @@ export interface ScannerValues {
   syncIntervalSeconds: number;
   pairingCodeTtlMinutes: number;
   serverUrl?: string;
+  resultColors: ScanResultColors;
+}
+
+function ResultColorsCard({
+  initial,
+  err,
+}: {
+  initial: ScanResultColors;
+  err: ReturnType<typeof useSettingsForm>['err'];
+}) {
+  const t = useTranslations('adminSecurity.settings.scanner.resultColors');
+  const [colors, setColors] = useState<ScanResultColors>(initial);
+  return (
+    <section className="space-y-4 rounded-lg border p-4">
+      <div>
+        <h3 className="text-sm font-semibold">{t('title')}</h3>
+        <p className="text-xs text-muted-foreground">{t('hint')}</p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {SCAN_RESULT_COLOR_KEYS.map((key) => (
+          <ColorField
+            key={key}
+            name={`resultColors.${key}`}
+            label={t(`labels.${key}`)}
+            value={colors[key]}
+            onChange={(value) => setColors((c) => ({ ...c, [key]: value }))}
+            error={err(`resultColors.${key}`)}
+          />
+        ))}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3" aria-label={t('preview')}>
+        {SCAN_RESULT_COLOR_KEYS.map((key) => {
+          const valid = /^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/i.test(colors[key]);
+          const bg = valid ? colors[key] : '#FFFFFF';
+          return (
+            <div
+              key={key}
+              className="rounded-md border px-3 py-3 text-center text-sm font-semibold"
+              style={{ backgroundColor: bg, color: readableTextColor(bg) }}
+            >
+              {t(`labels.${key}`)}
+            </div>
+          );
+        })}
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setColors(defaultSetting('scanner').resultColors)}
+      >
+        {t('reset')}
+      </Button>
+    </section>
+  );
 }
 
 export function ScannerSettingsForm({
@@ -183,6 +246,7 @@ export function ScannerSettingsForm({
           defaultValue={initial.serverUrl ?? ''}
         />
       </Field>
+      <ResultColorsCard initial={initial.resultColors} err={err} />
       <div className="grid gap-4 md:grid-cols-2">
         <NumberField
           name="syncIntervalSeconds"

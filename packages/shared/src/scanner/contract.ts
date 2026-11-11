@@ -147,6 +147,17 @@ export const manifestSchema = z.object({
     offlineModeAllowed: z.boolean(),
     lanSyncEnabled: z.boolean(),
     syncIntervalSeconds: z.number().int(),
+    /** Screen colours (hex) per result / warning; see docs/SCANNER.md "Result colours". */
+    resultColors: z.object({
+      accepted: z.string(),
+      rejected: z.string(),
+      discountProof: z.string(),
+      seatFeature: z.string(),
+      wrongEntrance: z.string(),
+      additionalPaymentOpen: z.string(),
+    }),
+    /** Warning codes ordered by priority: the first one present decides the screen colour. */
+    warningPriority: z.array(z.enum(SCAN_WARNINGS)),
   }),
   events: z.array(manifestEventSchema),
 });

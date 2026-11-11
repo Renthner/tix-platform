@@ -197,11 +197,33 @@ data class ManifestEvent(
     val lan: ManifestLan = ManifestLan(),
 )
 
+/** Screen colours (`#RRGGBB` or `#RRGGBBAA`; invalid values fall back to the default per key). */
+@Serializable
+data class ManifestResultColors(
+    val accepted: String = "#16A34A",
+    val rejected: String = "#DC2626",
+    val discountProof: String = "#FACC15",
+    val seatFeature: String = "#14B8A6",
+    val wrongEntrance: String = "#2563EB",
+    val additionalPaymentOpen: String = "#F97316",
+)
+
+/** Default warning priority: the first warning present decides the screen colour. */
+val DEFAULT_WARNING_PRIORITY: List<ScanWarning> = listOf(
+    ScanWarning.DISCOUNT_PROOF_REQUIRED,
+    ScanWarning.WRONG_ENTRANCE,
+    ScanWarning.ADDITIONAL_PAYMENT_OPEN,
+    ScanWarning.SEAT_FEATURE,
+)
+
 @Serializable
 data class ManifestSettings(
     val offlineModeAllowed: Boolean = true,
     val lanSyncEnabled: Boolean = false,
     val syncIntervalSeconds: Int = 30,
+    /** Optional/additive: absent on an older server. */
+    val resultColors: ManifestResultColors = ManifestResultColors(),
+    val warningPriority: List<ScanWarning> = DEFAULT_WARNING_PRIORITY,
 )
 
 @Serializable

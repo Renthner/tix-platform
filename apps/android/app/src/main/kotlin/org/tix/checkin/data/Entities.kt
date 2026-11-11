@@ -35,6 +35,8 @@ data class DeviceConfigEntity(
     /** An unpair waits for the operator (unsent scans exist): survives an app restart. */
     @ColumnInfo(defaultValue = "0") val unpairPending: Boolean = false,
     val unpairNotice: String? = null,
+    /** Result colours + warning priority of the manifest as JSON ([org.tix.checkin.core.scan.StoredResultStyle]); null = defaults. Added in DB v2. */
+    val resultStyleJson: String? = null,
 )
 
 @Entity(tableName = "events")

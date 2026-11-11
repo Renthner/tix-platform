@@ -36,8 +36,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.annotation.StringRes
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import org.tix.checkin.BuildConfig
 import org.tix.checkin.R
+import org.tix.checkin.core.contract.AppLatest
+import org.tix.checkin.update.ApkInstaller
 
 @Composable
 fun SettingsScreen(vm: MainViewModel) {
@@ -82,15 +88,12 @@ fun SettingsScreen(vm: MainViewModel) {
                 Text(stringResource(R.string.settings_update_available, u.info.versionName, u.info.versionCode), style = MaterialTheme.typography.titleSmall)
                 u.info.notes?.takeIf { it.isNotBlank() }?.let { Text(it) }
                 if (u.info.sha256.isNotBlank()) Text(stringResource(R.string.settings_update_sha, u.info.sha256), style = MaterialTheme.typography.bodySmall)
-                // Only opened when the link passes the server address policy (https, or http in the local network).
+                // Only used when the link passes the server address policy (https, or http in the local network).
                 val link = vm.downloadUrl(u.info)
                 if (link == null) {
                     Text(stringResource(R.string.settings_update_url_refused), color = MaterialTheme.colorScheme.error)
                 } else {
-                    Button(
-                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) },
-                        modifier = Modifier.heightIn(min = 52.dp),
-                    ) { Text(stringResource(R.string.settings_update_download)) }
+                    UpdateInstall(vm, u.info, onBrowser = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) })
                 }
             }
             UpdateUi.Unknown -> Unit
@@ -130,6 +133,81 @@ fun SettingsScreen(vm: MainViewModel) {
             dismissButton = { TextButton(onClick = { confirmResync = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
+}
+
+/** "Update now" with progress/cancel, the unsent-scan warning and the "Install unknown apps" guidance; the browser stays as a fallback. */
+@Composable
+private fun UpdateInstall(vm: MainViewModel, info: AppLatest, onBrowser: () -> Unit) {
+    val context = LocalContext.current
+    val state by vm.install.collectAsState()
+    // Back from the system "Install unknown apps" page: continue when it is allowed now.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.onResumedFromSettings() }
+
+    when (val s = state) {
+        is InstallUi.Downloading -> {
+            if (s.total > 0) {
+                LinearProgressIndicator(progress = { (s.read.toFloat() / s.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.update_downloading_mb, s.read / 1_048_576, s.total / 1_048_576), style = MaterialTheme.typography.bodySmall)
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            OutlinedButton(onClick = vm::cancelUpdate, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(R.string.action_cancel)) }
+        }
+        InstallUi.Syncing -> {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(stringResource(R.string.update_syncing))
+        }
+        InstallUi.Installing -> {
+            Text(stringResource(R.string.update_installing))
+            OutlinedButton(onClick = vm::cancelUpdate, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(R.string.action_cancel)) }
+        }
+        else -> {
+            Button(onClick = { vm.startUpdate(info) }, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(R.string.update_now)) }
+            if (s is InstallUi.NeedInstallPermission) {
+                Text(stringResource(R.string.update_permission_needed), color = MaterialTheme.colorScheme.error)
+                OutlinedButton(
+                    onClick = { context.startActivity(ApkInstaller.unknownSourcesIntent(context)) },
+                    modifier = Modifier.heightIn(min = 52.dp),
+                ) { Text(stringResource(R.string.update_permission_open)) }
+            }
+            if (s is InstallUi.Failed) {
+                Text(stringResource(updateFailureText(s.reason)), color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+    TextButton(onClick = onBrowser) { Text(stringResource(R.string.settings_update_download)) }
+
+    (state as? InstallUi.UnsentScans)?.let { s ->
+        AlertDialog(
+            onDismissRequest = vm::cancelUpdate,
+            title = { Text(stringResource(R.string.update_unsent_title)) },
+            text = { Text(stringResource(R.string.update_unsent_text, s.count)) },
+            confirmButton = { TextButton(onClick = vm::syncThenUpdate) { Text(stringResource(R.string.update_unsent_sync)) } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = vm::installAnyway) { Text(stringResource(R.string.update_unsent_anyway)) }
+                    TextButton(onClick = vm::cancelUpdate) { Text(stringResource(R.string.action_cancel)) }
+                }
+            },
+        )
+    }
+}
+
+@StringRes
+private fun updateFailureText(reason: UpdateFailure): Int = when (reason) {
+    UpdateFailure.HASH_MISSING -> R.string.update_error_hash_missing
+    UpdateFailure.HASH_MISMATCH -> R.string.update_error_hash_mismatch
+    UpdateFailure.NETWORK -> R.string.update_error_network
+    UpdateFailure.HTTP -> R.string.update_error_http
+    UpdateFailure.TOO_LARGE -> R.string.update_error_too_large
+    UpdateFailure.STORAGE -> R.string.update_error_storage
+    UpdateFailure.URL_REFUSED -> R.string.settings_update_url_refused
+    UpdateFailure.NOT_A_VALID_UPDATE -> R.string.update_error_not_valid
+    UpdateFailure.SIGNATURE -> R.string.update_error_signature
+    UpdateFailure.USER_CANCELLED -> R.string.update_error_cancelled
+    UpdateFailure.BLOCKED -> R.string.update_error_blocked
+    UpdateFailure.INVALID -> R.string.update_error_not_valid
+    UpdateFailure.OTHER -> R.string.update_error_other
 }
 
 @Composable

@@ -197,7 +197,26 @@ const googleWalletSchema = z.object({
 });
 const googleWalletCredentialsSchema = z.object({ serviceAccountJson: z.string().min(1) });
 
+/** Screen colours of the scan result (hex). Keys match the scanner manifest `resultColors`. */
+const scanResultColorsSchema = z.object({
+  accepted: hexColorSchema.default('#16A34A'),
+  rejected: hexColorSchema.default('#DC2626'),
+  /** Warning DISCOUNT_PROOF_REQUIRED. */
+  discountProof: hexColorSchema.default('#FACC15'),
+  /** Warning SEAT_FEATURE (wheelchair space / companion seat). */
+  seatFeature: hexColorSchema.default('#14B8A6'),
+  /** Warning WRONG_ENTRANCE. */
+  wrongEntrance: hexColorSchema.default('#2563EB'),
+  /** Warning ADDITIONAL_PAYMENT_OPEN. */
+  additionalPaymentOpen: hexColorSchema.default('#F97316'),
+});
+export type ScanResultColors = z.infer<typeof scanResultColorsSchema>;
+export const SCAN_RESULT_COLOR_KEYS = Object.keys(
+  scanResultColorsSchema.shape,
+) as (keyof ScanResultColors)[];
+
 const scannerSchema = z.object({
+  resultColors: scanResultColorsSchema.default(() => scanResultColorsSchema.parse({})),
   allowCheckOut: z.boolean().default(true),
   offlineModeAllowed: z.boolean().default(true),
   lanSyncEnabled: z.boolean().default(true),

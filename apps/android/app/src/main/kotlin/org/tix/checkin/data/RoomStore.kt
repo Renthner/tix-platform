@@ -228,6 +228,7 @@ class ConfigRepository(private val db: TixDatabase) {
                     deviceName = manifest.device.name,
                     offlineModeAllowed = s.offlineModeAllowed, lanSyncEnabled = s.lanSyncEnabled,
                     syncIntervalSeconds = s.syncIntervalSeconds,
+                    resultStyleJson = org.tix.checkin.core.scan.ResultPalette.encode(s.resultColors, s.warningPriority),
                     manifestEtag = manifest.etag, clockOffsetMs = clockOffsetMs, lastManifestAt = System.currentTimeMillis(),
                 ),
             )

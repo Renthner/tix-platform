@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- In-app update: hands the downloaded APK to the system installer (the operator confirms). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- LAN sync: DNS-SD discovery/advertisement needs the multicast lock; the master runs a foreground
          service of type connectedDevice (its prerequisite permission is CHANGE_WIFI_MULTICAST_STATE). -->
@@ -53,6 +55,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Status of the PackageInstaller session of the in-app update (only the system sends to it). -->
+        <receiver
+            android:name=".update.InstallResultReceiver"
+            android:exported="false" />
 
         <service
             android:name=".lan.LanMasterService"

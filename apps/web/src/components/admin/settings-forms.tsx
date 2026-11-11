@@ -49,7 +49,7 @@ export function SwitchRow({
   );
 }
 
-function ColorField({
+export function ColorField({
   name,
   label,
   value,

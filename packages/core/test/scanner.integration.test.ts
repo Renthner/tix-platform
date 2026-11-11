@@ -595,6 +595,33 @@ describe.skipIf(!adminUrl || !redisUrl)('scanner server side (integration)', () 
       expect(evForKeys).toHaveLength(0);
     });
 
+    it('ships result colours and warning priority; colour changes change the etag', async () => {
+      const d = await pairDevice('Colour device');
+      const m1 = await buildManifest(ctx, d);
+      expect(m1.settings.resultColors).toEqual({
+        accepted: '#16A34A',
+        rejected: '#DC2626',
+        discountProof: '#FACC15',
+        seatFeature: '#14B8A6',
+        wrongEntrance: '#2563EB',
+        additionalPaymentOpen: '#F97316',
+      });
+      expect(m1.settings.warningPriority).toEqual([
+        'DISCOUNT_PROOF_REQUIRED',
+        'WRONG_ENTRANCE',
+        'ADDITIONAL_PAYMENT_OPEN',
+        'SEAT_FEATURE',
+      ]);
+      await saveSetting(ctx, 'scanner', { resultColors: { seatFeature: '#00FF00' } }, null);
+      try {
+        const m2 = await buildManifest(ctx, d);
+        expect(m2.settings.resultColors.seatFeature).toBe('#00FF00');
+        expect(m2.etag).not.toBe(m1.etag);
+      } finally {
+        await saveSetting(ctx, 'scanner', {}, null);
+      }
+    });
+
     it('rotates the LAN secret when a device is revoked or unassigned from the event', async () => {
       const keep = await pairDevice('LAN keeper');
       const revoked = await pairDevice('LAN revoked');

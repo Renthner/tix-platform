@@ -27,7 +27,9 @@ import org.tix.checkin.ui.Feedback
 /** Hand-wired dependency container (one per process; the WorkManager worker uses it too). */
 class AppContainer(app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val db: TixDatabase = Room.databaseBuilder(app, TixDatabase::class.java, "tix-checkin.db").build()
+    val db: TixDatabase = Room.databaseBuilder(app, TixDatabase::class.java, "tix-checkin.db")
+        .addMigrations(org.tix.checkin.data.MIGRATION_1_2) // never a destructive fallback: unsent scans live here
+        .build()
     val dao = db.dao()
 
     // Declaration order matters: the store needs the settings (LAN cursors), SyncManager and the authorities need dbLock.
