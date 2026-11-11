@@ -1,7 +1,8 @@
 # Releases
 
 Releases are published on GitHub (Releases page) together with container images on GHCR and the
-signed Android check-in APK. They are produced by `.github/workflows/release.yml` when a version
+Android check-in APK (signed). Images are signed with cosign, the APK and the deploy bundle carry
+build provenance attestations (see [Verifying releases](#verifying-releases)). They are produced by `.github/workflows/release.yml` when a version
 tag is pushed.
 
 ## Version scheme
@@ -44,21 +45,87 @@ must be at most 99, N between 1 and 29; the script rejects anything else.
 The workflow then verifies that the tag matches `VERSION` and that the changelog section exists,
 re-runs the CI checks, builds and pushes the images, builds the signed APK and creates the GitHub
 Release (marked as pre-release when the version has a suffix; named `TIX Platform v<version>`).
-To re-run it for an existing tag use Actions -> Release -> Run workflow and enter the tag.
+To re-run it for an existing tag use Actions -> Release -> Run workflow, select the **tag** under "Use workflow from" (not `main`) and enter the same tag (`gh workflow run Release --ref v1.0.0-alpha.3 -f tag=v1.0.0-alpha.3`). The signature identity contains the ref the workflow ran from, so a run from `main` would not match the verification command in [Verifying releases](#verifying-releases); the workflow refuses such a run.
 
 ### Published artifacts
 
-| Artifact                                                | Notes                                                                                  |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `ghcr.io/<owner>/tix-web`, `tix-worker`, `tix-realtime` | linux/amd64; tags `<version>` plus the moving channel tags (see [Channels](#channels)) |
-| `tix-deploy-<version>.zip`                              | deploy bundle: production `docker-compose.yml`, config files, `.env.example`, README   |
-| `tix-checkin-<version>.apk`                             | release asset, only when the signing secrets exist                                     |
-| `SHA256SUMS.txt`                                        | checksums of the bundle and the APK                                                    |
+| Artifact                                                | Notes                                                                                                                                  |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `ghcr.io/<owner>/tix-web`, `tix-worker`, `tix-realtime` | linux/amd64 + linux/arm64, signed, with SBOM and provenance; tags `<version>` plus the moving channel tags (see [Channels](#channels)) |
+| `tix-deploy-<version>.zip`                              | deploy bundle: production `docker-compose.yml`, config files, `.env.example`, README                                                   |
+| `tix-checkin-<version>.apk`                             | release asset, only when the signing secrets exist                                                                                     |
+| `SHA256SUMS.txt`                                        | checksums of the bundle and the APK                                                                                                    |
 
 The one-shot `migrate` service uses the worker image (as in `docker-compose.yml`), so there is
 no separate migrate image. The packages must be readable by your servers: after the first
-release set the package visibility to public under the repository owner's Packages settings (or
-`docker login ghcr.io` on the server).
+release set each of the three packages (`tix-web`, `tix-worker`, `tix-realtime`) to **public**
+(GitHub -> your profile/organisation -> Packages -> package -> Package settings -> Change
+visibility), so servers can pull without logging in. `docker login ghcr.io` (token with
+`read:packages`) is only needed while a package is private. **Never delete untagged versions** of the `tix-*` packages: the per-architecture images, SBOM / provenance attestations and signatures are untagged versions that the tags depend on. Only the old single `buildcache` tag of the amd64-only releases is obsolete (it is now `buildcache-amd64` / `buildcache-arm64`).
+
+## Verifying releases
+
+Everything below is optional for operators but lets you check that an artifact really was built by
+this repository's release workflow from the tagged commit.
+
+**Container images** (keyless cosign signature on the multi-arch image index; the moving tags
+`next`, `stable`, ... point to the same signed index):
+
+```bash
+cosign verify ghcr.io/<owner>/tix-web:<version> \
+  --certificate-identity-regexp '^https://github\.com/<owner>/<repo>/\.github/workflows/release\.yml@refs/tags/v.*$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+The same for `tix-worker` and `tix-realtime`. `<owner>` is the lower-case GitHub owner of the images, `<repo>` the repository the release
+was built in (case as on GitHub). SBOM and SLSA provenance are stored as attestations in the image (`docker buildx
+imagetools inspect <image> --format '{{ json .SBOM }}'` / `'{{ json .Provenance }}'`).
+
+**APK and deploy bundle** (GitHub artifact attestations):
+
+```bash
+gh attestation verify tix-checkin-<version>.apk -R <owner>/<repo> \
+  --signer-workflow <owner>/<repo>/.github/workflows/release.yml
+gh attestation verify tix-deploy-<version>.zip -R <owner>/<repo> \
+  --signer-workflow <owner>/<repo>/.github/workflows/release.yml
+```
+
+**Checksums:** `sha256sum -c SHA256SUMS.txt` in the folder with the downloaded files (add
+`--ignore-missing` if you only downloaded some of them). A checksum from the same release page
+only detects a corrupted download; use the signature / attestation to check the origin.
+
+## Architectures
+
+Images are built for `linux/amd64` and `linux/arm64` (Raspberry Pi 4/5 with a 64-bit OS, Apple
+silicon servers, Ampere / Graviton cloud VMs); Docker pulls the matching one automatically. Each
+architecture is built **natively** (`ubuntu-latest` and `ubuntu-24.04-arm`, both free for public
+repositories) and the two results are merged into one index. QEMU emulation was rejected: the
+Next.js build and the native `sharp` install would take far too long emulated. The arm64 job
+always uses GitHub's arm runner; the `CI_RUNS_ON` override only applies to the other jobs.
+`sharp` ships prebuilt musl binaries for both architectures, so the Dockerfile has no
+architecture-specific code. MinIO / Caddy / PostgreSQL / Redis from the compose file are multi-arch
+as well (check the MinIO image you configure).
+
+## Security scanning
+
+- Every pushed image is scanned by Trivy (CRITICAL and HIGH, unfixed issues ignored) in the release
+  workflow; results are uploaded as SARIF (Security -> Code scanning, categories
+  `trivy-image-*`). Findings **never block** a release.
+- `.github/workflows/security.yml` repeats this every Monday for the `next` images and scans the
+  repository files (dependencies, Dockerfile / workflow misconfiguration, secrets, category
+  `trivy-fs`). Run it manually from Actions -> Security scan.
+- Code scanning needs a public repository (or GitHub Advanced Security on a private one); the upload
+  step is allowed to fail so the workflows still pass without it.
+- All third-party GitHub Actions are pinned by full commit SHA (the version is in a comment).
+
+## Dependency updates
+
+`.github/dependabot.yml` opens weekly pull requests for npm (pnpm workspace), Gradle
+(`apps/android`), GitHub Actions and the images in both compose files (PostgreSQL / Redis major versions are excluded: upgrade those by hand, and keep `docker-compose.yml` and `deploy/docker-compose.yml` in step, CI checks it). The Node base image of the Dockerfile is passed via `ARG NODE_IMAGE`, which Dependabot may not follow: bump it by hand when needed. Minor and
+patch updates are grouped per ecosystem; major updates are separate PRs. Their CI runs on
+GitHub-hosted runners and uses no secrets. Merge only when CI is green and, for Actions, after
+checking the new SHA matches the tag shown in the PR. Enable "Dependabot alerts" and "Dependabot
+security updates" in Settings -> Advanced Security.
 
 ## Channels
 
@@ -133,7 +200,8 @@ deliberately. A demo server on `next` may be updated more freely.
 
 ## Android signing secrets
 
-Repository settings -> Secrets and variables -> Actions:
+Settings -> Environments -> `release` -> Environment secrets (not repository secrets; see
+[Protecting the signing key](#protecting-the-signing-key)):
 
 | Secret                      | Content                           |
 | --------------------------- | --------------------------------- |
@@ -151,8 +219,20 @@ Base64 in PowerShell (copy the output into the secret):
 Always sign releases with the same key; Android refuses updates signed with a different one.
 The workflow decodes the keystore to a temporary file, never prints it and deletes it afterwards.
 
-Without these secrets the release is still created (images, notes) but has no APK and says so in
-its body.
+Without these secrets the `android` job **fails** and so does the release (no images are pushed): devices update from the GitHub release, so a release without the signed APK is not published.
+
+### Protecting the signing key
+
+Whoever can push a `v*` tag (or run the workflow) can make the workflow sign an APK. Restrict that:
+
+1. Settings -> Environments -> New environment `release`: set **Deployment branches and tags** to
+   a selected tag pattern `v*`, optionally add **Required reviewers** (the maintainer approves
+   each release), and move the four `ANDROID_*` secrets there (delete the repository-level copies).
+   The android job uses `environment: release`; if the environment or its secrets are missing the
+   job fails loudly.
+2. Settings -> Rules -> Rulesets -> New tag ruleset: target tags `v*`, restrict creation, update and
+   deletion to the maintainers (bypass list), so nobody else can create or move release tags.
+3. Keep branch protection on `main` and require 2FA for all collaborators.
 
 ### Attaching a locally signed APK manually
 
@@ -167,18 +247,33 @@ gh release upload v1.0.0-alpha.2 tix-checkin-1.0.0-alpha.2.apk SHA256SUMS.txt --
 
 Use the versionCode printed by `node scripts/release/set-version.mjs --print`.
 
-## Self-hosted runner (Debian)
+## Runners
 
-Both workflows (`ci.yml`, `release.yml`) run on GitHub-hosted `ubuntu-latest` by default. To use
-your own Linux runner instead, set the repository variable `CI_RUNS_ON` (Settings -> Secrets and
+All workflows run on **GitHub-hosted** runners (`ubuntu-latest`, plus `ubuntu-24.04-arm` for the
+arm64 image builds); these are free for public repositories. A self-hosted runner is **only for
+private forks** and must **never** be attached to a public repository (fork pull requests could run
+code on it). If a self-hosted runner from earlier releases still exists (e.g. the demo VM), remove
+it:
+
+```bash
+cd <runner-directory>
+sudo ./svc.sh stop && sudo ./svc.sh uninstall
+./config.sh remove --token <removal-token>   # Settings -> Actions -> Runners -> the runner -> Remove
+```
+
+Delete the repository variable `CI_RUNS_ON` if it is still set.
+
+### Self-hosted runner for a private fork (Debian)
+
+The workflows keep an optional override: set the repository variable `CI_RUNS_ON` (Settings -> Secrets and
 variables -> Actions -> Variables, or from a shell):
 
 ```bash
 gh variable set CI_RUNS_ON --body '["self-hosted","Linux","X64"]'
 ```
 
-Every job uses `runs-on: ${{ vars.CI_RUNS_ON && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}`;
-delete the variable to go back to GitHub-hosted runners.
+Every job uses `runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}`;
+Dependabot runs always use GitHub-hosted runners. Delete the variable to go back to GitHub-hosted runners.
 
 ### Prerequisites (runner host)
 
@@ -240,7 +335,7 @@ A self-hosted runner executes repository code with the rights of its user.
 - Use it for a **private** repository only. Never attach a self-hosted runner to a public repository
   that accepts pull requests from forks.
 - Keep the workflows on `push`, tags and `workflow_dispatch`; never use `pull_request_target`.
-  `ci.yml` also skips `pull_request` runs whose head repository is not this repository (fork PRs).
+  `ci.yml` runs fork `pull_request` workflows only while `CI_RUNS_ON` is unset (GitHub-hosted runners); with a self-hosted override they are skipped. Also set Settings -> Actions -> General -> Fork pull request workflows to **Require approval for all outside collaborators**, so a maintainer reviews a fork PR before CI runs. Fork PRs get no secrets and a read-only token.
 
 ## Updating a server to a new version
 

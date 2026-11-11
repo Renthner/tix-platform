@@ -76,12 +76,21 @@ sealed interface UpdateUi {
     data class Available(val info: AppLatest) : UpdateUi
     data object Failed : UpdateUi
     data object ServerUrlMissing : UpdateUi
+
+    /** Source is GitHub but neither the server nor the app names a repository. */
+    data object RepositoryMissing : UpdateUi
+
+    /** GitHub refused further requests until [untilMillis] (unauthenticated limit). */
+    data class RateLimited(val untilMillis: Long) : UpdateUi
 }
 
 /** Why an in-app update stopped (each has its own text in the settings screen). */
 enum class UpdateFailure {
     HASH_MISSING, HASH_MISMATCH, NETWORK, HTTP, TOO_LARGE, STORAGE, URL_REFUSED, NOT_A_VALID_UPDATE,
     SIGNATURE, USER_CANCELLED, BLOCKED, INVALID, OTHER,
+
+    /** The downloaded APK is signed with another certificate than the installed app (checked before the installer). */
+    SIGNER_MISMATCH,
 }
 
 /** State of the in-app update (download + system installer), separate from "is there a newer version". */
@@ -366,9 +375,36 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
         }
     }
 
-    fun checkUpdate() {
+    /** Settings screen opened: GitHub is asked from the cache (at most hourly), the own server only on demand. */
+    fun checkUpdateOnOpen() {
+        if (settings.appUpdate.value.source == org.tix.checkin.core.UpdateSource.GITHUB && _update.value !is UpdateUi.Checking) {
+            checkUpdate(force = false)
+        }
+    }
+
+    /** "Check for update" (force: ask GitHub again with a conditional request even when the cache is younger than an hour). */
+    fun checkUpdate(force: Boolean = true) {
         _update.value = UpdateUi.Checking
         viewModelScope.launch {
+            val source = settings.appUpdate.value
+            if (source.source == org.tix.checkin.core.UpdateSource.GITHUB) {
+                val repository = settings.effectiveRepository()
+                if (repository.isEmpty()) {
+                    _update.value = UpdateUi.RepositoryMissing
+                    return@launch
+                }
+                _update.value = try {
+                    val latest = withTimeout(40_000) { c.githubUpdates.check(repository, settings.effectiveChannel(), force) }
+                    if (latest == null) UpdateUi.UpToDate else UpdateUi.Available(latest)
+                } catch (e: org.tix.checkin.update.GithubUpdateException) {
+                    if (e.kind == org.tix.checkin.update.GithubUpdateException.Kind.RATE_LIMITED) UpdateUi.RateLimited(e.retryAtMillis) else UpdateUi.Failed
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    UpdateUi.Failed
+                }
+                return@launch
+            }
             _update.value = try {
                 val latest = withTimeout(10_000) { c.sync.latestApp() }
                 when {
@@ -388,13 +424,25 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
      * `downloadUrl` may be relative when the server has no public URL configured. Null = refused by the server
      * address policy (https, or http in the local network only): the link is not opened.
      */
-    fun downloadUrl(info: AppLatest): String? = DownloadUrl.resolve(config.value?.serverUrl.orEmpty(), info.downloadUrl)
+    fun downloadUrl(info: AppLatest): String? =
+        if (info.viaGithub) {
+            info.downloadUrl.takeIf(org.tix.checkin.core.GithubHosts::isAllowedUrl)
+        } else {
+            DownloadUrl.resolve(config.value?.serverUrl.orEmpty(), info.downloadUrl)
+        }
+
+    /** Operator picks another channel (only offered when the server allows it); the check runs again. */
+    fun setUpdateChannel(channel: org.tix.checkin.core.UpdateChannel) {
+        settings.setChannelOverride(channel)
+        _update.value = UpdateUi.Unknown
+        checkUpdate(force = false)
+    }
 
     // ─── in-app update ───
 
     private val _install = MutableStateFlow<InstallUi>(InstallUi.Idle)
     val install: StateFlow<InstallUi> = _install
-    private val downloader = org.tix.checkin.update.ApkDownloader(app.cacheDir)
+    private val downloader = org.tix.checkin.update.ApkDownloader(app.cacheDir, c.githubUserAgent)
     private var updateJob: kotlinx.coroutines.Job? = null
     private var updateInfo: AppLatest? = null
     private var unsentWarned = false
@@ -449,12 +497,13 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
         _install.value = InstallUi.Downloading(0, info.sizeBytes)
         updateJob = viewModelScope.launch {
             try {
-                val file = downloader.download(url, info.sha256, info.sizeBytes) { read, total ->
+                val file = downloader.download(url, info.sha256, info.sizeBytes, info.viaGithub) { read, total ->
                     _install.value = InstallUi.Downloading(read, total)
                 }
-                if (!isValidUpdate(file)) {
+                val problem = validateUpdate(file, if (info.viaGithub) info.versionCode else null)
+                if (problem != null) {
                     downloader.clean()
-                    _install.value = InstallUi.Failed(UpdateFailure.NOT_A_VALID_UPDATE)
+                    _install.value = InstallUi.Failed(problem)
                     return@launch
                 }
                 _install.value = InstallUi.Installing
@@ -483,11 +532,20 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
         }
     }
 
-    /** The downloaded file must be an APK of this app with a higher version code (cheap guard before the installer). */
-    private suspend fun isValidUpdate(file: java.io.File): Boolean = withContext(Dispatchers.IO) {
-        val info = app.packageManager.getPackageArchiveInfo(file.absolutePath, 0) ?: return@withContext false
-        info.packageName == app.packageName &&
+    /**
+     * The downloaded file must be an APK of this app with a higher version code and the same signing certificate
+     * as the installed app (Android enforces the latter too; checking first gives a clear message). Null = fine.
+     */
+    private suspend fun validateUpdate(file: java.io.File, expectedVersionCode: Int?): UpdateFailure? = withContext(Dispatchers.IO) {
+        val info = app.packageManager.getPackageArchiveInfo(file.absolutePath, 0) ?: return@withContext UpdateFailure.NOT_A_VALID_UPDATE
+        val valid = info.packageName == app.packageName &&
             androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(info) > org.tix.checkin.BuildConfig.VERSION_CODE
+        // GitHub: the APK must be the version its tag announced (the versionCode is derived from the tag).
+        val code = androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(info)
+        if (!valid || (expectedVersionCode != null && code != expectedVersionCode.toLong())) return@withContext UpdateFailure.NOT_A_VALID_UPDATE
+        val installed = org.tix.checkin.update.ApkSigners.installed(app.packageManager, app.packageName)
+        val archive = org.tix.checkin.update.ApkSigners.archive(app.packageManager, file.absolutePath)
+        if (org.tix.checkin.core.ApkUpdate.signersMatch(installed, archive)) null else UpdateFailure.SIGNER_MISMATCH
     }
 
     /** "Upload first": syncs, then continues the update when nothing is pending any more. */

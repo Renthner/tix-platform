@@ -3,6 +3,7 @@ package org.tix.checkin.update
 import io.ktor.client.plugins.HttpTimeoutConfig
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.contentLength
 import io.ktor.utils.io.readAvailable
@@ -23,8 +24,11 @@ class UpdateException(val kind: Kind, message: String? = null, cause: Throwable?
  * Streams the APK into the app's cache directory and computes its SHA-256 on the way. No credentials are sent: the
  * download link is signed (`GET /app/download?t=`), so the device bearer token never leaves the API calls to the paired
  * server. The URL passes the server address policy in `TixHttpClient` (https, or http in the local network; no redirects).
+ *
+ * GitHub downloads ([viaGithub]) use a separate client without any credentials and follow redirects by hand
+ * ([githubGet]: https only, GitHub host allow-list, at most 5 hops).
  */
-class ApkDownloader(cacheDir: File) {
+class ApkDownloader(cacheDir: File, private val githubUserAgent: String = "tix-checkin") {
     private val dir = File(cacheDir, "updates")
 
     /** Removes downloaded APKs (partial or complete). */
@@ -40,6 +44,7 @@ class ApkDownloader(cacheDir: File) {
         url: String,
         expectedSha256: String,
         announcedSizeBytes: Long,
+        viaGithub: Boolean = false,
         onProgress: (read: Long, total: Long) -> Unit,
     ): File {
         if (ApkUpdate.normalizeSha256(expectedSha256) == null) throw UpdateException(UpdateException.Kind.HASH_MISSING)
@@ -47,13 +52,10 @@ class ApkDownloader(cacheDir: File) {
         clean()
         val part = File(dir, "update.apk.part")
         val target = File(dir, "update.apk")
-        val client = TixHttpClient.create()
+        val client = if (viaGithub) TixHttpClient.createGithub(githubUserAgent) else TixHttpClient.create()
         var done = false
         try {
-            val hex = client.prepareGet(url) {
-                // The whole download may take minutes; the socket timeout (no data for 30 s) still applies.
-                timeout { requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS }
-            }.execute { response ->
+            val consume: suspend (HttpResponse) -> String = { response ->
                 if (response.status.value !in 200..299) {
                     throw UpdateException(UpdateException.Kind.HTTP, "HTTP ${response.status.value}")
                 }
@@ -83,6 +85,12 @@ class ApkDownloader(cacheDir: File) {
                 }
                 digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
             }
+            // The whole download may take minutes; the socket timeout (no data for 30 s) still applies.
+            val hex = if (viaGithub) {
+                client.githubGet(url, longRunning = true, block = consume)
+            } else {
+                client.prepareGet(url) { timeout { requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS } }.execute { consume(it) }
+            }
             if (!ApkUpdate.sha256Matches(expectedSha256, hex)) throw UpdateException(UpdateException.Kind.HASH_MISMATCH)
             if (!part.renameTo(target)) throw UpdateException(UpdateException.Kind.STORAGE, "rename failed")
             done = true
@@ -90,6 +98,8 @@ class ApkDownloader(cacheDir: File) {
         } catch (e: UpdateException) {
             throw e
         } catch (e: ServerUrlRefusedException) {
+            throw UpdateException(UpdateException.Kind.URL_REFUSED, e.message, e)
+        } catch (e: GithubUrlRefusedException) {
             throw UpdateException(UpdateException.Kind.URL_REFUSED, e.message, e)
         } catch (e: IOException) {
             throw UpdateException(UpdateException.Kind.NETWORK, e.message, e)

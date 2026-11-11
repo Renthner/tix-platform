@@ -4,6 +4,7 @@ import type { AppLatestResponse } from '@tix/shared';
 import { signToken, verifyToken } from '@tix/shared/server';
 import { desc, eq } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
+import { getSetting } from '../settings';
 import { resolveScannerServerUrl } from './devices';
 
 /**
@@ -202,7 +203,21 @@ export async function apkDownloadUrl(ctx: CoreContext, token: string): Promise<s
   return `${server.url}/api/scanner/v1/app/download?t=${encodeURIComponent(token)}`;
 }
 
-/** Update info for paired devices; null when no release is published. */
+/**
+ * GitHub page staff open to install the app: newest final release, or the list when the default channel is
+ * `next`. Null when no repository is configured on the server (the app's built-in one is not known here).
+ */
+export async function githubStaffDownloadUrl(ctx: CoreContext): Promise<string | null> {
+  const s = await getSetting(ctx, 'scanner');
+  if (!s.githubRepository) return null;
+  const base = `https://github.com/${s.githubRepository}/releases`;
+  return s.defaultUpdateChannel === 'next' ? base : `${base}/latest`;
+}
+
+/**
+ * Update info for paired devices from the uploaded releases; null when none is published. Also served in source
+ * GITHUB so apps without GitHub support can step up once (see docs/SCANNER.md "App updates").
+ */
 export async function appLatestInfo(ctx: CoreContext): Promise<AppLatestResponse | null> {
   const release = await getCurrentApkRelease(ctx);
   if (!release) return null;

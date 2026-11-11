@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -54,6 +55,9 @@ fun SettingsScreen(vm: MainViewModel) {
     val sound by vm.settings.sound.collectAsState()
     val vibrate by vm.settings.vibrate.collectAsState()
     val update by vm.update.collectAsState()
+    val updateConfig by vm.settings.appUpdate.collectAsState()
+    val channelOverride by vm.settings.channelOverride.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(Unit) { vm.checkUpdateOnOpen() }
     var confirmUnpair by remember { mutableStateOf(false) }
     var confirmResync by remember { mutableStateOf(false) }
     val lanMaster by vm.settings.lanMaster.collectAsState()
@@ -77,12 +81,41 @@ fun SettingsScreen(vm: MainViewModel) {
         HorizontalDivider()
 
         Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
-        OutlinedButton(onClick = vm::checkUpdate, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(R.string.settings_check_update)) }
+        if (updateConfig.source == org.tix.checkin.core.UpdateSource.GITHUB) {
+            Text(stringResource(R.string.settings_update_source_github, vm.settings.effectiveRepository().ifEmpty { "-" }), style = MaterialTheme.typography.bodySmall)
+            if (updateConfig.allowChannelOverride) {
+                val channel = org.tix.checkin.core.UpdateChannel.effective(updateConfig.defaultChannel, true, channelOverride)
+                Text(stringResource(R.string.settings_update_channel))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = channel == org.tix.checkin.core.UpdateChannel.STABLE,
+                        onClick = { vm.setUpdateChannel(org.tix.checkin.core.UpdateChannel.STABLE) },
+                        label = { Text(stringResource(R.string.settings_update_channel_stable)) },
+                    )
+                    FilterChip(
+                        selected = channel == org.tix.checkin.core.UpdateChannel.NEXT,
+                        onClick = { vm.setUpdateChannel(org.tix.checkin.core.UpdateChannel.NEXT) },
+                        label = { Text(stringResource(R.string.settings_update_channel_next)) },
+                    )
+                }
+            } else {
+                val channel = if (updateConfig.defaultChannel == org.tix.checkin.core.UpdateChannel.NEXT) R.string.settings_update_channel_next else R.string.settings_update_channel_stable
+                Text(stringResource(R.string.settings_update_channel_fixed, stringResource(channel)), style = MaterialTheme.typography.bodySmall)
+            }
+        } else {
+            Text(stringResource(R.string.settings_update_source_server), style = MaterialTheme.typography.bodySmall)
+        }
+        OutlinedButton(onClick = { vm.checkUpdate() }, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(R.string.settings_check_update)) }
         when (val u = update) {
             UpdateUi.Checking -> Text(stringResource(R.string.settings_update_checking))
             UpdateUi.UpToDate -> Text(stringResource(R.string.settings_update_current))
             UpdateUi.NoRelease -> Text(stringResource(R.string.settings_update_none))
             UpdateUi.ServerUrlMissing -> Text(stringResource(R.string.settings_update_server_url_missing), color = MaterialTheme.colorScheme.error)
+            UpdateUi.RepositoryMissing -> Text(stringResource(R.string.settings_update_repository_missing), color = MaterialTheme.colorScheme.error)
+            is UpdateUi.RateLimited -> Text(
+                stringResource(R.string.settings_update_rate_limited, formatMillis(context, u.untilMillis)),
+                color = MaterialTheme.colorScheme.error,
+            )
             UpdateUi.Failed -> Text(stringResource(R.string.settings_update_failed), color = MaterialTheme.colorScheme.error)
             is UpdateUi.Available -> {
                 Text(stringResource(R.string.settings_update_available, u.info.versionName, u.info.versionCode), style = MaterialTheme.typography.titleSmall)
@@ -204,6 +237,7 @@ private fun updateFailureText(reason: UpdateFailure): Int = when (reason) {
     UpdateFailure.URL_REFUSED -> R.string.settings_update_url_refused
     UpdateFailure.NOT_A_VALID_UPDATE -> R.string.update_error_not_valid
     UpdateFailure.SIGNATURE -> R.string.update_error_signature
+    UpdateFailure.SIGNER_MISMATCH -> R.string.update_error_signer_mismatch
     UpdateFailure.USER_CANCELLED -> R.string.update_error_cancelled
     UpdateFailure.BLOCKED -> R.string.update_error_blocked
     UpdateFailure.INVALID -> R.string.update_error_not_valid

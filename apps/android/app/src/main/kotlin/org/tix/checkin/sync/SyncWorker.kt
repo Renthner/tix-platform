@@ -18,7 +18,14 @@ import org.tix.checkin.TixApplication
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val container = (applicationContext as TixApplication).container
-        return when (container.sync.syncOnce()) {
+        val result = container.sync.syncOnce()
+        // Keeps the release list cache fresh (at most every 6 hours); never blocks or fails the sync.
+        val update = container.settings.appUpdate.value
+        if (result == SyncResult.Ok && update.source == org.tix.checkin.core.UpdateSource.GITHUB) {
+            val repository = container.settings.effectiveRepository()
+            if (repository.isNotEmpty()) container.githubUpdates.backgroundCheck(repository, container.settings.effectiveChannel())
+        }
+        return when (result) {
             SyncResult.Ok, SyncResult.NotPaired, SyncResult.Unpaired -> Result.success()
             is SyncResult.Failed -> Result.retry()
         }

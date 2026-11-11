@@ -3,7 +3,18 @@ package org.tix.checkin.data
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.tix.checkin.core.UpdateChannel
+import org.tix.checkin.core.UpdateSource
+import org.tix.checkin.core.contract.ManifestAppUpdate
 import org.tix.checkin.core.lan.LAN_DEFAULT_PORT
+
+/** Where and on which channel the app looks for updates (delivered by the server manifest). */
+data class AppUpdateConfig(
+    val source: UpdateSource = UpdateSource.SERVER,
+    val githubRepository: String = "",
+    val defaultChannel: UpdateChannel = UpdateChannel.STABLE,
+    val allowChannelOverride: Boolean = true,
+)
 
 /** Local (per device) preferences. No secrets here: the token lives encrypted in the database. */
 class AppSettings(context: Context) {
@@ -19,6 +30,58 @@ class AppSettings(context: Context) {
     private val _lanMaster = MutableStateFlow(prefs.getBoolean(KEY_LAN_MASTER, false))
     private val _lanPort = MutableStateFlow(prefs.getInt(KEY_LAN_PORT, LAN_DEFAULT_PORT))
     private val _lanManual = MutableStateFlow(prefs.getString(KEY_LAN_MANUAL, "").orEmpty())
+
+    private val _appUpdate = MutableStateFlow(readAppUpdate())
+    private val _channelOverride = MutableStateFlow(UpdateChannel.fromWire(prefs.getString(KEY_UPD_CHANNEL, null)))
+
+    /** Update source from the last manifest; until one arrived the server (legacy) is assumed. */
+    val appUpdate: StateFlow<AppUpdateConfig> = _appUpdate
+
+    /** False until a manifest with (or without, older server) update settings was stored: the manifest is then fetched without ETag. */
+    val appUpdateKnown: Boolean get() = prefs.contains(KEY_UPD_SOURCE)
+
+    /** The operator's own channel choice (only used when the server allows it). */
+    val channelOverride: StateFlow<UpdateChannel?> = _channelOverride
+
+    /** The server's repository, else the one built into the app (CI: -Ptix.updateRepository); empty = none. */
+    fun effectiveRepository(): String =
+        org.tix.checkin.core.GithubReleases.effectiveRepository(_appUpdate.value.githubRepository, org.tix.checkin.BuildConfig.UPDATE_REPOSITORY)
+
+    fun effectiveChannel(): UpdateChannel =
+        UpdateChannel.effective(_appUpdate.value.defaultChannel, _appUpdate.value.allowChannelOverride, _channelOverride.value)
+
+    private fun readAppUpdate() = AppUpdateConfig(
+        source = UpdateSource.fromWire(prefs.getString(KEY_UPD_SOURCE, null)) ?: UpdateSource.SERVER,
+        githubRepository = prefs.getString(KEY_UPD_REPO, "").orEmpty(),
+        defaultChannel = UpdateChannel.fromWire(prefs.getString(KEY_UPD_DEFAULT, null)) ?: UpdateChannel.STABLE,
+        allowChannelOverride = prefs.getBoolean(KEY_UPD_ALLOW, true),
+    )
+
+    /** Stores the manifest's update settings; null (older server) means "updates from the server". */
+    fun setAppUpdate(m: ManifestAppUpdate?) {
+        val cfg = if (m == null) AppUpdateConfig() else AppUpdateConfig(
+            source = UpdateSource.fromWire(m.source) ?: UpdateSource.SERVER,
+            githubRepository = m.githubRepository,
+            defaultChannel = UpdateChannel.fromWire(m.defaultChannel) ?: UpdateChannel.STABLE,
+            allowChannelOverride = m.allowChannelOverride,
+        )
+        _appUpdate.value = cfg
+        prefs.edit()
+            .putString(KEY_UPD_SOURCE, cfg.source.name).putString(KEY_UPD_REPO, cfg.githubRepository)
+            .putString(KEY_UPD_DEFAULT, cfg.defaultChannel.wire).putBoolean(KEY_UPD_ALLOW, cfg.allowChannelOverride)
+            .apply()
+    }
+
+    fun setChannelOverride(channel: UpdateChannel?) {
+        _channelOverride.value = channel
+        prefs.edit().apply { if (channel == null) remove(KEY_UPD_CHANNEL) else putString(KEY_UPD_CHANNEL, channel.wire) }.apply()
+    }
+
+    /** Unpair: the update settings belong to the old server. The channel choice is a device preference and stays. */
+    fun clearAppUpdate() {
+        prefs.edit().remove(KEY_UPD_SOURCE).remove(KEY_UPD_REPO).remove(KEY_UPD_DEFAULT).remove(KEY_UPD_ALLOW).apply()
+        _appUpdate.value = AppUpdateConfig()
+    }
 
     /** This device serves as the LAN master (only effective while the server delivers a LAN secret). */
     val lanMaster: StateFlow<Boolean> = _lanMaster
@@ -81,6 +144,11 @@ class AppSettings(context: Context) {
     }
 
     private companion object {
+        const val KEY_UPD_SOURCE = "upd_source"
+        const val KEY_UPD_REPO = "upd_repo"
+        const val KEY_UPD_DEFAULT = "upd_default_channel"
+        const val KEY_UPD_ALLOW = "upd_allow_override"
+        const val KEY_UPD_CHANNEL = "upd_channel_override"
         const val KEY_LAN_MASTER = "lan_master"
         const val KEY_LAN_PORT = "lan_port"
         const val KEY_LAN_MANUAL = "lan_manual"

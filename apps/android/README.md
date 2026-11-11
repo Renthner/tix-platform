@@ -288,7 +288,26 @@ manual check-in and an offline check-in.
 | `adb: no devices/emulators found` / `unauthorized` | Enable USB debugging, accept the prompt on the phone, try another cable/USB mode (*File transfer*). |
 | App says the server address is not allowed | Use `https://`, or `http://` only with a private IP (192.168.x.y, 10.x.y.z, 172.16-31.x.y). |
 
-### Publishing an update
+### Updates from GitHub releases (default)
+
+By default the app looks for updates in the GitHub releases of the project (Settings -> Scanner in the admin
+portal: source, repository, default channel, "allow changing the channel in the app"). Channels: **Stable**
+(final releases) and **Next** (also alpha/beta/rc). Operators can switch the channel in the app settings when
+allowed. The repository is the server setting, else the one compiled into the app:
+build with `-Ptix.updateRepository=<owner>/<repo>` (CI passes `$GITHUB_REPOSITORY`; empty in local builds, then
+the server must name a repository). A release is used only if it carries `tix-checkin-<version>.apk` and `SHA256SUMS.txt`. The app checks
+when Settings opens (cached for one hour, conditional requests) and about every 6 hours in the background sync;
+the unauthenticated GitHub limit (60/hour) is handled (the app shows when it can retry). Before the system
+installer starts, the SHA-256, the package/versionCode and the signing certificate are verified. See
+`docs/SCANNER.md` "App updates" for the full contract. The upload flow below is the alternative for **own server**
+mode.
+
+**Upgrading a server that already has installed apps:** old apps cannot use GitHub. Upload the new APK once under
+**Check-in devices** (publish as current): while the source is GitHub the server still offers the uploaded release
+to old apps via `/app/latest`, so they can step up once. It must be signed with the **same keystore** as the
+installed apps. Afterwards the apps follow the GitHub releases.
+
+### Publishing an update (own server)
 
 1. Build with a `versionCode` higher than the installed one (the script above).
 2. In the admin portal open **Check-in devices** -> **Scanner app** -> **Upload a new version**, choose the

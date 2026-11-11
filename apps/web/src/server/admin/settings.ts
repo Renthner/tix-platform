@@ -273,6 +273,10 @@ async function readInput(
           lanSyncEnabled: flag(fd, 'lanSyncEnabled'),
           syncIntervalSeconds: requiredInt(fd, 'syncIntervalSeconds', errors),
           pairingCodeTtlMinutes: requiredInt(fd, 'pairingCodeTtlMinutes', errors),
+          appUpdateSource: text(fd, 'appUpdateSource'),
+          githubRepository: text(fd, 'githubRepository'),
+          defaultUpdateChannel: text(fd, 'defaultUpdateChannel'),
+          allowChannelOverride: flag(fd, 'allowChannelOverride'),
           serverUrl: text(fd, 'serverUrl'),
           resultColors: Object.fromEntries(
             SCAN_RESULT_COLOR_KEYS.map((k) => [k, text(fd, `resultColors.${k}`)]),

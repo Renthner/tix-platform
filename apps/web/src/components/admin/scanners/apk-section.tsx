@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Link } from '@/i18n/navigation';
 import { Field } from '../form-controls';
 import { adminRequest, useErrorMessage } from './scanner-client';
 
@@ -50,9 +51,11 @@ function LinkDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
   const t = useTranslations('scanners.apk');
   const message = useErrorMessage();
   const format = useFormatter();
-  const [link, setLink] = useState<{ url: string; qrDataUrl: string; expiresAt: string } | null>(
-    null,
-  );
+  const [link, setLink] = useState<{
+    url: string;
+    qrDataUrl: string;
+    expiresAt: string | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -67,7 +70,7 @@ function LinkDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
     setLink(null);
     setCopied(false);
     setLoading(true);
-    void adminRequest<{ url: string; qrDataUrl: string; expiresAt: string }>(
+    void adminRequest<{ url: string; qrDataUrl: string; expiresAt: string | null }>(
       '/api/admin/scanners/apk/link',
       { method: 'POST' },
     ).then((result) => {
@@ -92,12 +95,14 @@ function LinkDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
           <DialogTitle>{t('linkTitle')}</DialogTitle>
           <DialogDescription>
             {link
-              ? t('linkText', {
-                  time: format.dateTime(new Date(link.expiresAt), {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  }),
-                })
+              ? link.expiresAt
+                ? t('linkText', {
+                    time: format.dateTime(new Date(link.expiresAt), {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    }),
+                  })
+                : t('linkTextGithub')
               : ''}
           </DialogDescription>
         </DialogHeader>
@@ -292,19 +297,62 @@ function ReleaseActions({ release }: { release: ApkReleaseRow }) {
 export function ApkSection({
   releases,
   canUpload,
+  source,
+  githubRepository,
+  defaultChannel,
+  canEditSettings,
 }: {
   releases: ApkReleaseRow[];
   canUpload: boolean;
+  source: 'GITHUB' | 'SERVER';
+  githubRepository: string;
+  defaultChannel: 'stable' | 'next';
+  canEditSettings: boolean;
 }) {
   const t = useTranslations('scanners.apk');
   const format = useFormatter();
   const [linkOpen, setLinkOpen] = useState(false);
   const current = releases.find((r) => r.isCurrent) ?? null;
+  // GitHub without a repository on the server: the app may still use its built-in one, but staff links need an upload.
+  const github = source === 'GITHUB' && githubRepository !== '';
+  const githubUnset = source === 'GITHUB' && githubRepository === '';
 
   return (
     <div className="space-y-5 p-4">
       <p className="text-sm text-muted-foreground">{t('description')}</p>
-      {current ? (
+      {githubUnset ? (
+        <Alert>
+          <AlertDescription>
+            {t('github.noRepository')}{' '}
+            {canEditSettings ? (
+              <Link href="/admin/settings/scanner" className="underline">
+                {t('github.settings')}
+              </Link>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {github ? (
+        <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border bg-muted/40 p-4">
+          <div className="space-y-1 text-sm">
+            <div className="font-medium">{t('github.title', { repository: githubRepository })}</div>
+            <div className="text-muted-foreground">
+              {t('github.text', { channel: t(`github.channels.${defaultChannel}`) })}
+            </div>
+            {canEditSettings ? (
+              <Link href="/admin/settings/scanner" className="text-xs underline">
+                {t('github.settings')}
+              </Link>
+            ) : null}
+          </div>
+          <Button type="button" onClick={() => setLinkOpen(true)}>
+            <Download /> {t('getLink')}
+          </Button>
+          {linkOpen ? <LinkDialog open onOpenChange={setLinkOpen} /> : null}
+        </div>
+      ) : null}
+      {github ? <p className="text-sm text-muted-foreground">{t('github.uploadsHint')}</p> : null}
+      {current && !github ? (
         <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border p-4">
           <div className="space-y-1 text-sm">
             <div className="font-medium">
@@ -325,7 +373,7 @@ export function ApkSection({
           </Button>
           {linkOpen ? <LinkDialog open onOpenChange={setLinkOpen} /> : null}
         </div>
-      ) : (
+      ) : github ? null : (
         <p className="text-sm">{t('none')}</p>
       )}
       {releases.length > 0 ? (

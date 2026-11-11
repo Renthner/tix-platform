@@ -48,6 +48,10 @@ class AppContainer(app: Application) {
     val feedback = Feedback(app)
     private val http = TixHttpClient.create()
 
+    /** User agent for GitHub requests: app name and version only, nothing personal. */
+    val githubUserAgent = "tix-checkin/${BuildConfig.VERSION_NAME}"
+    val githubUpdates = org.tix.checkin.update.GithubUpdateChecker(app, githubUserAgent, BuildConfig.VERSION_CODE)
+
     val sync = SyncManager(
         db = db, store = store, config = config, settings = settings, monitor = monitor, clock = clock,
         client = http, appVersion = BuildConfig.VERSION_NAME, appVersionCode = BuildConfig.VERSION_CODE,

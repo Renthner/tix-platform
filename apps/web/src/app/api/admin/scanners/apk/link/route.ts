@@ -3,6 +3,8 @@ import {
   apkDownloadUrl,
   createApkDownloadToken,
   getCurrentApkRelease,
+  getSetting,
+  githubStaffDownloadUrl,
   qrDataUrl,
 } from '@tix/core';
 import { SCANNER_VIEW_ROLES } from '@/server/admin/scanners';
@@ -12,15 +14,32 @@ import { apiError, assertSameOrigin, handle } from '@/server/http';
 
 export const dynamic = 'force-dynamic';
 
-/** POST – signed, time-limited download link (+ QR code) of the current APK for staff phones. */
+/**
+ * POST – download link (+ QR code) for staff phones: a signed, time-limited link to the current uploaded APK
+ * (source SERVER) or the GitHub release page of the default channel (source GITHUB; no expiry).
+ */
 export async function POST(request: Request) {
   return handle(async () => {
     const session = await adminForApi(SCANNER_VIEW_ROLES);
     if (!session) return apiError('FORBIDDEN', 'Not allowed', 403);
     assertSameOrigin(request);
     const core = getCore();
+    const github = (await getSetting(core, 'scanner')).appUpdateSource === 'GITHUB';
+    if (github) {
+      // Public GitHub page: no signed link, no expiry.
+      const url = await githubStaffDownloadUrl(core);
+      if (url) {
+        return Response.json(
+          { url, qrDataUrl: qrDataUrl(url), expiresAt: null },
+          { headers: { 'cache-control': 'no-store' } },
+        );
+      }
+    }
     if (!(await getCurrentApkRelease(core))) {
-      return apiError('NO_RELEASE', 'No app release has been published', 404);
+      // GITHUB without a repository on the server and without an upload: nothing to link to.
+      return github
+        ? apiError('NO_REPOSITORY', 'Set the GitHub repository in the scanner settings', 404)
+        : apiError('NO_RELEASE', 'No app release has been published', 404);
     }
     const url = await apkDownloadUrl(core, createApkDownloadToken(core, 'current'));
     return Response.json(

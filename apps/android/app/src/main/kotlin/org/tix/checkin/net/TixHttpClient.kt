@@ -6,6 +6,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.api.createClientPlugin
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.UserAgent
 import kotlinx.serialization.json.Json
 import org.tix.checkin.core.contract.ScannerJson
 import org.tix.checkin.core.ServerUrlPolicy
@@ -36,6 +37,22 @@ object TixHttpClient {
      * The single place where HTTP clients are created. Redirects are NOT followed: a redirect
      * could otherwise bounce a request from an https/local server to an arbitrary host.
      */
+    /**
+     * Client for GitHub (release list, checksum file, APK). It never carries the device token (no default
+     * headers, auth is per request in [KtorScannerApi] only) and does not follow redirects by itself:
+     * [githubGet] follows them against the GitHub host allow-list. [userAgent] must not contain personal data.
+     */
+    fun createGithub(userAgent: String): HttpClient = HttpClient(OkHttp) {
+        followRedirects = false
+        expectSuccess = false
+        install(UserAgent) { agent = userAgent }
+        install(HttpTimeout) {
+            connectTimeoutMillis = 10_000
+            requestTimeoutMillis = 30_000
+            socketTimeoutMillis = 30_000
+        }
+    }
+
     fun create(): HttpClient = HttpClient(OkHttp) {
         followRedirects = false
         expectSuccess = false

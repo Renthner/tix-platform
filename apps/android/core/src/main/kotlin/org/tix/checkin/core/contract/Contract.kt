@@ -224,6 +224,17 @@ data class ManifestSettings(
     /** Optional/additive: absent on an older server. */
     val resultColors: ManifestResultColors = ManifestResultColors(),
     val warningPriority: List<ScanWarning> = DEFAULT_WARNING_PRIORITY,
+    /** Additive: absent on an older server = updates come from the paired server (`/app/latest`). */
+    val appUpdate: ManifestAppUpdate? = null,
+)
+
+/** Raw wire values; interpreted by [org.tix.checkin.core.UpdateSource] / [org.tix.checkin.core.UpdateChannel]. */
+@Serializable
+data class ManifestAppUpdate(
+    val source: String = "SERVER",
+    val githubRepository: String = "",
+    val defaultChannel: String = "stable",
+    val allowChannelOverride: Boolean = true,
 )
 
 @Serializable
@@ -340,4 +351,6 @@ data class AppLatest(
     val notes: String? = null,
     val downloadUrl: String,
     val downloadUrlTtlSeconds: Int = 0,
+    /** Set by the app for updates found on GitHub (never read from the server answer). */
+    @kotlinx.serialization.Transient val viaGithub: Boolean = false,
 )

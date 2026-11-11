@@ -26,20 +26,26 @@ env:
 jobs:
   verify:
     name: Verify tag and changelog
-    runs-on: ${{ vars.CI_RUNS_ON && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
     outputs:
       version: ${{ steps.v.outputs.version }}
       version_code: ${{ steps.v.outputs.version_code }}
       prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: refs/tags/${{ env.TAG }}
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
+
+      - name: Re-runs must start from the tag
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != format('refs/tags/{0}', inputs.tag) }}
+        run: |
+          echo "::error::Run this workflow from the tag (Use workflow from: $TAG), not from $GITHUB_REF_NAME: the cosign identity must be release.yml@refs/tags/v*."
+          exit 1
 
       - name: Check VERSION, package versions and tag
         id: v
@@ -61,40 +67,45 @@ jobs:
   android:
     name: Android release APK
     needs: [verify, ci]
-    runs-on: ${{ vars.CI_RUNS_ON && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
+    runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
     timeout-minutes: 40
+    # The signing secrets live in the GitHub Environment `release` (docs/RELEASES.md, Protecting the signing key).
+    environment: release
+    permissions:
+      contents: read
     env:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
       VERSION: ${{ needs.verify.outputs.version }}
       VERSION_CODE: ${{ needs.verify.outputs.version_code }}
     steps:
-      - uses: actions/checkout@v4
-        if: env.HAS_KEYSTORE == 'true'
+      # A release without the signed APK is not acceptable (devices update from the GitHub release).
+      - name: Require signing secrets
+        if: env.HAS_KEYSTORE != 'true'
+        run: |
+          echo "::error::ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD are missing in the 'release' environment (see docs/RELEASES.md, Protecting the signing key)."
+          exit 1
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: refs/tags/${{ env.TAG }}
           persist-credentials: false
 
-      - uses: actions/setup-java@v4
-        if: env.HAS_KEYSTORE == 'true'
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: 21
 
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
-        if: env.HAS_KEYSTORE == 'true'
         with:
           # The default ('tools platform-tools') fails: the legacy 'tools' package no longer exists.
           packages: platform-tools
 
       - name: Install SDK packages
-        if: env.HAS_KEYSTORE == 'true'
         run: sdkmanager "platforms;android-36.1" "build-tools;36.1.0"
 
-      - uses: gradle/actions/setup-gradle@v4
-        if: env.HAS_KEYSTORE == 'true'
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
 
       - name: Decode keystore
-        if: env.HAS_KEYSTORE == 'true'
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -102,7 +113,6 @@ jobs:
           echo "TIX_KEYSTORE_FILE=$RUNNER_TEMP/tix-release.jks" >> "$GITHUB_ENV"
 
       - name: Build signed release APK
-        if: env.HAS_KEYSTORE == 'true'
         working-directory: apps/android
         env:
           TIX_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -110,7 +120,7 @@ jobs:
           TIX_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew --console=plain :app:assembleRelease "-Ptix.versionName=$VERSION" "-Ptix.versionCode=$VERSION_CODE"
+          ./gradlew --no-daemon --console=plain :app:assembleRelease "-Ptix.versionName=$VERSION" "-Ptix.versionCode=$VERSION_CODE" "-Ptix.updateRepository=$GITHUB_REPOSITORY"
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/dist/tix-checkin-$VERSION.apk"
           "$ANDROID_HOME/build-tools/36.1.0/apksigner" verify --print-certs "$GITHUB_WORKSPACE/dist/tix-checkin-$VERSION.apk" | grep -E "certificate SHA-256 digest"
@@ -119,23 +129,40 @@ jobs:
         if: always() && env.HAS_KEYSTORE == 'true'
         run: rm -f "$RUNNER_TEMP/tix-release.jks"
 
-      - uses: actions/upload-artifact@v4
-        if: env.HAS_KEYSTORE == 'true'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: android-apk
           path: dist/tix-checkin-*.apk
           if-no-files-found: error
 
-      - name: Note missing signing secrets
-        if: env.HAS_KEYSTORE != 'true'
-        run: echo "::warning::ANDROID_KEYSTORE_* secrets are not configured - the APK is not built and not attached to the release (see docs/RELEASES.md)."
+  attest-apk:
+    name: Attest APK
+    needs: [verify, android]
+    runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      id-token: write # build provenance attestation (Sigstore)
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: android-apk
+          path: dist
 
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/tix-checkin-*.apk
+
+  # One build per image AND platform, each on a native runner (no QEMU: the Next.js build and the
+  # native `sharp` install would take far too long emulated). Every build pushes by digest only;
+  # the `merge` job assembles the multi-arch index, signs it and scans it.
   docker:
-    name: Image ${{ matrix.image }}
+    name: Build ${{ matrix.image }} (${{ matrix.arch }})
     needs: [verify, ci, android]
-    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.ci.result == 'success' && needs.android.result != 'failure' }}
-    runs-on: ${{ vars.CI_RUNS_ON && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
-    timeout-minutes: 40
+    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.ci.result == 'success' && needs.android.result == 'success' }}
+    # CI_RUNS_ON (optional override) applies to amd64 only; arm64 always uses GitHub's arm runner.
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -145,15 +172,25 @@ jobs:
         # `migrate` (node dist/migrate.mjs, seed, create-admin) lives in the worker image, exactly as
         # in docker-compose.yml, so there is no separate tix-migrate image.
         image: [web, worker, realtime]
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: refs/tags/${{ env.TAG }}
           persist-credentials: false
 
       - name: Image name
         id: name
-        run: echo "repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tix-${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: echo "repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tix-$IMAGE" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
@@ -163,54 +200,191 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tags and labels
+      - name: Labels
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ steps.name.outputs.repo }}
           flavor: latest=false
-          tags: |
-            type=raw,value=${{ needs.verify.outputs.version }}
           labels: |
             org.opencontainers.image.version=${{ needs.verify.outputs.version }}
             org.opencontainers.image.licenses=PolyForm-Shield-1.0.0
 
-      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           target: ${{ matrix.image }}
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Registry cache: works on self-hosted runners without the GitHub cache service.
-          cache-from: type=registry,ref=${{ steps.name.outputs.repo }}:buildcache
-          cache-to: type=registry,ref=${{ steps.name.outputs.repo }}:buildcache,mode=max
+          provenance: mode=max
+          sbom: true
+          outputs: type=image,name=${{ steps.name.outputs.repo }},push-by-digest=true,name-canonical=true,push=true
+          # Registry cache (one per architecture): works on any runner without the GitHub cache service.
+          cache-from: type=registry,ref=${{ steps.name.outputs.repo }}:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ steps.name.outputs.repo }}:buildcache-${{ matrix.arch }},mode=max
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: digests-${{ matrix.image }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Multi-arch index per image: tag it with the version, sign it (keyless cosign, by digest) and scan
+  # it. The moving channel tags are created later by `promote` from this very index.
+  merge:
+    name: Publish ${{ matrix.image }}
+    needs: [verify, docker]
+    if: ${{ !cancelled() && needs.docker.result == 'success' }}
+    runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # keyless cosign signing (Sigstore / Fulcio)
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [web, worker, realtime]
+    steps:
+      - name: Image name
+        id: name
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: echo "repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tix-$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch index
+        id: index
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          REPO: ${{ steps.name.outputs.repo }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          [ "$(find . -type f | wc -l)" = 2 ] || { echo "expected one digest per architecture (amd64, arm64)"; find . -type f; exit 1; }
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.version=$VERSION" \
+            --annotation "index:org.opencontainers.image.licenses=PolyForm-Shield-1.0.0" \
+            --annotation "index:org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            -t "$REPO:$VERSION" $(printf "$REPO@sha256:%s " *)
+          digest=$(docker buildx imagetools inspect "$REPO:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          [[ "$digest" == sha256:* ]] || { echo "could not determine the index digest"; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "$REPO:$VERSION -> $digest"
+          docker buildx imagetools inspect "$REPO:$VERSION"
+
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+      - name: Sign the index (keyless)
+        env:
+          REF: ${{ steps.name.outputs.repo }}@${{ steps.index.outputs.digest }}
+        run: cosign sign --yes "$REF"
+
+  # Report only: findings never block the release (docs/RELEASES.md, Security scanning). Separate job
+  # with a read-only package token: the scanner never sees the signing or write credentials.
+  scan:
+    name: Scan ${{ matrix.image }}
+    needs: [verify, merge]
+    if: ${{ !cancelled() && needs.merge.result == 'success' }}
+    runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [web, worker, realtime]
+    env:
+      IMAGE: ${{ matrix.image }}
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image digest
+        id: ref
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tix-$IMAGE"
+          digest=$(docker buildx imagetools inspect "$repo:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          [[ "$digest" == sha256:* ]] || { echo "no digest for $repo:$VERSION"; exit 1; }
+          echo "ref=$repo@$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Trivy scan (CRITICAL, HIGH)
+        id: trivy
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          image-ref: ${{ steps.ref.outputs.ref }}
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
+          exit-code: '0'
+
+      - name: Upload Trivy results
+        if: ${{ always() && steps.trivy.outcome == 'success' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+          category: trivy-image-${{ matrix.image }}
 
   release:
     name: GitHub Release
-    needs: [verify, ci, android, docker]
-    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.ci.result == 'success' && needs.docker.result == 'success' && needs.android.result != 'failure' }}
-    runs-on: ${{ vars.CI_RUNS_ON && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
+    needs: [verify, ci, android, attest-apk, merge]
+    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.ci.result == 'success' && needs.merge.result == 'success' && needs.android.result == 'success' && needs.attest-apk.result == 'success' }}
+    runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
     permissions:
       contents: write
+      id-token: write # build provenance attestation of the deploy bundle
+      attestations: write
     env:
       VERSION: ${{ needs.verify.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: refs/tags/${{ env.TAG }}
           # All tags: channel-tags.mjs needs them to decide whether this is the highest stable release.
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
 
-      - uses: actions/download-artifact@v4
-        if: needs.android.result == 'success'
-        continue-on-error: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: android-apk
           path: dist
@@ -221,6 +395,11 @@ jobs:
           mkdir -p dist bundle
           node scripts/release/deploy-bundle.mjs "$VERSION" bundle
           cp "bundle/tix-deploy-$VERSION.zip" dist/
+
+      - name: Attest deploy bundle provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/tix-deploy-*.zip
 
       # Pre-releases are never "latest"; a stable release only if it is the highest stable version.
       - name: GitHub latest flag
@@ -247,7 +426,7 @@ jobs:
             echo
             echo "## Install"
             echo
-            echo "Container images (linux/amd64):"
+            echo "Container images (linux/amd64, linux/arm64; signed with cosign, verification in docs/RELEASES.md):"
             echo
             echo '```'
             for i in web worker realtime; do echo "ghcr.io/$owner/tix-$i:$VERSION"; done
@@ -277,21 +456,22 @@ jobs:
   # its group, so an older line (1.0.1 after 1.1.0) never moves next / latest / stable / X.
   promote:
     name: Moving tags
-    needs: [verify, docker, release]
-    runs-on: ${{ vars.CI_RUNS_ON && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
+    needs: [verify, merge, release]
+    runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
+      id-token: write # cosign signing, only if a retag yields a new digest
     env:
       VERSION: ${{ needs.verify.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: refs/tags/${{ env.TAG }}
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
 
@@ -303,13 +483,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+      # Tags are created from the signed index DIGEST. `imagetools create` normally reproduces the
+      # identical index (same digest, so the signature stays valid); should it ever produce a different
+      # digest, that new digest is signed as well, so every published tag always points to a signed image.
       - name: Retag
         run: |
           mapfile -t moving < <(node scripts/release/channel-tags.mjs "$VERSION")
           echo "Moving tags for $VERSION: ${moving[*]:-(none)}"
+          digest_of() { docker buildx imagetools inspect "$1" --format '{{json .Manifest}}' | jq -r .digest; }
           for i in web worker realtime; do
             repo="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tix-$i"
+            digest=$(digest_of "$repo:$VERSION")
+            [[ "$digest" == sha256:* ]] || { echo "no digest for $repo:$VERSION"; exit 1; }
             for tag in "${moving[@]}"; do
-              docker buildx imagetools create -t "$repo:$tag" "$repo:$VERSION"
+              docker buildx imagetools create -t "$repo:$tag" "$repo@$digest"
+              new=$(digest_of "$repo:$tag")
+              if [ "$new" != "$digest" ]; then
+                echo "::warning::$repo:$tag has digest $new (expected $digest); signing it too"
+                cosign sign --yes "$repo@$new"
+              fi
             done
           done

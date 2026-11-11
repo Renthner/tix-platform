@@ -8,6 +8,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.3] - 2026-11-11
+
+### Added
+
+- Check-in app updates from GitHub Releases with a channel (`stable` or `next`): the admin
+  chooses the source (GitHub Releases or the own server with APK upload), the repository and
+  the default channel, and whether devices may change the channel. The app verifies the
+  checksum, the version and the signing certificate (including forward key rotation) before
+  the system installer starts. Older apps can still step up once through an uploaded APK.
+- Multi-architecture container images (linux/amd64 and linux/arm64), keyless cosign signatures,
+  SBOM and provenance attestations for the images, and build provenance attestations for the
+  APK and the deploy bundle.
+- Container image vulnerability scanning with Trivy on every release and weekly, reported in
+  code scanning.
+- Dependabot updates for npm, Gradle, GitHub Actions and Docker base images.
+
+### Changed
+
+- CI and releases run on GitHub-hosted runners; a self-hosted runner can still be selected for
+  private forks, but never for fork or Dependabot pull requests.
+- The release workflow uses least-privilege jobs (separate scan and attestation jobs), a
+  protected `release` environment for the signing key, and fails instead of publishing a
+  release without the APK.
+
+### Fixed
+
+- In-app updates on Android 9 and 10 (signing certificate lookup).
+
 ## [1.0.0-alpha.2] - 2026-11-11
 
 ### Added

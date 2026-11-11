@@ -242,6 +242,27 @@
         },
         "preview": "Vorschau",
         "reset": "Auf Standard zurücksetzen"
+      },
+      "appUpdates": {
+        "title": "App-Updates",
+        "hint": "Woher die gekoppelten Scanner-Apps eine neuere Version beziehen. Vor der Installation werden immer SHA-256-Prüfsumme und App-Signatur geprüft.",
+        "source": "Update-Quelle",
+        "sources": {
+          "GITHUB": "GitHub-Releases (Standard)",
+          "GITHUBHint": "Die App lädt die Release-Liste von GitHub und von dort die APK.",
+          "SERVER": "Eigener Server",
+          "SERVERHint": "Die App lädt die unter „Einlass-Geräte“ hochgeladene APK."
+        },
+        "githubRepository": "GitHub-Repository",
+        "githubRepositoryHint": "owner/repo der Releases, z. B. ein Fork des Projekts. Leer = das in die App eingebaute Repository.",
+        "defaultUpdateChannel": "Standard-Update-Kanal",
+        "defaultUpdateChannelHint": "Stabil = nur finale Releases. Next = auch Vorabversionen (Alpha, Beta, RC).",
+        "channels": {
+          "stable": "Stabil",
+          "next": "Next (inkl. Alpha / Beta)"
+        },
+        "allowChannelOverride": "Kanalwechsel in der App erlauben",
+        "allowChannelOverrideHint": "Bediener können in den App-Einstellungen einen anderen Kanal wählen."
       }
     }
   },

@@ -129,6 +129,15 @@
     <string name="settings_update_server_url_missing">The server has no public address configured. Ask an administrator to set the scanner server address (Settings, Scanner).</string>
     <string name="settings_update_available">Update available: %1$s (%2$d)</string>
     <string name="settings_update_sha">SHA-256: %1$s</string>
+    <string name="settings_update_source_github">Updates from GitHub releases (%1$s)</string>
+    <string name="settings_update_source_server">Updates from your server</string>
+    <string name="settings_update_repository_missing">No update repository is configured. Ask an administrator to set the GitHub repository (Settings, Scanner).</string>
+    <string name="settings_update_channel">Update channel</string>
+    <string name="settings_update_channel_stable">Stable</string>
+    <string name="settings_update_channel_next">Next (incl. alpha / beta)</string>
+    <string name="settings_update_channel_fixed">Update channel: %1$s (set by the administrator)</string>
+    <string name="settings_update_rate_limited">GitHub allows no further requests for now. Try again after %1$s.</string>
+    <string name="update_error_signer_mismatch">The update is signed with a different certificate than the installed app and was not installed.</string>
     <string name="settings_update_download">Download in browser</string>
     <string name="update_now">Update now</string>
     <string name="update_downloading_mb">Downloading: %1$d of %2$d MB</string>

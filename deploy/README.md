@@ -5,8 +5,9 @@ nothing is built on the server. Requires Docker Engine with the Compose plugin.
 
 ## Install
 
-1. Log in to the registry. While the packages are private, create a GitHub token with the
-   `read:packages` scope and run (skip this if the packages are public):
+1. Log in to the registry **only if the packages are private** (the published packages should be
+   public; the maintainer sets this once under Package settings -> Change visibility). For private
+   packages create a GitHub token with the `read:packages` scope and run:
 
    ```bash
    echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
@@ -58,5 +59,13 @@ before the update.
 | `docker/caddy/Caddyfile`  | reverse proxy                                          |
 | `docker/redis/redis.conf` | Redis configuration                                    |
 | `docker/minio/init.sh`    | creates the buckets and the app user                   |
+
+Verify the images (optional; they are available for linux/amd64 and linux/arm64):
+
+```bash
+cosign verify ghcr.io/__TIX_IMAGE_OWNER__/tix-web:__TIX_VERSION__ \
+  --certificate-identity-regexp '^https://github\.com/__TIX_REPOSITORY__/\.github/workflows/release\.yml@refs/tags/v.*$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
 
 More: https://github.com/__TIX_REPOSITORY__/blob/v__TIX_VERSION__/docs/RELEASES.md

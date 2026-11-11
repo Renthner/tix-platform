@@ -1,16 +1,20 @@
 'use client';
 
 import {
+  APP_UPDATE_CHANNELS,
+  APP_UPDATE_SOURCES,
   SCAN_RESULT_COLOR_KEYS,
   defaultSetting,
   readableTextColor,
+  type AppUpdateChannel,
+  type AppUpdateSource,
   type ScanResultColors,
 } from '@tix/shared';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ActionFeedback, ActionForm, Field, SubmitButton } from './form-controls';
+import { ActionFeedback, ActionForm, Field, NativeSelect, SubmitButton } from './form-controls';
 import { ColorField, SwitchRow, useSettingsForm, type Action } from './settings-forms';
 
 /* Settings tabs "Security" (admin sessions, lockout, passwords, two-factor, links) and
@@ -141,7 +145,91 @@ export interface ScannerValues {
   syncIntervalSeconds: number;
   pairingCodeTtlMinutes: number;
   serverUrl?: string;
+  appUpdateSource: AppUpdateSource;
+  githubRepository: string;
+  defaultUpdateChannel: AppUpdateChannel;
+  allowChannelOverride: boolean;
   resultColors: ScanResultColors;
+}
+
+function AppUpdatesCard({
+  initial,
+  err,
+}: {
+  initial: ScannerValues;
+  err: ReturnType<typeof useSettingsForm>['err'];
+}) {
+  const t = useTranslations('adminSecurity.settings.scanner.appUpdates');
+  const [source, setSource] = useState<AppUpdateSource>(initial.appUpdateSource);
+  // The GitHub fields stay enabled (a disabled field is not submitted and would reset to its default).
+  return (
+    <section className="space-y-4 rounded-lg border p-4">
+      <div>
+        <h3 className="text-sm font-semibold">{t('title')}</h3>
+        <p className="text-xs text-muted-foreground">{t('hint')}</p>
+      </div>
+      <div className="space-y-2" role="radiogroup" aria-label={t('source')}>
+        {APP_UPDATE_SOURCES.map((value) => (
+          <label key={value} className="flex items-start gap-2 text-sm">
+            <input
+              type="radio"
+              name="appUpdateSource"
+              value={value}
+              checked={source === value}
+              onChange={() => setSource(value)}
+              className="mt-1"
+            />
+            <span>
+              <span className="font-medium">{t(`sources.${value}`)}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t(`sources.${value}Hint`)}
+              </span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field
+          label={t('githubRepository')}
+          htmlFor="githubRepository"
+          error={err('githubRepository')}
+          hint={t('githubRepositoryHint')}
+        >
+          <Input
+            id="githubRepository"
+            name="githubRepository"
+            defaultValue={initial.githubRepository}
+            placeholder="owner/repo"
+            maxLength={140}
+          />
+        </Field>
+        <Field
+          label={t('defaultUpdateChannel')}
+          htmlFor="defaultUpdateChannel"
+          error={err('defaultUpdateChannel')}
+          hint={t('defaultUpdateChannelHint')}
+        >
+          <NativeSelect
+            id="defaultUpdateChannel"
+            name="defaultUpdateChannel"
+            defaultValue={initial.defaultUpdateChannel}
+          >
+            {APP_UPDATE_CHANNELS.map((c) => (
+              <option key={c} value={c}>
+                {t(`channels.${c}`)}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+      </div>
+      <SwitchRow
+        name="allowChannelOverride"
+        defaultChecked={initial.allowChannelOverride}
+        label={t('allowChannelOverride')}
+        hint={t('allowChannelOverrideHint')}
+      />
+    </section>
+  );
 }
 
 function ResultColorsCard({
@@ -246,6 +334,7 @@ export function ScannerSettingsForm({
           defaultValue={initial.serverUrl ?? ''}
         />
       </Field>
+      <AppUpdatesCard initial={initial} err={err} />
       <ResultColorsCard initial={initial.resultColors} err={err} />
       <div className="grid gap-4 md:grid-cols-2">
         <NumberField

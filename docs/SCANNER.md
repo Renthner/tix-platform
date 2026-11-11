@@ -97,6 +97,12 @@ content hash; 304 when unchanged). Fetch on start, after pairing and every sync 
       "wrongEntrance": "#2563EB",
       "additionalPaymentOpen": "#F97316",
     },
+    "appUpdate": {
+      "source": "GITHUB",
+      "githubRepository": "owner/repo",
+      "defaultChannel": "stable",
+      "allowChannelOverride": true,
+    },
     "warningPriority": [
       "DISCOUNT_PROOF_REQUIRED",
       "WRONG_ENTRANCE",
@@ -297,7 +303,65 @@ The app learns its offset to the server from the manifest / sync `serverTime` an
 on this offset-corrected clock. The server's per-batch correction (`serverNow - sentAt`) is then close to zero and
 only catches drift since the last offset measurement (it also stays correct for devices that send raw clocks).
 
-### `GET /app/latest` (device auth)
+### App updates (source and channel)
+
+The manifest tells the app where to look for updates (`settings.appUpdate`, additive; an older server omits it,
+which means "own server"; the manifest etag changes with these settings):
+
+```jsonc
+"appUpdate": { "source": "GITHUB" | "SERVER", "githubRepository": "owner/repo", "defaultChannel": "stable" | "next", "allowChannelOverride": true }
+```
+
+Admin: Settings -> Scanner -> "App updates" (`scanner.appUpdateSource` default `GITHUB`, `githubRepository`
+default empty = "use the repository built into the app" (the release build gets it from the Gradle property
+`tix.updateRepository`, CI passes `-Ptix.updateRepository=$GITHUB_REPOSITORY`; a local build without it has none),
+a fork can be entered here, `defaultUpdateChannel` default `stable`, `allowChannelOverride` default true). The
+manifest sends the server value as is (`""` when empty); the app uses `githubRepository` if non-empty, else its
+built-in repository, and reports "no repository configured" when both are empty. The repository must be
+`owner/repo` without `.` or `..` segments.
+
+**Source `SERVER`:** `GET /app/latest` and the uploaded APKs below, unchanged.
+
+**Source `GITHUB`:** the app talks to GitHub directly and never sends the device token there. Apps with GitHub
+support do not call `GET /app/latest` in this mode. For older apps (without GitHub support) the endpoint still
+answers with the newest **uploaded** release when one exists (so they can step up once), otherwise
+**404 `UPDATE_SOURCE_GITHUB`**.
+
+**One-time step when a server switches to GitHub (upgrade):** upload the new APK once (Check-in devices -> Scanner
+app, "Publish as current") so old apps can install it via `/app/latest`; from then on the new app follows the
+manifest. The APK must be signed with the **same keystore** as the installed app (Android refuses a different
+key), also for the GitHub releases.
+
+- Channels: `stable` = newest release that is neither draft nor pre-release (GitHub flag and SemVer pre-release
+  part); `next` = newest release including pre-releases (alpha/beta/rc). Drafts are never used. The operator may
+  switch the channel in the app settings when `allowChannelOverride` is true, otherwise `defaultChannel` applies.
+- Release list: `GET https://api.github.com/repos/<owner>/<repo>/releases?per_page=30` with
+  `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `User-Agent: tix-checkin/<version>`
+  and `If-None-Match`. Unauthenticated requests are limited to 60 per hour **per IP address**, and a 304 does
+  count against it; all devices behind one venue NAT/WiFi share that budget, hence the one-hour cache and the
+  6-hour background interval (plus a random 0-30 minutes of jitter per device). The list body is read with a 2 MB cap and
+  the checksum file with a 64 KB cap (bounded reads). The result is cached (one file per repository) for
+  one hour (automatic checks: opening Settings, background sync worker at most every 6 hours); the "Check for update"
+  button always sends a conditional request. After 403/429 (`X-RateLimit-Remaining: 0`, `X-RateLimit-Reset`,
+  `Retry-After`) nothing is sent until the reset time and the app shows it.
+- Tags are `v<semver>` (`MAJOR.MINOR.PATCH[-(alpha|beta|rc).N]`); the release is ordered by SemVer, never by
+  date. Required assets: `tix-checkin-<version>.apk` and `SHA256SUMS.txt` (lines `<sha256>  <filename>`); releases
+  lacking one of them are skipped. Both assets' `browser_download_url` must start with
+  `https://github.com/<repository>/releases/download/<tag>/` (any other URL skips the release). `versionCode = MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + stage` (alpha.N -> N,
+  beta.N -> 30+N, rc.N -> 60+N, final -> 99; `scripts/release/version.mjs`, mirrored in `:core` `AppVersion`).
+- Download: the asset `browser_download_url` redirects to `*.githubusercontent.com`. Redirects are followed only for
+  this source, https only, at most 5 hops, to `github.com`, `api.github.com` and `*.githubusercontent.com`.
+- Verification before the installer: SHA-256 of the file against `SHA256SUMS.txt`, package name, `versionCode`
+  higher than the installed one and equal to the versionCode derived from the tag, and the signing certificate:
+  the same as the installed app's, or (single signer) a forward key rotation where the new APK's certificate
+  lineage contains the installed signer (several signers: exact equality). Otherwise a clear error; Android
+  enforces it as well.
+- Admin: the staff download link/QR on /admin/scanners points to the public GitHub release page
+  (`https://github.com/<owner>/<repo>/releases/latest` for `stable`, `.../releases` for `next`) when the server
+  has a repository; without one it falls back to the signed link of the uploaded APK, or (no upload either) the
+  admin sees a hint to set the repository. Uploads are the source in `SERVER` mode and the one-time fallback above.
+
+### `GET /app/latest` (device auth; source SERVER, or GITHUB for older apps)
 
 Current app release: `{ versionName, versionCode, sha256, sizeBytes, notes, downloadUrl, downloadUrlTtlSeconds }`;
 404 `NO_RELEASE` when none was published. `downloadUrl` is always absolute (`scanner.serverUrl`, else the shop `APP_URL`; 503 `SERVER_URL_MISSING` if neither is set) and a signed link valid for one hour; compare

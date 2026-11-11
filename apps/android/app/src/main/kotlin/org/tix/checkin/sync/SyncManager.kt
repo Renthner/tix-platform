@@ -301,6 +301,7 @@ class SyncManager(
         dbLock.withLock { config.wipeAll() }
         store.ensureLanState()
         settings.setSelectedEvent(null)
+        settings.clearAppUpdate()
         settings.setPairingNotice(notice)
         _status.value = SyncStatus()
         onUnpaired()
@@ -346,12 +347,14 @@ class SyncManager(
 
         // 2. Manifest (ETag).
         val cfg = dao.deviceConfig() ?: return
-        when (val m = api.manifest(cfg.manifestEtag)) {
+        // Without ETag until the update settings of the manifest are known (e.g. right after an app update).
+        when (val m = api.manifest(cfg.manifestEtag.takeIf { settings.appUpdateKnown })) {
             ManifestResult.NotModified -> Unit
             is ManifestResult.Updated -> {
                 val epoch = m.manifest.syncEpoch
                 if (epoch != null && cfg.syncEpoch != null && epoch != cfg.syncEpoch) dbLock.withLock { store.resetSyncData(epoch) }
                 dbLock.withLock { config.applyManifest(m.manifest, clock.offsetMillis) }
+                settings.setAppUpdate(m.manifest.settings.appUpdate)
                 if (epoch != null) adoptEpochIfUnset(epoch)
             }
         }

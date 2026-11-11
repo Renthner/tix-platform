@@ -1,0 +1,58 @@
+version: 2
+
+# Weekly update PRs. Their CI runs on GitHub-hosted runners and needs no secrets
+# (ci.yml only uses the read-only GITHUB_TOKEN). Minor + patch updates are grouped into one PR per
+# ecosystem; major updates arrive as separate PRs.
+updates:
+  - package-ecosystem: npm # pnpm workspace (pnpm-lock.yaml) at the repository root
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gradle
+    directory: /apps/android
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      gradle-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker # Dockerfile (node:*-alpine)
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: docker-compose # base images (postgres, redis, minio, caddy)
+    directories: ['/', '/deploy']
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    groups:
+      compose-images:
+        patterns: ['*']
+    ignore:
+      # Server data directory / pg_dump 18 are tied to PostgreSQL 18 (see Dockerfile): upgrade by hand.
+      - dependency-name: postgres
+        update-types: ['version-update:semver-major']
+      - dependency-name: redis
+        update-types: ['version-update:semver-major']

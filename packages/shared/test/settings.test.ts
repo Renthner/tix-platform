@@ -80,6 +80,45 @@ describe('settings registry', () => {
     });
   });
 
+  it('parses the scanner app update settings with defaults and validates the repository', () => {
+    expect(parseSetting('scanner', {})).toMatchObject({
+      appUpdateSource: 'GITHUB',
+      githubRepository: '',
+      defaultUpdateChannel: 'stable',
+      allowChannelOverride: true,
+    });
+    expect(
+      parseSetting('scanner', {
+        appUpdateSource: 'SERVER',
+        githubRepository: ' some-org/tix.fork_1 ',
+        defaultUpdateChannel: 'next',
+        allowChannelOverride: false,
+      }),
+    ).toMatchObject({
+      appUpdateSource: 'SERVER',
+      githubRepository: 'some-org/tix.fork_1',
+      defaultUpdateChannel: 'next',
+      allowChannelOverride: false,
+    });
+    expect(parseSetting('scanner', { githubRepository: '  ' }).githubRepository).toBe('');
+    for (const bad of [
+      'owner',
+      'a/b/c',
+      'a b/c',
+      '../x',
+      './x',
+      'x/..',
+      'x/.',
+      '../..',
+      'a/b?x=1',
+      'https://github.com/a/b',
+    ]) {
+      expect(() => parseSetting('scanner', { githubRepository: bad })).toThrow();
+    }
+    expect(() => parseSetting('scanner', { appUpdateSource: 'FTP' })).toThrow();
+    expect(() => parseSetting('scanner', { defaultUpdateChannel: 'beta' })).toThrow();
+  });
+
   it('parses scanner result colours with defaults and validates hex', () => {
     const defaults = {
       accepted: '#16A34A',

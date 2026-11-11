@@ -1,4 +1,5 @@
 import {
+  getSetting,
   listApkReleases,
   listScannerDevices,
   listScannerEventOptions,
@@ -38,11 +39,12 @@ export default async function ScannersPage({ params }: { params: Promise<{ local
   const core = getCore();
   const t = await getTranslations('scanners');
   const format = await getFormatter();
-  const [devices, eventOptions, releases, server] = await Promise.all([
+  const [devices, eventOptions, releases, server, scannerSettings] = await Promise.all([
     listScannerDevices(core),
     listScannerEventOptions(core),
     listApkReleases(core),
     resolveScannerServerUrl(core),
+    getSetting(core, 'scanner'),
   ]);
   const events = eventOptions.map((e) => ({
     id: e.id,
@@ -108,6 +110,10 @@ export default async function ScannersPage({ params }: { params: Promise<{ local
         <SettingsSection id="app" title={t('apk.title')}>
           <ApkSection
             canUpload={canUploadApk}
+            source={scannerSettings.appUpdateSource}
+            githubRepository={scannerSettings.githubRepository}
+            defaultChannel={scannerSettings.defaultUpdateChannel}
+            canEditSettings={hasRole(session, ['SUPER_ADMIN'])}
             releases={releases.map((r) => ({
               id: r.id,
               versionName: r.versionName,

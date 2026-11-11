@@ -25,6 +25,31 @@ object ApkUpdate {
     fun downloadLimit(announcedSizeBytes: Long): Long =
         if (announcedSizeBytes > 0) minOf(MAX_APK_BYTES, announcedSizeBytes + 64 * 1024) else MAX_APK_BYTES
 
+    /** Signing certificates as lower-case SHA-256 hex: the current signer(s) and, with key rotation, the earlier ones. */
+    data class Signers(val current: Set<String>, val history: Set<String> = emptySet())
+
+    /**
+     * Picks the signer data from what the platform returned: the signing-info signers (API 28+) when present,
+     * otherwise the legacy signatures (older Android, or an archive for which `signingInfo` came back null).
+     */
+    fun chooseSigners(current: Collection<String>?, history: Collection<String>?, legacy: Collection<String>?): Signers = when {
+        !current.isNullOrEmpty() -> Signers(current.toSet(), history.orEmpty().toSet())
+        !legacy.isNullOrEmpty() -> Signers(legacy.toSet())
+        else -> Signers(emptySet())
+    }
+
+    /**
+     * The downloaded APK may only replace the installed app when it carries the same signing certificate(s):
+     * equal current signer sets (exact for several signers), or a single-signer forward rotation where the
+     * archive's certificate lineage ([Signers.history]) contains the installed app's current signer.
+     */
+    fun signersMatch(installed: Signers, archive: Signers): Boolean {
+        if (archive.current.isEmpty() || installed.current.isEmpty()) return false
+        if (archive.current == installed.current) return true
+        val from = installed.current.singleOrNull() ?: return false
+        return archive.current.size == 1 && from in archive.history
+    }
+
     /** What to do before an update is installed. */
     enum class Gate { PROCEED, WARN_UNSENT_SCANS }
 

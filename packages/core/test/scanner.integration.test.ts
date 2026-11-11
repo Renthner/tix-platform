@@ -48,6 +48,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   APK_MIN_BYTES,
   appLatestInfo,
+  githubStaffDownloadUrl,
   authenticateDevice,
   buildManifest,
   createApkDownloadToken,
@@ -620,6 +621,40 @@ describe.skipIf(!adminUrl || !redisUrl)('scanner server side (integration)', () 
       } finally {
         await saveSetting(ctx, 'scanner', {}, null);
       }
+    });
+
+    it('ships the app update settings; changing them changes the etag', async () => {
+      const d = await pairDevice('Update device');
+      const m1 = await buildManifest(ctx, d);
+      expect(m1.settings.appUpdate).toEqual({
+        source: 'GITHUB',
+        githubRepository: '',
+        defaultChannel: 'stable',
+        allowChannelOverride: true,
+      });
+      await saveSetting(
+        ctx,
+        'scanner',
+        { appUpdateSource: 'SERVER', defaultUpdateChannel: 'next', githubRepository: 'a/b' },
+        null,
+      );
+      try {
+        const m2 = await buildManifest(ctx, d);
+        expect(m2.settings.appUpdate).toEqual({
+          source: 'SERVER',
+          githubRepository: 'a/b',
+          defaultChannel: 'next',
+          allowChannelOverride: true,
+        });
+        expect(m2.etag).not.toBe(m1.etag);
+        expect(await githubStaffDownloadUrl(ctx)).toBe('https://github.com/a/b/releases');
+        await saveSetting(ctx, 'scanner', { githubRepository: 'a/b' }, null);
+        expect(await githubStaffDownloadUrl(ctx)).toBe('https://github.com/a/b/releases/latest');
+      } finally {
+        await saveSetting(ctx, 'scanner', {}, null);
+      }
+      // No repository on the server: no GitHub link (the app uses its built-in repository).
+      expect(await githubStaffDownloadUrl(ctx)).toBeNull();
     });
 
     it('rotates the LAN secret when a device is revoked or unassigned from the event', async () => {

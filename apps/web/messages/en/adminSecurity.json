@@ -242,6 +242,27 @@
         },
         "preview": "Preview",
         "reset": "Reset to defaults"
+      },
+      "appUpdates": {
+        "title": "App updates",
+        "hint": "Where paired scanner apps look for a newer version. Updates are always checked against a SHA-256 checksum and the app signature before installing.",
+        "source": "Update source",
+        "sources": {
+          "GITHUB": "GitHub releases (default)",
+          "GITHUBHint": "The app fetches the release list from GitHub and downloads the APK from there.",
+          "SERVER": "Own server",
+          "SERVERHint": "The app downloads the APK that was uploaded under “Check-in devices”."
+        },
+        "githubRepository": "GitHub repository",
+        "githubRepositoryHint": "owner/repo of the releases, e.g. a fork of the project. Empty = the repository built into the app.",
+        "defaultUpdateChannel": "Default update channel",
+        "defaultUpdateChannelHint": "Stable = final releases only. Next = also pre-releases (alpha, beta, rc).",
+        "channels": {
+          "stable": "Stable",
+          "next": "Next (incl. alpha / beta)"
+        },
+        "allowChannelOverride": "Allow changing the channel in the app",
+        "allowChannelOverrideHint": "Operators may pick another channel in the app settings."
       }
     }
   },

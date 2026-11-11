@@ -39,6 +39,13 @@ android {
         targetSdk = 36
         versionCode = providers.gradleProperty("tix.versionCode").get().toInt()
         versionName = providers.gradleProperty("tix.versionName").get()
+        // GitHub repository (owner/repo) the app checks for updates unless the server names another one.
+        // CI passes -Ptix.updateRepository=$GITHUB_REPOSITORY; empty (local builds) = no built-in repository.
+        val updateRepository = providers.gradleProperty("tix.updateRepository").orElse("").get().trim()
+        require(updateRepository.isEmpty() || Regex("^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$").matches(updateRepository)) {
+            "tix.updateRepository must look like owner/repo"
+        }
+        buildConfigField("String", "UPDATE_REPOSITORY", "\"$updateRepository\"")
         // English is the default; German ships alongside (values-de). Drop everything else.
         androidResources.localeFilters += listOf("en", "de")
     }

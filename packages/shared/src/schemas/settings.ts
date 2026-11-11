@@ -215,6 +215,23 @@ export const SCAN_RESULT_COLOR_KEYS = Object.keys(
   scanResultColorsSchema.shape,
 ) as (keyof ScanResultColors)[];
 
+/** Where the check-in app finds updates: GitHub releases of the open-source project, or APKs uploaded here. */
+export const APP_UPDATE_SOURCES = ['GITHUB', 'SERVER'] as const;
+export type AppUpdateSource = (typeof APP_UPDATE_SOURCES)[number];
+/** `stable` = newest final release, `next` = newest release including alpha / beta / rc. */
+export const APP_UPDATE_CHANNELS = ['stable', 'next'] as const;
+export type AppUpdateChannel = (typeof APP_UPDATE_CHANNELS)[number];
+/** GitHub `owner/repo`. */
+export const GITHUB_REPOSITORY_PATTERN = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
+/** `owner/repo` without `.` / `..` segments (they would alter the API path). */
+export function isValidGithubRepository(value: string): boolean {
+  return (
+    value.length <= 140 &&
+    GITHUB_REPOSITORY_PATTERN.test(value) &&
+    value.split('/').every((part) => part !== '.' && part !== '..')
+  );
+}
+
 const scannerSchema = z.object({
   resultColors: scanResultColorsSchema.default(() => scanResultColorsSchema.parse({})),
   allowCheckOut: z.boolean().default(true),
@@ -222,6 +239,17 @@ const scannerSchema = z.object({
   lanSyncEnabled: z.boolean().default(true),
   syncIntervalSeconds: z.number().int().min(5).max(3_600).default(30),
   pairingCodeTtlMinutes: z.number().int().min(1).max(1_440).default(15),
+  /** Update source of the app (see docs/SCANNER.md "App updates"). */
+  appUpdateSource: z.enum(APP_UPDATE_SOURCES).default('GITHUB'),
+  /** Empty = the repository built into the app (set by the release build). */
+  githubRepository: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || isValidGithubRepository(v))
+    .default(''),
+  defaultUpdateChannel: z.enum(APP_UPDATE_CHANNELS).default('stable'),
+  /** Operators may pick another channel in the app settings. */
+  allowChannelOverride: z.boolean().default(true),
   /**
    * Address the app uses to reach this server (pairing QR code, API base), e.g.
    * `http://192.168.1.20:8080` on a venue network. Empty = the public shop URL.

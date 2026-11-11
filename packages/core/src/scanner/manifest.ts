@@ -161,6 +161,12 @@ export async function buildManifest(
       syncIntervalSeconds: settings.syncIntervalSeconds,
       resultColors: settings.resultColors,
       warningPriority: [...SCAN_WARNING_PRIORITY],
+      appUpdate: {
+        source: settings.appUpdateSource,
+        githubRepository: settings.githubRepository,
+        defaultChannel: settings.defaultUpdateChannel,
+        allowChannelOverride: settings.allowChannelOverride,
+      },
     },
     events: manifestEvents,
   };

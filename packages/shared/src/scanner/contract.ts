@@ -158,6 +158,14 @@ export const manifestSchema = z.object({
     }),
     /** Warning codes ordered by priority: the first one present decides the screen colour. */
     warningPriority: z.array(z.enum(SCAN_WARNINGS)),
+    /** Where the app looks for updates; see docs/SCANNER.md "App updates". */
+    appUpdate: z.object({
+      source: z.enum(['GITHUB', 'SERVER']),
+      /** `owner/repo` of the GitHub releases (only meaningful for source GITHUB). */
+      githubRepository: z.string(),
+      defaultChannel: z.enum(['stable', 'next']),
+      allowChannelOverride: z.boolean(),
+    }),
   }),
   events: z.array(manifestEventSchema),
 });
