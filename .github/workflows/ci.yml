@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual start (Actions tab → CI → "Run workflow", or `gh workflow run CI --ref main`).
+  workflow_dispatch:
   workflow_call:
     inputs:
       ref:
