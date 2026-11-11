@@ -22,56 +22,89 @@ permissions:
 jobs:
   node:
     name: Typecheck, format, tests
-    runs-on: ubuntu-latest
+    # Never run fork PRs: on a self-hosted runner they would execute foreign code (see docs/RELEASES.md).
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNS_ON && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
     timeout-minutes: 30
-    services:
-      redis:
-        image: redis:8-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
     env:
-      POSTGRES_URL: postgres://postgres:postgres@localhost:5432/postgres
+      TIX_CI_PG: tix-ci-pg-${{ github.run_id }}-${{ github.run_attempt }}
+      TIX_CI_REDIS: tix-ci-redis-${{ github.run_id }}-${{ github.run_attempt }}
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
 
-      # Service containers cannot take server arguments, so PostgreSQL runs via docker (the
-      # integration tests open many connections and need max_connections above the default).
-      - name: Start PostgreSQL 18
+      # PostgreSQL and Redis run as plain docker containers with unique names and EPHEMERAL host
+      # ports (127.0.0.1 only): nothing clashes with services already running on the runner host.
+      # The integration tests open many connections, hence max_connections above the default.
+      - name: Start PostgreSQL 18 and Redis 8
         run: |
-          docker run -d --name tix-pg -p 5432:5432 \
-            -e POSTGRES_PASSWORD=postgres -e TZ=UTC \
-            postgres:18-alpine postgres -c max_connections=500
+          docker run -d --name "$TIX_CI_PG" -p 127.0.0.1::5432             -e POSTGRES_PASSWORD=postgres -e TZ=UTC             postgres:18-alpine postgres -c max_connections=500
+          docker run -d --name "$TIX_CI_REDIS" -p 127.0.0.1::6379 redis:8-alpine
+
+          ready=0
           for _ in $(seq 1 30); do
-            docker exec tix-pg pg_isready -U postgres && exit 0
+            if docker exec "$TIX_CI_PG" pg_isready -h 127.0.0.1 -U postgres               && [ "$(docker exec "$TIX_CI_REDIS" redis-cli ping 2>/dev/null)" = "PONG" ]; then
+              ready=1
+              break
+            fi
             sleep 2
           done
-          docker logs tix-pg
-          exit 1
+          if [ "$ready" != 1 ]; then
+            docker logs "$TIX_CI_PG" || true
+            docker logs "$TIX_CI_REDIS" || true
+            exit 1
+          fi
 
-      # pg_dump / pg_restore 18 for the backup integration tests (must match the server major).
-      - name: Install PostgreSQL 18 client tools
+          pg_port=$(docker port "$TIX_CI_PG" 5432/tcp | head -n 1 | sed 's/.*://')
+          redis_port=$(docker port "$TIX_CI_REDIS" 6379/tcp | head -n 1 | sed 's/.*://')
+          url="postgres://postgres:postgres@127.0.0.1:${pg_port}/postgres"
+          {
+            echo "TEST_DATABASE_URL=$url"
+            echo "DATABASE_URL=$url"
+            echo "BACKUP_TEST_DATABASE_URL=$url"
+            echo "REDIS_URL=redis://127.0.0.1:${redis_port}/0"
+          } >> "$GITHUB_ENV"
+
+      # pg_dump / pg_restore / psql 18 for the backup integration tests (must match the server
+      # major). No package installation (no sudo): small wrappers run the tools from the postgres:18
+      # image. The tests pass only stdin/stdout streams and PG* environment variables, which are
+      # forwarded; --network host makes 127.0.0.1:<ephemeral port> reachable from the container.
+      - name: PostgreSQL 18 client tools (docker wrappers)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-common
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-18
-          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+          docker pull postgres:18
+          mkdir -p "$RUNNER_TEMP/bin"
+          for tool in pg_dump pg_restore psql; do
+            cat > "$RUNNER_TEMP/bin/$tool" <<EOF
+          #!/bin/sh
+          exec docker run --rm -i --network host \
+            -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE -e PGAPPNAME -e PGSSLMODE \
+            -v "$RUNNER_TEMP:$RUNNER_TEMP" -v /tmp:/tmp -v "\$PWD:\$PWD" -w "\$PWD" \
+            postgres:18 $tool "\$@"
+          EOF
+            chmod +x "$RUNNER_TEMP/bin/$tool"
+          done
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # Node first (tool cache in the runner directory, user-writable), then corepack for pnpm.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
 
       - name: Enable pnpm (corepack)
         run: corepack enable pnpm
 
-      - uses: actions/setup-node@v4
+      - name: pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
         with:
-          node-version: 24
-          cache: pnpm
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
 
       - run: pnpm install --frozen-lockfile
 
@@ -83,16 +116,16 @@ jobs:
       - run: pnpm format:check
 
       - name: Tests
-        env:
-          TEST_DATABASE_URL: ${{ env.POSTGRES_URL }}
-          DATABASE_URL: ${{ env.POSTGRES_URL }}
-          BACKUP_TEST_DATABASE_URL: ${{ env.POSTGRES_URL }}
-          REDIS_URL: redis://localhost:6379/0
         run: pnpm test
+
+      - name: Remove test containers
+        if: always()
+        run: docker rm -f "$TIX_CI_PG" "$TIX_CI_REDIS" || true
 
   android:
     name: Android (unit tests, lint, debug build)
-    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNS_ON && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
     timeout-minutes: 40
     defaults:
       run:
