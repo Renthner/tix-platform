@@ -120,6 +120,13 @@ jobs:
       - name: Tests
         run: pnpm test
 
+      - name: Release scripts (channel tags)
+        run: node --test scripts/release/*.test.mjs
+
+      # `docker compose config` only resolves the files; it starts nothing and touches no project.
+      - name: Deploy compose matches the base compose
+        run: node scripts/release/deploy-bundle.mjs --check
+
       - name: Remove test containers
         if: always()
         run: docker rm -f "$TIX_CI_PG" "$TIX_CI_REDIS" || true

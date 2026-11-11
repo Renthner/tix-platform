@@ -30,3 +30,19 @@ export function versionCode(version) {
   const stage = v.tag ? STAGE_BASE[v.tag] + v.n : 99;
   return v.major * 1_000_000 + v.minor * 10_000 + v.patch * 100 + stage;
 }
+
+const STAGE_ORDER = { alpha: 0, beta: 1, rc: 2 };
+
+// SemVer precedence: numeric core, then a pre-release is lower than the final release, and
+// pre-releases order alpha < beta < rc, then by N. Returns <0, 0 or >0.
+export function compareVersions(a, b) {
+  const x = typeof a === 'string' ? parseVersion(a) : a;
+  const y = typeof b === 'string' ? parseVersion(b) : b;
+  for (const k of ['major', 'minor', 'patch']) {
+    if (x[k] !== y[k]) return x[k] - y[k];
+  }
+  if (x.prerelease !== y.prerelease) return x.prerelease ? -1 : 1;
+  if (!x.prerelease) return 0;
+  if (x.tag !== y.tag) return STAGE_ORDER[x.tag] - STAGE_ORDER[y.tag];
+  return x.n - y.n;
+}

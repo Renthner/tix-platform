@@ -48,15 +48,88 @@ To re-run it for an existing tag use Actions -> Release -> Run workflow and ente
 
 ### Published artifacts
 
-| Artifact                                                | Notes                                                                                                                 |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `ghcr.io/<owner>/tix-web`, `tix-worker`, `tix-realtime` | linux/amd64; tags `<version>`, `latest` (final releases only), `alpha` / `beta` / `rc` (moving, latest of that stage) |
-| `tix-checkin-<version>.apk`, `SHA256SUMS.txt`           | release assets, only when the signing secrets exist                                                                   |
+| Artifact                                                | Notes                                                                                  |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `ghcr.io/<owner>/tix-web`, `tix-worker`, `tix-realtime` | linux/amd64; tags `<version>` plus the moving channel tags (see [Channels](#channels)) |
+| `tix-deploy-<version>.zip`                              | deploy bundle: production `docker-compose.yml`, config files, `.env.example`, README   |
+| `tix-checkin-<version>.apk`                             | release asset, only when the signing secrets exist                                     |
+| `SHA256SUMS.txt`                                        | checksums of the bundle and the APK                                                    |
 
 The one-shot `migrate` service uses the worker image (as in `docker-compose.yml`), so there is
 no separate migrate image. The packages must be readable by your servers: after the first
 release set the package visibility to public under the repository owner's Packages settings (or
 `docker login ghcr.io` on the server).
+
+## Channels
+
+Besides the exact version tag every release moves some **channel tags** on the three images
+(set by the `promote` job after the images are pushed and the GitHub Release exists):
+
+| Tag                   | Points to                                          | Use for                           |
+| --------------------- | -------------------------------------------------- | --------------------------------- |
+| `1.0.0-alpha.2`       | exactly this version (never moves)                 | pinning, rollback                 |
+| `next`                | newest release of any kind (pre-release or stable) | **demo / test servers**           |
+| `alpha`, `beta`, `rc` | newest pre-release of that stage                   | following one stage               |
+| `stable`, `latest`    | newest stable release (identical tags)             | **production**                    |
+| `1`                   | newest stable `1.x.y`                              | production without major upgrades |
+| `1.0`                 | newest stable `1.0.y`                              | production, patch releases only   |
+
+Pre-releases move only `next` and their stage tag; the stable-only tags (`latest`, `stable`, `X`,
+`X.Y`) are never moved by a pre-release.
+
+A tag moves only if the new version has the **highest SemVer precedence** among all `v*` tags that
+would map to it (`scripts/release/channel-tags.mjs <version>` prints the tags to apply; precedence
+is `alpha < beta < rc < final`, then numeric). Examples:
+
+| Published              | Existing releases | Tags moved                                  |
+| ---------------------- | ----------------- | ------------------------------------------- |
+| `1.0.0-alpha.2`        | `1.0.0-alpha.1`   | `next`, `alpha`                             |
+| `1.0.0`                | `1.0.0-rc.1`      | `next`, `latest`, `stable`, `1`, `1.0`      |
+| `1.1.0-alpha.1`        | `1.0.0`           | `next`, `alpha`                             |
+| `1.0.1`                | `1.1.0-alpha.1`   | `latest`, `stable`, `1`, `1.0` (not `next`) |
+| `1.0.1`                | `1.1.0`           | `1.0` only                                  |
+| `1.0.0-alpha.1` re-run | `1.0.0-alpha.2`   | none                                        |
+
+The GitHub Release is marked "latest" only for a stable release that is also the highest stable
+version; pre-releases never are. The comparison uses the tags of the repository, so keep tags of
+failed or abandoned releases out of the repository (delete them) or they block lower versions.
+
+Recommendation: the demo server follows `next`, production follows `stable` (or `1`).
+
+## Deploying with the deploy bundle
+
+Every release has the asset `tix-deploy-<version>.zip` (checksum in `SHA256SUMS.txt`):
+
+```
+docker-compose.yml        production stack: images ghcr.io/<owner>/tix-*:${TIX_CHANNEL:-stable}, pull_policy always
+.env.example              configuration template (TIX_CHANNEL, TIX_IMAGE_OWNER, secrets, ports)
+docker/caddy/Caddyfile    reverse proxy
+docker/redis/redis.conf
+docker/minio/init.sh      (executable)
+README.md                 install, update, rollback
+```
+
+On the server: unzip, `cp .env.example .env`, fill in the secrets, set `TIX_CHANNEL` (`next` for a demo,
+`stable` for production, or an exact version), then `docker compose pull && docker compose up -d`.
+While the packages are private, `docker login ghcr.io` first with a token that has the
+`read:packages` scope. Database migrations run automatically through the `migrate` service (worker
+image) before web and worker start.
+
+The bundle's compose file is `deploy/docker-compose.yml` in the repository, built by
+`node scripts/release/deploy-bundle.mjs <version> <outdir> --owner <github-owner>` (writes the folder
+and the zip). It is a maintained copy of `docker-compose.yml` without `build:` sections rather than
+generated, because the repository has no YAML library and regex rewriting of YAML breaks silently.
+CI runs `node scripts/release/deploy-bundle.mjs --check`, which compares the fully resolved services
+(commands, environment, healthchecks, volumes, dependencies, ports) of both files, so they cannot
+drift apart: change both together. The image owner is baked into the bundle at build time (the
+repository owner, lower case) and can be overridden with `TIX_IMAGE_OWNER`.
+
+Update: `docker compose pull && docker compose up -d`. Roll back: set `TIX_CHANNEL` to an exact
+earlier version (only if its schema matches; otherwise restore the backup).
+
+**Automatic updates:** not recommended. Tools such as Watchtower can pull new images, but an update
+can run schema migrations that cannot be rolled back and should be preceded by a backup, so update
+deliberately. A demo server on `next` may be updated more freely.
 
 ## Android signing secrets
 
@@ -171,20 +244,21 @@ A self-hosted runner executes repository code with the rights of its user.
 
 ## Updating a server to a new version
 
-With the published images (no build on the server):
+With the deploy bundle (see above): `docker compose pull && docker compose up -d` (or change
+`TIX_CHANNEL` first). Take a backup first (Admin -> Backups) and read the release notes: alpha
+versions may contain schema changes that cannot be rolled back. `GET /api/health` reports the
+running `version`.
+
+In a repository checkout, the override file still works:
 
 ```bash
 export TIX_IMAGE_OWNER=<github-owner, lower case>
-export TIX_IMAGE_TAG=1.0.0-alpha.2
+export TIX_IMAGE_TAG=1.0.0-alpha.2        # or a channel such as next
 docker compose -f docker-compose.yml -f docker-compose.release.yml pull
 docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-build
 ```
 
-`migrate` applies database migrations before web and worker start. Take a backup first (Admin ->
-Backups) and read the release notes: alpha versions may contain schema changes that cannot be
-rolled back. `GET /api/health` reports the running `version`.
-
-Building from source still works: `git checkout v1.0.0-alpha.2 && docker compose up -d --build`.
+Building from source also works: `git checkout v1.0.0-alpha.2 && docker compose up -d --build`.
 
 ## Updating the check-in app
 

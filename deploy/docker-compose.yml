@@ -1,0 +1,244 @@
+# TIX Platform - production compose file from the deploy bundle (tix-deploy-<version>.zip).
+#
+# Runs the published images from ghcr.io; nothing is built on the server. See README.md.
+#
+#   cp .env.example .env     # fill in the secrets, set TIX_CHANNEL
+#   docker compose pull && docker compose up -d
+#   docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
+#
+# Maintained next to docker-compose.yml: `node scripts/release/deploy-bundle.mjs --check` (run in CI)
+# fails when the services drift apart. TIX_IMAGE_OWNER_DEFAULT below is replaced by the repository
+# owner when the bundle is built.
+#
+# Only the `proxy` service (Caddy) is reachable from the browser (HTTP_PORT / HTTPS_PORT);
+# PostgreSQL, Redis and MinIO are bound to 127.0.0.1 only.
+
+name: ${COMPOSE_PROJECT_NAME:-tix}
+
+x-app-environment: &app-environment
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Public URL as seen by browsers (through the proxy).
+  APP_URL: ${PUBLIC_URL:-http://localhost:8080}
+  DATABASE_URL: postgres://${POSTGRES_USER:-tix}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-tix}
+  REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
+  REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-tix}
+  APP_ENCRYPTION_KEYS: ${APP_ENCRYPTION_KEYS:?set APP_ENCRYPTION_KEYS in .env}
+  SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+  S3_ENDPOINT: http://minio:9000
+  S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
+  S3_BUCKET_ASSETS: ${S3_BUCKET_ASSETS:-tix-assets}
+  S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-tix-documents}
+  S3_BUCKET_BACKUPS: ${S3_BUCKET_BACKUPS:-tix-backups}
+  S3_FORCE_PATH_STYLE: 'true'
+
+# Channel: next (newest release incl. pre-releases), stable (newest stable release), a major or
+# minor line (1, 1.0) or an exact version (1.0.0). `migrate` runs on the worker image.
+x-worker-image: &worker-image
+  image: ghcr.io/${TIX_IMAGE_OWNER:-TIX_IMAGE_OWNER_DEFAULT}/tix-worker:${TIX_CHANNEL:-stable}
+  pull_policy: always
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-tix}
+      TZ: UTC
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-200}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
+      - -c
+      - log_lock_waits=on
+      - -c
+      - deadlock_timeout=1s
+      - -c
+      - log_min_duration_statement=${POSTGRES_SLOW_QUERY_MS:-500}
+    # PostgreSQL 18 images keep PGDATA in a versioned sub-directory of this mount point.
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    shm_size: 256mb
+    ports:
+      - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+      - --requirepass
+      - ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-1gb}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    ports:
+      - 127.0.0.1:${REDIS_PORT:-6379}:6379
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Upstream MinIO no longer publishes container images; the default is a maintained
+  # community build of the same server. Any S3-compatible service works (override
+  # MINIO_IMAGE or point S3_* at an external provider).
+  minio:
+    image: ${MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    volumes:
+      - minio-data:/data
+    ports:
+      - 127.0.0.1:${MINIO_API_PORT:-9000}:9000
+      - 127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/minio/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: ${MC_IMAGE:-pgsty/mc:RELEASE.2026-10-26T00-00-00Z}
+    restart: 'no'
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '/init/init.sh']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_BUCKET_ASSETS: ${S3_BUCKET_ASSETS:-tix-assets}
+      S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-tix-documents}
+      S3_BUCKET_BACKUPS: ${S3_BUCKET_BACKUPS:-tix-backups}
+    volumes:
+      - ./docker/minio:/init:ro
+
+  # One-shot: apply SQL migrations (advisory-locked) and idempotent reference data.
+  migrate:
+    <<: *worker-image
+    restart: 'no'
+    command: ['sh', '-c', 'node dist/migrate.mjs && node dist/seed.mjs']
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: ghcr.io/${TIX_IMAGE_OWNER:-TIX_IMAGE_OWNER_DEFAULT}/tix-web:${TIX_CHANNEL:-stable}
+    pull_policy: always
+    init: true
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      DATABASE_POOL_MAX: ${WEB_DATABASE_POOL_MAX:-40}
+    # No published port: browsers reach web only through `proxy` (avoids clashing with
+    # `pnpm dev` on :3000 and keeps realtime / headers consistent).
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  worker:
+    <<: *worker-image
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 40s
+    environment:
+      <<: *app-environment
+      DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-10}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-8}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8081/healthz >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  # Socket.io gateway: live seat updates, waiting-room positions, announcements.
+  # Stateless – scale with `docker compose up --scale realtime=N` (Redis Pub/Sub fan-out).
+  realtime:
+    image: ghcr.io/${TIX_IMAGE_OWNER:-TIX_IMAGE_OWNER_DEFAULT}/tix-realtime:${TIX_CHANNEL:-stable}
+    pull_policy: always
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      APP_URL: ${PUBLIC_URL:-http://localhost:8080}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-tix}
+      SESSION_SECRET: ${SESSION_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3001/healthz >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # Public entry point (HTTP/HTTPS). Automatic TLS when SITE_ADDRESS is a domain name.
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - ${HTTP_PORT:-8080}:80
+      - ${HTTPS_PORT:-8443}:443
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  caddy-data:
+  caddy-config:

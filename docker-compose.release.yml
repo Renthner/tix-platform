@@ -5,7 +5,8 @@
 #   docker compose -f docker-compose.yml -f docker-compose.release.yml pull
 #   docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-build
 #
-# (or put both variables into .env). `migrate` runs on the worker image, as in docker-compose.yml.
+# (or put both variables into .env). On a server without the repository checkout prefer the deploy
+# bundle (tix-deploy-<version>.zip, channel tags such as next / stable; see docs/RELEASES.md). `migrate` runs on the worker image, as in docker-compose.yml.
 
 services:
   migrate:

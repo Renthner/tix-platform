@@ -200,6 +200,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: refs/tags/${{ env.TAG }}
+          # All tags: channel-tags.mjs needs them to decide whether this is the highest stable release.
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: actions/setup-node@v4
@@ -213,12 +215,29 @@ jobs:
           name: android-apk
           path: dist
 
+      # Standalone compose file + config for running the published images (docs/RELEASES.md).
+      - name: Deploy bundle
+        run: |
+          mkdir -p dist bundle
+          node scripts/release/deploy-bundle.mjs "$VERSION" bundle
+          cp "bundle/tix-deploy-$VERSION.zip" dist/
+
+      # Pre-releases are never "latest"; a stable release only if it is the highest stable version.
+      - name: GitHub latest flag
+        id: latest
+        run: |
+          make_latest=false
+          if [[ "$VERSION" != *-* ]] && node scripts/release/channel-tags.mjs "$VERSION" | grep -qx latest; then
+            make_latest=true
+          fi
+          echo "make_latest=$make_latest" >> "$GITHUB_OUTPUT"
+
       - name: Checksums and release notes
         run: |
           mkdir -p dist
           owner="${GITHUB_REPOSITORY_OWNER,,}"
+          (cd dist && shopt -s nullglob && sha256sum tix-deploy-*.zip tix-checkin-*.apk > SHA256SUMS.txt)
           if ls dist/tix-checkin-*.apk > /dev/null 2>&1; then
-            (cd dist && sha256sum tix-checkin-*.apk > SHA256SUMS.txt)
             apk_note="The Android check-in app is attached as \`tix-checkin-$VERSION.apk\` (verify with \`SHA256SUMS.txt\`). Upload it in the admin portal under Scanners to distribute it to devices."
           else
             apk_note="> **Note:** no Android APK is attached to this release because the APK signing secrets are not configured in the repository. See docs/RELEASES.md for how to add a locally signed APK."
@@ -234,7 +253,7 @@ jobs:
             for i in web worker realtime; do echo "ghcr.io/$owner/tix-$i:$VERSION"; done
             echo '```'
             echo
-            echo "See docs/RELEASES.md for running these images with Docker Compose."
+            echo "To run them on a server, use \`tix-deploy-$VERSION.zip\` (compose file, config, README). Moving tags (\`next\`, \`stable\`, \`latest\`, \`alpha\`, \`beta\`, \`rc\`, \`X\`, \`X.Y\`) are described in docs/RELEASES.md (Channels)."
             echo
             echo "$apk_note"
           } > release-notes.md
@@ -246,12 +265,16 @@ jobs:
           name: TIX Platform v${{ needs.verify.outputs.version }}
           body_path: release-notes.md
           prerelease: ${{ needs.verify.outputs.prerelease == 'true' }}
+          make_latest: ${{ steps.latest.outputs.make_latest }}
           files: |
             dist/tix-checkin-*.apk
+            dist/tix-deploy-*.zip
             dist/SHA256SUMS.txt
           fail_on_unmatched_files: false
 
-  # Moving tags (latest / alpha / beta / rc) are set only after everything else succeeded.
+  # Moving tags are set only after everything else succeeded (images pushed, GitHub Release exists).
+  # scripts/release/channel-tags.mjs decides per tag whether this version is the highest SemVer of
+  # its group, so an older line (1.0.1 after 1.1.0) never moves next / latest / stable / X.
   promote:
     name: Moving tags
     needs: [verify, docker, release]
@@ -262,6 +285,16 @@ jobs:
     env:
       VERSION: ${{ needs.verify.outputs.version }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
@@ -272,13 +305,11 @@ jobs:
 
       - name: Retag
         run: |
-          case "$VERSION" in
-            *-alpha.*) moving="alpha" ;;
-            *-beta.*) moving="beta" ;;
-            *-rc.*) moving="rc" ;;
-            *) moving="latest" ;;
-          esac
+          mapfile -t moving < <(node scripts/release/channel-tags.mjs "$VERSION")
+          echo "Moving tags for $VERSION: ${moving[*]:-(none)}"
           for i in web worker realtime; do
             repo="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tix-$i"
-            docker buildx imagetools create -t "$repo:$moving" "$repo:$VERSION"
+            for tag in "${moving[@]}"; do
+              docker buildx imagetools create -t "$repo:$tag" "$repo:$VERSION"
+            done
           done

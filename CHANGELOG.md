@@ -8,6 +8,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.2] - 2026-11-11
+
+### Added
+
+- Release channels: moving image tags `next` (newest release of any kind), `alpha` / `beta` / `rc`
+  (newest of that stage) and, for stable releases, `latest`, `stable`, `X` and `X.Y`. A tag only
+  moves when the release has the highest SemVer precedence in its group
+  (`scripts/release/channel-tags.mjs`, unit-tested).
+- Deploy bundle `tix-deploy-<version>.zip` attached to every release: standalone production
+  `docker-compose.yml` using the ghcr.io images with a `TIX_CHANNEL` setting, config files,
+  `.env.example` and a README. The GitHub "latest" flag is only set for the highest stable release.
+- CI runs on a self-hosted runner and can be started manually.
+
+### Fixed
+
+- Android SDK setup in CI.
+- Executable bits of the shell scripts.
+
 ## [1.0.0-alpha.1] - 2026-11-11
 
 First public pre-release: all six planned phases are built. Expect rough edges; see "Known
