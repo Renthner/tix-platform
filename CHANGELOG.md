@@ -23,6 +23,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 - Container image vulnerability scanning with Trivy on every release and weekly, reported in
   code scanning.
 - Dependabot updates for npm, Gradle, GitHub Actions and Docker base images.
+- Two-file deployment: a server needs only `docker-compose.yml` and `env.example` (saved as
+  `.env`) from the release page. The Caddyfile and the bucket setup script are embedded in the
+  compose file (Compose 2.23.1 or newer), Redis settings are passed as flags, and PostgreSQL,
+  Redis and MinIO publish no host ports. Both files are release assets (with checksums and
+  attestations); `tix-deploy-<version>.zip` additionally has a README with TLS, update and
+  backup instructions.
+- `TRUSTED_PROXIES` setting for running behind another reverse proxy or load balancer (any
+  product): Caddy takes the visitor address from the proxy's `X-Forwarded-For` header, so rate
+  limits and audit logs see the real visitor. Empty (default) keeps Caddy as the public edge.
 
 ### Changed
 

@@ -1,26 +1,36 @@
 # Public entry point.
 #   SITE_ADDRESS=":80"                 → plain HTTP (local / behind another TLS proxy)
 #   SITE_ADDRESS="tickets.example.org" → automatic HTTPS via Let's Encrypt
-# Caddy ignores X-Forwarded-* from clients and sets them itself: X-Forwarded-For holds only the
-# address Caddy saw, and the app uses the right-most entry (the one Caddy appended) for rate
+#
+# Client address: by default Caddy is the edge. It ignores X-Forwarded-* from clients and sets
+# X-Forwarded-For itself; the app uses the right-most entry (the one Caddy appended) for rate
 # limiting and audit logs.
-# Behind ANOTHER reverse proxy / load balancer, add it to the trusted proxies, otherwise every
-# visitor shares that proxy's address:
-#   { servers { trusted_proxies static <proxy-ip-or-cidr> } }
-# Caddy then keeps the incoming X-Forwarded-For and appends the proxy's address, so the app's
-# right-most entry would be the proxy; in that setup also add
-#   header_up X-Forwarded-For {client_ip}
-# inside the reverse_proxy blocks (and set client_ip_headers if the proxy uses another header).
+# Behind ANOTHER reverse proxy / load balancer set TRUSTED_PROXIES (.env) to its address(es):
+# a space-separated list of IPs / CIDRs, or `private_ranges`. Caddy then takes the
+# visitor address from the X-Forwarded-For header of that proxy (right to left, so an entry the
+# visitor made up is ignored) and hands exactly that single address on to the app.
+# Empty (or unset) trusts no proxy.
+{
+	servers {
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+		trusted_proxies_strict
+	}
+}
+
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 
 	@realtime path /socket.io/*
 	handle @realtime {
-		reverse_proxy realtime:3001
+		reverse_proxy realtime:3001 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	header {

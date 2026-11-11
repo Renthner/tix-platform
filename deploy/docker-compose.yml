@@ -1,17 +1,21 @@
-# TIX Platform - production compose file from the deploy bundle (tix-deploy-<version>.zip).
+# TIX Platform - production compose file (release asset docker-compose.yml).
 #
-# Runs the published images from ghcr.io; nothing is built on the server. See README.md.
+# Self-contained: together with .env (copy of .env.example) this is ALL you need - no other file
+# or folder. Runs the published images from ghcr.io; nothing is built on the server.
+# Requires Docker Compose >= 2.23.1 (inline `configs: content:`); check with `docker compose version`.
 #
-#   cp .env.example .env     # fill in the secrets, set TIX_CHANNEL
+#   cp .env.example .env     # (release asset: env.example) fill in the secrets, set TIX_CHANNEL
 #   docker compose pull && docker compose up -d
 #   docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
 #
-# Maintained next to docker-compose.yml: `node scripts/release/deploy-bundle.mjs --check` (run in CI)
-# fails when the services drift apart. TIX_IMAGE_OWNER_DEFAULT below is replaced by the repository
-# owner when the bundle is built.
+# Only the `proxy` service (Caddy) is reachable from the browser (HTTP_PORT / HTTPS_PORT).
+# PostgreSQL, Redis and MinIO publish no host ports (see README.md to expose one for debugging).
 #
-# Only the `proxy` service (Caddy) is reachable from the browser (HTTP_PORT / HTTPS_PORT);
-# PostgreSQL, Redis and MinIO are bound to 127.0.0.1 only.
+# Source file in the repository: deploy/docker-compose.yml is a TEMPLATE. The marker lines
+# __CADDYFILE__ and __MINIO_INIT__ are replaced by docker/caddy/Caddyfile and docker/minio/init.sh
+# (with `$` escaped as `$$`) and TIX_IMAGE_OWNER_DEFAULT by the repository owner when the release
+# is built; `node scripts/release/deploy-bundle.mjs --check` (CI) fails when the services drift
+# apart from docker-compose.yml.
 
 name: ${COMPOSE_PROJECT_NAME:-tix}
 
@@ -66,8 +70,6 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
     shm_size: 256mb
-    ports:
-      - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
@@ -77,9 +79,46 @@ services:
   redis:
     image: redis:8-alpine
     restart: unless-stopped
+    # Equivalent of docker/redis/redis.conf as flags (CI checks they stay identical).
     command:
       - redis-server
-      - /usr/local/etc/redis/redis.conf
+      - --bind
+      - 0.0.0.0
+      - --port
+      - '6379'
+      - --protected-mode
+      - 'yes'
+      - --tcp-keepalive
+      - '300'
+      - --timeout
+      - '0'
+      # Seat locks and queued jobs must NEVER be evicted (required by BullMQ).
+      - --maxmemory-policy
+      - noeviction
+      # Durability: AOF with per-second fsync.
+      - --appendonly
+      - 'yes'
+      - --appendfsync
+      - everysec
+      - --aof-use-rdb-preamble
+      - 'yes'
+      - --save
+      - '900'
+      - '1'
+      - '300'
+      - '100'
+      - '60'
+      - '10000'
+      - --notify-keyspace-events
+      - Ex
+      - --lazyfree-lazy-expire
+      - 'yes'
+      - --lazyfree-lazy-user-del
+      - 'yes'
+      - --latency-monitor-threshold
+      - '100'
+      - --slowlog-log-slower-than
+      - '10000'
       - --requirepass
       - ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
       - --maxmemory
@@ -88,9 +127,6 @@ services:
       REDISCLI_AUTH: ${REDIS_PASSWORD}
     volumes:
       - redis-data:/data
-      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-    ports:
-      - 127.0.0.1:${REDIS_PORT:-6379}:6379
     healthcheck:
       test: ['CMD-SHELL', 'redis-cli ping | grep -q PONG']
       interval: 5s
@@ -109,9 +145,6 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
     volumes:
       - minio-data:/data
-    ports:
-      - 127.0.0.1:${MINIO_API_PORT:-9000}:9000
-      - 127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/minio/health/live']
       interval: 5s
@@ -133,8 +166,9 @@ services:
       S3_BUCKET_ASSETS: ${S3_BUCKET_ASSETS:-tix-assets}
       S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-tix-documents}
       S3_BUCKET_BACKUPS: ${S3_BUCKET_BACKUPS:-tix-backups}
-    volumes:
-      - ./docker/minio:/init:ro
+    configs:
+      - source: minio-init
+        target: /init/init.sh
 
   # One-shot: apply SQL migrations (advisory-locked) and idempotent reference data.
   migrate:
@@ -223,11 +257,15 @@ services:
     restart: unless-stopped
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      # Empty = Caddy is the edge. Set when another reverse proxy sits in front (see README.md).
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
     ports:
       - ${HTTP_PORT:-8080}:80
       - ${HTTPS_PORT:-8443}:443
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
     volumes:
-      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
@@ -235,6 +273,16 @@ services:
         condition: service_healthy
       realtime:
         condition: service_healthy
+
+# Inline config files (single source: docker/caddy/Caddyfile and docker/minio/init.sh in the repo).
+# Compose interpolates `content:`, hence every `$` is written as `$$`.
+configs:
+  caddyfile:
+    content: |
+      __CADDYFILE__
+  minio-init:
+    content: |
+      __MINIO_INIT__
 
 volumes:
   postgres-data:

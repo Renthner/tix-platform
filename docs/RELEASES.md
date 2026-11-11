@@ -52,9 +52,10 @@ To re-run it for an existing tag use Actions -> Release -> Run workflow, select 
 | Artifact                                                | Notes                                                                                                                                  |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `ghcr.io/<owner>/tix-web`, `tix-worker`, `tix-realtime` | linux/amd64 + linux/arm64, signed, with SBOM and provenance; tags `<version>` plus the moving channel tags (see [Channels](#channels)) |
-| `tix-deploy-<version>.zip`                              | deploy bundle: production `docker-compose.yml`, config files, `.env.example`, README                                                   |
+| `docker-compose.yml`, `env.example`                     | the two files a server needs (config inline, see Deploying); `env.example` = `.env.example`                                            |
+| `tix-deploy-<version>.zip`                              | both files plus README                                                                                                                 |
 | `tix-checkin-<version>.apk`                             | release asset, only when the signing secrets exist                                                                                     |
-| `SHA256SUMS.txt`                                        | checksums of the bundle and the APK                                                                                                    |
+| `SHA256SUMS.txt`                                        | checksums of the compose file, env.example, the zip and the APK                                                                        |
 
 The one-shot `migrate` service uses the worker image (as in `docker-compose.yml`), so there is
 no separate migrate image. The packages must be readable by your servers: after the first
@@ -81,10 +82,12 @@ The same for `tix-worker` and `tix-realtime`. `<owner>` is the lower-case GitHub
 was built in (case as on GitHub). SBOM and SLSA provenance are stored as attestations in the image (`docker buildx
 imagetools inspect <image> --format '{{ json .SBOM }}'` / `'{{ json .Provenance }}'`).
 
-**APK and deploy bundle** (GitHub artifact attestations):
+**APK, compose file and deploy bundle** (GitHub artifact attestations):
 
 ```bash
 gh attestation verify tix-checkin-<version>.apk -R <owner>/<repo> \
+  --signer-workflow <owner>/<repo>/.github/workflows/release.yml
+gh attestation verify docker-compose.yml -R <owner>/<repo> \
   --signer-workflow <owner>/<repo>/.github/workflows/release.yml
 gh attestation verify tix-deploy-<version>.zip -R <owner>/<repo> \
   --signer-workflow <owner>/<repo>/.github/workflows/release.yml
@@ -163,36 +166,55 @@ failed or abandoned releases out of the repository (delete them) or they block l
 
 Recommendation: the demo server follows `next`, production follows `stable` (or `1`).
 
-## Deploying with the deploy bundle
+## Deploying with the release files
 
-Every release has the asset `tix-deploy-<version>.zip` (checksum in `SHA256SUMS.txt`):
+A server needs exactly two files from the release page: `docker-compose.yml` and `env.example`
+(saved as `.env`). The config files (Caddyfile, Redis settings, bucket setup script) are embedded
+in the compose file as inline `configs`, so there is no `docker/` folder. Requires Docker Compose
+2.23.1 or newer. Checksums are in `SHA256SUMS.txt`.
 
+```bash
+mkdir tix && cd tix
+curl -LO https://github.com/<owner>/<repo>/releases/download/v<version>/docker-compose.yml
+curl -Lo .env https://github.com/<owner>/<repo>/releases/download/v<version>/env.example
+# edit .env: secrets, PUBLIC_URL, SITE_ADDRESS, TIX_CHANNEL
+docker compose pull && docker compose up -d
+docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
 ```
-docker-compose.yml        production stack: images ghcr.io/<owner>/tix-*:${TIX_CHANNEL:-stable}, pull_policy always
-.env.example              configuration template (TIX_CHANNEL, TIX_IMAGE_OWNER, secrets, ports)
-docker/caddy/Caddyfile    reverse proxy
-docker/redis/redis.conf
-docker/minio/init.sh      (executable)
-README.md                 install, update, rollback
-```
 
-On the server: unzip, `cp .env.example .env`, fill in the secrets, set `TIX_CHANNEL` (`next` for a demo,
-`stable` for production, or an exact version), then `docker compose pull && docker compose up -d`.
-While the packages are private, `docker login ghcr.io` first with a token that has the
-`read:packages` scope. Database migrations run automatically through the `migrate` service (worker
-image) before web and worker start.
+(`env.example` is the same file as `.env.example` in the zip; GitHub renames release assets with a
+leading dot, so it is published without it.) `tix-deploy-<version>.zip` contains both files plus a
+`README.md` (TLS options, updates, pinning, backups). Both files have the image owner (the
+repository owner, lower case) and the default channel (`next` for pre-releases, `stable`
+otherwise) filled in; `TIX_IMAGE_OWNER` / `TIX_CHANNEL` in `.env` override them.
 
-The bundle's compose file is `deploy/docker-compose.yml` in the repository, built by
-`node scripts/release/deploy-bundle.mjs <version> <outdir> --owner <github-owner>` (writes the folder
-and the zip). It is a maintained copy of `docker-compose.yml` without `build:` sections rather than
-generated, because the repository has no YAML library and regex rewriting of YAML breaks silently.
-CI runs `node scripts/release/deploy-bundle.mjs --check`, which compares the fully resolved services
-(commands, environment, healthchecks, volumes, dependencies, ports) of both files, so they cannot
-drift apart: change both together. The image owner is baked into the bundle at build time (the
-repository owner, lower case) and can be overridden with `TIX_IMAGE_OWNER`.
+**TLS.** Only the `proxy` service (Caddy) publishes ports; PostgreSQL, Redis and MinIO publish none.
+
+- Caddy as the edge: `SITE_ADDRESS=<domain>`, `PUBLIC_URL=https://<domain>`, `HTTP_PORT=80`,
+  `HTTPS_PORT=443` (automatic Let's Encrypt certificates).
+- Your own reverse proxy / load balancer / tunnel terminates TLS: keep `SITE_ADDRESS=:80`, pick
+  `HTTP_PORT`, forward to it (WebSockets under `/socket.io` included, `Host` preserved) and set
+  `TRUSTED_PROXIES` to the proxy's IP / CIDR list (or `private_ranges`). Caddy then reads the
+  visitor address from the proxy's `X-Forwarded-For` (right to left) and passes exactly that
+  address on, so rate limits and the audit log see the real visitor. Leave it empty when Caddy
+  is the edge. No proxy-specific configuration is part of the stack.
 
 Update: `docker compose pull && docker compose up -d`. Roll back: set `TIX_CHANNEL` to an exact
-earlier version (only if its schema matches; otherwise restore the backup).
+earlier version (only if its schema matches; otherwise restore the backup). Backups: Admin ->
+Backups.
+
+**Maintaining the compose file (repository).** `deploy/docker-compose.yml` is a template: the marker
+lines `__CADDYFILE__` and `__MINIO_INIT__` are replaced by `docker/caddy/Caddyfile` and
+`docker/minio/init.sh` when a release is built (`scripts/release/deploy-bundle.mjs`, helpers in
+`compose-embed.mjs`: indented as YAML block scalars with every `$` escaped as `$$`, because
+Compose interpolates `content:`). The Redis settings of `docker/redis/redis.conf` are passed as
+`redis-server` flags. `node scripts/release/deploy-bundle.mjs <version> <outdir> --owner <github-owner>`
+builds the folder and the zip. CI runs `node scripts/release/deploy-bundle.mjs --check`, which
+compares the fully resolved services of both compose files (commands, environment, healthchecks,
+volumes, dependencies, ports), verifies that the inline configs equal their source files after
+unescaping and that every redis.conf directive is a flag, so they cannot drift apart: change
+both together. Intentionally different: image source, inline configs instead of bind mounts,
+no published PostgreSQL / Redis / MinIO ports.
 
 **Automatic updates:** not recommended. Tools such as Watchtower can pull new images, but an update
 can run schema migrations that cannot be rolled back and should be preceded by a backup, so update
@@ -339,7 +361,7 @@ A self-hosted runner executes repository code with the rights of its user.
 
 ## Updating a server to a new version
 
-With the deploy bundle (see above): `docker compose pull && docker compose up -d` (or change
+With the release files (see above): `docker compose pull && docker compose up -d` (or change
 `TIX_CHANNEL` first). Take a backup first (Admin -> Backups) and read the release notes: alpha
 versions may contain schema changes that cannot be rolled back. `GET /api/health` reports the
 running `version`.

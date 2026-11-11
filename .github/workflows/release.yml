@@ -389,17 +389,24 @@ jobs:
           name: android-apk
           path: dist
 
-      # Standalone compose file + config for running the published images (docs/RELEASES.md).
+      # Self-contained docker-compose.yml (config files inline) + .env.example for running the
+      # published images; also zipped together with a README (docs/RELEASES.md).
       - name: Deploy bundle
         run: |
           mkdir -p dist bundle
           node scripts/release/deploy-bundle.mjs "$VERSION" bundle
           cp "bundle/tix-deploy-$VERSION.zip" dist/
+          cp "bundle/tix-deploy-$VERSION/docker-compose.yml" dist/docker-compose.yml
+          # GitHub renames release assets with a leading dot ("default.env.example"): publish it as env.example.
+          cp "bundle/tix-deploy-$VERSION/.env.example" dist/env.example
 
-      - name: Attest deploy bundle provenance
+      - name: Attest deploy files provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: dist/tix-deploy-*.zip
+          subject-path: |
+            dist/tix-deploy-*.zip
+            dist/docker-compose.yml
+            dist/env.example
 
       # Pre-releases are never "latest"; a stable release only if it is the highest stable version.
       - name: GitHub latest flag
@@ -415,7 +422,7 @@ jobs:
         run: |
           mkdir -p dist
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          (cd dist && shopt -s nullglob && sha256sum tix-deploy-*.zip tix-checkin-*.apk > SHA256SUMS.txt)
+          (cd dist && shopt -s nullglob && sha256sum docker-compose.yml env.example tix-deploy-*.zip tix-checkin-*.apk > SHA256SUMS.txt)
           if ls dist/tix-checkin-*.apk > /dev/null 2>&1; then
             apk_note="The Android check-in app is attached as \`tix-checkin-$VERSION.apk\` (verify with \`SHA256SUMS.txt\`). Upload it in the admin portal under Scanners to distribute it to devices."
           else
@@ -423,6 +430,10 @@ jobs:
           fi
           {
             node scripts/release/changelog-section.mjs "$VERSION"
+            echo
+            echo "## Quick start"
+            echo
+            echo "Download \`docker-compose.yml\` and \`env.example\` from this release (nothing else is needed), save \`env.example\` as \`.env\`, fill in the secrets and run \`docker compose pull && docker compose up -d\`. Requires Docker Compose 2.23.1 or newer. TLS, updates and backups: see the README inside \`tix-deploy-$VERSION.zip\`."
             echo
             echo "## Install"
             echo
@@ -432,7 +443,7 @@ jobs:
             for i in web worker realtime; do echo "ghcr.io/$owner/tix-$i:$VERSION"; done
             echo '```'
             echo
-            echo "To run them on a server, use \`tix-deploy-$VERSION.zip\` (compose file, config, README). Moving tags (\`next\`, \`stable\`, \`latest\`, \`alpha\`, \`beta\`, \`rc\`, \`X\`, \`X.Y\`) are described in docs/RELEASES.md (Channels)."
+            echo "To run them on a server, use the two files from the quick start above. Moving tags (\`next\`, \`stable\`, \`latest\`, \`alpha\`, \`beta\`, \`rc\`, \`X\`, \`X.Y\`) are described in docs/RELEASES.md (Channels)."
             echo
             echo "$apk_note"
           } > release-notes.md
@@ -448,6 +459,8 @@ jobs:
           files: |
             dist/tix-checkin-*.apk
             dist/tix-deploy-*.zip
+            dist/docker-compose.yml
+            dist/env.example
             dist/SHA256SUMS.txt
           fail_on_unmatched_files: false
 
