@@ -128,6 +128,11 @@ export function createKeyspace(prefix: string) {
     /** STRING JSON last failed scheduled backup (dashboard alert, cleared by the next success). */
     backupFailure: () => `${prefix}:backup:failure`,
 
+    /** STRING JSON (no TTL): PayPal refunds must be reconciled with PayPal after a restore first. */
+    refundReconcilePending: () => `${prefix}:refunds:reconcile-pending`,
+    /** STRING token (NX, PX): single flight of the reconciliation pass. */
+    refundReconcileLock: () => `${prefix}:refunds:reconcile-lock`,
+
     // ── Infrastructure ───────────────────────────────────────────────────
     /** ZSET workerId → last heartbeat (epoch ms). */
     workerHeartbeats: () => `${prefix}:workers:heartbeats`,

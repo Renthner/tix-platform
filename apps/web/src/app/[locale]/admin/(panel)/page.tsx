@@ -3,6 +3,8 @@ import {
   countAdjustmentsNeedingAttention,
   countInvoiceCorrections,
   countOpenRefunds,
+  countRefundRestoreReviews,
+  getRefundReconcileStatus,
   getBackupFailure,
 } from '@tix/core';
 import { Building2, CalendarPlus, DatabaseBackup, Hourglass, Undo2 } from 'lucide-react';
@@ -44,21 +46,37 @@ export default async function AdminDashboardPage({
   const locale = await resolveLocale(params);
   const session = await requireAdmin();
   const { denied } = await searchParams;
-  const [t, tb, upcoming, openRefunds, openAdjustments, invoiceCorrections, backupFailure, live] =
-    await Promise.all([
-      getTranslations('admin.dashboard'),
-      getTranslations('backups.dashboardAlert'),
-      listEvents({ upcomingOnly: true }),
-      hasRole(session, ['FINANCE']) ? countOpenRefunds(getCore()) : Promise.resolve(0),
-      hasRole(session, ['FINANCE'])
-        ? countAdjustmentsNeedingAttention(getCore())
-        : Promise.resolve(0),
-      hasRole(session, ['FINANCE']) ? countInvoiceCorrections(getCore()) : Promise.resolve(0),
-      hasRole(session, ['SUPER_ADMIN'])
-        ? getBackupFailure(getCore()).catch(() => null)
-        : Promise.resolve(null),
-      loadDashboard(session).catch(() => null),
-    ]);
+  const [
+    t,
+    tb,
+    upcoming,
+    openRefunds,
+    openAdjustments,
+    invoiceCorrections,
+    backupFailure,
+    live,
+    refundReviews,
+    reconcile,
+  ] = await Promise.all([
+    getTranslations('admin.dashboard'),
+    getTranslations('backups.dashboardAlert'),
+    listEvents({ upcomingOnly: true }),
+    hasRole(session, ['FINANCE']) ? countOpenRefunds(getCore()) : Promise.resolve(0),
+    hasRole(session, ['FINANCE'])
+      ? countAdjustmentsNeedingAttention(getCore())
+      : Promise.resolve(0),
+    hasRole(session, ['FINANCE']) ? countInvoiceCorrections(getCore()) : Promise.resolve(0),
+    hasRole(session, ['SUPER_ADMIN'])
+      ? getBackupFailure(getCore()).catch(() => null)
+      : Promise.resolve(null),
+    loadDashboard(session).catch(() => null),
+    hasRole(session, ['FINANCE'])
+      ? countRefundRestoreReviews(getCore()).catch(() => 0)
+      : Promise.resolve(0),
+    hasRole(session, ['FINANCE'])
+      ? getRefundReconcileStatus(getCore()).catch(() => null)
+      : Promise.resolve(null),
+  ]);
 
   return (
     <>
@@ -77,6 +95,28 @@ export default async function AdminDashboardPage({
               <span>{tb('text', { message: backupFailure.message })}</span>{' '}
               <Link href="/admin/backups" className="font-medium underline">
                 {tb('link')}
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+        {(refundReviews > 0 || reconcile?.pending) && (
+          <Alert variant="destructive">
+            <Undo2 className="size-4" />
+            <AlertTitle>
+              {reconcile?.pending
+                ? t('refundReconcile.pendingTitle')
+                : t('refundReconcile.reviewTitle', { count: refundReviews })}
+            </AlertTitle>
+            <AlertDescription>
+              <span>
+                {reconcile?.pending
+                  ? reconcile.lastError || reconcile.alert
+                    ? t('refundReconcile.failing', { error: reconcile.lastError ?? '' })
+                    : t('refundReconcile.pendingText')
+                  : t('refundReconcile.reviewText')}
+              </span>{' '}
+              <Link href="/admin/refunds" className="font-medium underline">
+                {t('refundsOpen.link')}
               </Link>
             </AlertDescription>
           </Alert>

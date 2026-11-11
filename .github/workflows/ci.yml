@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to test (default - the triggering ref)
+        type: string
+        default: ''
+
+# Cancel superseded runs of the same branch / PR (never cancels release runs: they use their own group).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    name: Typecheck, format, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      POSTGRES_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      # Service containers cannot take server arguments, so PostgreSQL runs via docker (the
+      # integration tests open many connections and need max_connections above the default).
+      - name: Start PostgreSQL 18
+        run: |
+          docker run -d --name tix-pg -p 5432:5432 \
+            -e POSTGRES_PASSWORD=postgres -e TZ=UTC \
+            postgres:18-alpine postgres -c max_connections=500
+          for _ in $(seq 1 30); do
+            docker exec tix-pg pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          docker logs tix-pg
+          exit 1
+
+      # pg_dump / pg_restore 18 for the backup integration tests (must match the server major).
+      - name: Install PostgreSQL 18 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
+      - name: Enable pnpm (corepack)
+        run: corepack enable pnpm
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Version consistency
+        run: node scripts/release/set-version.mjs --check
+
+      - run: pnpm typecheck
+
+      - run: pnpm format:check
+
+      - name: Tests
+        env:
+          TEST_DATABASE_URL: ${{ env.POSTGRES_URL }}
+          DATABASE_URL: ${{ env.POSTGRES_URL }}
+          BACKUP_TEST_DATABASE_URL: ${{ env.POSTGRES_URL }}
+          REDIS_URL: redis://localhost:6379/0
+        run: pnpm test
+
+  android:
+    name: Android (unit tests, lint, debug build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-36.1" "build-tools;36.1.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test
+        run: ./gradlew --console=plain :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug

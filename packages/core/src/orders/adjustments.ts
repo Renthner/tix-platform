@@ -229,6 +229,13 @@ export async function proposeTariffChange(
     creditApplied: number;
     renders: string[];
   };
+  // Settings are read before the transaction (a cache miss would borrow a second pool connection;
+  // the reference generator reads bankTransfer + general from the same cache).
+  const [invoicingSettings] = await Promise.all([
+    getSetting(ctx, 'invoicing'),
+    getSetting(ctx, 'bankTransfer'),
+    getSetting(ctx, 'general'),
+  ]);
   try {
     outcome = await withTransaction(ctx.db, async (tx) => {
       await lockOrderTickets(tx, orderId);
@@ -321,7 +328,7 @@ export async function proposeTariffChange(
           capturedAt: new Date(),
           actor: { type: 'ADMIN', userId: params.userId },
           notify: params.notify,
-          invoicingEnabled: (await getSetting(ctx, 'invoicing')).issueInvoices,
+          invoicingEnabled: invoicingSettings.issueInvoices,
         });
         return {
           adjustmentId: adjustment!.id,

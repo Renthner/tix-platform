@@ -62,12 +62,20 @@ pnpm dev                    # web :3000, realtime gateway :3001, worker
 | `pnpm db:studio`                        | Drizzle Studio                                                               |
 | `pnpm db:demo`                          | Demo venue, seating plan and event on sale                                   |
 | `node scripts/smoke/shop.mjs <eventId>` | End-to-end check of locking, cart, tariffs, realtime against running servers |
+| `scripts/load/run.ps1 -Vus 1200`        | Load test in an isolated stack, see [docs/LOAD-TEST.md](docs/LOAD-TEST.md)   |
 
 ## Health endpoints
 
 - `GET /api/health?probe=live` – liveness
 - `GET /api/health` – readiness (PostgreSQL, Redis, live workers)
 - worker `GET :8081/healthz`, realtime gateway `GET :3001/healthz`
+
+## Releases
+
+Versions follow SemVer with pre-release tags (first release: `1.0.0-alpha.1`). Tagged releases
+are published on GitHub with container images (GHCR) and the signed Android check-in APK; see
+[CHANGELOG.md](CHANGELOG.md) and [docs/RELEASES.md](docs/RELEASES.md) (version scheme, cutting a
+release, running the published images with `docker-compose.release.yml`).
 
 ## License
 

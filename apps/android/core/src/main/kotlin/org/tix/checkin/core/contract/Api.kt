@@ -20,8 +20,11 @@ class ApiException(
     /** 403 EVENT_NOT_ASSIGNED: the assignment changed in the admin portal. */
     val isEventNotAssigned: Boolean get() = status == 403 && code == "EVENT_NOT_ASSIGNED"
 
-    /** 503 MAINTENANCE (a restore is running): behave like offline. */
-    val isMaintenance: Boolean get() = status == 503 && code != SERVER_URL_MISSING
+    /**
+     * 503 MAINTENANCE (a restore is running): behave like offline. Only this code means maintenance; any other
+     * 503 (BUSY under load, a proxy, SERVER_URL_MISSING) is a transient outage.
+     */
+    val isMaintenance: Boolean get() = status == 503 && code == "MAINTENANCE"
 
     /** 503 SERVER_URL_MISSING on `/app/latest`: no public server URL is configured (admin task, not an outage). */
     val isServerUrlMissing: Boolean get() = status == 503 && code == SERVER_URL_MISSING

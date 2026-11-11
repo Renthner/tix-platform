@@ -45,6 +45,7 @@ export * from './orders/dunning';
 export * from './orders/queries';
 export * from './orders/admin';
 export * from './orders/refunds';
+export * from './orders/refund-reconcile';
 export * from './orders/credit';
 export * from './orders/allocation-reversal';
 export * from './orders/adjustments';

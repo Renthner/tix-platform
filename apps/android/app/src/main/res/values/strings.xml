@@ -208,5 +208,10 @@
     <string name="lan_status_clock_skew">Clock differs from master - check time settings</string>
     <string name="lan_duplicate_master">Warning: more than one LAN master serves this event. Keep only one master switched on.</string>
     <string name="unpair_blocked_hint_operator">The scans could not be uploaded (no connection, or the server refused them). Try again with a connection, or export them as a file and give it to an administrator before you continue. Everything on this device is deleted afterwards.</string>
+    <string name="unpair_blocked_no_retry">This device was revoked, so the scans cannot be uploaded any more. Export is the only option.</string>
+    <string name="unpair_blocked_retrying">Uploading the scans …</string>
+    <string name="unpair_blocked_retry_in">Trying again in %1$d s. Once everything is uploaded, the device unpairs by itself.</string>
+    <string name="unpair_blocked_refused">The server refused the remaining scans, so they will not be retried. Export them as a file or discard them.</string>
+    <string name="unpair_blocked_last_error">Last attempt failed: %1$s</string>
     <string name="unpair_blocked_cancel">Cancel, do not unpair</string>
 </resources>

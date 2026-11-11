@@ -212,6 +212,8 @@ class ContractTest {
         val missing = ApiException(503, "SERVER_URL_MISSING", "no url")
         assertTrue(missing.isServerUrlMissing)
         assertFalse(missing.isMaintenance)
+        assertFalse(ApiException(503, "BUSY", "busy", 2).isMaintenance)
+        assertFalse(ApiException(503, null, "proxy").isMaintenance)
         assertTrue(ApiException(401, "DEVICE_REVOKED", "x").isUnauthorized)
         assertTrue(ApiException(403, "EVENT_NOT_ASSIGNED", "x").isEventNotAssigned)
     }

@@ -198,6 +198,13 @@
       "title": "{count, plural, one {# invoice has to be corrected} other {# invoices have to be corrected}}",
       "text": "An additional payment was received, but the invoice was not corrected automatically.",
       "link": "Open list"
+    },
+    "refundReconcile": {
+      "pendingTitle": "PayPal refunds are waiting for the reconciliation after the restore",
+      "pendingText": "Automatic refunds are paused until the comparison with PayPal is done.",
+      "failing": "The comparison with PayPal keeps failing ({error}). Automatic refunds stay paused.",
+      "reviewTitle": "{count, plural, one {# order needs a refund review} other {# orders need a refund review}}",
+      "reviewText": "PayPal shows refunds that are not recorded here. Automatic refunds of these orders are on hold."
     }
   },
   "venues": {

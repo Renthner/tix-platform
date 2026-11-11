@@ -1,0 +1,278 @@
+name: Release
+
+# Cut a release: update VERSION and CHANGELOG.md (node scripts/release/set-version.mjs <version>),
+# commit, then push the tag  v<version>  (see docs/RELEASES.md).
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re-)release, e.g. v1.0.0-alpha.1
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  verify:
+    name: Verify tag and changelog
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      version_code: ${{ steps.v.outputs.version_code }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check VERSION, package versions and tag
+        id: v
+        run: |
+          node scripts/release/set-version.mjs --check "$TAG"
+          read -r version code < <(node scripts/release/set-version.mjs --print)
+          node scripts/release/changelog-section.mjs "$version" > /dev/null
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "version_code=$code" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+
+  ci:
+    name: CI
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: refs/tags/${{ inputs.tag || github.ref_name }}
+
+  android:
+    name: Android release APK
+    needs: [verify, ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+      VERSION: ${{ needs.verify.outputs.version }}
+      VERSION_CODE: ${{ needs.verify.outputs.version_code }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+        if: env.HAS_KEYSTORE == 'true'
+
+      - name: Install SDK packages
+        if: env.HAS_KEYSTORE == 'true'
+        run: sdkmanager "platforms;android-36.1" "build-tools;36.1.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: env.HAS_KEYSTORE == 'true'
+
+      - name: Decode keystore
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/tix-release.jks"
+          echo "TIX_KEYSTORE_FILE=$RUNNER_TEMP/tix-release.jks" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: apps/android
+        env:
+          TIX_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TIX_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TIX_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --console=plain :app:assembleRelease "-Ptix.versionName=$VERSION" "-Ptix.versionCode=$VERSION_CODE"
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/dist/tix-checkin-$VERSION.apk"
+          "$ANDROID_HOME/build-tools/36.1.0/apksigner" verify --print-certs "$GITHUB_WORKSPACE/dist/tix-checkin-$VERSION.apk" | grep -E "certificate SHA-256 digest"
+
+      - name: Delete keystore
+        if: always() && env.HAS_KEYSTORE == 'true'
+        run: rm -f "$RUNNER_TEMP/tix-release.jks"
+
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          name: android-apk
+          path: dist/tix-checkin-*.apk
+          if-no-files-found: error
+
+      - name: Note missing signing secrets
+        if: env.HAS_KEYSTORE != 'true'
+        run: echo "::warning::ANDROID_KEYSTORE_* secrets are not configured - the APK is not built and not attached to the release (see docs/RELEASES.md)."
+
+  docker:
+    name: Image ${{ matrix.image }}
+    needs: [verify, ci, android]
+    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.ci.result == 'success' && needs.android.result != 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # `migrate` (node dist/migrate.mjs, seed, create-admin) lives in the worker image, exactly as
+        # in docker-compose.yml, so there is no separate tix-migrate image.
+        image: [web, worker, realtime]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          persist-credentials: false
+
+      - name: Image name
+        id: name
+        run: echo "repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tix-${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ steps.name.outputs.repo }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ needs.verify.outputs.version }}
+          labels: |
+            org.opencontainers.image.version=${{ needs.verify.outputs.version }}
+            org.opencontainers.image.licenses=PolyForm-Shield-1.0.0
+
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          target: ${{ matrix.image }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+  release:
+    name: GitHub Release
+    needs: [verify, ci, android, docker]
+    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.ci.result == 'success' && needs.docker.result == 'success' && needs.android.result != 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: actions/download-artifact@v4
+        if: needs.android.result == 'success'
+        continue-on-error: true
+        with:
+          name: android-apk
+          path: dist
+
+      - name: Checksums and release notes
+        run: |
+          mkdir -p dist
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          if ls dist/tix-checkin-*.apk > /dev/null 2>&1; then
+            (cd dist && sha256sum tix-checkin-*.apk > SHA256SUMS.txt)
+            apk_note="The Android check-in app is attached as \`tix-checkin-$VERSION.apk\` (verify with \`SHA256SUMS.txt\`). Upload it in the admin portal under Scanners to distribute it to devices."
+          else
+            apk_note="> **Note:** no Android APK is attached to this release because the APK signing secrets are not configured in the repository. See docs/RELEASES.md for how to add a locally signed APK."
+          fi
+          {
+            node scripts/release/changelog-section.mjs "$VERSION"
+            echo
+            echo "## Install"
+            echo
+            echo "Container images (linux/amd64):"
+            echo
+            echo '```'
+            for i in web worker realtime; do echo "ghcr.io/$owner/tix-$i:$VERSION"; done
+            echo '```'
+            echo
+            echo "See docs/RELEASES.md for running these images with Docker Compose."
+            echo
+            echo "$apk_note"
+          } > release-notes.md
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: TIX Platform v${{ needs.verify.outputs.version }}
+          body_path: release-notes.md
+          prerelease: ${{ needs.verify.outputs.prerelease == 'true' }}
+          files: |
+            dist/tix-checkin-*.apk
+            dist/SHA256SUMS.txt
+          fail_on_unmatched_files: false
+
+  # Moving tags (latest / alpha / beta / rc) are set only after everything else succeeded.
+  promote:
+    name: Moving tags
+    needs: [verify, docker, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retag
+        run: |
+          case "$VERSION" in
+            *-alpha.*) moving="alpha" ;;
+            *-beta.*) moving="beta" ;;
+            *-rc.*) moving="rc" ;;
+            *) moving="latest" ;;
+          esac
+          for i in web worker realtime; do
+            repo="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tix-$i"
+            docker buildx imagetools create -t "$repo:$moving" "$repo:$VERSION"
+          done

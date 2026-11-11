@@ -18,6 +18,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,10 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.tix.checkin.R
 import org.tix.checkin.sync.PairingNotice
 import org.tix.checkin.sync.UnpairBlock
+
+private const val RETRY_SECONDS = 15
 
 /**
  * Blocks the whole app when the device is being unpaired (server revoked it, or the operator asked) while scans were
@@ -46,6 +51,32 @@ fun UnpairBlockedScreen(vm: MainViewModel, block: UnpairBlock) {
     var exportFailed by remember { mutableStateOf(false) }
     val chooserTitle = stringResource(R.string.unpair_blocked_export)
 
+    // Operator-initiated unpair: the token is still valid, so the upload is retried every RETRY_SECONDS (and at once
+    // when the network comes back); when nothing is left the unpair continues by itself. After a revocation the
+    // token is dead: nothing to retry, export is the only way out.
+    val revoked = block.notice == PairingNotice.REVOKED
+    val retry by vm.unpairRetry.collectAsState()
+    var secondsLeft by remember { mutableIntStateOf(RETRY_SECONDS) }
+    var wakeTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { vm.networkWake.collect { wakeTick++ } }
+    LaunchedEffect(revoked, retry.refused, wakeTick) {
+        if (revoked || retry.refused) return@LaunchedEffect
+        var immediate = wakeTick > 0
+        while (true) {
+            if (!immediate) {
+                for (s in RETRY_SECONDS downTo 1) {
+                    secondsLeft = s
+                    delay(1_000)
+                }
+            }
+            immediate = false
+            secondsLeft = 0
+            vm.retryUnpairUpload()
+            delay(500) // let the attempt start before waiting for it to finish
+            while (vm.unpairRetry.value.running) delay(300)
+        }
+    }
+
     Surface(Modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -56,7 +87,25 @@ fun UnpairBlockedScreen(vm: MainViewModel, block: UnpairBlock) {
                 Text(stringResource(R.string.pairing_revoked), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall)
             }
             Text(stringResource(R.string.unpair_blocked_count, block.unsentScans), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(if (block.notice == PairingNotice.REVOKED) R.string.unpair_blocked_hint else R.string.unpair_blocked_hint_operator))
+            Text(stringResource(if (revoked) R.string.unpair_blocked_hint else R.string.unpair_blocked_hint_operator))
+            if (revoked) {
+                Text(stringResource(R.string.unpair_blocked_no_retry), style = MaterialTheme.typography.bodyMedium)
+            } else {
+                Text(
+                    stringResource(
+                        when {
+                            retry.running -> R.string.unpair_blocked_retrying
+                            retry.refused -> R.string.unpair_blocked_refused
+                            else -> R.string.unpair_blocked_retry_in
+                        },
+                        secondsLeft,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                retry.lastError?.let {
+                    Text(stringResource(R.string.unpair_blocked_last_error, it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
             Button(
                 onClick = {
                     scope.launch {

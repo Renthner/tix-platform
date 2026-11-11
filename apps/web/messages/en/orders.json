@@ -39,6 +39,7 @@
     "ITEMS_NOT_REFUNDABLE": "Some of the selected tickets are not active any more (already cancelled or refunded). Please reload the page.",
     "REFUND_NOT_FOUND": "Refund not found.",
     "REFUND_NOT_RETRYABLE": "Only failed automatic refunds can be retried.",
+    "REFUND_REVIEW_NOT_FOUND": "There is no open review for this order.",
     "REFUND_NOT_MANUAL": "This refund is executed automatically by the payment provider.",
     "ADJUSTMENT_NOT_HIGHER": "The new tariff must cost more than the price paid.",
     "ADJUSTMENT_NOT_POSSIBLE": "Only paid orders can get a tariff change.",
@@ -55,7 +56,12 @@
     "INVOICE_REPAIR_NOT_POSSIBLE": "The invoice of a refunded order cannot be repaired automatically.",
     "NO_OVERPAYMENT": "This order has no overpayment to refund.",
     "CREDIT_REQUIRES_FINANCE": "Only finance can credit an overpayment against a tariff change.",
-    "OVERPAYMENT_CHANGED": "The overpayment changed in the meantime – reload the page."
+    "OVERPAYMENT_CHANGED": "The overpayment changed in the meantime – reload the page.",
+    "REFUND_REVIEW_OPEN": "PayPal refunds of this order are on hold: PayPal shows a refund that is not recorded here. Open “Open refunds” and record or resolve it first.",
+    "REFUND_EXISTING_MISMATCH": "The selected tickets (and fees) do not add up to the amount of the PayPal refund.",
+    "PAYPAL_REFUND_NOT_COMPLETED": "This PayPal refund is not completed at PayPal.",
+    "PAYPAL_REFUND_MISMATCH": "This PayPal refund does not belong to a payment of this order (or has another currency).",
+    "PAYPAL_REFUND_ALREADY_RECORDED": "This PayPal refund is already recorded."
   },
   "admin": {
     "title": "Orders",
@@ -275,9 +281,12 @@
       "adjustmentCancelled": "Additional payment cancelled – the tariff stays as it was sold.",
       "adjustmentPaymentRecorded": "Payment recorded – tariff, tickets and invoice were updated.",
       "invoiceRepaired": "Invoice corrected: credit note and new invoice issued.",
+      "restoreReviewResolved": "The restore review was marked as reviewed.",
       "invoiceUpToDate": "The invoice is already up to date.",
       "overpaymentRefundRequested": "The overpayment refund was created.",
-      "adjustmentSettledByCredit": "The tariff was changed and settled with the overpayment. The customer was e-mailed the new tickets."
+      "adjustmentSettledByCredit": "The tariff was changed and settled with the overpayment. The customer was e-mailed the new tickets.",
+      "existingRefundRecorded": "The existing PayPal refund was recorded: tickets cancelled, credit note issued, nothing was sent to PayPal.",
+      "reconciliationSkipped": "The PayPal reconciliation was skipped. Automatic refunds resume."
     },
     "actions": {
       "keepReserved": {
@@ -395,6 +404,34 @@
       "title": "Open refunds",
       "description": "Refunds that need attention: bank transfers to pay back by hand, and PayPal refunds that failed or are stuck.",
       "empty": "No open refunds.",
+      "restoreReview": {
+        "title": "Needs review after restore",
+        "description": "These orders disagree with PayPal (after a backup restore, or PayPal announced a refund that was not made here). Nothing was booked automatically. If the money already went back, record the existing PayPal refund – do NOT cancel the order normally, that would refund twice. Mark the entry as reviewed when nothing is missing.",
+        "resolve": "Mark as reviewed",
+        "kinds": {
+          "UNKNOWN_AT_PAYPAL": "PayPal shows a refund of {amount} ({ref}) that is not recorded here.",
+          "EXTERNAL_REFUND_NOTICE": "PayPal announced a refund of {amount} ({ref}) that was not made through this system.",
+          "DOUBLE_REFUND_AT_PAYPAL": "PayPal holds more than one completed refund for the same refund request ({detail}): possible double payout, total {amount}.",
+          "AMOUNT_MISMATCH": "PayPal’s refund {ref} ({amount}) differs from the recorded refund ({detail}).",
+          "LOCAL_SUCCEEDED_NOT_AT_PAYPAL": "A refund of {amount} is recorded here as done, but PayPal does not show it as completed ({ref}).",
+          "UNCHECKED_AT_PAYPAL": "PayPal does not know the PayPal order {ref}, but refunds exist here. Check the PayPal account / environment.",
+          "CHECK_FAILED": "PayPal refused to look up the PayPal order {ref}: {detail}"
+        },
+        "hold": "Automatic PayPal refunds of this order are on hold until this is resolved.",
+        "record": {
+          "summary": "Record existing PayPal refund",
+          "hint": "Cancels the selected tickets, issues the credit note and books the PayPal refund as done. Nothing is sent to PayPal; the refund is verified there first. The tickets (and fees) must add up to the refund amount.",
+          "refundId": "PayPal refund id",
+          "items": "Tickets covered by this refund",
+          "fees": "The refund includes the service fees",
+          "notify": "Send the refund e-mail to the customer",
+          "confirm": "The refund really exists at PayPal",
+          "submit": "Record refund",
+          "mode": "What did the refund pay back?",
+          "modeCancel": "Tickets (cancel them)",
+          "modeOverpayment": "An overpayment (no tickets)"
+        }
+      },
       "columns": {
         "order": "Order",
         "customer": "Customer",
@@ -405,6 +442,15 @@
         "created": "Created",
         "status": "Status",
         "actions": "Actions"
+      },
+      "reconcile": {
+        "title": "PayPal reconciliation after restore",
+        "pending": "After the restore the refunds are being compared with PayPal. Automatic refunds wait until this is done.",
+        "failing": "The comparison with PayPal did not finish yet (attempt {attempts}) and is retried automatically. Automatic refunds wait.",
+        "mostlyNotFound": "PayPal does not know most of the orders. The restored data probably belongs to another PayPal account or environment (live/sandbox). Check the PayPal settings.",
+        "lastError": "Last error: {error}",
+        "skip": "Skip reconciliation",
+        "skipConfirm": "I understand: refunds are sent without comparing them with PayPal (risk of double refunds)."
       }
     },
     "seatChange": {

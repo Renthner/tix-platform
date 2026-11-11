@@ -1,0 +1,6 @@
+# Overlay for the isolated load-test project (see docs/LOAD-TEST.md). Only swaps the proxy
+# configuration so every virtual user can present its own client address to the rate limiter.
+services:
+  proxy:
+    volumes:
+      - ./scripts/load/Caddyfile.load:/etc/caddy/Caddyfile:ro

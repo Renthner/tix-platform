@@ -28,7 +28,8 @@ import { useRouter } from '@/i18n/navigation';
 import { apiFetch, errorCode, errorMessage } from '@/lib/api';
 import { useMoney } from '@/lib/format';
 import { startSocketPresence } from '@/lib/presence';
-import { emitRealtime, onRealtime, subscribeRoom } from '@/lib/realtime';
+import { MaintenanceNotice } from '@/components/shop/maintenance-notice';
+import { emitRealtime, onRealtime, onResync, subscribeRoom } from '@/lib/realtime';
 import { useCart } from './cart-context';
 import { SeatChart, type SeatColors, type SeatStatus } from './seat-chart/seat-chart';
 import { SeatStateLegend, SeatSwatch, StandingSwatch } from './seat-chart/seat-legend';
@@ -122,12 +123,7 @@ export function SeatSelection({
     setStatusVersion((v) => v + 1);
   }, []);
 
-  const loadAll = useCallback(async () => {
-    const [nextMap, availability] = await Promise.all([
-      apiFetch<PublicSeatMap>(`/api/events/${eventId}/seatmap?locale=${locale}`),
-      apiFetch<EventAvailability>(`/api/events/${eventId}/availability`),
-    ]);
-    setMap(nextMap);
+  const applyAvailability = useCallback((availability: EventAvailability) => {
     setInv({
       taken: new Set(availability.taken),
       locked: new Set(availability.locked),
@@ -138,7 +134,20 @@ export function SeatSelection({
       version: availability.version,
     });
     setStatusVersion((v) => v + 1);
-  }, [eventId, locale]);
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    const [nextMap, availability] = await Promise.all([
+      apiFetch<PublicSeatMap>(`/api/events/${eventId}/seatmap?locale=${locale}`),
+      apiFetch<EventAvailability>(`/api/events/${eventId}/availability`),
+    ]);
+    setMap(nextMap);
+    applyAvailability(availability);
+  }, [applyAvailability, eventId, locale]);
+
+  const loadAvailability = useCallback(async () => {
+    applyAvailability(await apiFetch<EventAvailability>(`/api/events/${eventId}/availability`));
+  }, [applyAvailability, eventId]);
 
   useEffect(() => {
     loadAll().catch(showError);
@@ -171,16 +180,24 @@ export function SeatSelection({
         if (delta.ga) Object.assign(draft.ga, delta.ga);
       });
     });
+    // After a reconnect (network drop, maintenance) deltas were missed: refetch everything.
+    // Carts and seat locks are gone after a restore: the cart is refetched as well. The seat map is
+    // only reloaded after maintenance (it can have changed); a plain reconnect needs availability only.
+    const offResync = onResync(({ full }) => {
+      void (full ? loadAll() : loadAvailability()).catch(() => undefined);
+      void refreshCart();
+    });
     const ping = setInterval(() => emitRealtime('shop:ping', eventId), PING_INTERVAL_MS);
     emitRealtime('shop:ping', eventId);
     const stopPresence = startSocketPresence(eventId);
     return () => {
       off();
+      offResync();
       unsubscribe();
       clearInterval(ping);
       stopPresence();
     };
-  }, [eventId, loadAll, update]);
+  }, [eventId, loadAll, loadAvailability, refreshCart, update]);
 
   const status = useCallback(
     (seatId: string): SeatStatus => {
@@ -442,6 +459,7 @@ export function SeatSelection({
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
       <div className="space-y-3">
+        <MaintenanceNotice />
         <SeatChart
           map={map}
           colors={colors}

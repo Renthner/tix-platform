@@ -152,7 +152,7 @@ services:
     restart: unless-stopped
     environment:
       <<: *app-environment
-      DATABASE_POOL_MAX: ${WEB_DATABASE_POOL_MAX:-20}
+      DATABASE_POOL_MAX: ${WEB_DATABASE_POOL_MAX:-40}
     # No published port: browsers reach web only through `proxy` (avoids clashing with
     # `pnpm dev` on :3000 and keeps realtime / headers consistent).
     depends_on:

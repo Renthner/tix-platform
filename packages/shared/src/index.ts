@@ -1,4 +1,5 @@
 export * from './enums';
+export * from './version';
 export * from './i18n';
 export * from './pricing';
 export * from './schemas/common';

@@ -1,4 +1,5 @@
 import { pingDb } from '@tix/db';
+import { APP_VERSION } from '@tix/shared';
 import { listLiveWorkers, pingRedis } from '@tix/redis';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDbHandle } from '@/server/db';
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   const headers = { 'cache-control': 'no-store' };
 
   if (request.nextUrl.searchParams.get('probe') === 'live') {
-    return NextResponse.json({ status: 'ok' }, { headers });
+    return NextResponse.json({ status: 'ok', version: APP_VERSION }, { headers });
   }
 
   const [database, redis, workers] = await Promise.all([
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
       status: ready ? (workerCount > 0 ? 'ok' : 'degraded') : 'error',
+      version: APP_VERSION,
       checks: { database, redis, workers },
       time: new Date().toISOString(),
     },

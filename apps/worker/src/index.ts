@@ -19,6 +19,7 @@ import {
   removeWorkerHeartbeat,
   writeWorkerHeartbeat,
 } from '@tix/redis';
+import { APP_VERSION } from '@tix/shared';
 import { createSecretBox, parseKeyRing } from '@tix/shared/server';
 import { resolve } from 'node:path';
 import { Queue, Worker } from 'bullmq';
@@ -164,7 +165,10 @@ async function main(): Promise<void> {
   });
   healthServer.listen(env.WORKER_HEALTH_PORT, '0.0.0.0');
 
-  logger.info({ workerId, queues: workers.map((w) => w.name) }, 'worker started');
+  logger.info(
+    { version: APP_VERSION, workerId, queues: workers.map((w) => w.name) },
+    'worker started',
+  );
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   let shuttingDown = false;

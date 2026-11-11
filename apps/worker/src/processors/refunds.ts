@@ -1,4 +1,9 @@
-import { DomainError, processPaypalRefund, requeueStaleRefunds } from '@tix/core';
+import {
+  DomainError,
+  processPaypalRefund,
+  reconcileRefundsAfterRestore,
+  requeueStaleRefunds,
+} from '@tix/core';
 import { QUEUE_NAMES } from '@tix/redis';
 import { UnrecoverableError, type Job } from 'bullmq';
 import type { ProcessorRegistration, WorkerDeps } from './index';
@@ -8,6 +13,8 @@ export const REFUND_JOBS = {
   execute: 'execute-refund',
   /** Re-queues automatic refunds that are still PENDING after a while (lost job, PayPal pending). */
   sweep: 'sweep-refunds',
+  /** Compares PENDING PayPal refunds with PayPal after a backup restore (flag-guarded, idempotent). */
+  reconcile: 'reconcile-refunds',
 } as const;
 
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -34,7 +41,17 @@ export function createRefundsProcessor(deps: WorkerDeps) {
           throw err;
         }
       }
+      case REFUND_JOBS.reconcile: {
+        const result = await reconcileRefundsAfterRestore(deps.core, { force: true });
+        deps.logger.info(result, 'refunds reconciled after restore');
+        if (!result.complete) throw new Error('refund reconciliation incomplete, will be retried');
+        return result;
+      }
       case REFUND_JOBS.sweep: {
+        // Self-healing: a restore flag whose job was lost or failed is picked up here.
+        const reconciled = await reconcileRefundsAfterRestore(deps.core);
+        if (reconciled.checked > 0)
+          deps.logger.info(reconciled, 'refunds reconciled after restore');
         const requeued = await requeueStaleRefunds(deps.core);
         if (requeued > 0) deps.logger.info({ requeued }, 'stale refunds re-queued');
         return { requeued };

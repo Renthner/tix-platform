@@ -36,10 +36,10 @@ import {
 import { runMigrations } from '@tix/db/migrate';
 import { checkoutInputSchema, type CheckoutInput, type SeatMapDocumentInput } from '@tix/shared';
 import { createSecretBox, generateKeyRingEntry, parseKeyRing } from '@tix/shared/server';
-import { asc, eq, sql } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import pg from 'pg';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   addSeats,
   afterSeatMapSaved,
@@ -54,6 +54,16 @@ import {
   getCheckoutOptions,
   getEventById,
   listOpenRefunds,
+  getRefundReconcileStatus,
+  isRefundReconcilePending,
+  listRefundRestoreReviews,
+  markRefundsForReconciliation,
+  reconcileRefundsAfterRestore,
+  recordExistingPayPalOverpaymentRefund,
+  recordExistingPayPalRefund,
+  refundOverpayment,
+  resolveRefundRestoreReview,
+  skipRefundReconciliation,
   placeOrder,
   processPaypalRefund,
   recordPayment,
@@ -87,6 +97,13 @@ describe.skipIf(!adminUrl || !redisUrl)('refunds & credit notes (integration)', 
   let paypalRefundStatus = 200;
   let paypalRefundState: 'COMPLETED' | 'PENDING' | 'FAILED' = 'COMPLETED';
   let refundSeq = 0;
+  /** PayPal order id → refunds PayPal lists in the order details. */
+  const paypalOrderRefunds = new Map<string, unknown[]>();
+  /** PayPal refund id → refund resource (GET /v2/payments/refunds/{id}). */
+  const paypalRefundDetails = new Map<string, unknown>();
+  let paypalOrderStatus = 200;
+  /** Runs when PayPal order details are requested (simulates something happening mid-pass). */
+  let onOrderFetch: (() => Promise<void>) | null = null;
 
   const takenCode = async (seatId: string) =>
     (await ctx.seats.takenSeats(event.id))[seatId] ?? null;
@@ -273,7 +290,7 @@ describe.skipIf(!adminUrl || !redisUrl)('refunds & credit notes (integration)', 
           },
         },
       ],
-      seats: Array.from({ length: 14 }, (_, i) => ({
+      seats: Array.from({ length: 70 }, (_, i) => ({
         id: uuid(),
         sectionId,
         rowId,
@@ -347,8 +364,22 @@ describe.skipIf(!adminUrl || !redisUrl)('refunds & credit notes (integration)', 
           refundSeq += 1;
           return json({ id: `RF-${refundSeq}`, status: paypalRefundState });
         }
+        const orderMatch = /\/v2\/checkout\/orders\/([^/?]+)$/.exec(url);
+        if (orderMatch) {
+          if (onOrderFetch) await onOrderFetch();
+          if (paypalOrderStatus !== 200) {
+            return json({ name: 'ERR', message: 'order lookup failed' }, paypalOrderStatus);
+          }
+          return json({
+            id: orderMatch[1],
+            purchase_units: [
+              { payments: { refunds: paypalOrderRefunds.get(orderMatch[1]!) ?? [] } },
+            ],
+          });
+        }
         if (url.includes('/v2/payments/refunds/')) {
-          return json({ id: url.split('/').pop(), status: 'COMPLETED' });
+          const refundId = url.split('/').pop()!;
+          return json(paypalRefundDetails.get(refundId) ?? { id: refundId, status: 'COMPLETED' });
         }
         return json({}, 404);
       }),
@@ -358,6 +389,10 @@ describe.skipIf(!adminUrl || !redisUrl)('refunds & credit notes (integration)', 
     vi.unstubAllGlobals();
     paypalRefundStatus = 200;
     paypalRefundState = 'COMPLETED';
+    paypalOrderRefunds.clear();
+    paypalRefundDetails.clear();
+    paypalOrderStatus = 200;
+    onOrderFetch = null;
   });
 
   afterAll(async () => {
@@ -765,6 +800,564 @@ describe.skipIf(!adminUrl || !redisUrl)('refunds & credit notes (integration)', 
     expect((await load(orderId)).refundRows[0]!.status).toBe('PENDING');
     await expect(retryRefundBatch(ctx, { batchId: result.batchId, userId })).rejects.toMatchObject({
       code: 'REFUND_NOT_RETRYABLE',
+    });
+  });
+
+  describe('reconcile PayPal refunds after a restore', () => {
+    let nextSeat = 20;
+    const seat = () => seatIds[nextSeat++]!;
+    const eur = (amount: number) => ({ currency_code: 'EUR', value: (amount / 100).toFixed(2) });
+    const up = (capture: string) => [
+      { rel: 'up', href: `https://api.sandbox.paypal.com/v2/payments/captures/${capture}` },
+    ];
+    const remoteRefund = (id: string, status: string, amount: number, customId?: string) => ({
+      id,
+      status,
+      amount: eur(amount),
+      ...(customId ? { custom_id: customId } : {}),
+    });
+    const detail = (
+      capture: string,
+      id: string,
+      status: string,
+      amount: number,
+      customId?: string,
+    ) =>
+      paypalRefundDetails.set(id, {
+        ...remoteRefund(id, status, amount, customId),
+        links: up(capture),
+      });
+    const captureOf = async (orderId: string) =>
+      (await handle.db.select().from(payments).where(eq(payments.orderId, orderId)))[0]!
+        .providerCaptureId!;
+    const withProviderOrder = async (orderId: string) => {
+      const providerOrderId = `PO-${uuid().slice(0, 8)}`;
+      await handle.db
+        .update(payments)
+        .set({ providerOrderId })
+        .where(eq(payments.orderId, orderId));
+      return providerOrderId;
+    };
+    const cancelOne = (orderId: string, orderItemIds?: string[]) =>
+      cancelPaidOrder(ctx, { orderId, orderItemIds, refundFees: false, notify: false, userId });
+    const posts = () => paypalCalls.filter((x) => x.path.endsWith('/refund'));
+    const reviewKinds = async () => {
+      const rows = await listRefundRestoreReviews(ctx);
+      return new Map(rows.map((r) => [r.orderId, r.findings.map((f) => f.kind).sort()]));
+    };
+    const run = (options: { force?: boolean; pageSize?: number } = { force: true }) =>
+      reconcileRefundsAfterRestore(ctx, options);
+
+    beforeEach(async () => {
+      await handle.db.execute(sql`UPDATE payments SET provider_order_id = NULL`);
+      await handle.db.execute(
+        sql`DELETE FROM order_history WHERE type LIKE 'refund_restore_review%'`,
+      );
+      await handle.db.execute(sql`DELETE FROM refund_reconcile_state`);
+      await redis.del(ctx.keys.refundReconcilePending(), ctx.keys.refundReconcileLock());
+      paypalCalls.length = 0;
+    });
+
+    it('settles PENDING rows from PayPal (no re-send), reads custom_id from the refund resource, records unknown refunds once', async () => {
+      mockPayPal();
+      const a = await paidOrder([seat()], 'PAYPAL');
+      const b = await paidOrder([seat()], 'PAYPAL');
+      const c = await paidOrder([seat()], 'PAYPAL');
+      const d = await paidOrder([seat()], 'PAYPAL');
+      const ra = (await cancelOne(a.orderId)).refunds[0]!;
+      const rb = (await cancelOne(b.orderId)).refunds[0]!;
+      const rc = (await cancelOne(c.orderId)).refunds[0]!;
+      const [poA, poB, poC, poD] = [
+        await withProviderOrder(a.orderId),
+        await withProviderOrder(b.orderId),
+        await withProviderOrder(c.orderId),
+        await withProviderOrder(d.orderId),
+      ];
+      paypalCalls.length = 0;
+
+      // A: refunded after the backup; the order details lack custom_id → the refund resource has it.
+      paypalOrderRefunds.set(poA, [remoteRefund('RF-A', 'COMPLETED', ra.amount)]);
+      detail(await captureOf(a.orderId), 'RF-A', 'COMPLETED', ra.amount, ra.id);
+      // B: declined by PayPal. C: PayPal never saw it. D: refunded in the lost window (no local row).
+      paypalOrderRefunds.set(poB, [remoteRefund('RF-B', 'FAILED', rb.amount, rb.id)]);
+      paypalOrderRefunds.set(poD, [remoteRefund('RF-D', 'COMPLETED', 1234)]);
+      detail(await captureOf(d.orderId), 'RF-D', 'COMPLETED', 1234);
+
+      await markRefundsForReconciliation(ctx, 'test');
+      await expect(processPaypalRefund(ctx, rc.id)).rejects.toMatchObject({
+        code: 'REFUNDS_RECONCILING',
+      });
+      expect(await requeueStaleRefunds(ctx)).toBe(0);
+      expect(posts()).toHaveLength(0);
+
+      const result = await run();
+      expect(result).toMatchObject({
+        checked: 4,
+        settled: 2,
+        reviewed: 1,
+        errors: 0,
+        complete: true,
+      });
+      expect(await isRefundReconcilePending(ctx)).toBe(false);
+      expect((await load(a.orderId)).refundRows[0]).toMatchObject({
+        status: 'SUCCEEDED',
+        providerRefundId: 'RF-A',
+      });
+      expect((await load(a.orderId)).order.status).toBe('REFUNDED');
+      expect((await load(b.orderId)).refundRows[0]).toMatchObject({ status: 'FAILED' });
+      expect((await load(c.orderId)).refundRows[0]).toMatchObject({ status: 'PENDING' });
+      expect(posts()).toHaveLength(0);
+
+      // C was never sent: the normal job sends it with the unchanged request id.
+      expect(await processPaypalRefund(ctx, rc.id)).toBe('SUCCEEDED');
+      expect(posts().map((x) => x.requestId)).toEqual([`tix-refund-${rc.id}-1`]);
+      // From now on PayPal lists that refund as well.
+      const sentId = (await load(c.orderId)).refundRows[0]!.providerRefundId!;
+      paypalOrderRefunds.set(poC, [remoteRefund(sentId, 'COMPLETED', rc.amount, rc.id)]);
+
+      // D: not booked, visible for review – once; resolved reviews stay resolved.
+      expect([...(await reviewKinds()).entries()]).toEqual([[d.orderId, ['UNKNOWN_AT_PAYPAL']]]);
+      await markRefundsForReconciliation(ctx, 'test');
+      expect(await run()).toMatchObject({ reviewed: 1, complete: true });
+      expect(await listRefundRestoreReviews(ctx)).toHaveLength(1);
+      await resolveRefundRestoreReview(ctx, { orderId: d.orderId, userId });
+      expect(await listRefundRestoreReviews(ctx)).toHaveLength(0);
+      await markRefundsForReconciliation(ctx, 'test');
+      await run();
+      expect(await listRefundRestoreReviews(ctx)).toHaveLength(0);
+      await expect(
+        resolveRefundRestoreReview(ctx, { orderId: d.orderId, userId }),
+      ).rejects.toMatchObject({ code: 'REFUND_REVIEW_NOT_FOUND' });
+    });
+
+    it('holds automatic refunds of an order under review and records the existing PayPal refund instead of refunding twice', async () => {
+      mockPayPal();
+      const o = await paidOrder([seat(), seat()], 'PAYPAL');
+      const po = await withProviderOrder(o.orderId);
+      const cap = await captureOf(o.orderId);
+      // One ticket (30 €) was refunded at PayPal in the lost window.
+      paypalOrderRefunds.set(po, [remoteRefund('RF-X', 'COMPLETED', 3000)]);
+      detail(cap, 'RF-X', 'COMPLETED', 3000);
+      await markRefundsForReconciliation(ctx, 'test');
+      await run();
+      expect((await reviewKinds()).get(o.orderId)).toEqual(['UNKNOWN_AT_PAYPAL']);
+
+      // A normal cancellation would refund the same money a second time: rejected.
+      paypalCalls.length = 0;
+      await expect(cancelOne(o.orderId)).rejects.toMatchObject({ code: 'REFUND_REVIEW_OPEN' });
+      expect(posts()).toHaveLength(0);
+      const items = (await load(o.orderId)).items;
+      const record = (ids: string[], refundId = 'RF-X') =>
+        recordExistingPayPalRefund(ctx, {
+          orderId: o.orderId,
+          providerRefundId: refundId,
+          orderItemIds: ids,
+          refundFees: false,
+          notify: false,
+          userId,
+        });
+      // Both tickets do not add up to the PayPal amount.
+      await expect(record(items.map((i) => i.id))).rejects.toMatchObject({
+        code: 'REFUND_EXISTING_MISMATCH',
+      });
+      // A refund that is not completed at PayPal cannot be recorded.
+      detail(cap, 'RF-P', 'PENDING', 3000);
+      await expect(record([items[0]!.id], 'RF-P')).rejects.toMatchObject({
+        code: 'PAYPAL_REFUND_NOT_COMPLETED',
+      });
+      // A refund of another capture neither.
+      detail('OTHER-CAPTURE', 'RF-O', 'COMPLETED', 3000);
+      await expect(record([items[0]!.id], 'RF-O')).rejects.toMatchObject({
+        code: 'PAYPAL_REFUND_MISMATCH',
+      });
+      expect((await load(o.orderId)).order.status).toBe('PAID');
+
+      const result = await record([items[0]!.id]);
+      expect(result.refunds).toHaveLength(1);
+      expect(result.refunds[0]).toMatchObject({ kind: 'AUTOMATIC', amount: 3000 });
+      expect(result.creditNote).not.toBeNull();
+      const after = await load(o.orderId);
+      expect(after.order.status).toBe('PARTIALLY_REFUNDED');
+      expect(after.order.amountRefunded).toBe(3000);
+      expect(after.refundRows).toHaveLength(1);
+      expect(after.refundRows[0]).toMatchObject({ status: 'SUCCEEDED', providerRefundId: 'RF-X' });
+      expect(posts()).toHaveLength(0); // nothing was sent to PayPal
+      expect(await listRefundRestoreReviews(ctx)).toHaveLength(0); // resolved with the recording
+      await expect(record([items[1]!.id])).rejects.toMatchObject({
+        code: 'PAYPAL_REFUND_ALREADY_RECORDED',
+      });
+
+      // The hold is gone: the second ticket is refunded normally, exactly once.
+      const second = (await cancelOne(o.orderId, [items[1]!.id])).refunds[0]!;
+      expect(await processPaypalRefund(ctx, second.id)).toBe('SUCCEEDED');
+      expect(posts()).toHaveLength(1);
+    });
+
+    it('holds a pending automatic refund while its order is under review, and the webhook creates a finding', async () => {
+      mockPayPal();
+      const o = await paidOrder([seat()], 'PAYPAL');
+      const refund = (await cancelOne(o.orderId)).refunds[0]!;
+      const { recordRefundReview } = await import('../src/orders/refund-state');
+      await recordRefundReview(handle.db, o.orderId, [
+        { kind: 'EXTERNAL_REFUND_NOTICE', ref: 'RF-W', amount: 3000, currency: 'EUR' },
+      ]);
+      await expect(processPaypalRefund(ctx, refund.id)).rejects.toMatchObject({
+        code: 'REFUNDS_REVIEW_OPEN',
+      });
+      expect(posts()).toHaveLength(0);
+      expect((await reviewKinds()).get(o.orderId)).toEqual(['EXTERNAL_REFUND_NOTICE']);
+      await resolveRefundRestoreReview(ctx, { orderId: o.orderId, userId });
+      expect(await processPaypalRefund(ctx, refund.id)).toBe('SUCCEEDED');
+    });
+
+    it('groups remote refunds per row (COMPLETED > PENDING > FAILED), flags double payouts and amount mismatches, never reuses a request id', async () => {
+      mockPayPal();
+      const mk = async () => {
+        const o = await paidOrder([seat()], 'PAYPAL');
+        const r = (await cancelOne(o.orderId)).refunds[0]!;
+        return { o, r, po: await withProviderOrder(o.orderId) };
+      };
+      const dbl = await mk();
+      const mixed = await mk();
+      const pend = await mk();
+      const allFail = await mk();
+      const mism = await mk();
+      const lost = await mk(); // locally SUCCEEDED with a PayPal id, PayPal shows nothing
+      const manual = await mk(); // completed by hand by finance: never flagged
+      const amt = dbl.r.amount;
+      paypalOrderRefunds.set(dbl.po, [
+        remoteRefund('D1', 'COMPLETED', amt, dbl.r.id),
+        remoteRefund('D2', 'COMPLETED', amt, dbl.r.id),
+      ]);
+      paypalOrderRefunds.set(mixed.po, [
+        remoteRefund('M1', 'FAILED', amt, mixed.r.id),
+        remoteRefund('M2', 'COMPLETED', amt, mixed.r.id),
+      ]);
+      paypalOrderRefunds.set(pend.po, [
+        remoteRefund('P1', 'FAILED', amt, pend.r.id),
+        remoteRefund('P2', 'PENDING', amt, pend.r.id),
+      ]);
+      paypalOrderRefunds.set(allFail.po, [
+        remoteRefund('F1', 'FAILED', amt, allFail.r.id),
+        remoteRefund('F2', 'CANCELLED', amt, allFail.r.id),
+      ]);
+      paypalOrderRefunds.set(mism.po, [remoteRefund('X1', 'COMPLETED', amt - 500, mism.r.id)]);
+      await handle.db
+        .update(refunds)
+        .set({ status: 'SUCCEEDED', providerRefundId: 'RF-LOST' })
+        .where(eq(refunds.id, lost.r.id));
+      await handle.db
+        .update(refunds)
+        .set({ status: 'SUCCEEDED', completedByUserId: userId })
+        .where(eq(refunds.id, manual.r.id));
+
+      await markRefundsForReconciliation(ctx, 'test');
+      expect(await run()).toMatchObject({ checked: 7, complete: true, errors: 0 });
+
+      expect((await load(dbl.o.orderId)).refundRows[0]).toMatchObject({ status: 'SUCCEEDED' });
+      expect((await load(mixed.o.orderId)).refundRows[0]).toMatchObject({
+        status: 'SUCCEEDED',
+        providerRefundId: 'M2',
+      });
+      expect((await load(pend.o.orderId)).refundRows[0]).toMatchObject({
+        status: 'PENDING',
+        providerRefundId: 'P2',
+      });
+      const failed = (await load(allFail.o.orderId)).refundRows[0]!;
+      expect(failed.status).toBe('FAILED');
+      expect(failed.attempt).toBeGreaterThanOrEqual(2);
+      // S1: amount differs → not settled
+      expect((await load(mism.o.orderId)).refundRows[0]).toMatchObject({ status: 'PENDING' });
+
+      const kinds = await reviewKinds();
+      expect(kinds.get(dbl.o.orderId)).toEqual(['DOUBLE_REFUND_AT_PAYPAL']);
+      expect(kinds.get(mism.o.orderId)).toEqual(['AMOUNT_MISMATCH']);
+      expect(kinds.get(lost.o.orderId)).toEqual(['LOCAL_SUCCEEDED_NOT_AT_PAYPAL']);
+      expect(kinds.has(mixed.o.orderId)).toBe(false);
+      expect(kinds.has(pend.o.orderId)).toBe(false);
+      expect(kinds.has(allFail.o.orderId)).toBe(false);
+      expect(kinds.has(manual.o.orderId)).toBe(false);
+
+      // The retry of the declined row uses a request id PayPal has never seen (attempt 3).
+      await retryRefund(ctx, failed.id, userId);
+      paypalCalls.length = 0;
+      expect(await processPaypalRefund(ctx, failed.id)).toBe('SUCCEEDED');
+      expect(posts().map((x) => x.requestId)).toEqual([`tix-refund-${failed.id}-3`]);
+    });
+
+    it('keeps the durable marker (DB is authoritative), single flight, back-off, token compare and the audited override', async () => {
+      mockPayPal();
+      const o = await paidOrder([seat()], 'PAYPAL');
+      const r = (await cancelOne(o.orderId)).refunds[0]!;
+      await withProviderOrder(o.orderId);
+
+      const token = await markRefundsForReconciliation(ctx, 'test');
+      await redis.del(ctx.keys.refundReconcilePending()); // Redis lost: the DB row still blocks
+      expect(await isRefundReconcilePending(ctx)).toBe(true);
+      await expect(processPaypalRefund(ctx, r.id)).rejects.toMatchObject({
+        code: 'REFUNDS_RECONCILING',
+      });
+      expect(await getRefundReconcileStatus(ctx)).toMatchObject({ pending: true, token });
+
+      // Single flight: a pass holding the lock makes a second one skip.
+      await redis.set(ctx.keys.refundReconcileLock(), 'other', 'PX', 60_000);
+      expect(await run()).toMatchObject({ skipped: 'LOCKED', complete: false });
+      await redis.del(ctx.keys.refundReconcileLock());
+
+      // A failing pass keeps the marker, records the error and backs off.
+      paypalOrderStatus = 503;
+      const failing = await run();
+      expect(failing).toMatchObject({ complete: false });
+      expect(failing.errors).toBeGreaterThan(0);
+      const status = await getRefundReconcileStatus(ctx);
+      expect(status).toMatchObject({ pending: true, attempts: 1 });
+      expect(status.lastError).toBeTruthy();
+      expect(await run({ force: false })).toMatchObject({ skipped: 'BACKOFF' });
+      paypalOrderStatus = 200;
+
+      // A newer restore sets a new marker while an older pass is still running: the older pass
+      // must not clear it.
+      onOrderFetch = async () => {
+        onOrderFetch = null;
+        await markRefundsForReconciliation(ctx, 'second restore');
+      };
+      const older = await run();
+      expect(older.complete).toBe(true);
+      const afterOlder = await getRefundReconcileStatus(ctx);
+      expect(afterOlder.pending).toBe(true);
+      expect(afterOlder.token).not.toBe(token);
+      expect(afterOlder.reason).toBe('second restore');
+
+      // The second restore's own pass completes and clears both the row and the flag.
+      expect(await run()).toMatchObject({ complete: true });
+      expect(await isRefundReconcilePending(ctx)).toBe(false);
+      expect((await getRefundReconcileStatus(ctx)).lastSuccessAt).toBeTruthy();
+
+      // SUPER_ADMIN override clears an unfinished marker.
+      await markRefundsForReconciliation(ctx, 'third');
+      await skipRefundReconciliation(ctx);
+      expect(await isRefundReconcilePending(ctx)).toBe(false);
+    });
+
+    it('treats 404 as unchecked when automatic refunds exist (review hold) and alerts when most orders are unknown', async () => {
+      mockPayPal();
+      const o = await paidOrder([seat()], 'PAYPAL');
+      const r = (await cancelOne(o.orderId)).refunds[0]!;
+      await withProviderOrder(o.orderId);
+      paypalOrderStatus = 404;
+      await markRefundsForReconciliation(ctx, 'test');
+      expect(await run()).toMatchObject({
+        checked: 1,
+        notFound: 1,
+        unchecked: 1,
+        reviewed: 0,
+        complete: true,
+      });
+      expect((await reviewKinds()).get(o.orderId)).toEqual(['UNCHECKED_AT_PAYPAL']);
+      await expect(processPaypalRefund(ctx, r.id)).rejects.toMatchObject({
+        code: 'REFUNDS_REVIEW_OPEN',
+      });
+
+      // Wrong environment / account restored: nothing is known → alert, marker stays.
+      await handle.db.execute(
+        sql`UPDATE payments SET provider_order_id = 'PO-' || id::text WHERE provider_capture_id IS NOT NULL`,
+      );
+      await markRefundsForReconciliation(ctx, 'test');
+      const result = await run();
+      expect(result).toMatchObject({ alert: 'MOSTLY_NOT_FOUND', complete: false });
+      expect(await getRefundReconcileStatus(ctx)).toMatchObject({
+        pending: true,
+        alert: 'MOSTLY_NOT_FOUND',
+      });
+      await skipRefundReconciliation(ctx);
+    });
+
+    it('marker: only a missing table is tolerated, and only before the restore', async () => {
+      const failing = (code: string | undefined, wrap = false) => {
+        const pgError = Object.assign(new Error('boom'), code ? { code } : {});
+        const error = wrap ? Object.assign(new Error('query failed'), { cause: pgError }) : pgError;
+        return {
+          redis: ctx.redis,
+          keys: ctx.keys,
+          db: {
+            insert: () => ({
+              values: () => ({
+                onConflictDoUpdate: async () => {
+                  throw error;
+                },
+              }),
+            }),
+          },
+        } as unknown as Pick<CoreContext, 'redis' | 'keys' | 'db'>;
+      };
+      // Before the database is replaced the table may be missing (older schema): tolerated.
+      await expect(
+        markRefundsForReconciliation(failing('42P01', true), 'test', undefined, 'pre'),
+      ).resolves.toBeTruthy();
+      // Any other error, or the same error after the migrations, is not.
+      await expect(
+        markRefundsForReconciliation(failing('42501'), 'test', undefined, 'pre'),
+      ).rejects.toThrow('boom');
+      await expect(
+        markRefundsForReconciliation(failing('42P01'), 'test', undefined, 'post'),
+      ).rejects.toThrow('boom');
+      await redis.del(ctx.keys.refundReconcilePending());
+    });
+
+    it('a pass that lost its lock stops and leaves the marker alone', async () => {
+      mockPayPal();
+      const a = await paidOrder([seat()], 'PAYPAL');
+      const b = await paidOrder([seat()], 'PAYPAL');
+      await withProviderOrder(a.orderId);
+      await withProviderOrder(b.orderId);
+      await markRefundsForReconciliation(ctx, 'test');
+      onOrderFetch = async () => {
+        onOrderFetch = null;
+        // Taken over / expired while the first order was being checked.
+        await redis.set(ctx.keys.refundReconcileLock(), 'someone-else', 'PX', 60_000);
+      };
+      const result = await run();
+      expect(result).toMatchObject({ skipped: 'LOCKED', complete: false });
+      expect(result.checked).toBe(1); // the second order was never touched
+      expect(await redis.get(ctx.keys.refundReconcileLock())).toBe('someone-else');
+      expect(await isRefundReconcilePending(ctx)).toBe(true);
+      await redis.del(ctx.keys.refundReconcileLock());
+      expect(await run()).toMatchObject({ complete: true });
+    });
+
+    it('a FAILED local row whose PayPal refund is still pending goes back to PENDING; FAILED rows get their attempt counter raised', async () => {
+      mockPayPal();
+      const x = await paidOrder([seat()], 'PAYPAL');
+      const y = await paidOrder([seat()], 'PAYPAL');
+      const rx = (await cancelOne(x.orderId)).refunds[0]!;
+      const ry = (await cancelOne(y.orderId)).refunds[0]!;
+      for (const r of [rx, ry]) {
+        await handle.db
+          .update(refunds)
+          .set({ status: 'FAILED', failureMessage: 'declined' })
+          .where(eq(refunds.id, r.id));
+      }
+      const pox = await withProviderOrder(x.orderId);
+      const poy = await withProviderOrder(y.orderId);
+      paypalOrderRefunds.set(pox, [remoteRefund('XP', 'PENDING', rx.amount, rx.id)]);
+      paypalOrderRefunds.set(poy, [
+        remoteRefund('Y1', 'FAILED', ry.amount, ry.id),
+        remoteRefund('Y2', 'FAILED', ry.amount, ry.id),
+        remoteRefund('Y3', 'CANCELLED', ry.amount, ry.id),
+      ]);
+      await markRefundsForReconciliation(ctx, 'test');
+      expect(await run()).toMatchObject({ complete: true });
+      expect((await load(x.orderId)).refundRows[0]).toMatchObject({
+        status: 'PENDING',
+        providerRefundId: 'XP',
+        failureMessage: null,
+      });
+      const rowY = (await load(y.orderId)).refundRows[0]!;
+      expect(rowY.status).toBe('FAILED');
+      expect(rowY.attempt).toBeGreaterThanOrEqual(3);
+      // The retry creates a request id PayPal has not seen.
+      await retryRefund(ctx, ry.id, userId);
+      expect((await load(y.orderId)).refundRows[0]!.attempt).toBeGreaterThanOrEqual(4);
+    });
+
+    it('records an existing PayPal refund against the capture it belongs to (second capture of the order)', async () => {
+      mockPayPal();
+      const o = await paidOrder([seat()], 'PAYPAL');
+      const first = (
+        await handle.db.select().from(payments).where(eq(payments.orderId, o.orderId))
+      )[0]!;
+      // An additional payment (tariff upgrade) came in later with its own, newer capture.
+      await handle.db.insert(payments).values({
+        orderId: o.orderId,
+        method: 'PAYPAL',
+        status: 'CAPTURED',
+        amount: 1000,
+        currency: 'EUR',
+        providerCaptureId: `CAP-2-${uuid().slice(0, 6)}`,
+        capturedAt: new Date(Date.now() + 60_000),
+      });
+      detail(first.providerCaptureId!, 'RF-Y', 'COMPLETED', 3000);
+      const items = (await load(o.orderId)).items;
+      const result = await recordExistingPayPalRefund(ctx, {
+        orderId: o.orderId,
+        providerRefundId: 'RF-Y',
+        orderItemIds: [items[0]!.id],
+        refundFees: false,
+        notify: false,
+        userId,
+      });
+      expect(result.refunds[0]).toMatchObject({ kind: 'AUTOMATIC', amount: 3000 });
+      const rows = (await load(o.orderId)).refundRows;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        status: 'SUCCEEDED',
+        providerRefundId: 'RF-Y',
+        paymentId: first.id,
+      });
+      expect(posts()).toHaveLength(0);
+    });
+
+    it('records an existing PayPal refund of an overpayment (no tickets) and holds overpayment refunds under review', async () => {
+      mockPayPal();
+      const o = await paidOrder([seat()], 'PAYPAL');
+      const overCapture = `CAP-OV-${uuid().slice(0, 6)}`;
+      await recordPayment(ctx, {
+        orderId: o.orderId,
+        amount: 500,
+        currency: 'EUR',
+        method: 'PAYPAL',
+        providerCaptureId: overCapture,
+        actor: { type: 'SYSTEM' },
+      });
+      const { recordRefundReview } = await import('../src/orders/refund-state');
+      await recordRefundReview(handle.db, o.orderId, [
+        { kind: 'UNKNOWN_AT_PAYPAL', ref: 'RF-OV', amount: 500, currency: 'EUR' },
+      ]);
+      // A normal overpayment refund would pay the 5 € twice: held.
+      await expect(
+        refundOverpayment(ctx, { orderId: o.orderId, userId, expectedAmount: 500 }),
+      ).rejects.toMatchObject({ code: 'REFUND_REVIEW_OPEN' });
+
+      detail(overCapture, 'RF-OV', 'COMPLETED', 500);
+      paypalCalls.length = 0;
+      const result = await recordExistingPayPalOverpaymentRefund(ctx, {
+        orderId: o.orderId,
+        userId,
+        providerRefundId: 'RF-OV',
+      });
+      expect(result.amount).toBe(500);
+      const after = await load(o.orderId);
+      expect(after.refundRows).toHaveLength(1);
+      expect(after.refundRows[0]).toMatchObject({
+        overpayment: true,
+        status: 'SUCCEEDED',
+        providerRefundId: 'RF-OV',
+        amount: 500,
+      });
+      expect(after.order.status).toBe('PAID'); // an overpayment refund keeps the order as it is
+      expect(after.order.amountRefunded).toBe(500);
+      expect(posts()).toHaveLength(0);
+      expect(await listRefundRestoreReviews(ctx)).toHaveLength(0);
+    });
+
+    it('pages through all candidates and only checks captures within the refund window (or with open refunds)', async () => {
+      mockPayPal();
+      const fresh = [];
+      for (let i = 0; i < 4; i += 1) fresh.push(await paidOrder([seat()], 'PAYPAL'));
+      const old = await paidOrder([seat()], 'PAYPAL');
+      const oldOpen = await paidOrder([seat()], 'PAYPAL');
+      await cancelOne(oldOpen.orderId); // PENDING automatic refund
+      for (const o of [...fresh, old, oldOpen]) await withProviderOrder(o.orderId);
+      await handle.db
+        .update(payments)
+        .set({ capturedAt: new Date(Date.now() - 200 * 86_400_000) })
+        .where(inArray(payments.orderId, [old.orderId, oldOpen.orderId]));
+      await markRefundsForReconciliation(ctx, 'test');
+      // 4 fresh + the old capture with an open refund; the old plain capture is outside PayPal's window.
+      expect(await run({ force: true, pageSize: 2 })).toMatchObject({
+        checked: 5,
+        complete: true,
+      });
     });
   });
 });

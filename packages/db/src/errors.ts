@@ -65,6 +65,44 @@ export const isForeignKeyViolation = (err: unknown, constraint?: string) =>
 export const isRestrictViolation = (err: unknown, constraint?: string) =>
   isViolation(PG_ERROR.RESTRICT_VIOLATION, err, constraint);
 
+/**
+ * Transient overload of the database layer that a client may simply retry shortly after: lock /
+ * statement timeouts, serialization failures or deadlocks that escaped `withTransaction`'s own
+ * retries, and a connection pool that could not hand out a connection in time.
+ */
+export function isDbBusyError(err: unknown): boolean {
+  const pgErr = findPgError(err);
+  if (pgErr) {
+    if (
+      pgErr.code === PG_ERROR.LOCK_NOT_AVAILABLE ||
+      pgErr.code === PG_ERROR.SERIALIZATION_FAILURE ||
+      pgErr.code === PG_ERROR.DEADLOCK_DETECTED
+    ) {
+      return true;
+    }
+    // A statement that hit `statement_timeout` (a lock timeout is 55P03, handled above).
+    const message = (pgErr as { message?: unknown }).message;
+    return (
+      pgErr.code === PG_ERROR.QUERY_CANCELED &&
+      typeof message === 'string' &&
+      /statement timeout/i.test(message)
+    );
+  }
+  // node-postgres pool errors carry no SQLSTATE.
+  let current: unknown = err;
+  for (let depth = 0; depth < 5 && current instanceof Error; depth += 1) {
+    if (
+      /timeout exceeded when trying to connect|connection terminated due to connection timeout/i.test(
+        current.message,
+      )
+    ) {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
 /** Errors that are safe to retry by re-running the whole transaction. */
 export function isTransientTransactionError(err: unknown): boolean {
   const code = pgErrorCode(err);

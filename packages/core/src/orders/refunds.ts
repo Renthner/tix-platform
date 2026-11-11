@@ -24,7 +24,12 @@ import { formatMoney } from '../format';
 import { enqueueInvoiceRender, findActiveInvoice, issueInvoiceInTransaction } from '../invoices';
 import { QUEUE_NAMES } from '../job-queues';
 import { nextNumber } from '../numbering';
-import { createPayPalRefund, getPayPalRefund, isTransientPayPalError } from '../payments/paypal';
+import {
+  createPayPalRefund,
+  getPayPalRefund,
+  getPayPalRefundDetails,
+  isTransientPayPalError,
+} from '../payments/paypal';
 import { getSetting } from '../settings';
 import { lockOrderTickets, voidTicketsForItems } from '../tickets/issue';
 import {
@@ -34,7 +39,13 @@ import {
 } from './adjustment-state';
 import { creditOf, creditedFeeAmounts, currentWriteOff, orderCredit, orderNetPaid } from './credit';
 import { releaseInventory } from './fulfillment';
-import { markRefundSucceeded, MONEY_RESERVING_REFUND_STATUSES } from './refund-state';
+import {
+  hasOpenRefundReview,
+  isRefundReconcilePending,
+  markRefundSucceeded,
+  MONEY_RESERVING_REFUND_STATUSES,
+  resolveReviewIfOnly,
+} from './refund-state';
 
 /**
  * Cancellation of PAID orders (whole order or single tickets) with refund and credit note.
@@ -76,6 +87,14 @@ export interface CancelPaidOrderParams {
   userId: string;
   /** Optimistic concurrency guard against a stale admin page. */
   expectedVersion?: number;
+  /**
+   * The refund of this cancellation already exists at PayPal (lost window / PayPal dashboard,
+   * verified live by `recordExistingPayPalRefund`): the refund row is created as SUCCEEDED with
+   * this PayPal refund id and nothing is sent.
+   */
+  existingPaypalRefund?: { providerRefundId: string; paymentId: string; amount: number };
+  /** Runs inside the business transaction at the end (e.g. the audit entry). */
+  inTransaction?: (tx: Transaction, result: CancelPaidOrderResult) => Promise<void>;
 }
 
 export interface CancelPaidOrderResult {
@@ -206,10 +225,40 @@ export async function cancelPaidOrder(
     const creditTotal = components.reduce((sum, c) => sum + c.amount, 0);
 
     // ── Refund rows (money actually received, capped) ───────────────────────
-    const rows = await planRefunds(tx, order.id, components);
+    const existing = params.existingPaypalRefund;
+    const rows = await planRefunds(tx, order.id, components, 'PAYPAL_FIRST', existing?.paymentId);
+    // An order under review (PayPal already refunded something we do not know about) must not
+    // get a second automatic refund: the admin records the existing one first.
+    const reviewOpen = await hasOpenRefundReview(tx, order.id);
+    const automaticPlans = rows.filter((plan) => plan.kind === 'AUTOMATIC');
+    if (existing) {
+      const [only] = automaticPlans;
+      if (
+        automaticPlans.length !== 1 ||
+        only!.payment.id !== existing.paymentId ||
+        only!.amount !== existing.amount
+      ) {
+        throw new DomainError(
+          'REFUND_EXISTING_MISMATCH',
+          'The selected tickets/fees do not add up to the PayPal refund',
+          409,
+          {
+            paypalAmount: existing.amount,
+            plannedAmounts: automaticPlans.map((plan) => plan.amount),
+          },
+        );
+      }
+    } else if (reviewOpen && automaticPlans.length > 0) {
+      throw new DomainError(
+        'REFUND_REVIEW_OPEN',
+        'PayPal refunds of this order are on hold: resolve the refund review first',
+        409,
+      );
+    }
     const batchId = randomUUID();
     const refundRows: CancelPaidOrderResult['refunds'] = [];
     const newRefundIds: string[] = [];
+    let recordedRefundId: string | null = null;
     for (const plan of rows) {
       const [row] = await tx
         .insert(refunds)
@@ -227,6 +276,9 @@ export async function cancelPaidOrder(
           payerIban: plan.payerIban,
           payerName: plan.payerName,
           requestedByUserId: params.userId,
+          ...(existing && plan.kind === 'AUTOMATIC'
+            ? { providerRefundId: existing.providerRefundId }
+            : {}),
         })
         .returning({ id: refunds.id });
       await tx.insert(refundItems).values(
@@ -238,6 +290,15 @@ export async function cancelPaidOrder(
         })),
       );
       newRefundIds.push(row!.id);
+      if (existing && plan.kind === 'AUTOMATIC') {
+        // Already refunded at PayPal: settle now (totals are recomputed), never send.
+        await markRefundSucceeded(tx, row!.id, {
+          providerRefundId: existing.providerRefundId,
+          actor: { type: 'ADMIN', userId: params.userId },
+          note: 'Existing PayPal refund recorded',
+        });
+        recordedRefundId = row!.id;
+      }
       refundRows.push({
         id: row!.id,
         kind: plan.kind,
@@ -248,7 +309,8 @@ export async function cancelPaidOrder(
     // A whole cancellation also pays back an overpayment that would otherwise stay invisible on a
     // REFUNDED order: the excess net money is planned into the same batch (newest money first).
     let overpaymentRefunded = 0;
-    if (remainingActive.length === 0) {
+    // (Not when an existing PayPal refund is recorded: the excess stays refundable on its own.)
+    if (remainingActive.length === 0 && !existing) {
       // What stays owed after a whole cancellation: fees that were kept (not credited).
       const feeRows = await tx.select().from(orderFees).where(eq(orderFees.orderId, order.id));
       const creditedBefore = await creditedFeeAmounts(
@@ -281,6 +343,13 @@ export async function cancelPaidOrder(
           'NEWEST_FIRST',
         );
         for (const plan of extra) {
+          if (plan.kind === 'AUTOMATIC' && (existing || reviewOpen)) {
+            throw new DomainError(
+              'REFUND_REVIEW_OPEN',
+              'PayPal refunds of this order are on hold: resolve the refund review first',
+              409,
+            );
+          }
           const [row] = await tx
             .insert(refunds)
             .values({
@@ -328,6 +397,11 @@ export async function cancelPaidOrder(
             [...feeAmounts].filter(([, f]) => f.completes).map(([id]) => id),
           ),
         );
+    }
+
+    if (existing) {
+      // The review only concerned this refund: nothing left to look at.
+      await resolveReviewIfOnly(tx, order.id, existing.providerRefundId, params.userId);
     }
 
     // ── Credit note ─────────────────────────────────────────────────────────
@@ -385,25 +459,28 @@ export async function cancelPaidOrder(
       });
     }
 
+    const result = {
+      orderStatus: newStatus,
+      cancelledItems: selected.length,
+      creditTotal,
+      refundTotal,
+      overpaymentRefunded,
+      batchId,
+      refunds: refundRows,
+      creditNote,
+      cancelledAdjustment: cancelledAdjustment
+        ? {
+            id: cancelledAdjustment.id,
+            amount: cancelledAdjustment.amount,
+            reference: cancelledAdjustment.paymentReference,
+          }
+        : null,
+    } satisfies CancelPaidOrderResult;
+    await params.inTransaction?.(tx, result);
     return {
-      result: {
-        orderStatus: newStatus,
-        cancelledItems: selected.length,
-        creditTotal,
-        refundTotal,
-        overpaymentRefunded,
-        batchId,
-        refunds: refundRows,
-        creditNote,
-        cancelledAdjustment: cancelledAdjustment
-          ? {
-              id: cancelledAdjustment.id,
-              amount: cancelledAdjustment.amount,
-              reference: cancelledAdjustment.paymentReference,
-            }
-          : null,
-      } satisfies CancelPaidOrderResult,
+      result,
       released: selected,
+      recordedRefundId,
       messageId,
       adjustmentMessageId,
       issuedInvoiceId,
@@ -421,7 +498,7 @@ export async function cancelPaidOrder(
   };
   await guarded('seat release', () => releaseInventory(ctx, outcome.released));
   for (const refund of outcome.result.refunds) {
-    if (refund.kind === 'AUTOMATIC') {
+    if (refund.kind === 'AUTOMATIC' && refund.id !== outcome.recordedRefundId) {
       await guarded('refund job enqueue (sweeper retries)', () => enqueueRefund(ctx, refund.id));
     }
   }
@@ -523,6 +600,8 @@ async function planRefunds(
    * for an overpayment, strictly the newest money first (the excess came in last).
    */
   order: 'PAYPAL_FIRST' | 'NEWEST_FIRST' = 'PAYPAL_FIRST',
+  /** Only this payment pays (an already existing PayPal refund belongs to exactly one capture). */
+  onlyPaymentId?: string,
 ): Promise<RefundPlan[]> {
   const received = await tx
     .select({
@@ -558,7 +637,7 @@ async function planRefunds(
       automatic: r.payment.method === 'PAYPAL' && Boolean(r.payment.providerCaptureId),
       available: r.payment.amount - (reservedBy.get(r.payment.id) ?? 0),
     }))
-    .filter((r) => r.available > 0)
+    .filter((r) => r.available > 0 && (!onlyPaymentId || r.payment.id === onlyPaymentId))
     // Stable sort keeps newest first.
     .sort((a, b) => (order === 'PAYPAL_FIRST' ? Number(b.automatic) - Number(a.automatic) : 0));
 
@@ -812,6 +891,23 @@ export async function processPaypalRefund(
   if (!row) throw new DomainError('REFUND_NOT_FOUND', 'Refund not found', 404);
   const { refund } = row;
   if (refund.status !== 'PENDING' || refund.kind !== 'AUTOMATIC') return 'SKIPPED';
+  // After a backup restore the local rows can be out of sync with PayPal: nothing is sent or
+  // polled until `reconcileRefundsAfterRestore` has settled them (the job is retried later).
+  if (await isRefundReconcilePending(ctx)) {
+    throw new DomainError(
+      'REFUNDS_RECONCILING',
+      'Refunds are being reconciled with PayPal after a restore',
+      503,
+    );
+  }
+  // PayPal shows refunds we do not know about: nothing is sent until an admin resolved the review.
+  if (await hasOpenRefundReview(ctx.db, refund.orderId)) {
+    throw new DomainError(
+      'REFUNDS_REVIEW_OPEN',
+      'PayPal refunds of this order are on hold: resolve the refund review first',
+      503,
+    );
+  }
   if (!row.captureId) {
     await failRefund(ctx, refund.id, 'The payment has no PayPal capture to refund');
     return 'FAILED';
@@ -861,7 +957,7 @@ export async function processPaypalRefund(
   return 'FAILED';
 }
 
-async function failRefund(
+export async function failRefund(
   ctx: CoreContext,
   refundId: string,
   message: string,
@@ -935,6 +1031,8 @@ export async function requeueStaleRefunds(
   ctx: CoreContext,
   options: { olderThanMinutes?: number; limit?: number } = {},
 ): Promise<number> {
+  // While the post-restore reconciliation is pending nothing is re-queued (the jobs would only wait).
+  if (await isRefundReconcilePending(ctx)) return 0;
   const stale = await ctx.db
     .select({ id: refunds.id })
     .from(refunds)
@@ -953,6 +1051,116 @@ export async function requeueStaleRefunds(
     await enqueueRefund(ctx, id, `refund-${id}-${Date.now().toString(36)}`);
   }
   return stale.length;
+}
+
+// ─── Record an existing PayPal refund ───────────────────────────────────────
+
+export interface RecordExistingPayPalRefundParams extends Omit<
+  CancelPaidOrderParams,
+  'existingPaypalRefund' | 'expectedVersion'
+> {
+  /** PayPal refund id (from the review finding). */
+  providerRefundId: string;
+}
+
+export interface ExistingPayPalRefund {
+  providerRefundId: string;
+  paymentId: string;
+  amount: number;
+}
+
+/**
+ * Fetches the refund live from PayPal and checks that it can be recorded for this order: COMPLETED,
+ * belongs to a capture of the order, same currency, not recorded yet.
+ */
+async function verifyExistingPayPalRefund(
+  ctx: CoreContext,
+  orderId: string,
+  providerRefundId: string,
+): Promise<ExistingPayPalRefund> {
+  const details = await getPayPalRefundDetails(ctx, providerRefundId);
+  if (details.status !== 'COMPLETED') {
+    throw new DomainError(
+      'PAYPAL_REFUND_NOT_COMPLETED',
+      'The PayPal refund is not completed',
+      409,
+      { status: details.status },
+    );
+  }
+  const [payment] = details.captureId
+    ? await ctx.db
+        .select()
+        .from(payments)
+        .where(
+          and(eq(payments.orderId, orderId), eq(payments.providerCaptureId, details.captureId)),
+        )
+    : [];
+  if (!payment || payment.currency !== details.currency || details.amountCents <= 0) {
+    throw new DomainError(
+      'PAYPAL_REFUND_MISMATCH',
+      'The PayPal refund does not belong to a payment of this order',
+      409,
+    );
+  }
+  const [known] = await ctx.db
+    .select({ id: refunds.id })
+    .from(refunds)
+    .where(
+      or(
+        eq(refunds.providerRefundId, details.id),
+        details.customId && /^[0-9a-f-]{36}$/i.test(details.customId)
+          ? eq(refunds.id, details.customId)
+          : undefined,
+      ),
+    )
+    .limit(1);
+  if (known) {
+    throw new DomainError(
+      'PAYPAL_REFUND_ALREADY_RECORDED',
+      'This PayPal refund belongs to a refund that is already recorded',
+      409,
+    );
+  }
+  return { providerRefundId: details.id, paymentId: payment.id, amount: details.amountCents };
+}
+
+/**
+ * Review action: the money already went back at PayPal (lost window, PayPal dashboard). Cancels
+ * the chosen tickets like `cancelPaidOrder` (credit note, seats released) but books the refund as
+ * SUCCEEDED with the PayPal refund id and sends nothing. The refund is verified live at PayPal
+ * (see `verifyExistingPayPalRefund`); the plan is pinned to the capture it belongs to, and the
+ * selected tickets (+ fees) must add up to exactly its amount.
+ */
+export async function recordExistingPayPalRefund(
+  ctx: CoreContext,
+  params: RecordExistingPayPalRefundParams,
+): Promise<CancelPaidOrderResult> {
+  const existing = await verifyExistingPayPalRefund(ctx, params.orderId, params.providerRefundId);
+  return cancelPaidOrder(ctx, { ...params, existingPaypalRefund: existing });
+}
+
+/**
+ * Review action for refunds that paid back an overpayment (no tickets involved): books the existing
+ * PayPal refund as an overpayment refund (SUCCEEDED, no credit note) without sending anything.
+ */
+export async function recordExistingPayPalOverpaymentRefund(
+  ctx: CoreContext,
+  params: {
+    orderId: string;
+    userId: string;
+    providerRefundId: string;
+    reason?: string | null;
+    inTransaction?: (tx: Transaction, result: RefundOverpaymentResult) => Promise<void>;
+  },
+): Promise<RefundOverpaymentResult> {
+  const existing = await verifyExistingPayPalRefund(ctx, params.orderId, params.providerRefundId);
+  return refundOverpayment(ctx, {
+    orderId: params.orderId,
+    userId: params.userId,
+    reason: params.reason,
+    existingPaypalRefund: existing,
+    inTransaction: params.inTransaction,
+  });
 }
 
 // ─── Overpayment refund ─────────────────────────────────────────────────────
@@ -975,8 +1183,12 @@ export async function refundOverpayment(
     orderId: string;
     userId: string;
     /** The amount the admin saw: refused when the refundable excess changed meanwhile. */
-    expectedAmount: number;
+    expectedAmount?: number;
     reason?: string | null;
+    /** The money already went back at PayPal (verified by the caller): booked as SUCCEEDED, nothing is sent. */
+    existingPaypalRefund?: ExistingPayPalRefund;
+    /** Runs inside the business transaction at the end (e.g. the audit entry). */
+    inTransaction?: (tx: Transaction, result: RefundOverpaymentResult) => Promise<void>;
   },
 ): Promise<RefundOverpaymentResult> {
   const outcome = await withTransaction(ctx.db, async (tx) => {
@@ -998,7 +1210,8 @@ export async function refundOverpayment(
     if (refundable <= 0) {
       throw new DomainError('NO_OVERPAYMENT', 'The order has no overpayment to refund', 409);
     }
-    if (refundable !== params.expectedAmount) {
+    const existing = params.existingPaypalRefund;
+    if (existing ? refundable < existing.amount : refundable !== params.expectedAmount) {
       throw new DomainError(
         'OVERPAYMENT_CHANGED',
         'The overpayment changed in the meantime – reload the page',
@@ -1009,11 +1222,35 @@ export async function refundOverpayment(
     const plans = await planRefunds(
       tx,
       order.id,
-      [{ kind: 'item', id: order.id, amount: refundable }],
+      [{ kind: 'item', id: order.id, amount: existing ? existing.amount : refundable }],
       'NEWEST_FIRST',
+      existing?.paymentId,
     );
+    const automaticPlans = plans.filter((plan) => plan.kind === 'AUTOMATIC');
+    if (existing) {
+      if (
+        plans.length !== 1 ||
+        automaticPlans.length !== 1 ||
+        plans[0]!.payment.id !== existing.paymentId ||
+        plans[0]!.amount !== existing.amount
+      ) {
+        throw new DomainError(
+          'REFUND_EXISTING_MISMATCH',
+          'The PayPal refund does not match the refundable overpayment of its payment',
+          409,
+          { paypalAmount: existing.amount, plannedAmounts: plans.map((plan) => plan.amount) },
+        );
+      }
+    } else if (automaticPlans.length > 0 && (await hasOpenRefundReview(tx, order.id))) {
+      throw new DomainError(
+        'REFUND_REVIEW_OPEN',
+        'PayPal refunds of this order are on hold: resolve the refund review first',
+        409,
+      );
+    }
     const batchId = randomUUID();
     const rows: RefundOverpaymentResult['refunds'] = [];
+    let recordedRefundId: string | null = null;
     for (const plan of plans) {
       const [row] = await tx
         .insert(refunds)
@@ -1031,8 +1268,17 @@ export async function refundOverpayment(
           payerIban: plan.payerIban,
           payerName: plan.payerName,
           requestedByUserId: params.userId,
+          ...(existing ? { providerRefundId: existing.providerRefundId } : {}),
         })
         .returning({ id: refunds.id });
+      if (existing) {
+        await markRefundSucceeded(tx, row!.id, {
+          providerRefundId: existing.providerRefundId,
+          actor: { type: 'ADMIN', userId: params.userId },
+          note: 'Existing PayPal refund recorded',
+        });
+        recordedRefundId = row!.id;
+      }
       rows.push({ id: row!.id, kind: plan.kind, amount: plan.amount, method: plan.payment.method });
     }
     const amount = rows.reduce((sum, r) => sum + r.amount, 0);
@@ -1050,12 +1296,19 @@ export async function refundOverpayment(
       actorUserId: params.userId,
       data: { batchId, amount, refundIds: rows.map((r) => r.id) },
     });
-    return { batchId, amount, refunds: rows };
+    if (existing) {
+      await resolveReviewIfOnly(tx, order.id, existing.providerRefundId, params.userId);
+    }
+    const result = { batchId, amount, refunds: rows };
+    await params.inTransaction?.(tx, result);
+    return { result, recordedRefundId };
   });
-  for (const refund of outcome.refunds) {
-    if (refund.kind === 'AUTOMATIC') await enqueueRefund(ctx, refund.id);
+  for (const refund of outcome.result.refunds) {
+    if (refund.kind === 'AUTOMATIC' && refund.id !== outcome.recordedRefundId) {
+      await enqueueRefund(ctx, refund.id);
+    }
   }
-  return outcome;
+  return outcome.result;
 }
 
 /** Default reason text of an overpayment refund (shown in the refund lists). */

@@ -1,5 +1,6 @@
 import 'server-only';
 import { DomainError } from '@tix/core';
+import { isDbBusyError, pgErrorCode } from '@tix/db';
 import { rateLimit } from '@tix/redis';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -23,6 +24,13 @@ export function apiError(
   );
 }
 
+/** Transient database overload (lock / statement / pool timeout); the aborted transaction was rolled back, so a retry is expected to succeed. */
+export function busyResponse() {
+  const res = apiError('BUSY', 'The system is busy right now. Please try again in a moment.', 503);
+  res.headers.set('retry-after', '2');
+  return res;
+}
+
 /** Runs a route handler body and maps domain / validation errors to JSON responses. */
 export async function handle(
   fn: () => Promise<Response>,
@@ -42,6 +50,11 @@ export async function handle(
     }
     // Errors thrown by redirect()/notFound() must propagate.
     if (err instanceof Error && 'digest' in err) throw err;
+    if (isDbBusyError(err)) {
+      // A statement timeout (57014) means a slow query, not just contention: keep it visible.
+      (pgErrorCode(err) === '57014' ? console.error : console.warn)('[api] database busy', err);
+      return busyResponse();
+    }
     console.error('[api] unhandled error', err);
     return apiError('INTERNAL_ERROR', 'Something went wrong. Please try again.', 500);
   }

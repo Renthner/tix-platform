@@ -327,6 +327,16 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
         viewModelScope.launch { c.sync.requestOperatorUnpair() }
     }
 
+    /** Retry state of the unsent-scan upload while the unpair block screen is shown. */
+    val unpairRetry: StateFlow<org.tix.checkin.sync.UnpairRetry> = c.sync.unpairRetry
+
+    /** Emits when the network came back (the block screen retries at once). */
+    val networkWake: kotlinx.coroutines.flow.SharedFlow<Unit> = c.monitor.wake
+
+    fun retryUnpairUpload() {
+        viewModelScope.launch { c.sync.retryUnpairUpload() }
+    }
+
     fun cancelUnpair() {
         viewModelScope.launch { c.sync.cancelUnpair() }
     }

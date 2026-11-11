@@ -7,3 +7,4 @@ export * from './seat-engine';
 export * from './queue-engine';
 export * from './presence';
 export type { Redis } from 'ioredis';
+export * from './maintenance-watch';

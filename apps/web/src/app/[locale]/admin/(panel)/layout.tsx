@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 import { getSetting } from '@tix/core';
+import { APP_VERSION } from '@tix/shared';
 import { logoutAction } from '@/components/admin/admin-actions';
 import { AdminNav } from '@/components/admin/admin-nav';
 import { LocaleSwitcher } from '@/components/locale-switcher';
@@ -61,6 +62,9 @@ export default async function AdminPanelLayout({
           <div className="mb-6 shrink-0 px-3">
             <div className="text-sm font-semibold">{general.shopName}</div>
             <div className="text-xs text-muted-foreground">{t('panelTitle')}</div>
+            <div className="mt-0.5 font-mono text-[10px] text-muted-foreground/70">
+              v{APP_VERSION}
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <AdminNav />

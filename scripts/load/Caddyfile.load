@@ -1,0 +1,35 @@
+# LOAD-TEST ONLY - never use this file outside the isolated `tixload` compose project.
+#
+# The shop rate-limits per client IP (code constants: 120 /enter and 600 cart mutations per
+# minute per IP). A single load-generator machine would be one IP, so this proxy trusts the
+# private-range peer (the Docker host / generator) and takes the client address from the
+# X-Forwarded-For header the generator sends: every virtual user gets its own address from a
+# public-looking range (see lib/common.mjs). The application code is unchanged and still sees
+# one distinct "client" per virtual user, exactly like real traffic behind the production proxy.
+{
+	servers {
+		trusted_proxies static private_ranges
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	@realtime path /socket.io/*
+	handle @realtime {
+		reverse_proxy realtime:3001 {
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+
+	header {
+		-Server
+	}
+}

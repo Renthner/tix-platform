@@ -11,7 +11,7 @@ const envSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     APP_URL: z.url(),
     DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'must be a postgres:// URL'),
-    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(200).default(20),
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(200).default(40),
     REDIS_URL: z.string().regex(/^rediss?:\/\//, 'must be a redis:// or rediss:// URL'),
     REDIS_KEY_PREFIX: z
       .string()

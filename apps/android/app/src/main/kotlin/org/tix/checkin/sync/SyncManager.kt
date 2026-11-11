@@ -97,6 +97,17 @@ class PairException(
 data class UnpairBlock(val unsentScans: Int, val notice: String?)
 
 /**
+ * State of the automatic upload retries while an operator-initiated unpair waits ([SyncManager.retryUnpairUpload]).
+ * [refused]: everything the server would take was uploaded, the rest was refused for good (retrying is pointless).
+ */
+data class UnpairRetry(
+    val running: Boolean = false,
+    val lastAttemptAt: Long = 0,
+    val lastError: String? = null,
+    val refused: Boolean = false,
+)
+
+/**
  * Orchestrates everything that talks to the server in the background: manifest refresh, delta
  * sync, upload of the offline journal, pairing and unpairing. One run at a time (mutex), shared by
  * the foreground loop and the WorkManager worker.
@@ -131,6 +142,9 @@ class SyncManager(
 
     /** Non-null = a blocking screen asks the operator what to do with the unsent scans before the wipe. */
     val unpairBlock: StateFlow<UnpairBlock?> = _unpairBlock
+
+    private val _unpairRetry = MutableStateFlow(UnpairRetry())
+    val unpairRetry: StateFlow<UnpairRetry> = _unpairRetry
 
     private val _status = MutableStateFlow(SyncStatus())
     val status: StateFlow<SyncStatus> = _status
@@ -227,9 +241,47 @@ class SyncManager(
         requestUnpair(null)
     }
 
+    /**
+     * One upload attempt while the operator-initiated unpair is blocked (the token is still valid): when nothing is
+     * left afterwards the unpair continues on its own. After a revocation the token is dead - nothing to retry there.
+     * A 401 turns the block into a revocation block. Failures only update [unpairRetry].
+     */
+    suspend fun retryUnpairUpload() = mutex.withLock {
+        val block = _unpairBlock.value ?: return@withLock
+        if (block.notice != null || dao.deviceConfig() == null) return@withLock
+        _unpairRetry.value = _unpairRetry.value.copy(running = true, lastError = null)
+        try {
+            val report = ScanUploader(api, lockedJournal, deviceClock = clock::nowMillis, appVersion = appVersionCode).uploadAll()
+            monitor.onSuccess()
+            val unsent = dao.unsentCount()
+            if (unsent == 0) {
+                unpair(null)
+                return@withLock
+            }
+            _unpairBlock.value = block.copy(unsentScans = unsent)
+            _unpairRetry.value = UnpairRetry(lastAttemptAt = System.currentTimeMillis(), refused = report.deferred == 0)
+        } catch (e: CancellationException) {
+            _unpairRetry.value = _unpairRetry.value.copy(running = false)
+            throw e
+        } catch (e: ApiException) {
+            if (e.isUnauthorized) {
+                dao.setUnpairBlock(true, PairingNotice.REVOKED)
+                _unpairBlock.value = UnpairBlock(dao.unsentCount(), PairingNotice.REVOKED)
+                _unpairRetry.value = UnpairRetry()
+            } else {
+                monitor.onFailure(e)
+                _unpairRetry.value = UnpairRetry(lastAttemptAt = System.currentTimeMillis(), lastError = e.message ?: e::class.simpleName)
+            }
+        } catch (e: Exception) {
+            monitor.onFailure(e)
+            _unpairRetry.value = UnpairRetry(lastAttemptAt = System.currentTimeMillis(), lastError = e.message ?: e::class.simpleName)
+        }
+    }
+
     /** The operator changed their mind (only for an operator-initiated unpair, not after a revocation). */
     suspend fun cancelUnpair() {
         if (_unpairBlock.value?.notice != null) return
+        _unpairRetry.value = UnpairRetry()
         dao.setUnpairBlock(false, null)
         _unpairBlock.value = null
         onUnpairCancelled()
@@ -244,6 +296,7 @@ class SyncManager(
     /** Wipes token, tickets, journal and settings tied to this server. Callers go through [requestUnpair]. */
     suspend fun unpair(notice: String?) {
         _unpairBlock.value = null
+        _unpairRetry.value = UnpairRetry()
         TokenVault.deleteKey()
         dbLock.withLock { config.wipeAll() }
         store.ensureLanState()

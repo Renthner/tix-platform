@@ -832,3 +832,29 @@ export const webhookEvents = pgTable(
     index('webhook_events_status_idx').on(t.status, t.receivedAt),
   ],
 );
+
+/**
+ * Durable marker "PayPal refunds must be reconciled with PayPal" (set after a backup restore, see
+ * `reconcileRefundsAfterRestore`). Singleton row; the Redis flag of the same token is only a fast
+ * path for the refund jobs. Cleared by a complete pass with the matching token.
+ */
+export const refundReconcileState = pgTable(
+  'refund_reconcile_state',
+  {
+    id: boolean('id').primaryKey().default(true),
+    pending: boolean('pending').notNull().default(false),
+    /** Identifies the restore that set the marker: an older pass can never clear a newer marker. */
+    token: text('token'),
+    reason: text('reason'),
+    since: tstz('since'),
+    attempts: integer('attempts').notNull().default(0),
+    lastAttemptAt: tstz('last_attempt_at'),
+    lastSuccessAt: tstz('last_success_at'),
+    lastError: text('last_error'),
+    /** Orders PayPal could not be asked about (404 / permanent 4xx); they are put under review. */
+    unchecked: integer('unchecked').notNull().default(0),
+    /** e.g. MOSTLY_NOT_FOUND: wrong PayPal environment/account restored – needs a human. */
+    alert: text('alert'),
+  },
+  (t) => [check('refund_reconcile_state_singleton', sql`${t.id}`)],
+);

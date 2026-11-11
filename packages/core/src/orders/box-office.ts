@@ -30,6 +30,7 @@ import { getPublicSeatMap, getSeatMapForChannel } from '../seatmaps/public';
 import { getSetting } from '../settings';
 import { ensureOrderTickets } from '../tickets/issue';
 import { claimStandingCapacity, upsertCustomer } from './checkout';
+import { withMutex } from '../banking/runs';
 import { mirrorSeats } from './fulfillment';
 import { quoteChannelCart, type CheckoutQuote } from './pricing';
 
@@ -333,6 +334,24 @@ export async function createBoxOfficeOrder(
   ctx: CoreContext,
   params: CreateBoxOfficeOrderParams,
 ): Promise<BoxOfficeOrderResult> {
+  if (!params.holdTabId) return createBoxOfficeOrderLocked(ctx, params);
+  // Double submit of the same hold (two clicks, two tabs of one session) must not create two orders.
+  const locked = await withMutex(
+    ctx,
+    `boxoffice-sale:${boxOfficeSessionId(params.userId, params.holdTabId)}`,
+    30_000,
+    () => createBoxOfficeOrderLocked(ctx, params),
+  );
+  if (!locked) {
+    throw new DomainError('SALE_IN_PROGRESS', 'This sale is already being processed', 409);
+  }
+  return locked.value;
+}
+
+async function createBoxOfficeOrderLocked(
+  ctx: CoreContext,
+  params: CreateBoxOfficeOrderParams,
+): Promise<BoxOfficeOrderResult> {
   const { buyer, overrideReason, eventIds, eventRows, resolved, quote } = await prepare(
     ctx,
     params,
@@ -369,12 +388,6 @@ export async function createBoxOfficeOrder(
     }
     await clearCartAfterOrder(ctx, sessionId, eventIds).catch(() => undefined);
   };
-
-  // Double submit of the same hold (two clicks, two tabs of one session) must not create two orders.
-  const saleLockKey = `${ctx.keys.prefix}:boxoffice-sale:${sessionId}`;
-  if (held && (await ctx.redis.set(saleLockKey, '1', 'PX', 30_000, 'NX')) !== 'OK') {
-    throw new DomainError('SALE_IN_PROGRESS', 'This sale is already being processed', 409);
-  }
 
   let created: Awaited<ReturnType<typeof createRows>>;
   try {
@@ -453,6 +466,11 @@ export async function createBoxOfficeOrder(
     }
 
     // ── Order in PostgreSQL (the final double-booking guard) ─────────────────
+    // Settings are read before the transaction (a cache miss would borrow a second connection).
+    const [general, invoicing] = await Promise.all([
+      getSetting(ctx, 'general'),
+      getSetting(ctx, 'invoicing'),
+    ]);
     created = await withTransaction(ctx.db, (tx) =>
       createRows(ctx, tx, {
         params,
@@ -460,11 +478,11 @@ export async function createBoxOfficeOrder(
         quote,
         resolved,
         overrideReason,
+        settings: { general, invoicing },
       }),
     );
   } catch (err) {
     await releaseHolds();
-    if (held) await ctx.redis.del(saleLockKey).catch(() => undefined);
     if (isUniqueViolation(err, 'order_items_active_seat_uq')) {
       throw new DomainError('SEAT_UNAVAILABLE', 'A selected seat was just sold', 409);
     }
@@ -514,8 +532,6 @@ export async function createBoxOfficeOrder(
     if (held) await safe('hold release', () => releaseSessionHold(ctx, sessionId, quoted.eventId));
   }
   await safe('cart cleanup', () => clearCartAfterOrder(ctx, sessionId, eventIds));
-  // The sale is complete: the same tab may sell again right away.
-  if (held) await safe('sale lock release', () => ctx.redis.del(saleLockKey));
 
   let ticketCount = 0;
   let ticketsReady = true;
@@ -691,6 +707,10 @@ async function createRows(
     quote: CheckoutQuote;
     resolved: ResolvedLine[];
     overrideReason: string | null;
+    settings: {
+      general: Awaited<ReturnType<typeof getSetting<'general'>>>;
+      invoicing: Awaited<ReturnType<typeof getSetting<'invoicing'>>>;
+    };
   },
 ): Promise<{
   orderId: string;
@@ -699,10 +719,7 @@ async function createRows(
 }> {
   const { params, buyer, quote } = c;
   const now = new Date();
-  const [general, invoicing] = await Promise.all([
-    getSetting(ctx, 'general'),
-    getSetting(ctx, 'invoicing'),
-  ]);
+  const { general, invoicing } = c.settings;
   const locale = normalizeBuyerLocale(params.locale ?? general.defaultLocale) ?? 'en';
 
   const customerId = buyer.email

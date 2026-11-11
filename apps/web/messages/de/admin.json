@@ -198,6 +198,13 @@
       "title": "{count, plural, one {# Rechnung muss korrigiert werden} other {# Rechnungen müssen korrigiert werden}}",
       "text": "Eine Nachzahlung ist eingegangen, die Rechnung wurde aber nicht automatisch korrigiert.",
       "link": "Liste öffnen"
+    },
+    "refundReconcile": {
+      "pendingTitle": "PayPal-Erstattungen warten auf den Abgleich nach der Wiederherstellung",
+      "pendingText": "Automatische Erstattungen pausieren, bis der Abgleich mit PayPal abgeschlossen ist.",
+      "failing": "Der Abgleich mit PayPal schlägt weiterhin fehl ({error}). Automatische Erstattungen bleiben pausiert.",
+      "reviewTitle": "{count, plural, one {# Bestellung braucht eine Erstattungsprüfung} other {# Bestellungen brauchen eine Erstattungsprüfung}}",
+      "reviewText": "PayPal zeigt Erstattungen, die hier nicht erfasst sind. Automatische Erstattungen dieser Bestellungen sind angehalten."
     }
   },
   "venues": {

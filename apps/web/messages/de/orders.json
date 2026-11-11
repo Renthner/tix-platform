@@ -39,6 +39,7 @@
     "ITEMS_NOT_REFUNDABLE": "Einige der gewählten Tickets sind nicht mehr aktiv (bereits storniert oder erstattet). Bitte lade die Seite neu.",
     "REFUND_NOT_FOUND": "Erstattung nicht gefunden.",
     "REFUND_NOT_RETRYABLE": "Nur fehlgeschlagene automatische Erstattungen können erneut versucht werden.",
+    "REFUND_REVIEW_NOT_FOUND": "Für diese Bestellung gibt es keine offene Prüfung.",
     "REFUND_NOT_MANUAL": "Diese Erstattung wird automatisch vom Zahlungsanbieter ausgeführt.",
     "ADJUSTMENT_NOT_HIGHER": "Der neue Tarif muss mehr kosten als der bezahlte Preis.",
     "ADJUSTMENT_NOT_POSSIBLE": "Nur bezahlte Bestellungen können einen Tarifwechsel erhalten.",
@@ -55,7 +56,12 @@
     "INVOICE_REPAIR_NOT_POSSIBLE": "Die Rechnung einer erstatteten Bestellung kann nicht automatisch korrigiert werden.",
     "NO_OVERPAYMENT": "Diese Bestellung hat keine Überzahlung, die erstattet werden kann.",
     "CREDIT_REQUIRES_FINANCE": "Nur die Finanzverwaltung kann eine Überzahlung mit einer Tarifänderung verrechnen.",
-    "OVERPAYMENT_CHANGED": "Die Überzahlung hat sich inzwischen geändert – lade die Seite neu."
+    "OVERPAYMENT_CHANGED": "Die Überzahlung hat sich inzwischen geändert – lade die Seite neu.",
+    "REFUND_REVIEW_OPEN": "Die PayPal-Erstattungen dieser Bestellung sind angehalten: PayPal zeigt eine Erstattung, die hier nicht erfasst ist. Unter „Offene Erstattungen“ zuerst erfassen oder abschließen.",
+    "REFUND_EXISTING_MISMATCH": "Die gewählten Tickets (und Gebühren) ergeben nicht den Betrag der PayPal-Erstattung.",
+    "PAYPAL_REFUND_NOT_COMPLETED": "Diese PayPal-Erstattung ist bei PayPal nicht abgeschlossen.",
+    "PAYPAL_REFUND_MISMATCH": "Diese PayPal-Erstattung gehört nicht zu einer Zahlung dieser Bestellung (oder hat eine andere Währung).",
+    "PAYPAL_REFUND_ALREADY_RECORDED": "Diese PayPal-Erstattung ist bereits erfasst."
   },
   "admin": {
     "title": "Bestellungen",
@@ -275,9 +281,12 @@
       "adjustmentCancelled": "Nachzahlung storniert – der Tarif bleibt wie verkauft.",
       "adjustmentPaymentRecorded": "Zahlung erfasst – Tarif, Tickets und Rechnung wurden aktualisiert.",
       "invoiceRepaired": "Rechnung korrigiert: Gutschrift und neue Rechnung wurden erstellt.",
+      "restoreReviewResolved": "Die Prüfung nach der Wiederherstellung wurde als geprüft markiert.",
       "invoiceUpToDate": "Die Rechnung ist bereits aktuell.",
       "overpaymentRefundRequested": "Die Erstattung der Überzahlung wurde angelegt.",
-      "adjustmentSettledByCredit": "Der Tarif wurde geändert und mit der Überzahlung verrechnet. Der Kunde hat die neuen Tickets per E-Mail erhalten."
+      "adjustmentSettledByCredit": "Der Tarif wurde geändert und mit der Überzahlung verrechnet. Der Kunde hat die neuen Tickets per E-Mail erhalten.",
+      "existingRefundRecorded": "Die vorhandene PayPal-Erstattung wurde erfasst: Tickets storniert, Gutschrift erstellt, an PayPal wurde nichts gesendet.",
+      "reconciliationSkipped": "Der PayPal-Abgleich wurde übersprungen. Automatische Erstattungen laufen wieder."
     },
     "actions": {
       "keepReserved": {
@@ -395,6 +404,34 @@
       "title": "Offene Erstattungen",
       "description": "Erstattungen, um die du dich kümmern musst: Überweisungen, die von Hand zurückgezahlt werden, und PayPal-Erstattungen, die fehlgeschlagen sind oder hängen.",
       "empty": "Keine offenen Erstattungen.",
+      "restoreReview": {
+        "title": "Nach Wiederherstellung prüfen",
+        "description": "Diese Bestellungen weichen von PayPal ab (nach einer Wiederherstellung, oder PayPal meldete eine Erstattung, die nicht hier erfolgte). Es wurde nichts automatisch gebucht. Ist das Geld bereits zurückgeflossen, die vorhandene PayPal-Erstattung erfassen – die Bestellung NICHT normal stornieren, das würde doppelt erstatten. Als geprüft markieren, wenn nichts fehlt.",
+        "resolve": "Als geprüft markieren",
+        "kinds": {
+          "UNKNOWN_AT_PAYPAL": "PayPal zeigt eine Erstattung über {amount} ({ref}), die hier nicht erfasst ist.",
+          "EXTERNAL_REFUND_NOTICE": "PayPal meldete eine Erstattung über {amount} ({ref}), die nicht über dieses System erfolgte.",
+          "DOUBLE_REFUND_AT_PAYPAL": "PayPal hält mehrere abgeschlossene Erstattungen für dieselbe Erstattungsanforderung ({detail}): mögliche Doppelauszahlung, Summe {amount}.",
+          "AMOUNT_MISMATCH": "Die PayPal-Erstattung {ref} ({amount}) weicht von der erfassten Erstattung ab ({detail}).",
+          "LOCAL_SUCCEEDED_NOT_AT_PAYPAL": "Eine Erstattung über {amount} ist hier als erledigt erfasst, bei PayPal aber nicht als abgeschlossen sichtbar ({ref}).",
+          "UNCHECKED_AT_PAYPAL": "PayPal kennt die PayPal-Bestellung {ref} nicht, hier existieren aber Erstattungen. PayPal-Konto bzw. Umgebung prüfen.",
+          "CHECK_FAILED": "PayPal hat die Abfrage der PayPal-Bestellung {ref} abgelehnt: {detail}"
+        },
+        "hold": "Automatische PayPal-Erstattungen dieser Bestellung sind angehalten, bis dies geklärt ist.",
+        "record": {
+          "summary": "Vorhandene PayPal-Erstattung erfassen",
+          "hint": "Storniert die gewählten Tickets, erstellt die Gutschrift und bucht die PayPal-Erstattung als erledigt. An PayPal wird nichts gesendet; die Erstattung wird dort zuerst geprüft. Tickets (und Gebühren) müssen genau den Erstattungsbetrag ergeben.",
+          "refundId": "PayPal-Erstattungs-ID",
+          "items": "Von dieser Erstattung abgedeckte Tickets",
+          "fees": "Die Erstattung enthält die Servicegebühren",
+          "notify": "Erstattungs-E-Mail an den Kunden senden",
+          "confirm": "Die Erstattung existiert wirklich bei PayPal",
+          "submit": "Erstattung erfassen",
+          "mode": "Wofür war die Erstattung?",
+          "modeCancel": "Tickets (werden storniert)",
+          "modeOverpayment": "Eine Überzahlung (keine Tickets)"
+        }
+      },
       "columns": {
         "order": "Bestellung",
         "customer": "Kunde",
@@ -405,6 +442,15 @@
         "created": "Erstellt",
         "status": "Status",
         "actions": "Aktionen"
+      },
+      "reconcile": {
+        "title": "PayPal-Abgleich nach Wiederherstellung",
+        "pending": "Nach der Wiederherstellung werden die Erstattungen mit PayPal abgeglichen. Automatische Erstattungen warten, bis das abgeschlossen ist.",
+        "failing": "Der Abgleich mit PayPal ist noch nicht abgeschlossen (Versuch {attempts}) und wird automatisch wiederholt. Automatische Erstattungen warten.",
+        "mostlyNotFound": "PayPal kennt die meisten Bestellungen nicht. Die wiederhergestellten Daten gehören vermutlich zu einem anderen PayPal-Konto oder einer anderen Umgebung (Live/Sandbox). PayPal-Einstellungen prüfen.",
+        "lastError": "Letzter Fehler: {error}",
+        "skip": "Abgleich überspringen",
+        "skipConfirm": "Ich weiß: Erstattungen werden ohne Abgleich mit PayPal gesendet (Gefahr doppelter Erstattungen)."
       }
     },
     "seatChange": {

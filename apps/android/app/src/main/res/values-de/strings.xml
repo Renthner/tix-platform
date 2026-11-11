@@ -208,5 +208,10 @@
     <string name="lan_status_clock_skew">Uhrzeit weicht vom Master ab - Zeiteinstellungen prüfen</string>
     <string name="lan_duplicate_master">Achtung: Mehr als ein LAN-Master bedient diese Veranstaltung. Lass nur einen Master eingeschaltet.</string>
     <string name="unpair_blocked_hint_operator">Die Scans konnten nicht hochgeladen werden (keine Verbindung, oder der Server hat sie abgelehnt). Versuche es mit Verbindung erneut oder exportiere sie als Datei und gib sie einem Administrator, bevor du fortfährst. Danach wird alles auf diesem Gerät gelöscht.</string>
+    <string name="unpair_blocked_no_retry">Dieses Gerät wurde gesperrt, die Scans können nicht mehr hochgeladen werden. Nur der Export ist möglich.</string>
+    <string name="unpair_blocked_retrying">Scans werden hochgeladen …</string>
+    <string name="unpair_blocked_retry_in">Neuer Versuch in %1$d s. Sobald alles hochgeladen ist, wird das Gerät automatisch abgemeldet.</string>
+    <string name="unpair_blocked_refused">Der Server hat die übrigen Scans abgelehnt, sie werden nicht erneut versucht. Als Datei exportieren oder verwerfen.</string>
+    <string name="unpair_blocked_last_error">Letzter Versuch fehlgeschlagen: %1$s</string>
     <string name="unpair_blocked_cancel">Abbrechen, nicht entkoppeln</string>
 </resources>

@@ -134,9 +134,14 @@ export async function cleanupStaleRuns(ctx: Pick<CoreContext, 'db'>): Promise<nu
   return stale.length;
 }
 
+const MUTEX_RENEW_SCRIPT =
+  "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) end return 0";
+
 /**
- * Small Redis mutex (SET NX PX + compare-and-delete). Returns null when the lock is held
- * by someone else.
+ * Small Redis mutex (SET NX PX + compare-and-delete with a unique token). Returns null when the
+ * lock is held by someone else. While `fn` runs the lease is renewed every third of the TTL (only
+ * while the token is still ours), so a long-running body never loses the lock; if the process dies
+ * the lock still expires after `ttlMs`.
  */
 export async function withMutex<T>(
   ctx: Pick<CoreContext, 'redis' | 'keys'>,
@@ -148,14 +153,40 @@ export async function withMutex<T>(
   const token = randomUUID();
   const ok = await ctx.redis.set(key, token, 'PX', ttlMs, 'NX');
   if (ok !== 'OK') return null;
+  const startedAt = Date.now();
+  let lostLogged = false;
+  const renew = setInterval(
+    () => {
+      // Safety net against a hung body: stop renewing after 10 x TTL so the lock cannot live forever.
+      if (Date.now() - startedAt > ttlMs * 10) {
+        clearInterval(renew);
+        return;
+      }
+      ctx.redis
+        .eval(MUTEX_RENEW_SCRIPT, 1, key, token, String(ttlMs))
+        .then((renewed) => {
+          if (renewed !== 1 && !lostLogged) {
+            lostLogged = true;
+            console.warn(`[mutex] lease of "${name}" was lost while its body is still running`);
+          }
+        })
+        .catch(() => undefined);
+    },
+    Math.max(50, Math.floor(ttlMs / 3)),
+  );
+  renew.unref();
   try {
     return { value: await fn() };
   } finally {
-    await ctx.redis.eval(
-      "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end return 0",
-      1,
-      key,
-      token,
-    );
+    clearInterval(renew);
+    // A failing release must never replace the result (or the error) of the body.
+    await ctx.redis
+      .eval(
+        "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end return 0",
+        1,
+        key,
+        token,
+      )
+      .catch((err) => console.warn(`[mutex] release of "${name}" failed`, err));
   }
 }

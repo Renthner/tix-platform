@@ -17,7 +17,7 @@ import {
   type AdjustmentRow,
 } from '../orders/adjustments';
 import { recordPayment } from '../orders/fulfillment';
-import { markRefundSucceeded } from '../orders/refund-state';
+import { markRefundSucceeded, recordRefundReview } from '../orders/refund-state';
 import { getSecretSetting, getSetting } from '../settings';
 
 /**
@@ -263,6 +263,18 @@ export async function startPayPalPayment(
 
   const base = requireCapability(ctx, 'appUrl');
   const general = await getSetting(ctx, 'general');
+  // The idempotency key must change with every new PayPal order: count ALL earlier attempts of this
+  // order (also FAILED ones), otherwise PayPal would replay the response of the failed attempt.
+  const allAttempts = await ctx.db
+    .select({ id: payments.id })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.orderId, order.id),
+        eq(payments.method, 'PAYPAL'),
+        isNull(payments.adjustmentId),
+      ),
+    );
   // PayPal appends `token` (its order id) and `PayerID`; `t` authorises the order page.
   const returnUrl = new URL(`${base}/api/paypal/return`);
   returnUrl.searchParams.set('order', order.id);
@@ -273,7 +285,7 @@ export async function startPayPalPayment(
     locale: order.locale,
   });
   const created = await api<PayPalOrder>(ctx, config, 'POST', '/v2/checkout/orders', {
-    requestId: `tix-create-${order.id}-${attempts.length + 1}`,
+    requestId: `tix-create-${order.id}-${allAttempts.length + 1}`,
     body: {
       intent: 'CAPTURE',
       purchase_units: [
@@ -846,6 +858,41 @@ export async function createPayPalRefund(
   };
 }
 
+export interface PayPalRefundDetails extends PayPalRefundResult {
+  amountCents: number;
+  currency: string;
+  customId: string | null;
+  /** Capture the refund belongs to (`up` link). */
+  captureId: string | null;
+}
+
+/** Full refund resource (amount, our `custom_id`, capture) – the order details do not always carry it. */
+export async function getPayPalRefundDetails(
+  ctx: CoreContext,
+  providerRefundId: string,
+): Promise<PayPalRefundDetails> {
+  const config = await loadConfig(ctx);
+  const refund = await api<{
+    id: string;
+    status: PayPalRefundResult['status'];
+    status_details?: { reason?: string };
+    amount?: { currency_code: string; value: string };
+    custom_id?: string;
+    links?: PayPalLink[];
+  }>(ctx, config, 'GET', `/v2/payments/refunds/${encodeURIComponent(providerRefundId)}`);
+  return {
+    id: refund.id,
+    status: refund.status,
+    statusReason: refund.status_details?.reason ?? null,
+    amountCents: refund.amount ? fromPayPalAmount(refund.amount.value) : 0,
+    currency: refund.amount?.currency_code ?? '',
+    customId: refund.custom_id ?? null,
+    captureId:
+      /\/captures\/([^/?]+)/.exec(refund.links?.find((l) => l.rel === 'up')?.href ?? '')?.[1] ??
+      null,
+  };
+}
+
 /** Current state of a refund at PayPal (resolves refunds that were PENDING when created). */
 export async function getPayPalRefund(
   ctx: CoreContext,
@@ -862,6 +909,44 @@ export async function getPayPalRefund(
     status: refund.status,
     statusReason: refund.status_details?.reason ?? null,
   };
+}
+
+export interface PayPalOrderRefund {
+  id: string;
+  status: PayPalRefundResult['status'];
+  amountCents: number;
+  currency: string;
+  /** Our refund row id (set on creation) – absent for refunds made in the PayPal dashboard. */
+  customId: string | null;
+}
+
+/** All refunds PayPal knows for a PayPal order (order details → purchase unit payments). */
+export async function listPayPalOrderRefunds(
+  ctx: CoreContext,
+  providerOrderId: string,
+): Promise<PayPalOrderRefund[]> {
+  const config = await loadConfig(ctx);
+  const order = await api<{
+    purchase_units?: {
+      payments?: {
+        refunds?: {
+          id: string;
+          status: PayPalRefundResult['status'];
+          amount?: { currency_code: string; value: string };
+          custom_id?: string;
+        }[];
+      };
+    }[];
+  }>(ctx, config, 'GET', `/v2/checkout/orders/${encodeURIComponent(providerOrderId)}`);
+  return (order.purchase_units ?? []).flatMap((unit) =>
+    (unit.payments?.refunds ?? []).map((r) => ({
+      id: r.id,
+      status: r.status,
+      amountCents: r.amount ? fromPayPalAmount(r.amount.value) : 0,
+      currency: r.amount?.currency_code ?? '',
+      customId: r.custom_id ?? null,
+    })),
+  );
 }
 
 /** Errors a retry can fix (network, timeout, rate limit, PayPal outage) – everything else is final. */
@@ -1170,6 +1255,18 @@ async function processWebhookEvent(ctx: CoreContext, event: PayPalWebhookEvent):
         actorType: 'WEBHOOK',
         data: { provider: 'paypal', event: event.event_type, amount: resource.amount ?? null },
       });
+      // A refund we did not make (PayPal dashboard, lost window): put the order under review so
+      // that no second, automatic refund is sent for money that already went back.
+      if (resource.id) {
+        await recordRefundReview(ctx.db, payment.orderId, [
+          {
+            kind: 'EXTERNAL_REFUND_NOTICE',
+            ref: resource.id,
+            amount: resource.amount ? fromPayPalAmount(resource.amount.value) : 0,
+            currency: resource.amount?.currency_code ?? '',
+          },
+        ]);
+      }
       return true;
     }
     default:

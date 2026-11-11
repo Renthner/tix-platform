@@ -33,6 +33,8 @@
     "remaining": "{count, plural, =0 {sold out} one {# spot left} other {# spots left}}"
   },
   "selection": {
+    "maintenanceTitle": "Maintenance in progress",
+    "maintenanceText": "The system is being restored from a backup and is briefly unavailable. The seating plan updates itself as soon as it is back.",
     "loading": "Loading seating plan…",
     "row": "Row {label}",
     "seat": "Seat {label}",

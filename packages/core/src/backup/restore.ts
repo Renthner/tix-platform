@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import type { JobQueues } from '../job-queues';
 import { replayErasureLedger } from '../customers/privacy';
 import { runPrivacyRetention } from '../customers/privacy';
+import { enqueueRefundReconcile, markRefundsForReconciliation } from '../orders/refund-reconcile';
 import { BackupCryptoError } from './crypto';
 import { createBackup, type CreateBackupResult } from './create';
 import { findBackup } from './catalogue';
@@ -299,6 +300,9 @@ export async function restoreBackup(
     killer.on('error', () => undefined);
     await killer.connect();
 
+    // PayPal keeps its state while the database is rewound: block automatic refunds BEFORE the
+    // database is replaced (Redis flag; harmless when the restore rolls back - the pass finds nothing).
+    const reconcileToken = await markRefundsForReconciliation(rt.ctx, 'restore', undefined, 'pre');
     await at('DATABASE_RESTORE');
     const kill = () => terminateOtherSessions(killer!, RESTORE_APPLICATIONS).catch(() => 0);
     await kill();
@@ -342,6 +346,8 @@ export async function restoreBackup(
       migrationsFolder: rt.migrationsDir,
       log: (message) => rt.logger.info({}, message),
     });
+    // The durable marker lives in the restored database (the table exists only after the migrations).
+    await retry(() => markRefundsForReconciliation(rt.ctx, 'restore', reconcileToken, 'post'));
     const counts = await readRowCounts(control);
     // Counters are intentionally allowed to differ (raised in the restore transaction).
     const mismatches = compareRowCounts(manifest.rowCounts, counts).filter(
@@ -359,6 +365,7 @@ export async function restoreBackup(
 
     await at('REDIS_CLEANUP');
     await cleanupRedisAfterRestore(rt.ctx);
+    await enqueueRefundReconcile(rt.ctx);
 
     await retry(() =>
       recordRestoreAudit(rt, params.userId, {

@@ -19,7 +19,9 @@ import {
   type OrderStatus,
 } from '@tix/shared';
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
+import { withMutex } from '../banking/runs';
 import { clearCartAfterOrder, holdCartUntil, validateSelection } from '../cart';
+import { rebuildInventory } from '../inventory';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
 import { computeSaleState, effectiveCheckoutConfig } from '../events';
@@ -87,11 +89,28 @@ export function customerAccountsOffered(
 }
 
 export async function placeOrder(ctx: CoreContext, params: PlaceOrderParams): Promise<PlacedOrder> {
+  // One checkout per cart at a time: a double click / retry racing the first request would
+  // otherwise create a second order for the same cart (standing spots have no unique index).
+  const locked = await withMutex(ctx, `checkout:${params.sessionId}`, 60_000, () =>
+    placeOrderLocked(ctx, params),
+  );
+  if (!locked) {
+    throw new DomainError('CHECKOUT_IN_PROGRESS', 'Your order is already being processed', 409);
+  }
+  return locked.value;
+}
+
+async function placeOrderLocked(ctx: CoreContext, params: PlaceOrderParams): Promise<PlacedOrder> {
   const { sessionId } = params;
   const input = params.account ? { ...params.input, email: params.account.email } : params.input;
-  const [checkoutSettings, accountSettings] = await Promise.all([
+  // All settings are read here: inside the order transaction a cache miss would borrow a second
+  // pool connection while the transaction holds one.
+  const [checkoutSettings, accountSettings, general, invoicing, bank] = await Promise.all([
     getSetting(ctx, 'checkout'),
     getSetting(ctx, 'customerAccounts'),
+    getSetting(ctx, 'general'),
+    getSetting(ctx, 'invoicing'),
+    getSetting(ctx, 'bankTransfer'),
   ]);
   if (checkoutSettings.requireTermsAcceptance && !input.acceptTerms) {
     throw new DomainError('TERMS_NOT_ACCEPTED', 'Please accept the terms and conditions', 422);
@@ -181,6 +200,25 @@ export async function placeOrder(ctx: CoreContext, params: PlaceOrderParams): Pr
     ),
   );
 
+  // Idempotent re-submit: the order of this very cart already exists (its post-commit Redis work
+  // failed or the response got lost) – hand it out again instead of creating a second one.
+  const existing = await findOrderOfCart(ctx, sessionId, quote.totalGross, quote.ticketCount);
+  if (existing) {
+    await repairAfterOrder(ctx, sessionId, quote, eventRows, existing.orderId);
+    return {
+      orderId: existing.orderId,
+      orderNumber: existing.orderNumber,
+      status: existing.status,
+      method: existing.paymentMethod as PlacedOrder['method'],
+      totalGross: existing.totalGross,
+      currency: existing.currency,
+      paymentReference: existing.paymentReference,
+      paymentDueAt: existing.paymentDueAt?.toISOString() ?? null,
+      accessToken: orderAccessToken(ctx, existing.orderId),
+      locale: existing.locale,
+    };
+  }
+
   let attempt = 0;
   for (;;) {
     attempt += 1;
@@ -193,9 +231,19 @@ export async function placeOrder(ctx: CoreContext, params: PlaceOrderParams): Pr
           configs,
           codeIds,
           ownerChecks,
+          settings: { general, invoicing, bank },
         }),
       );
-      await afterOrderCreated(ctx, sessionId, quote, created);
+      // The order is committed: nothing below may turn it into an error. A failed Redis hand-over
+      // is repaired from PostgreSQL (best effort here, again on a re-submit of the same cart).
+      try {
+        await afterOrderCreated(ctx, sessionId, quote, created);
+      } catch (err) {
+        console.error('[checkout] post-commit work failed, repairing from PostgreSQL', err);
+        await repairAfterOrder(ctx, sessionId, quote, eventRows, created.orderId).catch((e) =>
+          console.error('[checkout] repair failed', e),
+        );
+      }
       return {
         ...created,
         accessToken: orderAccessToken(ctx, created.orderId),
@@ -216,6 +264,85 @@ export async function placeOrder(ctx: CoreContext, params: PlaceOrderParams): Pr
   }
 }
 
+const ACTIVE_ORDER_STATUSES = ['PENDING', 'AWAITING_PAYMENT', 'PAID'] as const;
+
+/** Active order created from this cart after its last change (same total and ticket count). */
+async function findOrderOfCart(
+  ctx: CoreContext,
+  sessionId: string,
+  totalGross: number,
+  ticketCount: number,
+) {
+  const changed = Number(await ctx.redis.hget(ctx.keys.cart(sessionId), 'changed'));
+  if (!Number.isFinite(changed) || changed <= 0) return null;
+  const [row] = await ctx.db
+    .select({
+      orderId: orders.id,
+      orderNumber: orders.orderNumber,
+      status: orders.status,
+      paymentMethod: orders.paymentMethod,
+      totalGross: orders.totalGross,
+      currency: orders.currency,
+      paymentReference: orders.paymentReference,
+      paymentDueAt: orders.paymentDueAt,
+      locale: orders.locale,
+      items: count(orderItems.id),
+    })
+    .from(orders)
+    .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
+    .where(
+      and(
+        eq(orders.cartSessionId, sessionId),
+        inArray(orders.status, [...ACTIVE_ORDER_STATUSES]),
+        eq(orders.totalGross, totalGross),
+        sql`${orders.createdAt} >= ${new Date(changed)}`,
+      ),
+    )
+    .groupBy(orders.id)
+    .orderBy(sql`${orders.createdAt} desc`)
+    .limit(1);
+  if (!row || row.items !== ticketCount) return null;
+  return row;
+}
+
+/**
+ * Brings Redis in line with an order that is already committed: seat mirror, released locks,
+ * standing capacity (rebuilt from the authoritative DB counter) and the cart itself.
+ */
+async function repairAfterOrder(
+  ctx: CoreContext,
+  sessionId: string,
+  quote: CheckoutQuote,
+  eventRows: CreateContext['eventRows'],
+  orderId: string,
+): Promise<void> {
+  const [order] = await ctx.db
+    .select({ status: orders.status })
+    .from(orders)
+    .where(eq(orders.id, orderId));
+  const paid = order?.status === 'PAID';
+  for (const quoted of quote.events) {
+    const seatIds = quoted.items.filter((i) => i.seatId).map((i) => i.seatId!);
+    if (seatIds.length > 0) {
+      await mirrorSeats(
+        ctx,
+        seatIds.map((seatId) => ({ seatId, eventId: quoted.eventId })),
+        paid ? 'S' : 'R',
+      );
+      await ctx.seats.forceRelease(quoted.eventId, seatIds);
+    }
+    if (quoted.items.some((i) => i.kind === 'GENERAL_ADMISSION')) {
+      const event = eventRows.get(quoted.eventId);
+      if (event) await rebuildInventory(ctx, event);
+    }
+  }
+  await clearCartAfterOrder(
+    ctx,
+    sessionId,
+    quote.events.map((e) => e.eventId),
+  );
+}
+
 interface CreateContext {
   params: PlaceOrderParams;
   quote: CheckoutQuote;
@@ -223,6 +350,11 @@ interface CreateContext {
   configs: Map<string, Awaited<ReturnType<typeof effectiveCheckoutConfig>>>;
   codeIds: Map<string, string>;
   ownerChecks: { eventId: string; companionSeatId: string; partners: string[] }[];
+  settings: {
+    general: Awaited<ReturnType<typeof getSetting<'general'>>>;
+    invoicing: Awaited<ReturnType<typeof getSetting<'invoicing'>>>;
+    bank: Awaited<ReturnType<typeof getSetting<'bankTransfer'>>>;
+  };
 }
 
 type CreatedOrder = Omit<PlacedOrder, 'accessToken' | 'locale'> & {
@@ -365,11 +497,7 @@ async function createOrderRows(
   const gaByEvent = await claimStandingCapacity(tx, c.quote);
 
   // Payment terms.
-  const [general, invoicing, bank] = await Promise.all([
-    getSetting(ctx, 'general'),
-    getSetting(ctx, 'invoicing'),
-    getSetting(ctx, 'bankTransfer'),
-  ]);
+  const { general, invoicing, bank } = c.settings;
   const timeZone = general.defaultTimeZone;
   const eventList = [...c.eventRows.values()];
   const isBankTransfer = input.method === 'BANK_TRANSFER';

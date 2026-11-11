@@ -36,7 +36,7 @@ import {
   type SeatMapDocumentInput,
 } from '@tix/shared';
 import { createSecretBox, generateKeyRingEntry, parseKeyRing } from '@tix/shared/server';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -582,6 +582,7 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
 
   /** Minimal PayPal API double. */
   let paypalOrders = 0;
+  const paypalRequestIds: string[] = [];
   function mockPayPal(
     options: { captureStatus?: 'COMPLETED' | 'PENDING'; approved?: boolean } = {},
   ) {
@@ -603,6 +604,9 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
             purchase_units: { amount: { value: string } }[];
           };
           paypalOrders += 1;
+          paypalRequestIds.push(
+            String((init.headers as Record<string, string>)['paypal-request-id']),
+          );
           const id = `PP-ORDER-${paypalOrders}`;
           return json({
             id,
@@ -763,6 +767,41 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
     expect(attempt!.status).toBe('CANCELLED');
   });
 
+  it('uses a new PayPal request id after a failed attempt (no replay of the failed PayPal order)', async () => {
+    const session = sid();
+    await enterShop(ctx, event, session);
+    await addSeats(ctx, session, event, [seatIds[7]!]);
+    const placed = await placeOrder(ctx, {
+      sessionId: session,
+      input: buyer('PAYPAL', 3245, 'declined@example.invalid'),
+    });
+    mockPayPal();
+    paypalRequestIds.length = 0;
+    const first = await startPayPalPayment(ctx, placed.orderId);
+    await handle.db
+      .update(payments)
+      .set({ status: 'FAILED' })
+      .where(and(eq(payments.orderId, placed.orderId), eq(payments.method, 'PAYPAL')));
+    const second = await startPayPalPayment(ctx, placed.orderId);
+    expect(second).not.toEqual(first);
+    expect(paypalRequestIds).toEqual([
+      `tix-create-${placed.orderId}-1`,
+      `tix-create-${placed.orderId}-2`,
+    ]);
+    const rows = await handle.db
+      .select({ providerOrderId: payments.providerOrderId })
+      .from(payments)
+      .where(eq(payments.orderId, placed.orderId));
+    expect(new Set(rows.map((r) => r.providerOrderId)).size).toBe(2);
+    // free the seat again for the following tests
+    await handle.db
+      .update(orders)
+      .set({ createdAt: new Date(Date.now() - 2 * 3600_000) })
+      .where(eq(orders.id, placed.orderId));
+    await runDunning(ctx);
+    expect(await takenCode(seatIds[7]!)).toBeNull();
+  });
+
   it('requires sign-in only where customer accounts are offered', async () => {
     await saveSetting(
       ctx,
@@ -797,5 +836,66 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
       false,
     );
     await saveSetting(ctx, 'customerAccounts', {}, null);
+  });
+
+  // Keep last: it consumes a standing spot the earlier tests do not expect to be taken.
+  it('creates only one order when the same cart is submitted twice at the same moment', async () => {
+    const session = sid();
+    await enterShop(ctx, event, session);
+    // standing spots only: no unique index stops a second order for the same cart
+    const allocated = async () =>
+      (
+        await handle.db
+          .select({ n: seatMapSections.allocatedCount })
+          .from(seatMapSections)
+          .where(eq(seatMapSections.id, standingId))
+      )[0]!.n;
+    // earlier tests used up the standing capacity: add two spots (DB counter + Redis mirror)
+    await handle.db
+      .update(seatMapSections)
+      .set({ capacity: sql`${seatMapSections.capacity} + 2` })
+      .where(eq(seatMapSections.id, standingId));
+    await redis.hincrby(ctx.keys.generalAdmissionAvailable(event.id), standingId, 2);
+    const before = await allocated();
+    await setGeneralAdmission(ctx, session, event, standingId, 1);
+    const total = (await getCheckoutOptions(ctx, session)).quotes.BANK_TRANSFER.totalGross;
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 4 }, () =>
+        placeOrder(ctx, { sessionId: session, input: buyer('BANK_TRANSFER', total) }),
+      ),
+    );
+    expect(attempts.filter((a) => a.status === 'fulfilled')).toHaveLength(1);
+    for (const failed of attempts.filter((a) => a.status === 'rejected')) {
+      expect(['CHECKOUT_IN_PROGRESS', 'CART_EMPTY']).toContain(
+        (failed as PromiseRejectedResult).reason.code,
+      );
+    }
+    expect(await allocated()).toBe(before + 1);
+  });
+  it('returns the committed order when the Redis hand-over fails, and a re-submit does not duplicate it', async () => {
+    const session = sid();
+    await enterShop(ctx, event, session);
+    await handle.db
+      .update(seatMapSections)
+      .set({ capacity: sql`${seatMapSections.capacity} + 1` })
+      .where(eq(seatMapSections.id, standingId));
+    await redis.hincrby(ctx.keys.generalAdmissionAvailable(event.id), standingId, 1);
+    await setGeneralAdmission(ctx, session, event, standingId, 1);
+    const total = (await getCheckoutOptions(ctx, session)).quotes.BANK_TRANSFER.totalGross;
+    const spy = vi
+      .spyOn(ctx.seats, 'commitGeneralAdmission')
+      .mockRejectedValueOnce(new Error('redis down'));
+    const placed = await placeOrder(ctx, {
+      sessionId: session,
+      input: buyer('BANK_TRANSFER', total),
+    });
+    spy.mockRestore();
+    expect(placed.status).toBe('AWAITING_PAYMENT');
+    // The cart was repaired / cleared; even if it was still there a re-submit hands out the same order.
+    const [row] = await handle.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(orders)
+      .where(eq(orders.cartSessionId, session));
+    expect(row!.n).toBe(1);
   });
 });

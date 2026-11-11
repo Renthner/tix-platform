@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { localized, type Translations } from '@tix/shared';
 import { apiFetch, errorCode } from '@/lib/api';
 import { formatCountdown } from '@/lib/format';
-import { onRealtime, subscribeRoom } from '@/lib/realtime';
+import { onRealtime, onResync, subscribeRoom } from '@/lib/realtime';
 import type { PublicDecision } from '@/server/shop';
 import type { SeatColors } from './seat-chart/seat-chart';
 import { SeatSelection, type ShopConfig } from './seat-selection';
@@ -140,9 +140,18 @@ export function EventShop({
       const message = payload as { type: string; eventId: string };
       if (message.type === 'admitted' && message.eventId === eventId) void claim();
     });
+    // After a reconnect queue updates were missed: ask for the current decision again.
+    // Random delay: after maintenance everybody resyncs at once, spread the load.
+    let resyncTimer: ReturnType<typeof setTimeout> | undefined;
+    const offResync = onResync(() => {
+      clearTimeout(resyncTimer);
+      resyncTimer = setTimeout(() => void enter(), Math.random() * 5_000);
+    });
     return () => {
       offQueue();
       offSession();
+      offResync();
+      clearTimeout(resyncTimer);
       unsubscribe();
     };
   }, [claim, enter, eventId, queue.admissionBatchSize, queue.admissionIntervalSeconds]);

@@ -1,12 +1,13 @@
 import { createServer } from 'node:http';
 import {
+  MaintenanceWatcher,
   PresenceTracker,
   RedisConnections,
   QueueEngine,
   createChannels,
   createKeyspace,
 } from '@tix/redis';
-import type { SeatDeltaMessage, SeatDeltaStatus } from '@tix/shared';
+import { APP_VERSION, type SeatDeltaMessage, type SeatDeltaStatus } from '@tix/shared';
 import { verifyToken } from '@tix/shared/server';
 import { pino } from 'pino';
 import { Server, type Socket } from 'socket.io';
@@ -107,16 +108,34 @@ interface SocketData {
   lastPresence: Map<string, number>;
 }
 
-// Maintenance (backup restore): no new subscriptions while the database is being replaced.
+// Maintenance (backup restore): no new connections while the database is being replaced, and the
+// connected clients are told (`maintenance:start`) and disconnected, so that after the restore
+// they reconnect and resync their seat state instead of relying on deltas they missed.
+/** Clients poll /api/maintenance at about this pace and reconnect once it is over. */
+const MAINTENANCE_RETRY_MS = 5_000;
+const maintenanceProbe = async (): Promise<boolean> =>
+  (await redis.command.exists(keys.maintenance(), keys.restoreIncomplete())) > 0;
 let maintenanceCache = { at: 0, active: false };
+const maintenanceWatcher = new MaintenanceWatcher({
+  probe: maintenanceProbe,
+  intervalMs: 2_000,
+  onStart: () => {
+    logger.warn('maintenance started: disconnecting clients');
+    io.emit('maintenance:start', { retryAfterMs: MAINTENANCE_RETRY_MS });
+    // Let the notice leave the buffers before the sockets are closed.
+    setTimeout(() => io.disconnectSockets(true), 250).unref();
+  },
+  onEnd: () => logger.info('maintenance ended: accepting connections again'),
+});
 io.use(async (_socket, next) => {
   if (Date.now() - maintenanceCache.at > 1_500) {
-    const active = await redis.command
-      .exists(keys.maintenance(), keys.restoreIncomplete())
-      .catch(() => 0);
-    maintenanceCache = { at: Date.now(), active: active > 0 };
+    const active = await maintenanceProbe().catch(() => false);
+    maintenanceCache = { at: Date.now(), active };
   }
-  next(maintenanceCache.active ? new Error('maintenance') : undefined);
+  if (!maintenanceCache.active) return next();
+  const error = new Error('maintenance') as Error & { data?: unknown };
+  error.data = { retryAfterMs: MAINTENANCE_RETRY_MS };
+  next(error);
 });
 
 io.use((socket, next) => {
@@ -256,8 +275,12 @@ async function main(): Promise<void> {
     channels.patterns.queue,
     channels.patterns.sessions,
   );
+  maintenanceWatcher.start();
   http.listen(env.REALTIME_PORT, '0.0.0.0', () => {
-    logger.info({ port: env.REALTIME_PORT, origins }, 'realtime gateway listening');
+    logger.info(
+      { version: APP_VERSION, port: env.REALTIME_PORT, origins },
+      'realtime gateway listening',
+    );
   });
 }
 
@@ -267,6 +290,7 @@ async function shutdown(signal: string): Promise<void> {
   stopping = true;
   logger.info({ signal }, 'shutting down');
   clearInterval(flushTimer);
+  maintenanceWatcher.stop();
   await new Promise<void>((resolve) => io.close(() => resolve()));
   await redis.close();
   process.exit(0);

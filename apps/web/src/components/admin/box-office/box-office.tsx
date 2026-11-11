@@ -39,7 +39,7 @@ import {
   writeHoldSnapshot,
 } from '@/lib/hold-session';
 import { parseMoneyToCents } from '@/lib/money';
-import { onRealtime, subscribeRoom } from '@/lib/realtime';
+import { onRealtime, onResync, subscribeRoom } from '@/lib/realtime';
 import {
   SeatChart,
   type SeatColors,
@@ -402,8 +402,10 @@ export function BoxOffice({
         return next;
       });
     });
+    const offResync = onResync(() => void load(eventId).catch(() => undefined));
     return () => {
       off();
+      offResync();
       unsubscribe();
     };
   }, [eventId, load]);

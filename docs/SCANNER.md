@@ -60,6 +60,7 @@ codes.
 | 422           | `VALIDATION_FAILED` (`details.issues`)   | Bug in the client                                                |
 | 429           | `RATE_LIMITED` + `Retry-After`           | Back off for `Retry-After` seconds                               |
 | 503           | `MAINTENANCE` + `Retry-After`            | Go offline mode, retry later (a backup restore is running)       |
+| 503           | `BUSY` + `Retry-After`                   | Transient overload: decide locally, retry after `Retry-After`    |
 | 5xx / network | -                                        | Offline mode; keep the local scan queue                          |
 
 Rate limits (per device, per minute, one bucket per route): scan 600, batch 60, lookup 240, manifest 120,

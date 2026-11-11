@@ -31,7 +31,7 @@ import {
   resolveHoldTabId,
   writeHoldSnapshot,
 } from '@/lib/hold-session';
-import { onRealtime, subscribeRoom } from '@/lib/realtime';
+import { onRealtime, onResync, subscribeRoom } from '@/lib/realtime';
 
 interface ChangeItem {
   id: string;
@@ -188,8 +188,10 @@ export function SeatChangeEditor({
       });
       setStatusVersion((v) => v + 1);
     });
+    const offResync = onResync(() => void load().catch(() => undefined));
     return () => {
       off();
+      offResync();
       unsubscribe();
     };
   }, [eventId, load]);

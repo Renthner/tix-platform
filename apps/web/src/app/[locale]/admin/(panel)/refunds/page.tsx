@@ -1,13 +1,25 @@
-import { listInvoiceCorrections, listOpenAdjustments, listOpenRefunds } from '@tix/core';
+import {
+  listInvoiceCorrections,
+  listOpenAdjustments,
+  listOpenRefunds,
+  getRefundReconcileStatus,
+  listRefundRestoreReviews,
+} from '@tix/core';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/admin/form-controls';
-import { RepairInvoiceButton, ResetTariffButton } from '@/components/admin/adjustment-actions';
+import {
+  RepairInvoiceButton,
+  ResetTariffButton,
+  RecordExistingRefundForm,
+  ResolveRestoreReviewButton,
+  SkipReconciliationForm,
+} from '@/components/admin/adjustment-actions';
 import { RefundBatchList, type RefundBatchData } from '@/components/admin/refund-batches';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
-import { requireAdmin } from '@/server/auth';
+import { hasRole, requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 
 export const dynamic = 'force-dynamic';
@@ -19,14 +31,16 @@ export async function generateMetadata() {
 
 export default async function OpenRefundsPage({ params }: { params: Promise<{ locale: string }> }) {
   await resolveLocale(params);
-  await requireAdmin(['FINANCE']);
-  const [t, format, rows, adjustments, ta, corrections] = await Promise.all([
+  const session = await requireAdmin(['FINANCE']);
+  const [t, format, rows, adjustments, ta, corrections, reviews, reconcile] = await Promise.all([
     getTranslations('orders.admin.refundsPage'),
     getFormatter(),
     listOpenRefunds(getCore()),
     listOpenAdjustments(getCore()),
     getTranslations('orders.admin.adjustmentsPage'),
     listInvoiceCorrections(getCore()),
+    listRefundRestoreReviews(getCore()),
+    getRefundReconcileStatus(getCore()),
   ]);
 
   const batches: RefundBatchData[] = rows.map((r) => ({
@@ -53,6 +67,95 @@ export default async function OpenRefundsPage({ params }: { params: Promise<{ lo
             )}
           </CardContent>
         </Card>
+
+        {reconcile.pending && (
+          <Card className="border-destructive/50">
+            <CardContent className="space-y-2 pt-6 text-sm">
+              <h2 className="text-base font-semibold">{t('reconcile.title')}</h2>
+              <p className="text-muted-foreground">
+                {reconcile.lastError || reconcile.alert
+                  ? t('reconcile.failing', { attempts: reconcile.attempts })
+                  : t('reconcile.pending')}
+              </p>
+              {reconcile.alert === 'MOSTLY_NOT_FOUND' && (
+                <p className="font-medium text-destructive">{t('reconcile.mostlyNotFound')}</p>
+              )}
+              {reconcile.lastError && (
+                <p className="font-mono text-xs">
+                  {t('reconcile.lastError', { error: reconcile.lastError })}
+                </p>
+              )}
+              {hasRole(session, ['SUPER_ADMIN']) && <SkipReconciliationForm />}
+            </CardContent>
+          </Card>
+        )}
+
+        {reviews.length > 0 && (
+          <Card className="border-destructive/50">
+            <CardContent className="space-y-3 pt-6">
+              <div>
+                <h2 className="text-base font-semibold">{t('restoreReview.title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('restoreReview.description')}</p>
+              </div>
+              <ul className={listClass}>
+                {reviews.map((r) => (
+                  <li
+                    key={r.orderId}
+                    className={`${rowClass} md:grid-cols-[minmax(9rem,12rem)_minmax(10rem,1fr)_minmax(12rem,auto)]`}
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <Link
+                        href={`/admin/orders/${r.orderId}`}
+                        className="font-medium hover:underline"
+                      >
+                        {r.orderNumber}
+                      </Link>
+                      <div className="truncate">{r.buyerName}</div>
+                      <div className="whitespace-nowrap text-xs text-muted-foreground">
+                        {date(r.createdAt)}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <ul className="space-y-1 text-sm">
+                        {r.findings.map((f) => (
+                          <li key={`${f.kind}:${f.ref}`}>
+                            {t(`restoreReview.kinds.${f.kind}`, {
+                              amount: f.currency ? money(f.amount, f.currency) : '',
+                              ref: f.ref,
+                              detail: f.detail ?? '',
+                            })}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-muted-foreground">{t('restoreReview.hold')}</p>
+                      {
+                        <RecordExistingRefundForm
+                          orderId={r.orderId}
+                          defaultRefundId={
+                            (
+                              r.findings.find(
+                                (f) =>
+                                  f.kind === 'UNKNOWN_AT_PAYPAL' ||
+                                  f.kind === 'EXTERNAL_REFUND_NOTICE',
+                              ) ?? r.findings[0]
+                            )?.ref ?? ''
+                          }
+                          items={r.items}
+                          money={Object.fromEntries(
+                            r.items.map((i) => [i.id, money(i.priceGross, r.currency)]),
+                          )}
+                        />
+                      }
+                    </div>
+                    <div className="md:flex md:justify-end">
+                      <ResolveRestoreReviewButton orderId={r.orderId} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="space-y-3 pt-6">

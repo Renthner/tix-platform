@@ -16,6 +16,8 @@ import type { CoreContext } from './context';
 
 const TTL_MS = 10_000;
 const cache = new Map<string, { value: unknown; expires: number }>();
+/** Single-flight: concurrent readers of an expired entry share one DB query. */
+const inflight = new Map<string, Promise<unknown>>();
 
 export async function getSetting<K extends SettingKey>(
   ctx: Pick<CoreContext, 'db'>,
@@ -25,6 +27,21 @@ export async function getSetting<K extends SettingKey>(
     throw new Error(`Secret setting "${key}" must be read via the secret store`);
   const hit = cache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value as SettingValue<K>;
+  const pending = inflight.get(key);
+  if (pending) return (await pending) as SettingValue<K>;
+  const load = loadSetting(ctx, key);
+  inflight.set(key, load);
+  try {
+    return await load;
+  } finally {
+    inflight.delete(key);
+  }
+}
+
+async function loadSetting<K extends SettingKey>(
+  ctx: Pick<CoreContext, 'db'>,
+  key: K,
+): Promise<SettingValue<K>> {
   const [row] = await ctx.db
     .select({ value: systemSettings.value })
     .from(systemSettings)

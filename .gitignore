@@ -45,3 +45,6 @@ apps/android/keystore.properties
 apps/android/captures/
 apps/android/.cxx/
 apps/android/**/*.iml
+
+# Kotlin compiler daemon/session data
+.kotlin/

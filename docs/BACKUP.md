@@ -67,6 +67,13 @@ If a step after the commit fails, the system **stays in maintenance mode** and t
 Numbers (orders, invoices, credit notes, ticket sync versions) are never reused: counters keep the higher
 live values, so the sequence may contain gaps after a restore.
 
+### Live seat chart during a restore
+
+While the maintenance flag is set the realtime gateway tells every connected browser
+(`maintenance:start`, retry hint 5 s), closes the sockets and refuses new connections. The seat
+chart shows the maintenance notice, polls `/api/maintenance` and reconnects when the restore is
+over (random delays spread the reconnects); every reconnect triggers a refetch of seat availability (after maintenance also the seat map; the cart and the waiting-room state are refreshed too, box office and seat change reload), so no missed delta can leave stale seat colours behind.
+
 ### Scanner devices after a restore
 
 The restore transaction rotates the scanner `syncEpoch` (`scanner_sync_state`). Paired check-in devices see the new
@@ -107,7 +114,42 @@ the next restore on that server replays it. Ledger entries only contain customer
 - Delete markers and old versions accumulate in the versioned buckets.
 - Outbox e-mails that were queued at backup time may be sent again by the sweeper; PayPal refunds use an
   idempotency key derived from the refund and are not duplicated by PayPal.
-- Pending refunds are not reconciled with PayPal automatically after a restore: check "Open refunds".
+- **PayPal refunds are reconciled automatically after a restore.** PayPal keeps its state while the
+  database is rewound, so a refund may have completed (or been made) after the backup.
+  - **Marker.** Before the database is replaced the restore sets a Redis flag
+    (`refunds:reconcile-pending`, no TTL); right after the migrations it writes the durable row
+    `refund_reconcile_state` (migration 0030, authoritative; Redis is only the fast path). Both carry
+    the same token. While a marker is set no automatic refund is sent or polled (the job fails with
+    `REFUNDS_RECONCILING` and is retried; the stale-refund sweeper re-queues nothing).
+  - **Pass.** The worker job `reconcile-refunds` (repeated by the 5-minute sweeper with back-off)
+    runs single-flight (Redis lock with a short TTL that is renewed after every order; a pass that
+    lost the lock stops without touching the marker). It pages through all PayPal payments that are still refundable
+    (capture younger than 180 days) or have an open automatic refund and compares the refunds PayPal
+    lists for each PayPal order with the local rows (matched by PayPal refund id or by our refund id,
+    sent as `custom_id`; if the order details lack it, the refund resource is read). Per row:
+    COMPLETED beats PENDING beats FAILED/CANCELLED; a row is only settled when amount and currency
+    equal PayPal's. A row PayPal does not know stays PENDING and is sent later with the unchanged
+    request id `tix-refund-<id>-<attempt>`. When all PayPal attempts of a row failed, its attempt
+    counter is raised so a retry never reuses a request id PayPal has seen.
+  - **Completion.** The marker is cleared only after a complete pass and only for its own token (an
+    older pass cannot clear a newer restore's marker). Transient errors keep it (last error and
+    attempts are shown on **Open refunds** and the dashboard). If PayPal does not know most orders
+    (wrong PayPal account/environment restored) the marker stays and an alert is shown. A SUPER_ADMIN
+    can skip the reconciliation (audited) – at the risk of double refunds.
+  - **Review.** Findings are not booked automatically: refunds PayPal has but we do not (lost window,
+    PayPal dashboard, also announced by a webhook), more than one completed PayPal refund for one
+    request, amount mismatches, local refunds PayPal does not show, orders PayPal does not know or
+    refuses to look up. The order appears under "Needs review after restore" on **Open refunds** and
+    **all automatic refunds of that order are on hold** (`REFUND_REVIEW_OPEN`) – otherwise a normal
+    cancellation would refund the money a second time. Use **Record existing PayPal refund**: it
+    verifies the refund live at PayPal (completed, belongs to a capture of the order, currency),
+    cancels the chosen tickets with a credit note and books the refund as SUCCEEDED with the PayPal
+    id; nothing is sent to PayPal and the tickets (plus fees) must add up to its amount (the plan is
+    pinned to the capture the refund belongs to, relevant after an additional payment). Choose
+    "an overpayment" for refunds that paid an overpayment back: they are booked as overpayment refunds,
+    without tickets. Otherwise mark the entry as reviewed once nothing is missing.
+  - Limits: PayPal refunds captures for about 180 days; older captures are not checked unless a
+    refund is open locally.
 - Your own admin session may not exist in the restored data; you may have to sign in again.
 - The maintenance probe fails open when Redis is unreachable.
 - The worker image contains `pg_dump`, `pg_restore` and `psql` of the same major version as the server

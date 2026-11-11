@@ -4,10 +4,15 @@ import {
   DomainError,
   completeManualRefund,
   completeRefundBatch,
+  recordExistingPayPalOverpaymentRefund,
+  recordExistingPayPalRefund,
   refundOverpayment,
+  resolveRefundRestoreReview,
+  skipRefundReconciliation,
   retryRefund,
   retryRefundBatch,
 } from '@tix/core';
+import { parseCancelPaidForm } from '@tix/shared';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireAdmin } from '@/server/auth';
@@ -126,4 +131,114 @@ export async function refundOverpaymentAction(
     });
     return ok('overpaymentRefundRequested');
   });
+}
+
+/** "Reviewed" on a restore review entry of the "Open refunds" page (audited in the same transaction). */
+export async function resolveRestoreReviewAction(
+  orderId: string,
+  _prev: OrderActionState,
+  _fd: FormData,
+): Promise<OrderActionState> {
+  const session = await requireAdmin(['FINANCE']);
+  if (!z.uuid().safeParse(orderId).success) return fail('ORDER_NOT_FOUND');
+  try {
+    const core = getCore();
+    await resolveRefundRestoreReview(core, {
+      orderId,
+      userId: session.userId,
+      inTransaction: (tx) => audit(tx, session, 'refund.restore_review_resolved', 'order', orderId),
+    });
+    revalidatePath('/[locale]/admin/refunds', 'layout');
+    return ok('restoreReviewResolved');
+  } catch (err) {
+    if (err instanceof DomainError) return fail(err.code);
+    console.error('[admin/refunds] review action failed', err);
+    return fail('INTERNAL_ERROR');
+  }
+}
+
+/**
+ * "Record existing PayPal refund": the refund already left PayPal (lost window / PayPal dashboard).
+ * Fields: `providerRefundId`, `orderItemIds` (tickets to cancel), `refundFees`, `notify`, `reason`,
+ * `confirmed`. Verified against PayPal live; nothing is sent to PayPal.
+ */
+export async function recordExistingRefundAction(
+  orderId: string,
+  _prev: OrderActionState,
+  fd: FormData,
+): Promise<OrderActionState> {
+  const session = await requireAdmin(['FINANCE']);
+  if (!z.uuid().safeParse(orderId).success) return fail('ORDER_NOT_FOUND');
+  const providerRefundId = text(fd, 'providerRefundId');
+  if (!providerRefundId || !/^[A-Za-z0-9_-]{5,64}$/.test(providerRefundId)) {
+    return fail('VALIDATION_FAILED');
+  }
+  try {
+    const core = getCore();
+    if (fd.get('mode') === 'overpayment') {
+      // The refund paid back an overpayment (no tickets): booked as an overpayment refund.
+      if (fd.get('confirmed') !== 'on') return fail('VALIDATION_FAILED');
+      await recordExistingPayPalOverpaymentRefund(core, {
+        orderId,
+        providerRefundId,
+        userId: session.userId,
+        inTransaction: (tx, result) =>
+          audit(tx, session, 'refund.paypal_existing_recorded', 'order', orderId, {
+            providerRefundId,
+            overpayment: true,
+            amount: result.amount,
+          }),
+      });
+    } else {
+      const input = parseCancelPaidForm(fd);
+      if (!input) return fail('VALIDATION_FAILED');
+      await recordExistingPayPalRefund(core, {
+        orderId,
+        providerRefundId,
+        orderItemIds: input.orderItemIds,
+        refundFees: input.refundFees,
+        reason: input.reason,
+        notify: input.notify,
+        userId: session.userId,
+        // The audit entry belongs to the business transaction (all or nothing).
+        inTransaction: (tx, result) =>
+          audit(tx, session, 'refund.paypal_existing_recorded', 'order', orderId, {
+            providerRefundId,
+            orderItemIds: input.orderItemIds,
+            refundFees: input.refundFees,
+            creditTotal: result.creditTotal,
+            creditNote: result.creditNote?.number ?? null,
+          }),
+      });
+    }
+    revalidatePath('/[locale]/admin/orders', 'layout');
+    revalidatePath('/[locale]/admin/refunds', 'layout');
+    revalidatePath('/[locale]/admin', 'layout');
+    return ok('existingRefundRecorded');
+  } catch (err) {
+    if (err instanceof DomainError) return fail(err.code);
+    console.error('[admin/refunds] record existing refund failed', err);
+    return fail('INTERNAL_ERROR');
+  }
+}
+
+/** SUPER_ADMIN override: stop waiting for the post-restore PayPal reconciliation (audited). */
+export async function skipRefundReconciliationAction(
+  _prev: OrderActionState,
+  fd: FormData,
+): Promise<OrderActionState> {
+  const session = await requireAdmin(['SUPER_ADMIN']);
+  if (fd.get('confirmed') !== 'on') return fail('VALIDATION_FAILED');
+  try {
+    const core = getCore();
+    await skipRefundReconciliation(core, (tx) =>
+      audit(tx, session, 'refund.reconciliation_skipped', 'refund_reconcile_state', null),
+    );
+    revalidatePath('/[locale]/admin/refunds', 'layout');
+    revalidatePath('/[locale]/admin', 'layout');
+    return ok('reconciliationSkipped');
+  } catch (err) {
+    console.error('[admin/refunds] skip reconciliation failed', err);
+    return fail('INTERNAL_ERROR');
+  }
 }

@@ -33,6 +33,8 @@
     "remaining": "{count, plural, =0 {ausverkauft} one {# Platz frei} other {# Plätze frei}}"
   },
   "selection": {
+    "maintenanceTitle": "Wartungsarbeiten",
+    "maintenanceText": "Das System wird aus einem Backup wiederhergestellt und ist kurz nicht erreichbar. Der Saalplan aktualisiert sich automatisch, sobald es wieder läuft.",
     "loading": "Saalplan wird geladen…",
     "row": "Reihe {label}",
     "seat": "Platz {label}",

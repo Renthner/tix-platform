@@ -150,6 +150,8 @@ async function setCartExpiry(ctx: CoreContext, sessionId: string, exp: number): 
 /** New seats were added: restart the timer and re-arm the payment grace period. */
 async function restartCartTimer(ctx: CoreContext, sessionId: string, exp: number): Promise<void> {
   await ctx.redis.hdel(ctx.keys.cart(sessionId), 'grace');
+  // Last time seats were added: lets the checkout recognise a re-submit of an already ordered cart.
+  await ctx.redis.hset(ctx.keys.cart(sessionId), 'changed', String(Date.now()));
   await setCartExpiry(ctx, sessionId, exp);
 }
 
