@@ -4,10 +4,12 @@ import {
   boolean,
   check,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
   unique,
+  uniqueIndex,
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
@@ -93,6 +95,81 @@ export const devicePairingCodes = pgTable(
   (t) => [
     unique('device_pairing_codes_hash_uq').on(t.codeHash),
     index('device_pairing_codes_expires_idx').on(t.expiresAt),
+  ],
+);
+
+/**
+ * Events (with entrance and check-out permission per event) a pairing code grants. The code is
+ * exchanged by the app for a device token; these rows are copied to `scanner_device_events`.
+ * (The legacy single `event_id` / `entrance_id` columns of the code itself are unused.)
+ */
+export const devicePairingCodeEvents = pgTable(
+  'device_pairing_code_events',
+  {
+    codeId: uuid('code_id')
+      .notNull()
+      .references(() => devicePairingCodes.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
+      .notNull()
+      .references((): AnyPgColumn => events.id, { onDelete: 'cascade' }),
+    entranceId: uuid('entrance_id').references((): AnyPgColumn => seatMapEntrances.id, {
+      onDelete: 'set null',
+    }),
+    allowCheckOut: boolean('allow_check_out').notNull().default(true),
+  },
+  (t) => [primaryKey({ name: 'device_pairing_code_events_pk', columns: [t.codeId, t.eventId] })],
+);
+
+/**
+ * Per-event secret that scanners at one venue share (distributed in the manifest) to
+ * authenticate peer-to-peer (LAN) messages with HMAC. Stored encrypted (secret box, AAD
+ * `scanner-lan:<event id>`), created on first use.
+ */
+export const eventScannerSecrets = pgTable('event_scanner_secrets', {
+  eventId: uuid('event_id')
+    .primaryKey()
+    .references((): AnyPgColumn => events.id, { onDelete: 'cascade' }),
+  lanSecretEncrypted: text('lan_secret_encrypted').notNull(),
+  createdAt: createdAt(),
+});
+
+/**
+ * Singleton: the sync epoch of the scanner delta sync. Backup restores rotate it (inside the
+ * restore transaction); devices that see a new epoch wipe their local tickets and resync.
+ */
+export const scannerSyncState = pgTable(
+  'scanner_sync_state',
+  {
+    id: boolean('id').primaryKey().default(true),
+    syncEpoch: text('sync_epoch').notNull(),
+  },
+  (t) => [check('scanner_sync_state_singleton', sql`${t.id}`)],
+);
+
+/** Uploaded signed APKs of the Android scanner app (object in the documents bucket). */
+export const scannerApkReleases = pgTable(
+  'scanner_apk_releases',
+  {
+    id: id(),
+    versionName: text('version_name').notNull(),
+    versionCode: integer('version_code').notNull(),
+    objectKey: text('object_key').notNull(),
+    sha256: text('sha256').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    notes: text('notes'),
+    uploadedByUserId: uuid('uploaded_by_user_id').references(() => adminUsers.id, {
+      onDelete: 'set null',
+    }),
+    /** The release offered to devices and staff downloads. At most one. */
+    isCurrent: boolean('is_current').notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('scanner_apk_releases_version_code_uq').on(t.versionCode),
+    uniqueIndex('scanner_apk_releases_single_current_uq')
+      .on(t.isCurrent)
+      .where(sql`${t.isCurrent}`),
+    check('scanner_apk_releases_version_code_pos', sql`${t.versionCode} > 0`),
   ],
 );
 

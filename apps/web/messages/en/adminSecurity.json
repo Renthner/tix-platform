@@ -216,7 +216,7 @@
     "scanner": {
       "title": "Check-in scanner",
       "description": "Behaviour of the Android check-in app.",
-      "phaseNote": "The check-in app arrives in a later phase. These values are stored now and used once devices can pair.",
+      "phaseNote": "Devices are paired and managed under “Check-in devices”. These values apply to all devices.",
       "allowCheckOut": "Allow check-out",
       "allowCheckOutHint": "Door staff can check a guest out again (pass-out / re-entry).",
       "offlineModeAllowed": "Allow offline mode",
@@ -226,7 +226,9 @@
       "syncIntervalSeconds": "Sync interval (seconds)",
       "syncIntervalSecondsHint": "How often online devices fetch changes.",
       "pairingCodeTtlMinutes": "Pairing code valid (minutes)",
-      "pairingCodeTtlMinutesHint": "Lifetime of the QR code used to pair a device."
+      "pairingCodeTtlMinutesHint": "Lifetime of the QR code used to pair a device.",
+      "serverUrl": "Server address for the app",
+      "serverUrlHint": "Address a phone can reach this server at, e.g. http://192.168.1.20:8080 on the venue network. Used in the pairing QR code and download links. Empty = public shop address (localhost does not work on phones)."
     }
   },
   "verifyEmail": {

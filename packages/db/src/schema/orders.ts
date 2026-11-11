@@ -16,7 +16,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import type { PartySnapshot, PostalAddress, TaxBreakdownEntry } from '@tix/shared';
-import { basisPoints, cents, createdAt, currency, id, timestamps, tstz } from './_columns';
+import { basisPoints, cents, createdAt, currency, id, timestamps, tstz, xid8 } from './_columns';
 import { adminUsers } from './auth';
 import {
   actorTypeEnum,
@@ -465,6 +465,13 @@ export const tickets = pgTable(
     syncVersion: bigint('sync_version', { mode: 'number' })
       .notNull()
       .default(sql`nextval('ticket_sync_version_seq')`),
+    /**
+     * Transaction id of the last sync-relevant change (set by the sync-version trigger). Delta sync
+     * uses it as an xid-horizon cursor, which is immune to out-of-order commits (docs/SCANNER.md).
+     */
+    syncXid: xid8('sync_xid')
+      .notNull()
+      .default(sql`pg_current_xact_id()`),
     ...timestamps(),
   },
   (t) => [
@@ -474,6 +481,7 @@ export const tickets = pgTable(
       .where(sql`${t.status} = 'VALID'`),
     index('tickets_order_idx').on(t.orderId),
     index('tickets_event_sync_idx').on(t.eventId, t.syncVersion),
+    index('tickets_event_sync_xid_idx').on(t.eventId, t.syncXid, t.id),
     index('tickets_attendee_trgm_idx').using('gin', sql`${t.attendeeName} gin_trgm_ops`),
     check('tickets_void_consistency', sql`(${t.status} = 'VALID') = (${t.voidedAt} IS NULL)`),
     check(

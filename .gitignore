@@ -41,3 +41,7 @@ coverage/
 
 # Internal project specification (not published)
 CLAUDE.md
+apps/android/keystore.properties
+apps/android/captures/
+apps/android/.cxx/
+apps/android/**/*.iml

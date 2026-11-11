@@ -21,7 +21,8 @@
     "refunds": "Open refunds",
     "boxOffice": "Box office",
     "users": "Users",
-    "backups": "Backups"
+    "backups": "Backups",
+    "scanners": "Check-in devices"
   },
   "login": {
     "title": "Admin sign-in",
@@ -365,7 +366,8 @@
       "page": "Shop page",
       "fees": "Fees",
       "ticket": "Ticket",
-      "wallet": "Wallet"
+      "wallet": "Wallet",
+      "checkIn": "Check-in"
     },
     "details": {
       "title": "Event details"

@@ -61,6 +61,18 @@ export class ObjectStorage {
     return { body: await res.Body.transformToByteArray(), contentType: res.ContentType };
   }
 
+  /** The object as a web stream (no full buffering in memory). */
+  async getStream(
+    bucket: StorageBucket,
+    key: string,
+  ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string | undefined }> {
+    const res = await this.client.send(
+      new GetObjectCommand({ Bucket: this.config.buckets[bucket], Key: key }),
+    );
+    if (!res.Body) throw new Error(`Object ${bucket}/${key} has no body`);
+    return { stream: res.Body.transformToWebStream(), contentType: res.ContentType };
+  }
+
   /** All objects below `prefix` (follows pagination). */
   async list(
     bucket: StorageBucket,

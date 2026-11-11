@@ -132,6 +132,7 @@ export interface ScannerValues {
   lanSyncEnabled: boolean;
   syncIntervalSeconds: number;
   pairingCodeTtlMinutes: number;
+  serverUrl?: string;
 }
 
 export function ScannerSettingsForm({
@@ -167,6 +168,21 @@ export function ScannerSettingsForm({
           hint={t('lanSyncEnabledHint')}
         />
       </div>
+      <Field
+        label={t('serverUrl')}
+        htmlFor="serverUrl"
+        error={err('serverUrl')}
+        hint={t('serverUrlHint')}
+      >
+        <Input
+          id="serverUrl"
+          name="serverUrl"
+          type="url"
+          inputMode="url"
+          placeholder="http://192.168.1.20:8080"
+          defaultValue={initial.serverUrl ?? ''}
+        />
+      </Field>
       <div className="grid gap-4 md:grid-cols-2">
         <NumberField
           name="syncIntervalSeconds"

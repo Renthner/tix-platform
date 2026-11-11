@@ -29,3 +29,4 @@ export * from './dashboard-preferences';
 export * from './refund-form';
 export * from './translations';
 export * from './seating/localize';
+export * from './scanner';

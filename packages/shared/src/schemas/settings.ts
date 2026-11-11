@@ -203,6 +203,14 @@ const scannerSchema = z.object({
   lanSyncEnabled: z.boolean().default(true),
   syncIntervalSeconds: z.number().int().min(5).max(3_600).default(30),
   pairingCodeTtlMinutes: z.number().int().min(1).max(1_440).default(15),
+  /**
+   * Address the app uses to reach this server (pairing QR code, API base), e.g.
+   * `http://192.168.1.20:8080` on a venue network. Empty = the public shop URL.
+   */
+  serverUrl: z
+    .union([z.literal(''), z.url({ protocol: /^https?$/ })])
+    .transform((v) => (v === '' ? undefined : v.replace(/\/+$/, '')))
+    .optional(),
 });
 
 const securitySchema = z.object({

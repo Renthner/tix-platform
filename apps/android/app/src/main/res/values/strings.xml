@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TIX Check-in</string>
+
+    <string name="nav_events">Events</string>
+    <string name="nav_scanner">Scan</string>
+    <string name="nav_lookup">Search</string>
+    <string name="nav_history">History</string>
+    <string name="nav_settings">Settings</string>
+
+    <string name="action_back">Back</string>
+    <string name="action_cancel">Cancel</string>
+
+    <string name="pairing_title">Pair this device</string>
+    <string name="pairing_hint">Scan the pairing QR code shown in the admin portal under Check-in devices, or enter server address and code manually.</string>
+    <string name="pairing_revoked">This device was removed by the server. Pair it again to continue.</string>
+    <string name="pairing_device_name">Device name</string>
+    <string name="pairing_enter_manually">Enter code manually</string>
+    <string name="pairing_scan_qr">Scan QR code</string>
+    <string name="pairing_server_url">Server address</string>
+    <string name="pairing_code">Pairing code</string>
+    <string name="pairing_button">Pair device</string>
+    <string name="pairing_working">Pairing ...</string>
+    <string name="pairing_syncing">Loading tickets: %1$d</string>
+    <string name="pairing_error_url">This server address is not allowed (https, or http only in the local network).</string>
+    <string name="pairing_error_code">Invalid, expired or already used pairing code.</string>
+    <string name="pairing_error_network">Server not reachable.</string>
+    <string name="pairing_error_server">The server refused the request.</string>
+
+    <string name="events_title">Events</string>
+    <string name="events_empty">No events assigned to this device yet.</string>
+    <string name="events_sync_now">Sync now</string>
+    <string name="events_syncing">Syncing: %1$d tickets received</string>
+    <string name="events_sync_problem">Server not reachable. Offline data is used.</string>
+    <string name="events_entrance">Entrance: %1$s</string>
+    <string name="events_entrance_any">not fixed</string>
+    <string name="events_offline_ready">%1$d tickets available offline</string>
+    <string name="events_last_sync">Last sync: %1$s</string>
+    <string name="events_check_out_allowed">Check-out allowed</string>
+
+    <string name="scanner_no_event">No event selected.</string>
+    <string name="scanner_choose_event">Choose event</string>
+    <string name="mode_check_in">Check-in</string>
+    <string name="mode_check_out">Check-out</string>
+    <string name="status_online">Online</string>
+    <string name="status_offline">Offline</string>
+    <string name="status_maintenance">Server maintenance</string>
+    <string name="status_counts">Checked in: %1$d / %2$d</string>
+    <string name="status_pending">Not uploaded: %1$d</string>
+    <string name="status_last_sync">Last sync: %1$s</string>
+    <string name="status_never_synced">Not synced yet</string>
+
+    <string name="result_accepted">Entry OK</string>
+    <string name="result_checked_out">Checked out</string>
+    <string name="result_accepted_warning">Entry - please note</string>
+    <string name="result_already_checked_in">Already checked in</string>
+    <string name="result_not_checked_in">Not checked in</string>
+    <string name="result_invalid">Invalid ticket</string>
+    <string name="result_wrong_event">Wrong event</string>
+    <string name="result_void">Ticket cancelled</string>
+    <string name="result_unknown_ticket">Unknown ticket</string>
+    <string name="result_malformed">Not a ticket code</string>
+    <string name="result_check_out_not_allowed">Check-out not allowed</string>
+    <string name="result_rejected">Rejected</string>
+    <string name="result_first_scan">First scan: %1$s, %2$s</string>
+    <string name="result_provisional">Not synced yet - admitted by signature</string>
+    <string name="result_offline_decision">Offline decision</string>
+    <string name="result_tap_dismiss">Tap to close</string>
+    <string name="verdict_offline_not_allowed">Server not reachable</string>
+    <string name="verdict_offline_not_allowed_hint">Offline scanning is not allowed. Restore the connection and scan again.</string>
+    <string name="warning_proof">Check proof of reduction</string>
+    <string name="warning_entrance">Wrong entrance</string>
+    <string name="warning_additional_payment">Additional payment open</string>
+    <string name="warning_other">Please note</string>
+    <string name="seat_wheelchair">Wheelchair space</string>
+    <string name="seat_companion">Companion seat</string>
+
+    <string name="lookup_title">Search ticket</string>
+    <string name="lookup_hint">Name, ticket code, order number or seat</string>
+    <string name="lookup_min_chars">Enter at least 2 characters.</string>
+    <string name="lookup_empty">No tickets found.</string>
+    <string name="lookup_source_server">Results from the server</string>
+    <string name="lookup_source_local">Offline results (name, code, seat)</string>
+    <string name="lookup_code">Ticket code: %1$s</string>
+    <string name="lookup_order">Order: %1$s</string>
+    <string name="lookup_order_unavailable">Order: — (not available offline)</string>
+    <string name="lookup_void_banner">INVALID – ticket %1$s. Do not admit.</string>
+    <string name="void_reason_cancelled">cancelled</string>
+    <string name="void_reason_refunded">refunded</string>
+    <string name="void_reason_replaced">replaced by a new ticket</string>
+    <string name="void_reason_unknown">not valid</string>
+    <string name="lookup_first_in">First check-in: %1$s</string>
+    <string name="ticket_state_none">Not checked in</string>
+    <string name="ticket_state_in">Checked in</string>
+    <string name="ticket_state_out">Checked out</string>
+    <string name="ticket_state_void">Cancelled</string>
+
+    <string name="history_title">Scan history</string>
+    <string name="history_all">All</string>
+    <string name="history_green">Green</string>
+    <string name="history_yellow">Yellow</string>
+    <string name="history_red">Red</string>
+    <string name="history_pending">Not uploaded</string>
+    <string name="history_empty">No scans yet.</string>
+    <string name="history_not_uploaded">Not uploaded yet</string>
+    <string name="history_uploaded">Uploaded</string>
+    <string name="history_server">Decided by server</string>
+    <string name="history_conflict">Server decided differently</string>
+    <string name="history_upload_failed">Upload refused by the server</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_device">Device: %1$s</string>
+    <string name="settings_server">Server: %1$s</string>
+    <string name="settings_offline_not_allowed">Offline scanning is not allowed by the server.</string>
+    <string name="settings_green_seconds">Green result duration</string>
+    <string name="settings_alert_seconds">Yellow / red result duration</string>
+    <string name="settings_seconds">%1$d s</string>
+    <string name="settings_sound">Sound</string>
+    <string name="settings_vibrate">Vibration</string>
+    <string name="settings_version">Version %1$s (%2$d)</string>
+    <string name="settings_check_update">Check for update</string>
+    <string name="settings_update_checking">Checking ...</string>
+    <string name="settings_update_current">The app is up to date.</string>
+    <string name="settings_update_none">No release published.</string>
+    <string name="settings_update_failed">Update check failed.</string>
+    <string name="settings_update_server_url_missing">The server has no public address configured. Ask an administrator to set the scanner server address (Settings, Scanner).</string>
+    <string name="settings_update_available">Update available: %1$s (%2$d)</string>
+    <string name="settings_update_sha">SHA-256: %1$s</string>
+    <string name="settings_update_download">Download in browser</string>
+    <string name="settings_force_resync">Force full resync</string>
+    <string name="settings_force_resync_confirm">All tickets are loaded again. Scans that are not uploaded yet are kept.</string>
+    <string name="settings_unpair">Unpair device</string>
+    <string name="settings_unpair_confirm">Unsent scans are uploaded first. Then the pairing and ALL local data of this device are removed. If scans cannot be uploaded, you can export them before they are deleted.</string>
+
+    <string name="camera_permission_title">Camera access needed</string>
+    <string name="camera_permission_rationale">The camera is used to read QR codes. Images never leave this device.</string>
+    <string name="camera_permission_grant">Allow camera</string>
+    <string name="camera_permission_settings">Open app settings</string>
+    <string name="camera_unavailable">The camera could not be started.</string>
+    <string name="torch_on">Torch on</string>
+    <string name="torch_off">Torch off</string>
+    <string name="scan_viewfinder_description">Camera viewfinder</string>
+
+    <string name="history_lan">Decided by LAN master</string>
+    <string name="result_lan_decision">Decided by the LAN master</string>
+
+    <string name="lan_title">LAN sync</string>
+    <string name="lan_unavailable">LAN sync is not enabled for the events of this device on the server.</string>
+    <string name="lan_hint">Scanners on the same venue WiFi share check-ins through one master device, so a ticket cannot enter at two doors while the internet is down.</string>
+    <string name="lan_master_toggle">Use this device as LAN master</string>
+    <string name="lan_master_hint">Keep this device on the venue WiFi and plugged in. Other scanners find it automatically.</string>
+    <string name="lan_port">Port (1024-65535)</string>
+    <string name="lan_manual">Master address (optional)</string>
+    <string name="lan_manual_hint">host:port, only needed when automatic discovery is blocked</string>
+    <string name="lan_manual_invalid">Enter a local address like 192.168.1.20:47800</string>
+    <string name="lan_status_master">LAN: master, %1$d devices connected</string>
+    <string name="lan_status_connected">LAN: connected to master %1$s</string>
+    <string name="lan_status_no_master">LAN: no master</string>
+    <string name="lan_status_key_outdated">LAN key outdated - sync with server</string>
+    <string name="lan_key_outdated_hint">This device or the master holds an older LAN key. Connect to the server and sync (Events - Sync now).</string>
+    <string name="lan_last_contact">Last LAN contact: %1$s</string>
+    <string name="lan_error_port">LAN master could not start (port in use?)</string>
+    <string name="lan_channel_name">LAN master</string>
+    <string name="lan_notification_title">LAN master active</string>
+    <string name="lan_notification_text">Other scanners use this device to avoid double entry.</string>
+
+    <string name="pairing_error_keystore">The key store of this device is not available. Restart the app and try again.</string>
+    <string name="pairing_confirm_title">Pair with this server?</string>
+    <string name="pairing_confirm_hint">Only continue if this is the address of your organiser server.</string>
+    <string name="pairing_confirm_button">Pair with this server</string>
+
+    <string name="unpair_blocked_title">Unpair device</string>
+    <string name="unpair_blocked_count">Scans never uploaded: %1$d</string>
+    <string name="unpair_blocked_hint">This device is no longer connected to the server, so these scans cannot be delivered. Export them as a file and give it to an administrator before you continue. Everything on this device is deleted afterwards.</string>
+    <string name="unpair_blocked_export">Export scans as file</string>
+    <string name="unpair_blocked_export_failed">The file could not be created.</string>
+    <string name="unpair_blocked_discard">Discard scans and unpair</string>
+    <string name="unpair_blocked_discard_confirm">%1$d scans will be deleted for good. Continue?</string>
+
+    <string name="error_token_unavailable">Device key unavailable. Restart the app. If this stays, pair the device again (scans that are not uploaded yet are kept and can be exported).</string>
+    <string name="settings_update_url_refused">The download link of the server was refused (https, or http in the local network only).</string>
+    <string name="settings_force_resync_confirm_master">This device is the LAN master: check-ins that other scanners rely on are kept, only tickets the server can send again are reloaded.</string>
+    <string name="history_quarantined_banner">%1$d scans were refused by the server and are not uploaded. They are tried again after an app update.</string>
+    <string name="lan_status_clock_skew">Clock differs from master - check time settings</string>
+    <string name="lan_duplicate_master">Warning: more than one LAN master serves this event. Keep only one master switched on.</string>
+    <string name="unpair_blocked_hint_operator">The scans could not be uploaded (no connection, or the server refused them). Try again with a connection, or export them as a file and give it to an administrator before you continue. Everything on this device is deleted afterwards.</string>
+    <string name="unpair_blocked_cancel">Cancel, do not unpair</string>
+</resources>

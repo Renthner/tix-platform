@@ -15,6 +15,7 @@ const TABS = [
   { segment: '/seating', key: 'seating' },
   { segment: '/waiting-room', key: 'waitingRoom' },
   { segment: '/access-codes', key: 'accessCodes' },
+  { segment: '/check-in', key: 'checkIn' },
 ] as const;
 
 export function EventTabs({ eventId }: { eventId: string }) {

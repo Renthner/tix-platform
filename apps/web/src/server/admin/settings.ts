@@ -272,6 +272,7 @@ async function readInput(
           lanSyncEnabled: flag(fd, 'lanSyncEnabled'),
           syncIntervalSeconds: requiredInt(fd, 'syncIntervalSeconds', errors),
           pairingCodeTtlMinutes: requiredInt(fd, 'pairingCodeTtlMinutes', errors),
+          serverUrl: text(fd, 'serverUrl'),
         },
       };
     case 'customerAccounts':

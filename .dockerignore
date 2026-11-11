@@ -12,3 +12,8 @@ apps/android
 docs
 *.md
 !apps/*/README.md
+
+# Android (Phase 6)
+apps/android/.gradle
+apps/android/**/build
+apps/android/local.properties

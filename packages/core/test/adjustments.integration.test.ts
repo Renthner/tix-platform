@@ -1003,7 +1003,17 @@ describe.skipIf(!adminUrl || !redisUrl)('additional payments / tariff change (in
     await cancelAdjustment(ctx, { adjustmentId: proposed.adjustmentId, userId });
     const after = await loadOrder(orderId);
     expect(after.items).toEqual(before.items);
-    expect(after.ticketRows).toEqual(before.ticketRows);
+    // Cancelling the additional payment touches the tickets on purpose (the scanner must drop its
+    // "additional payment open" warning): only the sync bookkeeping may differ.
+    const content = (rows: typeof before.ticketRows) =>
+      rows.map(({ syncVersion: _v, syncXid: _x, updatedAt: _u, ...rest }) => rest);
+    expect(content(after.ticketRows)).toEqual(content(before.ticketRows));
+    expect(
+      after.ticketRows.every((t) => {
+        const old = before.ticketRows.find((x) => x.id === t.id)!;
+        return t.syncVersion > old.syncVersion; // the order has a single ticket: the adjusted one
+      }),
+    ).toBe(true);
     expect(after.order).toMatchObject({
       status: 'PAID',
       totalGross: before.order.totalGross,

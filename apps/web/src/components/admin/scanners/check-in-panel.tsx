@@ -1,0 +1,256 @@
+import { getCheckInStats, listScanLog, listScanLogDevices } from '@tix/core';
+import { SCAN_RESULTS, type ScanResult } from '@tix/shared';
+import { getFormatter, getTranslations } from 'next-intl/server';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Link } from '@/i18n/navigation';
+import { getCore } from '@/server/core';
+import { NativeSelect } from '../form-controls';
+import { AutoRefresh } from './auto-refresh';
+
+export interface CheckInFilters {
+  result?: string;
+  device?: string;
+  page?: string;
+}
+
+const PAGE_SIZE = 50;
+
+function resultVariant(result: ScanResult): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (result === 'ACCEPTED') return 'default';
+  if (result === 'ACCEPTED_WITH_WARNING') return 'secondary';
+  return 'destructive';
+}
+
+/** Live check-in statistics and the filterable scan journal of one event. */
+export async function CheckInPanel({
+  eventId,
+  basePath,
+  filters,
+}: {
+  eventId: string;
+  basePath: string;
+  filters: CheckInFilters;
+}) {
+  const core = getCore();
+  const t = await getTranslations('scanners.checkIn');
+  const format = await getFormatter();
+  const result = SCAN_RESULTS.find((r) => r === filters.result);
+  const deviceId = /^[0-9a-f-]{36}$/i.test(filters.device ?? '') ? filters.device : undefined;
+  const page = Math.max(1, Number.parseInt(filters.page ?? '1', 10) || 1);
+  const [stats, log, devices] = await Promise.all([
+    getCheckInStats(core, eventId),
+    listScanLog(core, { eventId, result, deviceId, page, pageSize: PAGE_SIZE }),
+    listScanLogDevices(core, eventId),
+  ]);
+  const pages = Math.max(1, Math.ceil(log.total / PAGE_SIZE));
+  const percent = stats.valid > 0 ? Math.round((stats.checkedIn / stats.valid) * 100) : 0;
+  const dateTime = (d: Date) => format.dateTime(d, { dateStyle: 'short', timeStyle: 'medium' });
+  const query = (nextPage: number) => ({
+    ...(result ? { result } : {}),
+    ...(deviceId ? { device: deviceId } : {}),
+    page: String(nextPage),
+  });
+
+  const statCards: {
+    key: 'valid' | 'checkedIn' | 'checkedOut' | 'notArrived' | 'voided' | 'duplicates';
+    value: number;
+  }[] = [
+    { key: 'valid', value: stats.valid },
+    { key: 'checkedIn', value: stats.checkedIn },
+    { key: 'checkedOut', value: stats.checkedOut },
+    { key: 'notArrived', value: stats.notArrived },
+    { key: 'voided', value: stats.voided },
+    { key: 'duplicates', value: stats.duplicateEntries },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <AutoRefresh seconds={10} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        {statCards.map((card) => (
+          <Card key={card.key}>
+            <CardContent className="p-4">
+              <div className="text-xs text-muted-foreground">{t(`stats.${card.key}`)}</div>
+              <div className="text-2xl font-semibold tabular-nums">{card.value}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-sm">
+          <span>{t('stats.progress', { checked: stats.checkedIn, valid: stats.valid })}</span>
+          <span className="tabular-nums">{percent}%</span>
+        </div>
+        <div
+          className="h-3 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-valuenow={percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div className="h-full bg-primary transition-all" style={{ width: `${percent}%` }} />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {t('stats.lastScan')}: {stats.lastScanAt ? dateTime(stats.lastScanAt) : t('stats.noScan')}
+        </div>
+      </div>
+
+      <section className="space-y-2">
+        <h2 className="text-base font-semibold">{t('byEntrance.title')}</h2>
+        {stats.byEntrance.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('byEntrance.empty')}</p>
+        ) : (
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.byEntrance.map((e) => (
+              <li
+                key={e.entranceId ?? 'none'}
+                className="flex items-center justify-between rounded-md border p-3 text-sm"
+              >
+                <span>{e.entranceName ?? t('byEntrance.noEntrance')}</span>
+                <span className="font-semibold tabular-nums">{e.checkIns}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-base font-semibold">
+            {t('log.title')}{' '}
+            <span className="text-sm font-normal text-muted-foreground">
+              {t('log.total', { count: log.total })}
+            </span>
+          </h2>
+          <form method="get" className="flex flex-wrap items-end gap-2">
+            <label className="space-y-1 text-xs">
+              <span className="block text-muted-foreground">{t('log.filterResult')}</span>
+              <NativeSelect name="result" defaultValue={result ?? ''} className="w-56">
+                <option value="">{t('log.all')}</option>
+                {SCAN_RESULTS.map((r) => (
+                  <option key={r} value={r}>
+                    {t(`results.${r}`)}
+                  </option>
+                ))}
+              </NativeSelect>
+            </label>
+            <label className="space-y-1 text-xs">
+              <span className="block text-muted-foreground">{t('log.filterDevice')}</span>
+              <NativeSelect name="device" defaultValue={deviceId ?? ''} className="w-48">
+                <option value="">{t('log.all')}</option>
+                {devices.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </label>
+            <Button type="submit" variant="outline">
+              {t('log.apply')}
+            </Button>
+          </form>
+        </div>
+        {log.entries.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('log.empty')}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('log.time')}</TableHead>
+                <TableHead>{t('log.device')}</TableHead>
+                <TableHead>{t('log.ticket')}</TableHead>
+                <TableHead>{t('log.seat')}</TableHead>
+                <TableHead>{t('log.result')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {log.entries.map((entry) => (
+                <TableRow key={entry.id}>
+                  <TableCell className="whitespace-nowrap">{dateTime(entry.scannedAt)}</TableCell>
+                  <TableCell>
+                    {entry.deviceName ?? t('log.unknownDevice')}
+                    <span className="block text-xs text-muted-foreground">
+                      {[
+                        entry.entranceName,
+                        entry.wasOffline ? t('log.offline') : null,
+                        entry.source === 'MANUAL' ? t('log.manual') : null,
+                        entry.action === 'CHECK_OUT' ? t('log.checkOut') : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {entry.ticketCode ? (
+                      <span className="font-mono text-xs">{entry.ticketCode}</span>
+                    ) : (
+                      '–'
+                    )}
+                    {entry.attendeeName ? (
+                      <span className="block text-xs text-muted-foreground">
+                        {entry.attendeeName}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    {entry.seat
+                      ? [entry.seat.sectionLabel, entry.seat.rowLabel, entry.seat.seatLabel]
+                          .filter(Boolean)
+                          .join(' / ')
+                      : '–'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={resultVariant(entry.result)}>
+                      {t(`results.${entry.result}`)}
+                    </Badge>
+                    {entry.message === 'DUPLICATE_ENTRY' ? (
+                      <Badge variant="outline" className="ml-1">
+                        {t('log.duplicateEntry')}
+                      </Badge>
+                    ) : null}
+                    {entry.warnings.length > 0 ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {entry.warnings.map((w) => t(`warnings.${w}`)).join(', ')}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        {pages > 1 ? (
+          <div className="flex items-center justify-between text-sm">
+            <span>{t('log.page', { page: log.page, pages })}</span>
+            <div className="flex gap-2">
+              {log.page > 1 ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={{ pathname: basePath, query: query(log.page - 1) }}>
+                    {t('log.previous')}
+                  </Link>
+                </Button>
+              ) : null}
+              {log.page < pages ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={{ pathname: basePath, query: query(log.page + 1) }}>
+                    {t('log.next')}
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}

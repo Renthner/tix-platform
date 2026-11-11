@@ -21,6 +21,7 @@ export const NAV_ACCESS: readonly (readonly [NavKey, readonly AdminRole[]])[] = 
   ['media', ['EVENT_MANAGER']],
   ['symbols', ['EVENT_MANAGER']],
   ['waitingRoom', ['EVENT_MANAGER']],
+  ['scanners', ['EVENT_MANAGER', 'DOOR_STAFF']],
   ['users', ['SUPER_ADMIN']],
   ['backups', ['SUPER_ADMIN']],
   ['settings', ['SUPER_ADMIN']],

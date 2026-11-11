@@ -10,6 +10,7 @@ import {
   Landmark,
   Mail,
   LayoutDashboard,
+  ScanLine,
   Percent,
   ReceiptText,
   Settings,
@@ -51,6 +52,7 @@ export const NAV_ITEMS = {
   symbols: { href: '/admin/symbols', icon: Shapes, exact: false },
   waitingRoom: { href: '/admin/waiting-room', icon: Hourglass, exact: false },
   users: { href: '/admin/users', icon: Users, exact: false },
+  scanners: { href: '/admin/scanners', icon: ScanLine, exact: false },
   backups: { href: '/admin/backups', icon: DatabaseBackup, exact: false },
   settings: { href: '/admin/settings', icon: Settings, exact: false },
 } satisfies Record<string, { href: string; icon: LucideIcon; exact: boolean }>;

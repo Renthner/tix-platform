@@ -197,6 +197,13 @@
       "when": 1794309022447,
       "tag": "0027_refund_batches",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1794324868508,
+      "tag": "0028_scanner_api",
+      "breakpoints": true
     }
   ]
 }

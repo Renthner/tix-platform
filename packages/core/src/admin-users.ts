@@ -954,7 +954,7 @@ export async function changeOwnPassword(
   });
 }
 
-function qrDataUrl(payload: string): string {
+export function qrDataUrl(payload: string): string {
   const qr = qrcode(0, 'M');
   qr.addData(payload, 'Byte');
   qr.make();

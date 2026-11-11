@@ -3,3 +3,6 @@
 *.jpg binary
 *.jks binary
 *.keystore binary
+*.jar binary
+*.apk binary
+*.bat text eol=crlf

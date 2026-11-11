@@ -22,8 +22,8 @@ hard-coded.
 > an e-mail template editor, refunds and credit notes, box office, admin users with 2FA,
 > customer management (GDPR), backups and accounting exports. The Android check-in app follows
 > in phase 6. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DATABASE.md](docs/DATABASE.md),
-> [docs/REDIS.md](docs/REDIS.md), [docs/TICKETS.md](docs/TICKETS.md), [docs/BACKUP.md](docs/BACKUP.md)
-> and [docs/ACCOUNTING.md](docs/ACCOUNTING.md).
+> [docs/REDIS.md](docs/REDIS.md), [docs/TICKETS.md](docs/TICKETS.md), [docs/BACKUP.md](docs/BACKUP.md),
+> [docs/ACCOUNTING.md](docs/ACCOUNTING.md) and [docs/SCANNER.md](docs/SCANNER.md) (scanner device API).
 
 ## Requirements
 

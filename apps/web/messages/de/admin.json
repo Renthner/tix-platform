@@ -21,7 +21,8 @@
     "refunds": "Offene Erstattungen",
     "boxOffice": "Abendkasse",
     "users": "Benutzer",
-    "backups": "Sicherungen"
+    "backups": "Sicherungen",
+    "scanners": "Einlass-Geräte"
   },
   "login": {
     "title": "Admin-Anmeldung",
@@ -365,7 +366,8 @@
       "page": "Shop-Seite",
       "fees": "Gebühren",
       "ticket": "Ticket",
-      "wallet": "Wallet"
+      "wallet": "Wallet",
+      "checkIn": "Einlass"
     },
     "details": {
       "title": "Details der Veranstaltung"

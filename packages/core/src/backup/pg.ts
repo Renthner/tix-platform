@@ -171,6 +171,16 @@ export function carryForwardSql(live: {
       `DO $$ BEGIN IF to_regclass(${literal(qualified)}) IS NOT NULL THEN PERFORM setval(${literal(qualified)}, GREATEST(${Math.trunc(value)}, coalesce((SELECT last_value FROM pg_sequences WHERE schemaname = 'public' AND sequencename = ${literal(name)}), 0))); END IF; END $$;`,
     );
   }
+  // Scanner devices must not keep stale data: a new sync epoch makes every device wipe its local
+  // tickets and resync (xids and versions of the restored database are unrelated to the old ones).
+  // Restored tickets carry xids of the old cluster: the sync trigger rewrites sync_xid with the xid
+  // of this restore transaction, so they are not re-delivered by every later sync run.
+  lines.push(
+    "DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'sync_xid') THEN UPDATE public.tickets SET sync_xid = '0'::xid8; END IF; END $$;",
+  );
+  lines.push(
+    "DO $$ BEGIN IF to_regclass('public.scanner_sync_state') IS NOT NULL THEN UPDATE public.scanner_sync_state SET sync_epoch = gen_random_uuid()::text; END IF; END $$;",
+  );
   return lines.join('\n');
 }
 

@@ -53,6 +53,7 @@ export default async function AdminPanelLayout({
         'banking',
         'translations',
         'checkout',
+        'scanners',
       ])}
     >
       <div className="flex min-h-dvh">

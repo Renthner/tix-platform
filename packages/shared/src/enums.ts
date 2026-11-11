@@ -238,11 +238,17 @@ export const SCAN_RESULTS = values(
   'REJECTED_TICKET_VOID',
   'REJECTED_UNKNOWN_TICKET',
   'REJECTED_MALFORMED',
+  'REJECTED_CHECK_OUT_NOT_ALLOWED',
 );
 export type ScanResult = (typeof SCAN_RESULTS)[number];
 
 /** Warning codes attached to ACCEPTED_WITH_WARNING scans. */
-export const SCAN_WARNINGS = values('DISCOUNT_PROOF_REQUIRED', 'WRONG_ENTRANCE', 'SEAT_FEATURE');
+export const SCAN_WARNINGS = values(
+  'DISCOUNT_PROOF_REQUIRED',
+  'WRONG_ENTRANCE',
+  'SEAT_FEATURE',
+  'ADDITIONAL_PAYMENT_OPEN',
+);
 export type ScanWarning = (typeof SCAN_WARNINGS)[number];
 
 // ─── Banking & reconciliation ───────────────────────────────────────────────

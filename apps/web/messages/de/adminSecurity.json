@@ -216,7 +216,7 @@
     "scanner": {
       "title": "Check-in-Scanner",
       "description": "Verhalten der Android-Check-in-App.",
-      "phaseNote": "Die Check-in-App folgt in einer späteren Phase. Die Werte werden jetzt gespeichert und genutzt, sobald sich Geräte koppeln lassen.",
+      "phaseNote": "Geräte werden unter „Einlass-Geräte“ gekoppelt und verwaltet. Diese Werte gelten für alle Geräte.",
       "allowCheckOut": "Check-out erlauben",
       "allowCheckOutHint": "Das Einlasspersonal kann einen Gast wieder auschecken (Passierschein).",
       "offlineModeAllowed": "Offline-Modus erlauben",
@@ -226,7 +226,9 @@
       "syncIntervalSeconds": "Sync-Intervall (Sekunden)",
       "syncIntervalSecondsHint": "Wie oft Online-Geräte Änderungen abrufen.",
       "pairingCodeTtlMinutes": "Kopplungscode gültig (Minuten)",
-      "pairingCodeTtlMinutesHint": "Lebensdauer des QR-Codes zum Koppeln eines Geräts."
+      "pairingCodeTtlMinutesHint": "Lebensdauer des QR-Codes zum Koppeln eines Geräts.",
+      "serverUrl": "Serveradresse für die App",
+      "serverUrlHint": "Adresse, unter der ein Smartphone diesen Server erreicht, z. B. http://192.168.1.20:8080 im Veranstaltungsnetz. Wird im Kopplungs-QR-Code und in Download-Links verwendet. Leer = öffentliche Shop-Adresse (localhost funktioniert auf Smartphones nicht)."
     }
   },
   "verifyEmail": {

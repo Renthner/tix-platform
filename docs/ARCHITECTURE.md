@@ -107,6 +107,14 @@ entry in `SUPPORTED_LOCALES` (`packages/shared/src/i18n.ts`).
 | **SVG symbol library in the DB**       | Seat shapes and element icons are stored as sanitised SVG fragments (allow-listed shape tags only, no scripts/links/styles) and inlined once per plan as `<symbol>` + `<use>`                 |
 | **Rich text as sanitised HTML**        | Event descriptions are edited with TipTap and stored as allow-listed HTML; sanitised again on save so the shop can render it directly                                                         |
 
+## Check-in scanner API
+
+The Android app talks to `/api/scanner/v1/*` (pairing, manifest, delta sync, online scan, offline batch
+upload, lookup, app download). It uses Bearer device tokens only (no cookies / CSRF), has its own
+JSON/error helper (`apps/web/src/server/scanner-api.ts`) and logic in `packages/core/src/scanner`; the
+decision table lives in `packages/shared/src/scanner`. See [SCANNER.md](SCANNER.md) for the full contract,
+sync semantics and offline merge rules.
+
 ## Environment vs. database configuration
 
 Only infrastructure is configured through environment variables (see `.env.example`):

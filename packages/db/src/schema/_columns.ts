@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { char, integer, jsonb, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { char, customType, integer, jsonb, timestamp, uuid } from 'drizzle-orm/pg-core';
 import type { Translations } from '@tix/shared';
 
 /**
@@ -38,3 +38,8 @@ export const translationsColumn = () =>
     .$type<Translations>()
     .notNull()
     .default(sql`'{}'::jsonb`);
+
+/** PostgreSQL `xid8` (64-bit transaction id); values travel as decimal strings. */
+export const xid8 = customType<{ data: string; driverData: string }>({
+  dataType: () => 'xid8',
+});

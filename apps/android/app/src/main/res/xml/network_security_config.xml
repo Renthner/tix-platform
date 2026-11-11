@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android cannot express "cleartext only for private IP ranges" here (no IP ranges, no dynamic
+  hosts), so cleartext is permitted at platform level and the app refuses http:// URLs to
+  non-local hosts itself (org.tix.checkin.core.ServerUrlPolicy, enforced in net/TixHttpClient).
+  See apps/android/README.md.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

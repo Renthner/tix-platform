@@ -67,6 +67,12 @@ If a step after the commit fails, the system **stays in maintenance mode** and t
 Numbers (orders, invoices, credit notes, ticket sync versions) are never reused: counters keep the higher
 live values, so the sequence may contain gaps after a restore.
 
+### Scanner devices after a restore
+
+The restore transaction rotates the scanner `syncEpoch` (`scanner_sync_state`). Paired check-in devices see the new
+epoch in the manifest / sync response, wipe their local tickets and cursors and resync (docs/SCANNER.md); their
+pending offline scans are still uploaded and merged by time.
+
 ## GDPR
 
 Erasures (anonymised customers) are recorded in `retained.erasures` (no personal data, outside the dumped
