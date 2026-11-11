@@ -1,7 +1,9 @@
 package org.tix.checkin
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.Lifecycle
@@ -14,7 +16,11 @@ import org.tix.checkin.ui.TixTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Transparent bars; icon colour follows the system dark/light setting (same source as TixTheme).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
         // Foreground sync loop: runs only while the app is visible (background work: WorkManager).
         val container = (application as TixApplication).container
         lifecycleScope.launch {

@@ -181,9 +181,13 @@ export async function listScanLog(
 export async function listScanLogDevices(
   ctx: CoreContext,
   eventId: string,
-): Promise<{ id: string; name: string }[]> {
+): Promise<{ id: string; name: string; deleted: boolean }[]> {
   return ctx.db
-    .selectDistinct({ id: scannerDevices.id, name: scannerDevices.name })
+    .selectDistinct({
+      id: scannerDevices.id,
+      name: scannerDevices.name,
+      deleted: sql<boolean>`${scannerDevices.deletedAt} IS NOT NULL`,
+    })
     .from(checkInLogs)
     .innerJoin(scannerDevices, eq(scannerDevices.id, checkInLogs.deviceId))
     .where(eq(checkInLogs.eventId, eventId))

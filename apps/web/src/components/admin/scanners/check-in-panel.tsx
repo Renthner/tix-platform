@@ -150,7 +150,7 @@ export async function CheckInPanel({
                 <option value="">{t('log.all')}</option>
                 {devices.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name}
+                    {d.deleted ? `${d.name} (${t('log.deletedSuffix')})` : d.name}
                   </option>
                 ))}
               </NativeSelect>

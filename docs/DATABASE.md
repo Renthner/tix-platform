@@ -138,7 +138,7 @@ Credits are matched by payment reference (Luhn check digit) and amount (setting
 
 | Table                   | Purpose                                                                                |
 | ----------------------- | -------------------------------------------------------------------------------------- |
-| `scanner_devices`       | Paired Android devices (token hash)                                                    |
+| `scanner_devices`       | Paired Android devices (token hash; revoked devices can be archived via `deleted_at`)  |
 | `scanner_device_events` | Device ↔ event assignment incl. entrance                                               |
 | `device_pairing_codes`  | One-time QR pairing codes                                                              |
 | `check_in_logs`         | Immutable scan journal; `(device_id, client_scan_id)` makes offline uploads idempotent |

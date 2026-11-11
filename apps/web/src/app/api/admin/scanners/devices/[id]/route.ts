@@ -1,10 +1,10 @@
-import { updateScannerDevice } from '@tix/core';
+import { deleteScannerDevice, updateScannerDevice } from '@tix/core';
 import { z } from 'zod';
 import { audit } from '@/server/admin/audit';
 import { SCANNER_MANAGE_ROLES } from '@/server/admin/scanners';
 import { adminForApi } from '@/server/auth';
 import { getCore } from '@/server/core';
-import { apiError, handle, parseBody, uuidParam } from '@/server/http';
+import { apiError, assertSameOrigin, handle, parseBody, uuidParam } from '@/server/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +40,20 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       renamed: body.name ?? null,
       events: body.assignments?.map((a) => a.eventId) ?? null,
     });
+    return Response.json({ ok: true }, { headers: { 'cache-control': 'no-store' } });
+  });
+}
+
+/** DELETE – removes a revoked device from the list (archived; the scan history keeps its name). */
+export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  return handle(async () => {
+    const session = await adminForApi(SCANNER_MANAGE_ROLES);
+    if (!session) return apiError('FORBIDDEN', 'Not allowed', 403);
+    assertSameOrigin(request);
+    const id = uuidParam.parse((await ctx.params).id);
+    const core = getCore();
+    await deleteScannerDevice(core, id);
+    await audit(core.db, session, 'scanner.device_deleted', 'scanner_device', id);
     return Response.json({ ok: true }, { headers: { 'cache-control': 'no-store' } });
   });
 }

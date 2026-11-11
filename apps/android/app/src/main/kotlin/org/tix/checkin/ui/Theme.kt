@@ -2,9 +2,12 @@ package org.tix.checkin.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 
 private val LightColors = lightColorScheme(
@@ -25,5 +28,9 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun TixTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (darkTheme) DarkColors else LightColors, content = content)
+    MaterialTheme(colorScheme = if (darkTheme) DarkColors else LightColors) {
+        // Root surface: every screen gets the themed background and a matching content colour
+        // (without it the window shows its own background and text/bars can be unreadable).
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
+    }
 }

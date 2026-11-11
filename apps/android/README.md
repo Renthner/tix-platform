@@ -115,6 +115,43 @@ Plain HTTP on a trusted venue network is for the admin to decide; prefer https w
 
 ## Build
 
+### Quick start (Windows)
+
+One-time setup:
+
+1. Install **Android Studio** <https://developer.android.com/studio> and start it once. In
+   *Settings -> Languages & Frameworks -> Android SDK* install *Android SDK Platform 36.1* and the
+   current build-tools. Android Studio's bundled JDK is found automatically.
+2. Open PowerShell in the repository and create the signing key (asks for a password and your name,
+   then prints a backup reminder; the password is only typed into keytool):
+
+   ```powershell
+   cd apps\android
+   .\scripts\build-release.ps1 -VersionName 1.0.0 -VersionCode 1 -CreateKeystore
+   ```
+
+   The key is stored in `%USERPROFILE%\tix-keys\tix-checkin.jks`. **Back up this file and remember
+   the password**: without them no update can be installed over devices that already have the app.
+
+Every release (a higher `-VersionCode` than the previous one; phone connected by USB with USB debugging
+enabled, see step 4 below):
+
+```powershell
+cd apps\android
+.\scripts\build-release.ps1 -VersionName 1.0.1 -VersionCode 2 -Install
+```
+
+The script asks for the keystore password (not echoed, never stored), runs the tests, builds and signs
+the APK, verifies it and installs it. Result: `app\build\outputs\apk\release\app-release.apk`. If
+PowerShell refuses to run scripts, run `Set-ExecutionPolicy -Scope Process Bypass` first. Details,
+macOS/Linux and troubleshooting follow below.
+
+**storePassword vs. keyPassword.** A keystore file (`.jks`) is a password-protected container
+(*storePassword*) that can hold several keys; each key entry (alias) has its own password
+(*keyPassword*). With modern PKCS12 keystores (the `keytool` default since JDK 9) both are the same -
+`keytool` does not even ask for a separate key password - so using one password for both is correct
+(the script does this by default).
+
 ### Requirements
 
 - **Android Studio** (or the Android SDK command-line tools) with the SDK platform **android-36.1**
@@ -160,10 +197,11 @@ release you install over an older one needs a **higher `versionCode`**:
 .\gradlew.bat :app:assembleRelease -Ptix.versionCode=12 -Ptix.versionName=1.2.0
 ```
 
-### Signed release APK - step by step (Windows / PowerShell)
+### Signed release APK - reference (Windows / PowerShell)
 
-1. **Create a keystore once** and keep it (and its passwords) safe and backed up. Losing it means every
-   device has to uninstall the app before it can install an update. Keep it **outside** the repository:
+1. **Create a keystore once** (`build-release.ps1 -CreateKeystore` does exactly this) and keep it (and
+   its password) safe and backed up. Losing it means every device has to uninstall the app before it can
+   install an update. Keep it **outside** the repository. By hand:
 
    ```powershell
    & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v `
@@ -175,7 +213,8 @@ release you install over an older one needs a **higher `versionCode`**:
    `keytool` asks for a password and your name/organisation; the same password can be used for the
    key.)
 
-2. **Tell the build where the key is** - either a git-ignored `apps\android\keystore.properties`:
+2. **Tell the build where the key is** - optional, because the script asks interactively for whatever is
+   missing (file, alias, password). To skip the questions use a git-ignored `apps\android\keystore.properties`:
 
    ```properties
    storeFile=C:/Users/<you>/tix-keys/tix-checkin.jks

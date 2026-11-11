@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, ShieldOff } from 'lucide-react';
+import { Pencil, ShieldOff, Trash2 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -191,6 +191,62 @@ function RevokeDialog({
   );
 }
 
+function DeleteDialog({
+  device,
+  open,
+  onOpenChange,
+}: {
+  device: DeviceRow;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const t = useTranslations('scanners.delete');
+  const tc = useTranslations('common.actions');
+  const router = useRouter();
+  const message = useErrorMessage();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    const result = await adminRequest(`/api/admin/scanners/devices/${device.id}`, {
+      method: 'DELETE',
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setError(message(result.code));
+      return;
+    }
+    onOpenChange(false);
+    router.refresh();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('title')}</DialogTitle>
+          <DialogDescription>{t('text', { name: device.name })}</DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {tc('cancel')}
+          </Button>
+          <Button type="button" variant="destructive" disabled={busy} onClick={remove}>
+            {t('confirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /** Device list with edit (name, events, entrance, check-out) and revoke. */
 export function ScannerDevices({
   devices,
@@ -204,9 +260,11 @@ export function ScannerDevices({
   const t = useTranslations('scanners.devices');
   const te = useTranslations('scanners.edit');
   const tr = useTranslations('scanners.revoke');
+  const td = useTranslations('scanners.delete');
   const format = useFormatter();
   const [editing, setEditing] = useState<string | null>(null);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   if (devices.length === 0) {
     return <p className="p-4 text-sm text-muted-foreground">{t('empty')}</p>;
@@ -283,7 +341,16 @@ export function ScannerDevices({
                         <ShieldOff /> {tr('button')}
                       </Button>
                     </>
-                  ) : null}
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDeleting(device.id)}
+                    >
+                      <Trash2 /> {td('button')}
+                    </Button>
+                  )}
                 </TableCell>
               ) : null}
             </TableRow>
@@ -305,6 +372,13 @@ export function ScannerDevices({
             device={device}
             open
             onOpenChange={(open) => !open && setRevoking(null)}
+          />
+        ) : deleting === device.id ? (
+          <DeleteDialog
+            key={`delete-${device.id}`}
+            device={device}
+            open
+            onOpenChange={(open) => !open && setDeleting(null)}
           />
         ) : null,
       )}

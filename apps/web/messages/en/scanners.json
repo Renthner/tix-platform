@@ -47,6 +47,12 @@
     "text": "{name} can no longer sync or scan. The app is told to unpair itself. This cannot be undone; pair the device again to use it.",
     "confirm": "Revoke device"
   },
+  "delete": {
+    "button": "Delete",
+    "title": "Delete device?",
+    "text": "{name} disappears from this list. Its scan history stays and still shows the device name.",
+    "confirm": "Delete device"
+  },
   "pair": {
     "button": "Pair device",
     "title": "Pair a device",
@@ -104,7 +110,8 @@
       "submit": "Upload",
       "uploading": "Uploading…",
       "done": "Version uploaded."
-    }
+    },
+    "linkLoading": "Creating the link …"
   },
   "events": {
     "title": "Check-in progress per event",
@@ -152,7 +159,8 @@
       "next": "Next",
       "total": "{count} scans",
       "duplicateEntry": "possible copied ticket",
-      "unknownDevice": "(deleted device)"
+      "unknownDevice": "(deleted device)",
+      "deletedSuffix": "deleted"
     },
     "results": {
       "ACCEPTED": "Accepted",
@@ -184,7 +192,10 @@
     "INVALID_VERSION_CODE": "The version code must be a positive whole number.",
     "VERSION_CODE_EXISTS": "A release with this version code already exists.",
     "RELEASE_IS_CURRENT": "The current release cannot be deleted. Publish another one first.",
+    "DEVICE_NOT_FOUND": "The device no longer exists.",
+    "DEVICE_NOT_REVOKED": "Only revoked devices can be deleted. Revoke the device first.",
     "FILE_REQUIRED": "Choose an APK file.",
-    "VALIDATION_FAILED": "Please check your input."
+    "VALIDATION_FAILED": "Please check your input.",
+    "NO_RELEASE": "No app version has been published yet. Upload an APK and publish it first."
   }
 }

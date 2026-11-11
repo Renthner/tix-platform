@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import kotlinx.coroutines.delay
 import org.tix.checkin.R
 import org.tix.checkin.core.contract.ScanAction
@@ -150,12 +152,32 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
         vm.dismissVerdict(ui.seq)
     }
     val fg = resultForeground(v.color)
+    // Bars stay visible (edge to edge); their icons switch to dark on yellow, light on green/red,
+    // and are restored when the result is dismissed.
+    val view = LocalView.current
+    DisposableEffect(view, v.color) {
+        val window = (view.context as? android.app.Activity)?.window
+        if (window == null) {
+            onDispose { }
+        } else {
+            val controller = WindowCompat.getInsetsController(window, view)
+            val prevStatus = controller.isAppearanceLightStatusBars
+            val prevNav = controller.isAppearanceLightNavigationBars
+            val light = v.color == ScanColor.YELLOW
+            controller.isAppearanceLightStatusBars = light
+            controller.isAppearanceLightNavigationBars = light
+            onDispose {
+                controller.isAppearanceLightStatusBars = prevStatus
+                controller.isAppearanceLightNavigationBars = prevNav
+            }
+        }
+    }
     Box(
         Modifier.fillMaxSize().background(resultBackground(v.color)).clickable { vm.dismissVerdict(ui.seq) },
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),
+            Modifier.fillMaxWidth().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {

@@ -1,0 +1,2 @@
+ALTER TABLE "scanner_devices" ADD COLUMN "deleted_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "scanner_devices" ADD CONSTRAINT "scanner_devices_deleted_revoked" CHECK ("scanner_devices"."deleted_at" IS NULL OR "scanner_devices"."revoked_at" IS NOT NULL);

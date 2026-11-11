@@ -334,13 +334,14 @@ export async function authenticateDevice(
       name: scannerDevices.name,
       isActive: scannerDevices.isActive,
       revokedAt: scannerDevices.revokedAt,
+      deletedAt: scannerDevices.deletedAt,
       lastSeenAt: scannerDevices.lastSeenAt,
       appVersion: scannerDevices.appVersion,
     })
     .from(scannerDevices)
     .where(eq(scannerDevices.tokenHash, hashToken(token)));
   if (!device) throw new DomainError('INVALID_TOKEN', 'Missing or invalid device token', 401);
-  if (!device.isActive || device.revokedAt) {
+  if (!device.isActive || device.revokedAt || device.deletedAt) {
     throw new DomainError('DEVICE_REVOKED', 'This device has been revoked', 401);
   }
   const version = options.appVersion?.trim().slice(0, 40) || null;
@@ -382,6 +383,7 @@ export async function listScannerDevices(ctx: CoreContext): Promise<ScannerDevic
   const devices = await ctx.db
     .select()
     .from(scannerDevices)
+    .where(isNull(scannerDevices.deletedAt))
     .orderBy(asc(scannerDevices.revokedAt), asc(scannerDevices.name));
   if (devices.length === 0) return [];
   const grants = await ctx.db
@@ -426,7 +428,7 @@ export async function updateScannerDevice(
     const [device] = await tx
       .select({ id: scannerDevices.id })
       .from(scannerDevices)
-      .where(eq(scannerDevices.id, deviceId))
+      .where(and(eq(scannerDevices.id, deviceId), isNull(scannerDevices.deletedAt)))
       .for('update');
     if (!device) throw new DomainError('DEVICE_NOT_FOUND', 'Device not found', 404);
     if (patch.name !== undefined) {
@@ -473,7 +475,7 @@ export async function revokeScannerDevice(ctx: CoreContext, deviceId: string): P
         revokedAt: sql`coalesce(${scannerDevices.revokedAt}, now())`,
         updatedAt: new Date(),
       })
-      .where(eq(scannerDevices.id, deviceId))
+      .where(and(eq(scannerDevices.id, deviceId), isNull(scannerDevices.deletedAt)))
       .returning({ id: scannerDevices.id });
     if (rows.length === 0) throw new DomainError('DEVICE_NOT_FOUND', 'Device not found', 404);
     // The revoked device knows the LAN secrets of its events: rotate them (other devices pick
@@ -486,6 +488,36 @@ export async function revokeScannerDevice(ctx: CoreContext, deviceId: string): P
       tx,
       assigned.map((a) => a.eventId),
     );
+  });
+}
+
+/**
+ * Deletes a revoked device from the admin: the row is archived (`deleted_at`), not removed, so
+ * the scan journal and "first scanned by" still show its name. Its event assignments and
+ * pairing codes are dropped. 409 `DEVICE_NOT_REVOKED` for active devices, 404 for unknown or
+ * already deleted ones.
+ */
+export async function deleteScannerDevice(ctx: CoreContext, deviceId: string): Promise<void> {
+  await withTransaction(ctx.db, async (tx) => {
+    const [device] = await tx
+      .select({ revokedAt: scannerDevices.revokedAt, isActive: scannerDevices.isActive })
+      .from(scannerDevices)
+      .where(and(eq(scannerDevices.id, deviceId), isNull(scannerDevices.deletedAt)))
+      .for('update');
+    if (!device) throw new DomainError('DEVICE_NOT_FOUND', 'Device not found', 404);
+    if (!device.revokedAt || device.isActive) {
+      throw new DomainError(
+        'DEVICE_NOT_REVOKED',
+        'Only revoked devices can be deleted; revoke the device first',
+        409,
+      );
+    }
+    await tx.delete(scannerDeviceEvents).where(eq(scannerDeviceEvents.deviceId, deviceId));
+    await tx.delete(devicePairingCodes).where(eq(devicePairingCodes.deviceId, deviceId));
+    await tx
+      .update(scannerDevices)
+      .set({ deletedAt: sql`now()`, updatedAt: new Date() })
+      .where(eq(scannerDevices.id, deviceId));
   });
 }
 

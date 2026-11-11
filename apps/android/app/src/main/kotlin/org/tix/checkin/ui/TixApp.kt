@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -18,6 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -27,12 +29,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import org.tix.checkin.R
 
-private enum class Destination(val route: String, val label: Int) {
-    Events("events", R.string.nav_events),
-    Scanner("scanner", R.string.nav_scanner),
-    Lookup("lookup", R.string.nav_lookup),
-    History("history", R.string.nav_history),
-    Settings("settings", R.string.nav_settings),
+private enum class Destination(val route: String, val label: Int, val icon: Int) {
+    Events("events", R.string.nav_events, R.drawable.ic_nav_events),
+    Scanner("scanner", R.string.nav_scanner, R.drawable.ic_nav_scan),
+    Lookup("lookup", R.string.nav_lookup, R.drawable.ic_nav_lookup),
+    History("history", R.string.nav_history, R.drawable.ic_nav_history),
+    Settings("settings", R.string.nav_settings, R.drawable.ic_nav_settings),
 }
 
 @Composable
@@ -87,7 +89,9 @@ private fun PairedApp(vm: MainViewModel) {
                     NavigationBarItem(
                         selected = current == dest.route,
                         onClick = { go(dest) },
-                        icon = {},
+                        icon = {
+                            Icon(painterResource(dest.icon), contentDescription = stringResource(dest.label))
+                        },
                         label = { Text(stringResource(dest.label), maxLines = 1) },
                         alwaysShowLabel = true,
                     )

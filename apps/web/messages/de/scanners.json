@@ -47,6 +47,12 @@
     "text": "{name} kann danach weder synchronisieren noch scannen. Die App wird aufgefordert, sich zu entkoppeln. Das lässt sich nicht rückgängig machen; zum erneuten Nutzen das Gerät neu koppeln.",
     "confirm": "Gerät sperren"
   },
+  "delete": {
+    "button": "Löschen",
+    "title": "Gerät löschen?",
+    "text": "{name} verschwindet aus dieser Liste. Der Scan-Verlauf bleibt erhalten und zeigt weiterhin den Gerätenamen.",
+    "confirm": "Gerät löschen"
+  },
   "pair": {
     "button": "Gerät koppeln",
     "title": "Gerät koppeln",
@@ -104,7 +110,8 @@
       "submit": "Hochladen",
       "uploading": "Wird hochgeladen…",
       "done": "Version hochgeladen."
-    }
+    },
+    "linkLoading": "Link wird erstellt …"
   },
   "events": {
     "title": "Einlass-Fortschritt je Veranstaltung",
@@ -152,7 +159,8 @@
       "next": "Weiter",
       "total": "{count} Scans",
       "duplicateEntry": "Mögliche Ticketkopie",
-      "unknownDevice": "(gelöschtes Gerät)"
+      "unknownDevice": "(gelöschtes Gerät)",
+      "deletedSuffix": "gelöscht"
     },
     "results": {
       "ACCEPTED": "Akzeptiert",
@@ -184,7 +192,10 @@
     "INVALID_VERSION_CODE": "Der Versionscode muss eine positive ganze Zahl sein.",
     "VERSION_CODE_EXISTS": "Eine Version mit diesem Versionscode existiert bereits.",
     "RELEASE_IS_CURRENT": "Die aktuelle Version kann nicht gelöscht werden. Veröffentliche zuerst eine andere.",
+    "DEVICE_NOT_FOUND": "Das Gerät existiert nicht mehr.",
+    "DEVICE_NOT_REVOKED": "Nur gesperrte Geräte können gelöscht werden. Sperre das Gerät zuerst.",
     "FILE_REQUIRED": "Wähle eine APK-Datei.",
-    "VALIDATION_FAILED": "Bitte prüfe deine Eingaben."
+    "VALIDATION_FAILED": "Bitte prüfe deine Eingaben.",
+    "NO_RELEASE": "Es ist noch keine App-Version veröffentlicht. Lade zuerst eine APK hoch und veröffentliche sie."
   }
 }

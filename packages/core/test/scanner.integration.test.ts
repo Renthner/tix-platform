@@ -17,6 +17,7 @@ import {
   orderItems,
   orders,
   priceCategories,
+  scannerDeviceEvents,
   scannerDevices,
   scannerSyncState,
   seatMapEntrances,
@@ -53,6 +54,8 @@ import {
   createCoreContext,
   createPairingCode,
   deleteApkRelease,
+  deleteScannerDevice,
+  listScanLogDevices,
   ensureEventSigningKey,
   ensureOrderTickets,
   exchangePairingCode,
@@ -1474,6 +1477,70 @@ describe.skipIf(!adminUrl || !redisUrl)('scanner server side (integration)', () 
       });
       const page2 = await listScanLog(ctx, { eventId, deviceId: d.id, pageSize: 2, page: 2 });
       expect(page2.entries).toHaveLength(2);
+    });
+  });
+
+  describe('deleting revoked devices', () => {
+    it('archives only revoked devices and keeps the scan history readable', async () => {
+      const gone = await pairDevice('Retired phone');
+      const other = await pairDevice('Other door');
+      const { tickets: made } = await makeTickets([{}]);
+      await scanOnline(ctx, gone, scanReq(made[0]!));
+
+      await expect(deleteScannerDevice(ctx, gone.id)).rejects.toMatchObject({
+        code: 'DEVICE_NOT_REVOKED',
+        status: 409,
+      });
+      expect((await listScannerDevices(ctx)).some((x) => x.id === gone.id)).toBe(true);
+
+      await revokeScannerDevice(ctx, gone.id);
+      await deleteScannerDevice(ctx, gone.id);
+
+      expect((await listScannerDevices(ctx)).some((x) => x.id === gone.id)).toBe(false);
+      expect((await listScannerDevices(ctx)).some((x) => x.id === other.id)).toBe(true);
+      const [row] = await handle.db
+        .select({ deletedAt: scannerDevices.deletedAt })
+        .from(scannerDevices)
+        .where(eq(scannerDevices.id, gone.id));
+      expect(row?.deletedAt).toBeInstanceOf(Date);
+      expect(
+        await handle.db
+          .select()
+          .from(scannerDeviceEvents)
+          .where(eq(scannerDeviceEvents.deviceId, gone.id)),
+      ).toHaveLength(0);
+      expect(
+        await handle.db
+          .select()
+          .from(devicePairingCodes)
+          .where(eq(devicePairingCodes.deviceId, gone.id)),
+      ).toHaveLength(0);
+
+      // The token stays unusable; the device cannot be changed or revoked again.
+      await expect(authenticateDevice(ctx, `Bearer ${gone.token}`)).rejects.toMatchObject({
+        code: 'DEVICE_REVOKED',
+        status: 401,
+      });
+      await expect(updateScannerDevice(ctx, gone.id, { name: 'x' })).rejects.toMatchObject({
+        status: 404,
+      });
+      await expect(revokeScannerDevice(ctx, gone.id)).rejects.toMatchObject({ status: 404 });
+      await expect(deleteScannerDevice(ctx, gone.id)).rejects.toMatchObject({
+        code: 'DEVICE_NOT_FOUND',
+        status: 404,
+      });
+      await expect(deleteScannerDevice(ctx, uuid())).rejects.toMatchObject({ status: 404 });
+
+      // Audit trail: journal and "first scanned by" still carry the device name.
+      const log = await listScanLog(ctx, { eventId, deviceId: gone.id });
+      expect(log.entries[0]).toMatchObject({ deviceName: 'Retired phone' });
+      expect(await listScanLogDevices(ctx, eventId)).toContainEqual({
+        id: gone.id,
+        name: 'Retired phone',
+        deleted: true,
+      });
+      const again = await scanOnline(ctx, other, scanReq(made[0]!));
+      expect(again.firstScan?.deviceName).toBe('Retired phone');
     });
   });
 

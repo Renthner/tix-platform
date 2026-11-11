@@ -204,6 +204,13 @@
       "when": 1794324868508,
       "tag": "0028_scanner_api",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794383323179,
+      "tag": "0029_scanner_device_archive",
+      "breakpoints": true
     }
   ]
 }

@@ -36,6 +36,11 @@ export const scannerDevices = pgTable(
     deviceModel: text('device_model'),
     isActive: boolean('is_active').notNull().default(true),
     revokedAt: tstz('revoked_at'),
+    /**
+     * Archived ("deleted") by an admin: hidden from the device list, kept so the scan journal and
+     * `tickets.first_checked_in_device_id` still resolve the device name. Revoked devices only.
+     */
+    deletedAt: tstz('deleted_at'),
     pairedByUserId: uuid('paired_by_user_id').references(() => adminUsers.id, {
       onDelete: 'set null',
     }),
@@ -48,6 +53,10 @@ export const scannerDevices = pgTable(
   (t) => [
     unique('scanner_devices_token_hash_uq').on(t.tokenHash),
     check('scanner_devices_revoked_inactive', sql`${t.revokedAt} IS NULL OR NOT ${t.isActive}`),
+    check(
+      'scanner_devices_deleted_revoked',
+      sql`${t.deletedAt} IS NULL OR ${t.revokedAt} IS NOT NULL`,
+    ),
   ],
 );
 

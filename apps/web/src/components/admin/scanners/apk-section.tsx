@@ -1,9 +1,9 @@
 'use client';
 
-import { Check, Copy, Download, Trash2, Upload } from 'lucide-react';
+import { Check, Copy, Download, Loader2, Trash2, Upload } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -56,21 +56,34 @@ function LinkDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const load = async (next: boolean) => {
-    onOpenChange(next);
-    if (!next) {
-      setLink(null);
-      setCopied(false);
-      return;
-    }
+  const [loading, setLoading] = useState(false);
+
+  // The dialog is mounted already open, so Radix never reports an "open" change: request the
+  // signed link whenever the dialog becomes visible.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
     setError(null);
-    const result = await adminRequest<{ url: string; qrDataUrl: string; expiresAt: string }>(
+    setLink(null);
+    setCopied(false);
+    setLoading(true);
+    void adminRequest<{ url: string; qrDataUrl: string; expiresAt: string }>(
       '/api/admin/scanners/apk/link',
       { method: 'POST' },
-    );
-    if (result.ok) setLink(result.data);
-    else setError(message(result.code));
-  };
+    ).then((result) => {
+      if (cancelled) return;
+      setLoading(false);
+      if (result.ok) setLink(result.data);
+      else setError(message(result.code));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // `message` is a fresh function per render; the request must run once per opening only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const load = (next: boolean) => onOpenChange(next);
 
   return (
     <Dialog open={open} onOpenChange={load}>
@@ -88,6 +101,11 @@ function LinkDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
               : ''}
           </DialogDescription>
         </DialogHeader>
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> {t('linkLoading')}
+          </div>
+        ) : null}
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
