@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "ioredis": "^5.11.1"
+    "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

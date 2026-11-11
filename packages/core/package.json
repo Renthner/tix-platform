@@ -23,7 +23,7 @@
     "drizzle-orm": "^0.45.4",
     "fast-xml-parser": "^5.12.0",
     "imapflow": "^2.10.2",
-    "ioredis": "^5.11.1",
+    "ioredis": "^6.0.0",
     "lib-fints": "^1.5.3",
     "mailparser": "^3.14.2",
     "node-forge": "^1.4.3",
