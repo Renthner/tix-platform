@@ -22,6 +22,20 @@ test('orders list shows the shop order with its tickets', async ({ page }) => {
   await expect(row).toContainText('Awaiting transfer');
 });
 
+test('event list shows a cover thumbnail or placeholder per row', async ({ page }) => {
+  await page.goto('/admin/events');
+  const rows = page.locator('table tbody tr');
+  await expect(rows.first()).toBeVisible();
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(0);
+  await expect(page.getByTestId('event-cover-thumb')).toHaveCount(count);
+});
+
+test('appearance settings show the start page card', async ({ page }) => {
+  await page.goto('/admin/settings/appearance');
+  await expect(page.getByText('Home page without events')).toBeVisible();
+});
+
 async function eventId(page: import('@playwright/test').Page): Promise<string> {
   await page.goto('/admin/events');
   const link = page.locator('a[href^="/admin/events/"]', { hasText: 'Demo Concert' }).first();

@@ -1,7 +1,10 @@
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@tix/shared';
 import { defineRouting } from 'next-intl/routing';
 
-/** English is the default (no URL prefix); other locales live under /<locale>/… */
+/**
+ * Static routing config. The default locale here is only the build-time fallback: the live shop
+ * default language (no URL prefix) is applied by `proxy.ts` and `navigation-for.ts`.
+ */
 export const routing = defineRouting({
   locales: SUPPORTED_LOCALES,
   defaultLocale: DEFAULT_LOCALE,

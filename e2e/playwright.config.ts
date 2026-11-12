@@ -44,5 +44,16 @@ export default defineConfig({
       },
       dependencies: ['shop'],
     },
+    {
+      // Changes the global default language: must run after everything else.
+      name: 'default-locale',
+      testMatch: /default-locale\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        storageState: AUTH_FILE,
+      },
+      dependencies: ['admin'],
+    },
   ],
 });

@@ -1,4 +1,4 @@
-import { computeSaleState, contentLocale } from '@tix/core';
+import { computeSaleState, contentLocale, getSetting } from '@tix/core';
 import { localized } from '@tix/shared';
 import { events, mediaAssets, priceCategories, venues } from '@tix/db';
 import { and, eq, inArray, min } from 'drizzle-orm';
@@ -10,6 +10,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
+import { StartPage, hasStartPageContent } from '@/components/shop/start-page';
 import { shopOrderBy, shopVisibleCondition } from '@/server/shop-events';
 
 export const dynamic = 'force-dynamic';
@@ -62,6 +63,20 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         .groupBy(priceCategories.eventId)
     : [];
   const fromPrice = new Map(prices.map((p) => [p.eventId, p.from]));
+
+  // No event published: the configured start page replaces the built-in text.
+  if (rows.length === 0) {
+    const startPage = await getSetting(getCore(), 'startPage');
+    if (hasStartPageContent(startPage, content.locale, content.defaultLocale)) {
+      return (
+        <StartPage
+          settings={startPage}
+          locale={content.locale}
+          defaultLocale={content.defaultLocale}
+        />
+      );
+    }
+  }
 
   return (
     <div className="space-y-6">

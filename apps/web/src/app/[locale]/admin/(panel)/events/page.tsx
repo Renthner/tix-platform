@@ -1,6 +1,6 @@
 import { computeSaleState } from '@tix/core';
 import { EVENT_STATUSES, type EventStatus } from '@tix/shared';
-import { ArrowUpDown, Plus } from 'lucide-react';
+import { ArrowUpDown, ImageIcon, Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { EventDuplicateDialog } from '@/components/admin/event-duplicate-dialog';
@@ -110,9 +110,29 @@ export default async function EventsPage({
                   {rows.map(({ event, venueName }) => (
                     <TableRow key={event.id}>
                       <TableCell className="font-medium">
-                        <Link href={`/admin/events/${event.id}`} className="hover:underline">
-                          {event.title}
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <div
+                            data-testid="event-cover-thumb"
+                            className="flex h-[27px] w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-muted text-muted-foreground"
+                          >
+                            {event.heroImageAssetId ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={`/api/media/${event.heroImageAssetId}`}
+                                alt=""
+                                width={48}
+                                height={27}
+                                loading="lazy"
+                                className="size-full object-cover"
+                              />
+                            ) : (
+                              <ImageIcon className="size-4" aria-hidden />
+                            )}
+                          </div>
+                          <Link href={`/admin/events/${event.id}`} className="hover:underline">
+                            {event.title}
+                          </Link>
+                        </div>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {formatInZone(event.startsAt, event.timeZone, locale)}

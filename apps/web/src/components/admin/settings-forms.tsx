@@ -1,6 +1,13 @@
 'use client';
 
-import { SEAT_SELECTION_STYLES, SUPPORTED_LOCALES, type SeatSelectionStyle } from '@tix/shared';
+import {
+  SEAT_SELECTION_STYLES,
+  START_PAGE_LAYOUTS,
+  START_PAGE_MAX_GALLERY,
+  SUPPORTED_LOCALES,
+  type SeatSelectionStyle,
+  type StartPageLayout,
+} from '@tix/shared';
 import { Clock } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useActionState, useState, type ReactNode } from 'react';
@@ -681,5 +688,198 @@ export function SettingsSection({
       </div>
       {children}
     </section>
+  );
+}
+
+// ─── Start page without events ──────────────────────────────────────────────
+
+export interface StartPageValues {
+  layout: StartPageLayout;
+  hero: MediaPickerAsset | null;
+  gallery: (MediaPickerAsset | null)[];
+  buttonUrl?: string;
+  texts: Partial<
+    Record<
+      string,
+      {
+        headline?: string;
+        subheadline?: string;
+        body?: string;
+        buttonLabel?: string;
+        heroAlt?: string;
+        galleryAlt?: string[];
+      }
+    >
+  >;
+}
+
+export function StartPageSettingsForm({
+  action,
+  initial,
+}: {
+  action: Action;
+  initial: StartPageValues;
+}) {
+  const t = useTranslations('admin.settings.startPage');
+  const tl = useTranslations('common.locale');
+  const tc = useTranslations('common.actions');
+  const { state, formAction, err } = useSettingsForm(action);
+  const slots = Array.from(
+    { length: START_PAGE_MAX_GALLERY },
+    (_, i) => initial.gallery[i] ?? null,
+  );
+  // Alt-text inputs follow the slots that currently hold an image (also right after an upload).
+  const [filled, setFilled] = useState(slots.map((a) => !!a));
+  return (
+    <ActionForm action={formAction} className="space-y-6">
+      <ActionFeedback state={state} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label={t('layout')} htmlFor="layout" error={err('layout')} hint={t('layoutHint')}>
+          <NativeSelect id="layout" name="layout" defaultValue={initial.layout}>
+            {START_PAGE_LAYOUTS.map((l) => (
+              <option key={l} value={l}>
+                {t(`layouts.${l}`)}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field
+          label={t('buttonUrl')}
+          htmlFor="buttonUrl"
+          error={err('buttonUrl')}
+          hint={t('buttonUrlHint')}
+        >
+          <Input
+            id="buttonUrl"
+            name="buttonUrl"
+            defaultValue={initial.buttonUrl ?? ''}
+            placeholder="https://"
+            maxLength={500}
+          />
+        </Field>
+      </div>
+      {SUPPORTED_LOCALES.map((loc) => {
+        const v = initial.texts[loc] ?? {};
+        return (
+          <fieldset key={loc} className="space-y-4 rounded-lg border p-4">
+            <legend className="px-1 text-sm font-semibold">{tl(loc)}</legend>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                label={t('headline')}
+                htmlFor={`headline.${loc}`}
+                error={err(`headline.${loc}`)}
+              >
+                <Input
+                  id={`headline.${loc}`}
+                  name={`headline.${loc}`}
+                  defaultValue={v.headline ?? ''}
+                  maxLength={200}
+                />
+              </Field>
+              <Field
+                label={t('subheadline')}
+                htmlFor={`subheadline.${loc}`}
+                error={err(`subheadline.${loc}`)}
+              >
+                <Input
+                  id={`subheadline.${loc}`}
+                  name={`subheadline.${loc}`}
+                  defaultValue={v.subheadline ?? ''}
+                  maxLength={400}
+                />
+              </Field>
+              <Field
+                label={t('buttonLabel')}
+                htmlFor={`buttonLabel.${loc}`}
+                error={err(`buttonLabel.${loc}`)}
+              >
+                <Input
+                  id={`buttonLabel.${loc}`}
+                  name={`buttonLabel.${loc}`}
+                  defaultValue={v.buttonLabel ?? ''}
+                  maxLength={80}
+                />
+              </Field>
+              <Field label={t('heroAlt')} htmlFor={`heroAlt.${loc}`} error={err(`heroAlt.${loc}`)}>
+                <Input
+                  id={`heroAlt.${loc}`}
+                  name={`heroAlt.${loc}`}
+                  defaultValue={v.heroAlt ?? ''}
+                  maxLength={200}
+                />
+              </Field>
+              <Field
+                label={t('body')}
+                htmlFor={`body.${loc}`}
+                error={err(`body.${loc}`)}
+                className="md:col-span-2"
+              >
+                <RichTextEditor
+                  id={`body.${loc}`}
+                  name={`body.${loc}`}
+                  compact
+                  defaultValue={v.body ?? ''}
+                  invalid={!!err(`body.${loc}`)}
+                />
+              </Field>
+              {slots.map((_, i) =>
+                filled[i] ? (
+                  <Field
+                    key={i}
+                    label={t('galleryAlt', { n: i + 1 })}
+                    htmlFor={`galleryAlt${i}.${loc}`}
+                    error={err(`galleryAlt${i}.${loc}`)}
+                  >
+                    <Input
+                      id={`galleryAlt${i}.${loc}`}
+                      name={`galleryAlt${i}.${loc}`}
+                      defaultValue={v.galleryAlt?.[i] ?? ''}
+                      maxLength={200}
+                    />
+                  </Field>
+                ) : null,
+              )}
+            </div>
+          </fieldset>
+        );
+      })}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field
+          label={t('hero')}
+          htmlFor="heroAssetId"
+          error={err('heroAssetId')}
+          hint={t('heroHint')}
+          className="md:col-span-2"
+        >
+          <MediaPicker
+            name="heroAssetId"
+            kind="EVENT_IMAGE"
+            initialAsset={initial.hero}
+            previewClassName="max-w-md"
+            previewAlt={t('hero')}
+          />
+        </Field>
+        {slots.map((asset, i) => (
+          <Field
+            key={i}
+            label={t('galleryImage', { n: i + 1 })}
+            htmlFor={`galleryAssetId${i}`}
+            error={err(`galleryAssetId${i}`)}
+            hint={i === 0 ? t('galleryHint', { max: START_PAGE_MAX_GALLERY }) : undefined}
+          >
+            <MediaPicker
+              name={`galleryAssetId${i}`}
+              kind="EVENT_IMAGE"
+              initialAsset={asset}
+              onChange={(a) => setFilled((f) => f.map((x, j) => (j === i ? !!a : x)))}
+              previewClassName="max-w-xs"
+              previewAlt={t('galleryImage', { n: i + 1 })}
+            />
+          </Field>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">{t('altHint')}</p>
+      <SubmitButton>{tc('save')}</SubmitButton>
+    </ActionForm>
   );
 }

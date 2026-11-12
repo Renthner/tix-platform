@@ -94,7 +94,9 @@ export default async function AdminDashboardPage({
             <AlertDescription>{t('denied')}</AlertDescription>
           </Alert>
         )}
-        {setup && !setup.allDone && <SetupChecklistCard checklist={setup} />}
+        {setup && !setup.allDone && (
+          <SetupChecklistCard checklist={setup} canDismiss={hasRole(session, ['SUPER_ADMIN'])} />
+        )}
         {backupFailure && (
           <Alert variant="destructive">
             <DatabaseBackup className="size-4" />

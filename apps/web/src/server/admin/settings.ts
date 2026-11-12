@@ -11,13 +11,19 @@ import {
   testPayPalConnection,
   type MailErrorKind,
 } from '@tix/core';
-import { SCAN_RESULT_COLOR_KEYS } from '@tix/shared';
+import {
+  SCAN_RESULT_COLOR_KEYS,
+  START_PAGE_MAX_GALLERY,
+  SUPPORTED_LOCALES,
+  isPublicMediaKind,
+} from '@tix/shared';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
 import { parseMoneyToCents } from '@/lib/money';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { applyDefaultLocale } from '@/server/default-locale';
 import { sanitizeRichText } from '@/server/rich-text';
 import { audit } from './audit';
 import { fieldError, flag, success, text, zodFieldErrors } from './form';
@@ -28,6 +34,7 @@ export type EditableSettingKey =
   | 'branding'
   | 'checkout'
   | 'seatDisplay'
+  | 'startPage'
   | 'organizer'
   | 'invoicing'
   | 'bankTransfer'
@@ -86,6 +93,22 @@ async function logoAssetField(
   if (id === undefined) return undefined;
   const asset = z.uuid().safeParse(id).success ? await getMediaAsset(getCore(), id) : null;
   if (!asset || asset.kind !== 'LOGO') {
+    errors[name] = 'invalid';
+    return undefined;
+  }
+  return asset.id;
+}
+
+/** Optional media asset id of a public kind (served to anonymous visitors); unknown / private is rejected. */
+async function publicImageField(
+  fd: FormData,
+  name: string,
+  errors: Errors,
+): Promise<string | undefined> {
+  const id = text(fd, name);
+  if (id === undefined) return undefined;
+  const asset = z.uuid().safeParse(id).success ? await getMediaAsset(getCore(), id) : null;
+  if (!asset || !isPublicMediaKind(asset.kind)) {
     errors[name] = 'invalid';
     return undefined;
   }
@@ -163,6 +186,39 @@ async function readInput(
           seatChangeNewColor: text(fd, 'seatChangeNewColor'),
         },
       };
+    case 'startPage': {
+      const heroAssetId = await publicImageField(fd, 'heroAssetId', errors);
+      const galleryAssetIds: string[] = [];
+      const slots: number[] = [];
+      for (let i = 0; i < START_PAGE_MAX_GALLERY; i++) {
+        const id = await publicImageField(fd, `galleryAssetId${i}`, errors);
+        if (id) {
+          galleryAssetIds.push(id);
+          slots.push(i);
+        }
+      }
+      const texts: Record<string, Record<string, unknown>> = {};
+      for (const loc of SUPPORTED_LOCALES) {
+        texts[loc] = {
+          headline: text(fd, `headline.${loc}`),
+          subheadline: text(fd, `subheadline.${loc}`),
+          body: sanitizeRichText(text(fd, `body.${loc}`)) || undefined,
+          buttonLabel: text(fd, `buttonLabel.${loc}`),
+          heroAlt: text(fd, `heroAlt.${loc}`),
+          // Alt texts stay aligned with the images that remain after skipping empty slots.
+          galleryAlt: slots.map((i) => text(fd, `galleryAlt${i}.${loc}`) ?? ''),
+        };
+      }
+      return {
+        input: {
+          layout: text(fd, 'layout'),
+          heroAssetId,
+          galleryAssetIds,
+          buttonUrl: text(fd, 'buttonUrl'),
+          texts,
+        },
+      };
+    }
     case 'organizer':
       return {
         input: {
@@ -324,8 +380,15 @@ function mapZodErrors(err: z.ZodError): Errors {
   for (const name of ['supportEmail', 'email', 'fromEmail', 'replyTo', 'bccAddress']) {
     if (fields[name] === 'invalid') fields[name] = 'email';
   }
-  for (const url of ['imprintUrl', 'privacyUrl', 'termsUrl', 'website']) {
+  for (const url of ['imprintUrl', 'privacyUrl', 'termsUrl', 'website', 'buttonUrl']) {
     if (fields[url]) fields[url] = 'url';
+  }
+  // Start page: "texts.<locale>.<field>[.<n>]" → form field "<field>.<locale>" / "galleryAlt<n>.<locale>".
+  for (const [key, code] of Object.entries(fields)) {
+    const m = /^texts\.(\w+)\.(\w+)(?:\.(\d+))?$/.exec(key);
+    if (!m) continue;
+    delete fields[key];
+    fields[m[2] === 'galleryAlt' ? `galleryAlt${m[3] ?? 0}.${m[1]}` : `${m[2]}.${m[1]}`] = code;
   }
   if (fields.defaultTimeZone) fields.defaultTimeZone = 'timeZone';
   if (fields.country) fields.country = 'country';
@@ -376,6 +439,8 @@ export async function saveSettingsAction(
     value: saved,
     ...(secretChange ? { secret: { key: secret!.key, change: secretChange } } : {}),
   });
+  // The default language decides which locale has no URL prefix: effective immediately here.
+  if (key === 'general') applyDefaultLocale((saved as { defaultLocale: string }).defaultLocale);
   revalidatePath('/', 'layout');
   return success('saved');
 }

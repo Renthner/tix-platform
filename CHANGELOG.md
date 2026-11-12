@@ -8,6 +8,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+### Added
+
+- Customisable shop start page while no event is published (Settings → Appearance): headline,
+  sub-headline, rich text, optional button, a main image and up to four gallery images, per
+  language with fallback to the shop default language.
+- The admin event list shows the event cover as a small thumbnail.
+- The dashboard "first steps" card can be collapsed (remembered per browser).
+
+### Changed
+
+- The "first steps" card's hide button is clearer (outline button with a hint) and can be restored
+  under Settings → General.
+- The shop default language (Settings → General) now also decides which language has no URL prefix;
+  the other languages use `/<code>/`.
+
 ## [1.0.0-alpha.10] - 2026-11-12
 
 ### Changed

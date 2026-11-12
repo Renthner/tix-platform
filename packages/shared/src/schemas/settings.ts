@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SEAT_SELECTION_STYLES } from '../enums';
+import { SUPPORTED_LOCALES } from '../i18n';
 import { accountingSchema } from './accounting';
 import { GERMAN_STATES } from '../payments/business-days';
 import {
@@ -296,6 +297,49 @@ const seatDisplaySchema = z.object({
   seatChangeNewColor: hexColorSchema.default('#16A34A'),
 });
 
+export const START_PAGE_LAYOUTS = ['ABOVE', 'OVERLAY'] as const;
+export type StartPageLayout = (typeof START_PAGE_LAYOUTS)[number];
+export const START_PAGE_MAX_GALLERY = 4;
+
+/** Button target: an https URL or a path inside the shop ("/events", not "//host"). */
+export const startPageLinkSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .refine((v) => {
+    if (/\s/.test(v)) return false;
+    if (v.startsWith('/')) return !v.startsWith('//') && !v.includes('\\');
+    try {
+      return new URL(v).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'url');
+
+const startPageTextSchema = z.object({
+  headline: z.string().trim().max(200).optional(),
+  subheadline: z.string().trim().max(400).optional(),
+  /** Sanitised rich-text HTML. */
+  body: z.string().max(20_000).optional(),
+  buttonLabel: z.string().trim().max(80).optional(),
+  heroAlt: z.string().trim().max(200).optional(),
+  /** Alt texts of the gallery images, same order as `galleryAssetIds` (empty = decorative). */
+  galleryAlt: z.array(z.string().trim().max(200)).max(START_PAGE_MAX_GALLERY).optional(),
+});
+export type StartPageText = z.output<typeof startPageTextSchema>;
+
+/** Shop home page while no event is published (nothing configured = built-in text). */
+const startPageSchema = z.object({
+  layout: z.enum(START_PAGE_LAYOUTS).default('ABOVE'),
+  /** Public media assets (kind EVENT_IMAGE). */
+  heroAssetId: z.uuid().optional(),
+  galleryAssetIds: z.array(z.uuid()).max(START_PAGE_MAX_GALLERY).default([]),
+  buttonUrl: startPageLinkSchema.optional(),
+  /** Per UI locale; missing fields fall back to the shop default locale. */
+  texts: z.partialRecord(z.enum(SUPPORTED_LOCALES), startPageTextSchema).default({}),
+});
+export type StartPageSettings = z.output<typeof startPageSchema>;
+
 /** Optional customer accounts on top of guest checkout. */
 const customerAccountsSchema = z.object({
   /** Customers may register to see their orders and re-download tickets. */
@@ -464,6 +508,11 @@ export const SETTINGS = {
     schema: seatDisplaySchema,
     secret: false,
     description: 'Colours of seats in other carts, sold and blocked seats',
+  }),
+  startPage: define({
+    schema: startPageSchema,
+    secret: false,
+    description: 'Shop home page while no event is published',
   }),
   customerAccounts: define({
     schema: customerAccountsSchema,

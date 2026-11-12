@@ -99,7 +99,7 @@ const HANDLED_COLUMNS = new Set([
 ]);
 
 function settingsHref(key: string): string {
-  if (key === 'branding') return '/admin/settings/appearance';
+  if (key === 'branding' || key === 'startPage') return '/admin/settings/appearance';
   if (key.startsWith('wallet.')) return '/admin/settings/wallet';
   return '/admin/settings';
 }

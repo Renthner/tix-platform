@@ -18,6 +18,7 @@ import {
   CheckoutSettingsForm,
   GeneralSettingsForm,
   SeatDisplaySettingsForm,
+  StartPageSettingsForm,
   SettingsSection,
 } from '@/components/admin/settings-forms';
 import {
@@ -102,7 +103,14 @@ async function TabContent({
   const t = await getTranslations('admin.settings');
   const ts = await getTranslations('adminSecurity');
   const section = (
-    id: 'general' | 'branding' | 'organizer' | 'checkout' | 'seatDisplay' | 'bankTransfer',
+    id:
+      | 'general'
+      | 'branding'
+      | 'organizer'
+      | 'checkout'
+      | 'seatDisplay'
+      | 'startPage'
+      | 'bankTransfer',
     children: React.ReactNode,
   ) => (
     <SettingsSection id={id} title={t(`${id}.title`)} description={t(`${id}.description`)}>
@@ -137,10 +145,17 @@ async function TabContent({
       );
     }
     case 'appearance': {
-      const [branding, seatDisplay] = await Promise.all([
+      const [branding, seatDisplay, startPage] = await Promise.all([
         getSetting(core, 'branding'),
         getSetting(core, 'seatDisplay'),
+        getSetting(core, 'startPage'),
       ]);
+      const startPageTexts = Object.fromEntries(
+        Object.entries(startPage.texts).map(([loc, v]) => [
+          loc,
+          { ...v, body: descriptionToHtml(v?.body) },
+        ]),
+      );
       return (
         <>
           {section(
@@ -164,6 +179,19 @@ async function TabContent({
             <SeatDisplaySettingsForm
               action={saveSettingsAction.bind(null, 'seatDisplay')}
               initial={seatDisplay}
+            />,
+          )}
+          {section(
+            'startPage',
+            <StartPageSettingsForm
+              action={saveSettingsAction.bind(null, 'startPage')}
+              initial={{
+                layout: startPage.layout,
+                hero: await pickerAsset(startPage.heroAssetId),
+                gallery: await Promise.all(startPage.galleryAssetIds.map(pickerAsset)),
+                buttonUrl: startPage.buttonUrl,
+                texts: startPageTexts,
+              }}
             />,
           )}
         </>

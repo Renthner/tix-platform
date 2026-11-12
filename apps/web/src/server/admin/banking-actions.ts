@@ -26,6 +26,7 @@ import {
   BANK_STATEMENT_FORMATS,
   CSV_COLUMN_KEYS,
   imapConfigSchema,
+  localizedPath,
   type SupportedBankAdapter,
 } from '@tix/shared';
 import { eq } from 'drizzle-orm';
@@ -43,6 +44,7 @@ import {
 import { parseMoneyToCents } from '@/lib/money';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { getDefaultLocale } from '@/server/default-locale';
 import { audit } from './audit';
 import { flag, text } from './form';
 
@@ -411,7 +413,7 @@ export async function finApiConnectAction(
       connectionId,
       language: locale,
       returnUrl: core.appUrl
-        ? `${core.appUrl}${locale === 'en' ? '' : `/${locale}`}/admin/banking/connections/${connectionId}`
+        ? `${core.appUrl}${localizedPath(locale, `/admin/banking/connections/${connectionId}`, await getDefaultLocale())}`
         : null,
     });
     await audit(core.db, session, 'bank.finapi.webform', 'bank_connection', connectionId, {
