@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import {
   bankTransactionAllocations,
   bankTransactions,
@@ -467,16 +468,16 @@ export async function reverseBankAllocation(
     try {
       await mirrorSeats(ctx, released, 'R');
     } catch (err) {
-      console.error('[allocation-reversal] seat mirror update failed after commit', err);
+      coreLog.error({ err }, '[allocation-reversal] seat mirror update failed after commit');
     }
   }
   if (result.creditNote) {
     try {
       await enqueueInvoiceRender(ctx, result.creditNote.id);
     } catch (err) {
-      console.error(
+      coreLog.error(
+        { err },
         '[allocation-reversal] credit note render not queued (rendered on download)',
-        err,
       );
     }
   }

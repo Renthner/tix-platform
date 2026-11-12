@@ -1,3 +1,4 @@
+import { logger } from '@/server/logger';
 import { DomainError } from '@tix/core';
 import { orders } from '@tix/db';
 import { eq } from 'drizzle-orm';
@@ -14,7 +15,7 @@ export async function withWalletErrors<T>(provider: 'google' | 'apple', fn: () =
     return await fn();
   } catch (err) {
     if (err instanceof DomainError) throw err;
-    console.error(`[wallet] ${provider} pass failed`, err);
+    logger.error({ err, provider }, '[wallet] pass failed');
     throw new DomainError('WALLET_UNAVAILABLE', 'Wallet is currently unavailable', 503);
   }
 }
@@ -34,7 +35,7 @@ export async function withWalletRedirect(
     if (err instanceof DomainError && ['ORDER_NOT_FOUND', 'TICKET_NOT_FOUND'].includes(err.code)) {
       throw err;
     }
-    console.error('[wallet] request failed, redirecting to order page', err);
+    logger.error({ err }, '[wallet] request failed, redirecting to order page');
     const [order] = await getCore()
       .db.select({ orderNumber: orders.orderNumber, locale: orders.locale })
       .from(orders)

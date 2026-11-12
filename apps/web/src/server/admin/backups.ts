@@ -27,6 +27,7 @@ import { requireAdmin } from '@/server/auth';
 import { getBackupBuckets } from '@/server/backups';
 import { getCore } from '@/server/core';
 import { clientIp, enforceRateLimit, uuidParam } from '@/server/http';
+import { logger } from '@/server/logger';
 import { audit } from './audit';
 import { fieldError, flag, success, text, zodFieldErrors } from './form';
 
@@ -36,10 +37,12 @@ const fail = (
 ): BackupActionState => ({ status: 'error', code, ...(detail ? { detail } : {}), at: Date.now() });
 const queued = (): BackupActionState => ({ status: 'success', code: 'queued', at: Date.now() });
 
-const logger = {
-  info: () => undefined,
-  warn: (obj: object, msg?: string) => console.warn('[backups]', msg, obj),
-  error: (obj: object, msg?: string) => console.error('[backups]', msg, obj),
+// Lazy: the logger validates the environment, which must not happen while Next.js collects page data.
+const log = () => logger.child({ component: 'backups' });
+const backupLogger = {
+  info: (obj: object, msg?: string) => log().info(obj, msg),
+  warn: (obj: object, msg?: string) => log().warn(obj, msg),
+  error: (obj: object, msg?: string) => log().error(obj, msg),
 };
 
 async function guarded(fn: () => Promise<BackupActionState>): Promise<BackupActionState> {
@@ -226,7 +229,7 @@ export async function deleteBackupAction(
     const core = getCore();
     await assertBackupIdle(core);
     const deleted = await deleteBackup(
-      { ctx: core, buckets: getBackupBuckets(), logger },
+      { ctx: core, buckets: getBackupBuckets(), logger: backupLogger },
       backupId,
       { deleteExternal },
     );

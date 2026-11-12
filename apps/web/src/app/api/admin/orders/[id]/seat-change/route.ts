@@ -1,3 +1,4 @@
+import { requestLogger } from '@/server/logger';
 import {
   DomainError,
   assertSellable,
@@ -125,7 +126,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         allowBlocked: body.allowBlocked,
       });
     } catch (err) {
-      console.error('[seat-change] audit entry failed after the change was committed', err);
+      requestLogger(request).error(
+        { err },
+        '[seat-change] audit entry failed after the change was committed',
+      );
     }
     return NextResponse.json(result, { headers: { 'cache-control': 'no-store' } });
   });

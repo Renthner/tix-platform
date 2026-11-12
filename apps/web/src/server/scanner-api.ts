@@ -1,3 +1,4 @@
+import { logger } from '@/server/logger';
 import 'server-only';
 import { authenticateDevice, DomainError, type ScannerDeviceAuth } from '@tix/core';
 import { isDbBusyError, pgErrorCode } from '@tix/db';
@@ -54,15 +55,16 @@ function errorResponse(err: unknown): Response {
     });
   }
   if (isDbBusyError(err)) {
-    (pgErrorCode(err) === '57014' ? console.error : console.warn)(
+    (pgErrorCode(err) === '57014' ? logger.error : logger.warn).call(
+      logger,
+      { err },
       '[scanner-api] database busy',
-      err,
     );
     return scannerError('BUSY', 'The server is busy. Please retry shortly.', 503, {
       headers: { 'retry-after': '2' },
     });
   }
-  console.error('[scanner-api] unhandled error', err);
+  logger.error({ err }, '[scanner-api] unhandled error');
   return scannerError('INTERNAL_ERROR', 'Something went wrong. Please try again.', 500);
 }
 

@@ -100,5 +100,22 @@
     "ADJUSTMENT_NOT_FOUND": "Nachzahlung nicht gefunden.",
     "ADJUSTMENT_NOT_PAYABLE": "Diese Nachzahlung kann nicht mehr bezahlt werden.",
     "ADJUSTMENT_OPEN": "Dieses Ticket hat eine offene Nachzahlung. Setze zuerst den Tarif zurück."
+  },
+  "errorPages": {
+    "notFound": {
+      "title": "Seite nicht gefunden",
+      "text": "Die gesuchte Seite existiert nicht oder wurde verschoben.",
+      "home": "Zurück zum Shop",
+      "adminHome": "Zurück zur Übersicht"
+    },
+    "error": {
+      "title": "Etwas ist schiefgelaufen",
+      "text": "Es ist ein unerwarteter Fehler aufgetreten. Bitte versuche es erneut.",
+      "retry": "Erneut versuchen",
+      "home": "Zurück zum Shop",
+      "adminHome": "Zurück zur Übersicht",
+      "reference": "Referenz: {digest}"
+    },
+    "loading": "Wird geladen…"
   }
 }

@@ -1,5 +1,6 @@
 'use server';
 
+import { logger } from '@/server/logger';
 import {
   DomainError,
   adminCancelOrder,
@@ -51,7 +52,7 @@ async function run(
     return result;
   } catch (err) {
     if (err instanceof DomainError) return fail(err.code);
-    console.error('[admin/orders] action failed', err);
+    logger.error({ err }, '[admin/orders] action failed');
     return fail('INTERNAL_ERROR');
   }
 }

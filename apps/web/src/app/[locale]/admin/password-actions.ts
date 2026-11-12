@@ -1,5 +1,6 @@
 'use server';
 
+import { logger } from '@/server/logger';
 import {
   DomainError,
   acceptAdminInvite,
@@ -56,7 +57,7 @@ export async function forgotPasswordAction(
     try {
       await requestAdminPasswordReset(getCore(), email.data, locale, address);
     } catch (err) {
-      console.error('[admin] password reset request failed', err);
+      logger.error({ err }, '[admin] password reset request failed');
     }
   });
   return ok({ message: 'resetRequested' });

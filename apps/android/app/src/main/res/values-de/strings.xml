@@ -12,7 +12,7 @@
     <string name="action_cancel">Abbrechen</string>
 
     <string name="pairing_title">Gerät koppeln</string>
-    <string name="pairing_hint">Kopplungs-QR-Code aus dem Admin-Portal (Check-in-Geräte) scannen oder Serveradresse und Code manuell eingeben.</string>
+    <string name="pairing_hint">Gib Serveradresse und Kopplungscode aus dem Admin-Portal (Check-in-Geräte) ein oder tippe auf „QR-Code scannen“.</string>
     <string name="pairing_revoked">Dieses Gerät wurde vom Server entfernt. Zum Fortfahren erneut koppeln.</string>
     <string name="pairing_device_name">Gerätename</string>
     <string name="pairing_enter_manually">Code manuell eingeben</string>
@@ -118,6 +118,8 @@
     <string name="settings_green_seconds">Anzeigedauer Grün</string>
     <string name="settings_alert_seconds">Anzeigedauer Gelb / Rot</string>
     <string name="settings_seconds">%1$d s</string>
+    <string name="settings_decrease">%1$s verringern</string>
+    <string name="settings_increase">%1$s erhöhen</string>
     <string name="settings_sound">Ton</string>
     <string name="settings_vibrate">Vibration</string>
     <string name="settings_version">Version %1$s (%2$d)</string>

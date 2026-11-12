@@ -2,6 +2,7 @@ import type { Database } from '@tix/db';
 import type { SecretBox } from '@tix/shared/server';
 import type { JobQueues } from './job-queues';
 import type { ObjectStorage } from './storage';
+import { setCoreLogger, type CoreLogger } from './log';
 import {
   QueueEngine,
   SeatLockEngine,
@@ -62,7 +63,10 @@ export function createCoreContext(params: {
   secrets?: SecretBox;
   storage?: ObjectStorage;
   jobs?: JobQueues;
+  /** Installs the process-wide core logger (pino in web/worker); default console. */
+  logger?: CoreLogger;
 }): CoreContext {
+  if (params.logger) setCoreLogger(params.logger);
   const keys = createKeyspace(params.keyPrefix);
   return {
     db: params.db,

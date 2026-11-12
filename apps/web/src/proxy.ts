@@ -2,6 +2,7 @@ import createIntlMiddleware from 'next-intl/middleware';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { routing } from './i18n/routing';
+import { buildCsp, newNonce } from './server/csp';
 import { maintenanceGate } from './server/maintenance-gate';
 import {
   SESSION_COOKIE,
@@ -41,7 +42,14 @@ export default async function proxy(request: NextRequest): Promise<NextResponse 
     return NextResponse.redirect(new URL(`${locale}/admin/login`, request.url));
   }
 
+  // CSP nonce: next-intl copies the request headers when it builds the (rewritten) request, so
+  // the headers must be set before it runs. Next reads the nonce from the CSP request header.
+  const nonce = newNonce();
+  const csp = buildCsp(nonce, process.env);
+  request.headers.set('x-nonce', nonce);
+  request.headers.set('Content-Security-Policy', csp);
   const response = intl(request);
+  response.headers.set('Content-Security-Policy', csp);
   const secret = process.env.SESSION_SECRET;
   if (secret && !sessionIdFromToken(request.cookies.get(SESSION_COOKIE)?.value, secret)) {
     const { token } = newSessionToken(secret);

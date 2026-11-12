@@ -20,6 +20,9 @@
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 
+	# Correlation id: the app puts it into its JSON log lines (field reqId).
+	request_header X-Request-Id {http.request.uuid}
+
 	@realtime path /socket.io/*
 	handle @realtime {
 		reverse_proxy realtime:3001 {

@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import {
   isUniqueViolation,
   orderHistory,
@@ -419,7 +420,10 @@ export async function changeOrderSeats(
     try {
       await fn();
     } catch (err) {
-      console.error(`[seat-change] ${what} failed after the change was committed`, err);
+      coreLog.error(
+        { err, step: what },
+        '[seat-change] step failed after the change was committed',
+      );
     }
   };
   // A cancel / expiry that ran right after the commit may already have released the items.

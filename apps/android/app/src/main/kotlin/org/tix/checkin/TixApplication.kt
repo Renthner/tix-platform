@@ -28,7 +28,7 @@ import org.tix.checkin.ui.Feedback
 class AppContainer(app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val db: TixDatabase = Room.databaseBuilder(app, TixDatabase::class.java, "tix-checkin.db")
-        .addMigrations(org.tix.checkin.data.MIGRATION_1_2) // never a destructive fallback: unsent scans live here
+        .addMigrations(*org.tix.checkin.data.ALL_MIGRATIONS) // never a destructive fallback: unsent scans live here
         .build()
     val dao = db.dao()
 

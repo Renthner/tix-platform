@@ -37,7 +37,9 @@ must be at most 99, N between 1 and 29; the script rejects anything else.
 
 1. Add the new section to `CHANGELOG.md` (`## [1.0.0-alpha.2] - YYYY-MM-DD`); the release body is
    taken from it.
-2. `node scripts/release/set-version.mjs 1.0.0-alpha.2`
+2. `node scripts/release/set-version.mjs 1.0.0-alpha.2`. For a **stable** version (no `-`) first reword the
+   "pre-release" / "Vorabversion" status lines in `README.md`, `README.de.md`, `docs/INSTALL.md` and
+   `docs/INSTALL.de.md` (`set-version.mjs --check` fails otherwise).
 3. Commit (`VERSION`, `package.json` files, `gradle.properties`, `version.ts`, `CHANGELOG.md`) and
    push to `main`; wait for CI.
 4. `git tag v1.0.0-alpha.2 && git push origin v1.0.0-alpha.2`
@@ -69,7 +71,7 @@ visibility), so servers can pull without logging in. `docker login ghcr.io` (tok
 Everything below is optional for operators but lets you check that an artifact really was built by
 this repository's release workflow from the tagged commit.
 
-**Container images** (keyless cosign signature on the multi-arch image index; the moving tags
+**Container images** (needs **cosign v3 or newer**: the signatures use the new bundle format; keyless cosign signature on the multi-arch image index; the moving tags
 `next`, `stable`, ... point to the same signed index):
 
 ```bash
@@ -167,6 +169,8 @@ failed or abandoned releases out of the repository (delete them) or they block l
 Recommendation: the demo server follows `next`, production follows `stable` (or `1`).
 
 ## Deploying with the release files
+
+The full guide for operators (Docker installation, HTTPS variants, first configuration, troubleshooting) is [INSTALL.md](INSTALL.md); this section is the short reference.
 
 A server needs exactly two files from the release page: `docker-compose.yml` and `env.example`
 (saved as `.env`). The config files (Caddyfile, Redis settings, bucket setup script) are embedded
@@ -366,14 +370,7 @@ With the release files (see above): `docker compose pull && docker compose up -d
 versions may contain schema changes that cannot be rolled back. `GET /api/health` reports the
 running `version`.
 
-In a repository checkout, the override file still works:
-
-```bash
-export TIX_IMAGE_OWNER=<github-owner, lower case>
-export TIX_IMAGE_TAG=1.0.0-alpha.2        # or a channel such as next
-docker compose -f docker-compose.yml -f docker-compose.release.yml pull
-docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-build
-```
+Step-by-step instructions for operators are in [INSTALL.md](INSTALL.md#updates-backups-uninstall).
 
 Building from source also works: `git checkout v1.0.0-alpha.2 && docker compose up -d --build`.
 

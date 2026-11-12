@@ -127,7 +127,7 @@ Table `event_signing_keys` (one row per key, exactly one ACTIVE per event):
   count, last scan) is **copied to the new ticket**, so a checked-in guest's new QR stays checked in;
   the old row keeps its history.
 - Cancelling an order voids its VALID tickets (`voidTicketsForItems`, status CANCELLED/REFUNDED);
-  Phase 5 refunds call the same helper.
+  Refunds of paid orders call the same helper.
 - `reissueTicketsOfRevokedKeys` skips tickets that changed concurrently (`TICKET_NOT_VALID` /
   `TICKET_CONFLICT`), counts only successes, returns `{ reissued, orderIds }` and queues one
   `TICKETS_RESENT` e-mail per affected order (outbox row, dispatched after commit).

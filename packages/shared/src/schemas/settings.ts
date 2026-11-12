@@ -369,6 +369,12 @@ const backupCredentialsSchema = z.object({
   secretAccessKey: z.string().min(1).max(1_024),
 });
 
+/** First-steps checklist on the admin dashboard. */
+const setupChecklistSchema = z.object({
+  /** Hidden by a super admin ("Hide"); the card also disappears by itself once everything is done. */
+  dismissed: z.boolean().default(false),
+});
+
 export interface SettingDefinition<S extends z.ZodType = z.ZodType> {
   readonly schema: S;
   readonly secret: boolean;
@@ -478,6 +484,11 @@ export const SETTINGS = {
     schema: accountingSchema,
     secret: false,
     description: 'Accounting export: chart of accounts, DATEV master data',
+  }),
+  setupChecklist: define({
+    schema: setupChecklistSchema,
+    secret: false,
+    description: 'Dashboard first-steps checklist state',
   }),
   'backup.external.credentials': define({
     schema: backupCredentialsSchema,

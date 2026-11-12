@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { orderAdjustments, orderHistory, orders } from '@tix/db';
 import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
 import type { CoreContext } from '../context';
@@ -44,7 +45,7 @@ export async function runDunning(ctx: CoreContext, now = new Date()): Promise<Du
   };
   const report = (scope: string, orderId: string, err: unknown) => {
     result.errors += 1;
-    console.error(`[dunning] ${scope} failed for order ${orderId}`, err);
+    coreLog.error({ err, scope, orderId }, '[dunning] step failed');
   };
 
   // 1. Reminders.
@@ -83,7 +84,7 @@ export async function runDunning(ctx: CoreContext, now = new Date()): Promise<Du
       });
       if (!messageId) continue;
       await dispatchEmailMessage(ctx, messageId).catch((err: unknown) =>
-        console.error('[dunning] reminder stored but not queued (outbox retries)', err),
+        coreLog.error({ err }, '[dunning] reminder stored but not queued (outbox retries)'),
       );
       result.reminded += 1;
     } catch (err) {

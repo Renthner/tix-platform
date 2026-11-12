@@ -1,5 +1,6 @@
 'use server';
 
+import { logger } from '@/server/logger';
 import {
   DomainError,
   changeCustomerPassword,
@@ -154,7 +155,7 @@ function fromError(err: unknown, passwordField = 'password'): AccountFormState {
   if (err instanceof z.ZodError) {
     return fail('VALIDATION_FAILED', { fieldErrors: zodFieldErrors(err) });
   }
-  console.error('[account] unexpected error', err);
+  logger.error({ err }, '[account] unexpected error');
   return fail('GENERIC');
 }
 

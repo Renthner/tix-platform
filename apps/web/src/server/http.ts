@@ -1,3 +1,4 @@
+import { logger } from '@/server/logger';
 import 'server-only';
 import { DomainError } from '@tix/core';
 import { isDbBusyError, pgErrorCode } from '@tix/db';
@@ -52,10 +53,14 @@ export async function handle(
     if (err instanceof Error && 'digest' in err) throw err;
     if (isDbBusyError(err)) {
       // A statement timeout (57014) means a slow query, not just contention: keep it visible.
-      (pgErrorCode(err) === '57014' ? console.error : console.warn)('[api] database busy', err);
+      (pgErrorCode(err) === '57014' ? logger.error : logger.warn).call(
+        logger,
+        { err },
+        '[api] database busy',
+      );
       return busyResponse();
     }
-    console.error('[api] unhandled error', err);
+    logger.error({ err }, '[api] unhandled error');
     return apiError('INTERNAL_ERROR', 'Something went wrong. Please try again.', 500);
   }
 }

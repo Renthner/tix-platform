@@ -3,6 +3,7 @@ import { JobQueues, createCoreContext, objectStorageFromEnv, type CoreContext } 
 import { createSecretBox, parseKeyRing } from '@tix/shared/server';
 import { getDb } from './db';
 import { getEnv } from './env';
+import { logger } from './logger';
 import { getRedis } from './redis';
 
 const globalForCore = globalThis as typeof globalThis & { __tixCore?: CoreContext };
@@ -22,6 +23,7 @@ export function getCore(): CoreContext {
       secrets: createSecretBox(parseKeyRing(env.APP_ENCRYPTION_KEYS)),
       storage: objectStorageFromEnv(env),
       jobs: new JobQueues(connections.bullmq, keys.bullPrefix()),
+      logger,
     });
   }
   return globalForCore.__tixCore;

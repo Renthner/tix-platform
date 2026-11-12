@@ -53,3 +53,19 @@ export function missingDirectives(command, directives) {
   }
   return missing;
 }
+
+// Removes the `# MAINTAINER-BEGIN` ... `# MAINTAINER-END` block (and one following blank line).
+export function stripMaintainerBlock(text) {
+  return text.replace(/^# MAINTAINER-BEGIN\n[\s\S]*?^# MAINTAINER-END\n\n?/m, '');
+}
+
+// Problems that must never reach an operator in the generated compose file.
+export function releaseComposeProblems(text) {
+  const problems = [];
+  const markers = text.match(/__[A-Z][A-Z0-9_]*__/g);
+  if (markers) problems.push(`unreplaced markers: ${[...new Set(markers)].join(', ')}`);
+  if (text.includes('TIX_IMAGE_OWNER_DEFAULT')) problems.push('TIX_IMAGE_OWNER_DEFAULT left in');
+  if (/MAINTAINER-(BEGIN|END)|Maintainer notes/.test(text))
+    problems.push('maintainer block left in');
+  return problems;
+}

@@ -4,7 +4,9 @@
   "private": true,
   "license": "PolyForm-Shield-1.0.0",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/zod-config.ts"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server/index.ts"

@@ -100,5 +100,22 @@
     "ADJUSTMENT_NOT_FOUND": "Additional payment not found.",
     "ADJUSTMENT_NOT_PAYABLE": "This additional payment cannot be paid any more.",
     "ADJUSTMENT_OPEN": "This ticket has an open additional payment. Reset the tariff first."
+  },
+  "errorPages": {
+    "notFound": {
+      "title": "Page not found",
+      "text": "The page you are looking for does not exist or has been moved.",
+      "home": "Back to the shop",
+      "adminHome": "Back to the dashboard"
+    },
+    "error": {
+      "title": "Something went wrong",
+      "text": "An unexpected error occurred. Please try again.",
+      "retry": "Try again",
+      "home": "Back to the shop",
+      "adminHome": "Back to the dashboard",
+      "reference": "Reference: {digest}"
+    },
+    "loading": "Loading…"
   }
 }

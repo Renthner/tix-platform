@@ -205,6 +205,52 @@
       "failing": "Der Abgleich mit PayPal schlägt weiterhin fehl ({error}). Automatische Erstattungen bleiben pausiert.",
       "reviewTitle": "{count, plural, one {# Bestellung braucht eine Erstattungsprüfung} other {# Bestellungen brauchen eine Erstattungsprüfung}}",
       "reviewText": "PayPal zeigt Erstattungen, die hier nicht erfasst sind. Automatische Erstattungen dieser Bestellungen sind angehalten."
+    },
+    "setup": {
+      "title": "Erste Schritte",
+      "description": "Erledige diese Schritte, damit dein Ticketshop für den ersten Verkauf bereit ist.",
+      "progress": "{done} von {total} Schritten erledigt",
+      "dismiss": "Ausblenden",
+      "go": "Einrichten",
+      "done": "erledigt",
+      "open": "offen",
+      "steps": {
+        "organizer": {
+          "title": "Veranstalterdaten",
+          "description": "Name, Anschrift und Kontakt-E-Mail für Rechnungen und Impressum."
+        },
+        "email": {
+          "title": "E-Mail-Versand",
+          "description": "SMTP einrichten und eine Test-E-Mail senden, damit Tickets und Bestätigungen ankommen."
+        },
+        "payment": {
+          "title": "Zahlungsart",
+          "description": "PayPal aktivieren oder Überweisung mit einem Standard-Empfangskonto einrichten."
+        },
+        "scanner": {
+          "title": "Server-Adresse für die Check-in-App",
+          "description": "Eine Adresse eintragen, die die Smartphones erreichen können (nicht localhost)."
+        },
+        "venue": {
+          "title": "Spielstätte mit Sitzplan",
+          "description": "Spielstätte anlegen und den Sitzplan zeichnen oder importieren."
+        },
+        "event": {
+          "title": "Veröffentlichte Veranstaltung",
+          "description": "Veranstaltung anlegen und im Shop veröffentlichen."
+        },
+        "backups": {
+          "title": "Automatische Backups",
+          "description": "Einen Backup-Zeitplan aktivieren, damit deine Daten sicher sind."
+        },
+        "twoFactor": {
+          "title": "Zwei-Faktor-Authentifizierung",
+          "description": "Schütze dein Admin-Konto mit einer Authenticator-App."
+        }
+      },
+      "hints": {
+        "externalBackup": "Tipp: Richte zusätzlich ein externes S3-Ziel ein, damit Backups nicht nur auf diesem Server liegen."
+      }
     }
   },
   "venues": {
@@ -801,6 +847,8 @@
     "title": "Einstellungen",
     "description": "Shopweite Konfiguration. Änderungen wirken nach wenigen Sekunden.",
     "general": {
+      "setupChecklistHint": "Die Erste-Schritte-Checkliste im Dashboard ist ausgeblendet.",
+      "setupChecklistShow": "Einrichtungs-Checkliste im Dashboard wieder anzeigen",
       "title": "Allgemein",
       "description": "Shop-Name und Vorgaben für neue Veranstaltungen.",
       "shopName": "Shop-Name",

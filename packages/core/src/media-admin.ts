@@ -1,3 +1,4 @@
+import { coreLog } from './log';
 import { mediaAssets, adminUsers, withTransaction, type Executor, type Transaction } from '@tix/db';
 import type { MediaAssetKind } from '@tix/shared';
 import { and, asc, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm';
@@ -468,9 +469,9 @@ export async function tryDeleteMediaAsset(
         await storage.delete(asset.bucket as 'assets' | 'documents', asset.objectKey);
       }
     } catch (err) {
-      console.error(
-        `Media object ${asset.bucket}/${asset.objectKey} could not be removed (left for the orphan sweep)`,
-        err,
+      coreLog.error(
+        { err, bucket: asset.bucket, objectKey: asset.objectKey },
+        'Media object could not be removed (left for the orphan sweep)',
       );
     }
   }

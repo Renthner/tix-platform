@@ -31,7 +31,13 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crc32, deflateRawSync } from 'node:zlib';
-import { embedFiles, missingDirectives, redisDirectives } from './compose-embed.mjs';
+import {
+  embedFiles,
+  missingDirectives,
+  redisDirectives,
+  releaseComposeProblems,
+  stripMaintainerBlock,
+} from './compose-embed.mjs';
 import { parseVersion } from './version.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -98,9 +104,13 @@ function zip(entries) {
   return Buffer.concat([...parts, cdBuf, end]);
 }
 
-// The template with the config files embedded (owner placeholder still in place).
+// The template without the maintainer block and with the config files embedded (placeholders
+// such as the owner are still in place).
 function renderCompose() {
-  return embedFiles(readFileSync(join(root, 'deploy/docker-compose.yml'), 'utf8'), {
+  const template = stripMaintainerBlock(
+    readFileSync(join(root, 'deploy/docker-compose.yml'), 'utf8').replace(/\r\n/g, '\n'),
+  );
+  return embedFiles(template, {
     __CADDYFILE__: readFileSync(join(root, CADDYFILE), 'utf8'),
     __MINIO_INIT__: readFileSync(join(root, MINIO_INIT), 'utf8'),
   });
@@ -126,14 +136,23 @@ function build(version, outdir, owner, repo) {
       .replaceAll(OWNER_PLACEHOLDER, owner)
       .replaceAll('__TIX_IMAGE_OWNER__', owner)
       .replaceAll('__TIX_VERSION__', version)
+      .replaceAll(
+        '__TIX_INSTALL_GUIDE__',
+        repo
+          ? `https://github.com/${repo}/blob/v${version}/docs/INSTALL.md`
+          : 'docs/INSTALL.md in the repository',
+      )
       // Pre-release bundles default to the channel that exists for them.
       .replaceAll('__TIX_CHANNEL__', v.prerelease ? 'next' : 'stable');
+  const composeOut = fill(compose);
+  const problems = releaseComposeProblems(composeOut);
+  if (problems.length) throw new Error(`generated docker-compose.yml: ${problems.join('; ')}`);
   let readme = fill(readFileSync(join(root, 'deploy/README.md'), 'utf8'));
   if (!repo) readme = readme.replace(/^More: .*\n?/m, '').trimEnd() + '\n';
   readme = readme.replaceAll('__TIX_REPOSITORY__', repo ?? '<owner>/<repo>');
 
   const files = [
-    { path: 'docker-compose.yml', data: Buffer.from(fill(compose)), mode: 0o644 },
+    { path: 'docker-compose.yml', data: Buffer.from(composeOut), mode: 0o644 },
     {
       path: '.env.example',
       data: Buffer.from(fill(readFileSync(join(root, 'deploy/.env.example'), 'utf8'))),
@@ -258,15 +277,13 @@ function check() {
         `deploy redis command lacks directives of ${REDIS_CONF}: ${missing.join(', ')}`,
       );
     }
-    // The documented override (published images on top of the base file) must stay valid.
-    const release = join(root, 'docker-compose.release.yml');
-    if (existsSync(release)) {
-      writeFileSync(
-        tmp,
-        readFileSync(tmp, 'utf8') + '\nTIX_IMAGE_OWNER=owner\nTIX_IMAGE_TAG=1.0.0\n',
-      );
-      composeConfig([join(root, 'docker-compose.yml'), release], tmp, root);
-    }
+    const leftovers = releaseComposeProblems(
+      renderCompose()
+        .replaceAll(OWNER_PLACEHOLDER, 'owner')
+        .replaceAll('__TIX_VERSION__', '0.0.0')
+        .replaceAll('__TIX_INSTALL_GUIDE__', 'docs/INSTALL.md'),
+    );
+    if (leftovers.length) throw new Error(`generated docker-compose.yml: ${leftovers.join('; ')}`);
     for (const f of SOURCES) if (!existsSync(join(root, f))) throw new Error(`missing ${f}`);
     console.log(
       'deploy/docker-compose.yml matches docker-compose.yml (services, healthchecks, volumes, dependencies; inline configs equal their sources).',

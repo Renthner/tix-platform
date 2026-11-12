@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { randomInt } from 'node:crypto';
 import {
   accessCodes,
@@ -239,9 +240,9 @@ async function placeOrderLocked(ctx: CoreContext, params: PlaceOrderParams): Pro
       try {
         await afterOrderCreated(ctx, sessionId, quote, created);
       } catch (err) {
-        console.error('[checkout] post-commit work failed, repairing from PostgreSQL', err);
+        coreLog.error({ err }, '[checkout] post-commit work failed, repairing from PostgreSQL');
         await repairAfterOrder(ctx, sessionId, quote, eventRows, created.orderId).catch((e) =>
-          console.error('[checkout] repair failed', e),
+          coreLog.error({ err: e }, '[checkout] repair failed'),
         );
       }
       return {
@@ -724,7 +725,7 @@ async function afterOrderCreated(
       await dispatchEmailMessage(ctx, created.emailMessageId);
     } catch (err) {
       // Stored in the outbox – the worker re-queues undispatched messages.
-      console.error('[checkout] confirmation e-mail could not be queued', err);
+      coreLog.error({ err }, '[checkout] confirmation e-mail could not be queued');
     }
   }
 }

@@ -7,7 +7,7 @@ apps/
   web/        Next.js 16 (App Router, next-intl) – storefront, Admin Portal, route handlers
   realtime/   Socket.io gateway – live seat deltas, waiting-room updates (stateless, scalable)
   worker/     BullMQ jobs + leader-elected loops (lock sweeper, waiting-room ticker)
-  android/    Offline-first check-in app (Kotlin, Phase 6)
+  android/    Offline-first check-in app (Kotlin)
 packages/
   shared/     Isomorphic: enums, Zod schemas, settings registry, seating rules, pricing, geometry
   db/         Drizzle schema, migrations, client, transaction helpers, seed & CLIs
@@ -122,12 +122,3 @@ database / Redis / S3 endpoints and credentials, the encryption key ring and the
 signing secret. Everything else – prices, fees, tax rates, TTLs, queue rules, payment
 providers, bank connections, SMTP, wallet certificates, templates, branding – is stored in
 PostgreSQL and managed in the Admin Portal.
-
-## Implementation phases
-
-1. Architecture, database schema & Docker foundation ✓
-2. Visual seating editor, Redis locking & waiting room ✓
-3. Checkout, PayPal & bank-transfer reconciliation engine ✓
-4. PDF ticket designer, Apple/Google Wallet & e-mail worker ✓
-5. **Admin Portal completion & box office** ← current
-6. Offline-first Android check-in app & pairing API

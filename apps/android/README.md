@@ -1,6 +1,6 @@
 # Check-in App (Android)
 
-Offline-first door scanner (Phase 6). Native Kotlin, Jetpack Compose (Material 3), CameraX + ML Kit
+Offline-first door scanner. Native Kotlin, Jetpack Compose (Material 3), CameraX + ML Kit
 barcode scanning (bundled model, QR only), Ktor client (OkHttp engine, kotlinx.serialization),
 WorkManager, Room (SQLite, KSP 2.3.13 + Room 2.8.5 work with AGP 9.5.1 built-in Kotlin 2.4.21).
 Distributed as a signed APK that is sideloaded (no Play Store). LAN sync via a master device

@@ -1,3 +1,4 @@
+import { requestLogger } from '@/server/logger';
 import { DomainError, handlePayPalWebhook } from '@tix/core';
 import { NextResponse } from 'next/server';
 import { getCore } from '@/server/core';
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     if (err instanceof DomainError && err.status < 500) {
       return NextResponse.json({ error: err.code }, { status: err.status });
     }
-    console.error('[paypal] webhook processing failed', err);
+    requestLogger(request).error({ err }, '[paypal] webhook processing failed');
     return NextResponse.json({ error: 'PROCESSING_FAILED' }, { status: 500 });
   }
 }

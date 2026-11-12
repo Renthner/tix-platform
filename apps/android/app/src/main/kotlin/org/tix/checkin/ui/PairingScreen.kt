@@ -1,6 +1,9 @@
 package org.tix.checkin.ui
 
+import android.content.Context
 import android.os.Build
+import android.provider.Settings
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,8 +44,10 @@ fun PairingScreen(vm: MainViewModel) {
     val notice by vm.settings.pairingNotice.collectAsState()
     var url by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
-    var name by rememberSaveable { mutableStateOf(Build.MODEL.orEmpty().take(40)) }
-    var manual by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    var name by rememberSaveable { mutableStateOf(defaultDeviceName(context)) }
+    // Manual entry first; the camera only opens when the operator taps "Scan QR code".
+    var manual by rememberSaveable { mutableStateOf(true) }
     val busy = state is PairUi.Working || state is PairUi.Syncing
 
     // A scanned QR code only fills this in: the operator sees WHICH server it points to and confirms first.
@@ -126,4 +131,15 @@ fun PairingScreen(vm: MainViewModel) {
             PairUi.Idle -> Unit
         }
     }
+}
+
+/** The name the user gave the phone (Settings → About phone → Device name), else the model. */
+private fun defaultDeviceName(context: Context): String {
+    val resolver = context.contentResolver
+    // Some OEM builds (e.g. older One UI) keep the user-set name only in Settings.System.
+    val userName = sequenceOf(
+        { Settings.Global.getString(resolver, Settings.Global.DEVICE_NAME) },
+        { Settings.System.getString(resolver, "device_name") },
+    ).firstNotNullOfOrNull { read -> runCatching(read).getOrNull()?.trim()?.takeIf { it.isNotEmpty() } }
+    return (userName ?: Build.MODEL.orEmpty()).take(40)
 }

@@ -1,5 +1,6 @@
 'use server';
 
+import { logger } from '@/server/logger';
 import {
   DomainError,
   cancelAdjustment,
@@ -39,7 +40,7 @@ async function run(fn: () => Promise<OrderActionState>): Promise<OrderActionStat
     return result;
   } catch (err) {
     if (err instanceof DomainError) return fail(err.code);
-    console.error('[admin/adjustments] action failed', err);
+    logger.error({ err }, '[admin/adjustments] action failed');
     return fail('INTERNAL_ERROR');
   }
 }

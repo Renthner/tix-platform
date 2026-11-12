@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import {
   orderAdjustments,
   accessCodeRedemptions,
@@ -769,7 +770,7 @@ export async function anonymizeCustomer(
     try {
       await ctx.storage?.delete('documents', key);
     } catch (err) {
-      console.error('[privacy] could not delete stored ticket file', err);
+      coreLog.error({ err }, '[privacy] could not delete stored ticket file');
     }
   }
   const { storageKeys: _keys, ...summary } = result;

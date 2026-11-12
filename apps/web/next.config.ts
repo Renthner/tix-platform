@@ -12,7 +12,10 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  // No `preload` / `includeSubDomains`: self-hosters often share a domain whose other
+  // subdomains are not (yet) HTTPS, and preload is practically irreversible.
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000' },
 ];
 
 const nextConfig: NextConfig = {

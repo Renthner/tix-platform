@@ -15,7 +15,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
@@ -30,10 +33,16 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -98,11 +107,16 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
         return
     }
 
-    Column(Modifier.fillMaxSize()) {
-        Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val wide = isWideOrLandscape()
+    val statusPanel: @Composable (Modifier) -> Unit = { panelModifier ->
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = panelModifier) {
+            Column(
+                Modifier.fillMaxWidth().then(if (wide) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text(row.event.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
+                    Text(row.event.title, style = MaterialTheme.typography.titleMedium, maxLines = if (wide) 3 else 1, modifier = Modifier.weight(1f))
                     Text(
                         stringResource(
                             when (connection) {
@@ -144,8 +158,21 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
                 }
             }
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            QrScanner(onCode = vm::onCode, modifier = Modifier.fillMaxSize(), debounceMillis = 2_500)
+    }
+    // Switching layouts recreates the QrScanner; its DisposableEffect unbinds and rebinds the camera to the lifecycle.
+    if (wide) {
+        Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxHeight()) {
+                QrScanner(onCode = vm::onCode, modifier = Modifier.fillMaxSize(), debounceMillis = 2_500)
+            }
+            statusPanel(Modifier.width(340.dp).fillMaxHeight())
+        }
+    } else {
+        Column(Modifier.fillMaxSize()) {
+            statusPanel(Modifier)
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                QrScanner(onCode = vm::onCode, modifier = Modifier.fillMaxSize(), debounceMillis = 2_500)
+            }
         }
     }
 }
@@ -185,12 +212,24 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
             }
         }
     }
+    val context = LocalContext.current
+    val headline = stringResource(verdictHeadline(v))
+    val tapDismiss = stringResource(R.string.result_tap_dismiss)
+    val announcement = remember(v, style, headline, tapDismiss) {
+        resultAnnouncement(context, v, style, headline, tapDismiss)
+    }
+    val fontScale = LocalDensity.current.fontScale
     Box(
         Modifier.fillMaxSize().background(bg).clickable { vm.dismissVerdict(ui.seq) },
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            Modifier.fillMaxWidth().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
+            // One assertive live region: TalkBack reads the verdict as soon as it appears, instead of the pieces.
+            Modifier.widthIn(max = 600.dp).fillMaxWidth().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp)
+                .clearAndSetSemantics {
+                    liveRegion = LiveRegionMode.Assertive
+                    contentDescription = announcement
+                },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -204,17 +243,37 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
                         v.result?.isAccepted == true -> "✓"
                         else -> "✕"
                     },
-                    fontSize = 120.sp, fontWeight = FontWeight.Bold, color = fg,
+                    fontSize = (120f / fontScale).sp, fontWeight = FontWeight.Bold, color = fg,
                 )
             }
             Text(
-                stringResource(verdictHeadline(v)),
-                fontSize = 34.sp, fontWeight = FontWeight.Bold, color = fg, textAlign = TextAlign.Center,
+                headline,
+                // Scales with the font setting, but only up to 1.3x so the headline stays on screen.
+                fontSize = (34f * fontScale.coerceAtMost(1.3f) / fontScale).sp, fontWeight = FontWeight.Bold, color = fg, textAlign = TextAlign.Center,
             )
             ResultDetails(v, style, fg)
             Text(stringResource(R.string.result_tap_dismiss), color = fg.copy(alpha = 0.75f), style = MaterialTheme.typography.bodySmall)
         }
     }
+}
+
+/** Spoken form of the full-screen result: headline, ticket data, warnings, first scan. */
+private fun resultAnnouncement(context: android.content.Context, v: ScanVerdict, style: ResultStyle, headline: String, tapDismiss: String): String {
+    val parts = mutableListOf(headline)
+    v.ticket?.let { t ->
+        t.attendeeName?.takeIf { it.isNotBlank() }?.let { parts += it }
+        val category = listOf(t.categoryName, t.ticketTypeName).filter { it.isNotBlank() }.joinToString(" - ")
+        if (category.isNotEmpty()) parts += category
+        val seat = seatText(t.sectionLabel, t.rowLabel, t.seatLabel)
+        if (seat.isNotEmpty()) parts += seat
+    }
+    style.lead?.let { parts += warningText(context, v, it) }
+    style.others.forEach { parts += warningText(context, v, it.warning) }
+    if (v.result == org.tix.checkin.core.contract.ScanResult.REJECTED_ALREADY_CHECKED_IN) {
+        v.firstScan?.let { parts += context.getString(R.string.result_first_scan, formatTime(context, it.at), it.deviceName ?: "-") }
+    }
+    parts += tapDismiss
+    return parts.joinToString(". ")
 }
 
 @Composable

@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { escapeHtml, trustedHtml } from '../email/template';
 import type { CoreContext } from '../context';
 import { mailTranslator } from '../i18n/mail-messages';
@@ -60,7 +61,7 @@ export async function ticketLinksVariable(ctx: CoreContext, orderId: string, loc
   try {
     links = await ticketEmailLinks(ctx, orderId);
   } catch (err) {
-    console.error('[tickets] could not build ticket links', err);
+    coreLog.error({ err }, '[tickets] could not build ticket links');
     return trustedHtml('', '');
   }
   if (links.length === 0) return trustedHtml('', '');

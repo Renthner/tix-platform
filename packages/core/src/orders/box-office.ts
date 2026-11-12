@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { randomUUID } from 'node:crypto';
 import {
   isUniqueViolation,
@@ -494,7 +495,7 @@ async function createBoxOfficeOrderLocked(
     try {
       await fn();
     } catch (err) {
-      console.error(`[box-office] ${what} failed after the sale was committed`, err);
+      coreLog.error({ err, step: what }, '[box-office] step failed after the sale was committed');
     }
   };
   for (const quoted of quote.events) {
@@ -539,7 +540,7 @@ async function createBoxOfficeOrderLocked(
     ticketCount = (await ensureOrderTickets(ctx, created.orderId)).length;
   } catch (err) {
     ticketsReady = false;
-    console.error('[box-office] tickets could not be issued (the worker retries)', err);
+    coreLog.error({ err }, '[box-office] tickets could not be issued (the worker retries)');
   }
   // The invoice does not depend on the job: issue it now (idempotent; null for complimentary tickets).
   await safe('invoice', () => issueInvoice(ctx, created.orderId));

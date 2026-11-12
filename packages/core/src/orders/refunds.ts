@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { randomUUID } from 'node:crypto';
 import {
   bankTransactions,
@@ -493,7 +494,10 @@ export async function cancelPaidOrder(
     try {
       await fn();
     } catch (err) {
-      console.error(`[refunds] ${what} failed after the cancellation was committed`, err);
+      coreLog.error(
+        { err, step: what },
+        '[refunds] step failed after the cancellation was committed',
+      );
     }
   };
   await guarded('seat release', () => releaseInventory(ctx, outcome.released));
@@ -862,7 +866,7 @@ export async function enqueueRefund(
     );
   } catch (err) {
     // The refund row is stored; the sweeper picks it up.
-    console.error('[refunds] refund job could not be queued (sweeper retries)', err);
+    coreLog.error({ err }, '[refunds] refund job could not be queued (sweeper retries)');
   }
 }
 

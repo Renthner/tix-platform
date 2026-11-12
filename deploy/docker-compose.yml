@@ -1,21 +1,26 @@
-# TIX Platform - production compose file (release asset docker-compose.yml).
+# TIX Platform - production docker-compose.yml (release __TIX_VERSION__)
 #
-# Self-contained: together with .env (copy of .env.example) this is ALL you need - no other file
-# or folder. Runs the published images from ghcr.io; nothing is built on the server.
-# Requires Docker Compose >= 2.23.1 (inline `configs: content:`); check with `docker compose version`.
+# Self-contained: this file plus a .env next to it is ALL you need - no other file or folder.
+# It runs the published images from ghcr.io; nothing is built on the server.
+# Requires Docker Compose >= 2.23.1; check with `docker compose version`.
 #
-#   cp .env.example .env     # (release asset: env.example) fill in the secrets, set TIX_CHANNEL
-#   docker compose pull && docker compose up -d
-#   docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
+# Setup (two files from the release page: docker-compose.yml and env.example):
+#   1. Save env.example as .env next to this file and fill in the secrets (see the comments in it).
+#   2. docker compose up -d
+#   3. docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
 #
 # Only the `proxy` service (Caddy) is reachable from the browser (HTTP_PORT / HTTPS_PORT).
-# PostgreSQL, Redis and MinIO publish no host ports (see README.md to expose one for debugging).
-#
-# Source file in the repository: deploy/docker-compose.yml is a TEMPLATE. The marker lines
-# __CADDYFILE__ and __MINIO_INIT__ are replaced by docker/caddy/Caddyfile and docker/minio/init.sh
-# (with `$` escaped as `$$`) and TIX_IMAGE_OWNER_DEFAULT by the repository owner when the release
-# is built; `node scripts/release/deploy-bundle.mjs --check` (CI) fails when the services drift
-# apart from docker-compose.yml.
+# PostgreSQL, Redis and MinIO publish no host ports.
+# Full install guide: __TIX_INSTALL_GUIDE__
+
+# MAINTAINER-BEGIN
+# Maintainer notes (stripped from the generated release file by scripts/release/deploy-bundle.mjs):
+# deploy/docker-compose.yml is a TEMPLATE. The marker lines __CADDYFILE__ and __MINIO_INIT__ are
+# replaced by docker/caddy/Caddyfile and docker/minio/init.sh (with `$` escaped as `$$`),
+# TIX_IMAGE_OWNER_DEFAULT by the repository owner, __TIX_VERSION__ / __TIX_INSTALL_GUIDE__ at build
+# time. `node scripts/release/deploy-bundle.mjs --check` (CI) fails when the services drift apart
+# from docker-compose.yml.
+# MAINTAINER-END
 
 name: ${COMPOSE_PROJECT_NAME:-tix}
 
@@ -30,7 +35,6 @@ x-app-environment: &app-environment
   APP_ENCRYPTION_KEYS: ${APP_ENCRYPTION_KEYS:?set APP_ENCRYPTION_KEYS in .env}
   SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
   S3_ENDPOINT: http://minio:9000
-  S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000}
   S3_REGION: ${S3_REGION:-us-east-1}
   S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}

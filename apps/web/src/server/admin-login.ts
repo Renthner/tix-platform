@@ -1,3 +1,4 @@
+import { logger } from '@/server/logger';
 import 'server-only';
 import {
   adminNeedsTwoFactorSetup,
@@ -57,7 +58,7 @@ async function linkShopSession(
       });
     }
   } catch (err) {
-    console.error('[admin-login] linking the customer account failed', err);
+    logger.error({ err }, '[admin-login] linking the customer account failed');
   }
 }
 

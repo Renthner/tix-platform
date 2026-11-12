@@ -1,3 +1,4 @@
+import { requestLogger } from '@/server/logger';
 import { DomainError, placeOrder, startPayPalPayment } from '@tix/core';
 import { checkoutInputSchema } from '@tix/shared';
 import { NextResponse } from 'next/server';
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
         if (started.status === 'REDIRECT') redirect = started.url;
       } catch (err) {
         // The order exists and keeps its seats; the customer can retry on the order page.
-        console.error('[checkout] PayPal payment could not be started', err);
+        requestLogger(request).error({ err }, '[checkout] PayPal payment could not be started');
         redirect = `${orderPath}&paypal=unavailable`;
       }
     }

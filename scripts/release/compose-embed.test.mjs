@@ -7,6 +7,8 @@ import {
   escapeCompose,
   missingDirectives,
   redisDirectives,
+  releaseComposeProblems,
+  stripMaintainerBlock,
   yamlBlock,
 } from './compose-embed.mjs';
 
@@ -56,4 +58,24 @@ test('every dollar of the real config files is escaped in the block', () => {
     assert.equal(block.replaceAll('$$', '').includes('$'), false, f);
     assert.equal(block.replaceAll('$$', '$').replace(/^ {6}/gm, ''), source.replace(/\n+$/, ''));
   }
+});
+
+test('maintainer block is stripped and the release compose has no leftovers', () => {
+  const tpl = '# head\n\n# MAINTAINER-BEGIN\n# secret __X__\n# MAINTAINER-END\n\nname: x\n';
+  assert.equal(stripMaintainerBlock(tpl), '# head\n\nname: x\n');
+  assert.deepEqual(releaseComposeProblems('name: x\n'), []);
+  assert.equal(releaseComposeProblems('# __CADDYFILE__\n').length, 1);
+  assert.equal(releaseComposeProblems('a TIX_IMAGE_OWNER_DEFAULT').length, 1);
+  assert.equal(releaseComposeProblems('# MAINTAINER-BEGIN').length, 1);
+  // the real template, stripped and with the build-time placeholders filled
+  const real = stripMaintainerBlock(repo('deploy/docker-compose.yml').replace(/\r\n/g, '\n'));
+  assert.ok(!real.includes('MAINTAINER'));
+  const filled = embedFiles(real, {
+    __CADDYFILE__: repo('docker/caddy/Caddyfile'),
+    __MINIO_INIT__: repo('docker/minio/init.sh'),
+  })
+    .replaceAll('TIX_IMAGE_OWNER_DEFAULT', 'o')
+    .replaceAll('__TIX_VERSION__', '1.0.0')
+    .replaceAll('__TIX_INSTALL_GUIDE__', 'x');
+  assert.deepEqual(releaseComposeProblems(filled), []);
 });

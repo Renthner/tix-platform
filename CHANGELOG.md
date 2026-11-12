@@ -8,6 +8,48 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+### Added
+
+- Setup checklist on the admin dashboard for new installations (organiser details, e-mail
+  delivery, payment method, check-in server address, venue, published event, backups, two-factor
+  authentication); it hides itself when everything is done and can be hidden and shown again.
+- Translated error and "page not found" pages for the shop and the admin portal.
+- Content-Security-Policy with a per-request nonce and `Cross-Origin-Opener-Policy`.
+- Check-in app: database migrations are tested against the real schema of every version; the
+  scan result is announced by screen readers.
+- Check-in app on tablets and in landscape: navigation rail, camera and status side by side,
+  content limited to a readable width.
+- Structured JSON logs (pino) in the web app and the shared core, with secrets redacted, a
+  request id set by the proxy (`X-Request-Id`) and the `LOG_LEVEL` setting.
+- Browser end-to-end tests (Playwright) against an isolated stack built from the current code
+  (`pnpm test:e2e`), also run in CI: seat selection, live seat updates, cart, checkout, admin
+  pages, not-found pages and the Content-Security-Policy.
+
+### Changed
+
+- The check-in app's pairing starts with manual entry (the camera opens via "Scan QR code");
+  the device name defaults to the name set in the phone's settings.
+- `S3_PUBLIC_URL` is no longer needed (optional, ignored).
+- `Strict-Transport-Security` no longer sends `preload` and `includeSubDomains`, so other
+  subdomains of the organiser's domain are not forced to HTTPS.
+- Check-in app: the result tone follows the notification volume instead of the media volume
+  (still silent in silent and do-not-disturb mode); large system font sizes no longer push the
+  result text off screen.
+- Documentation overhaul: new README (English and German) with screenshots, a step-by-step
+  server installation guide (`docs/INSTALL.md`, `docs/INSTALL.de.md`) with HTTPS variants and a
+  troubleshooting table, documentation index, `SECURITY.md`, `CONTRIBUTING.md`, issue and pull
+  request templates. The release guide no longer refers to `docker-compose.release.yml`.
+
+### Fixed
+
+- The ticket count in the admin order list was always 0.
+- The connection count in the bank account list was always 0.
+- The seat count per seating plan in the venue list was always 0.
+
+### Removed
+
+- `docker-compose.release.yml` (use the two-file release deploy).
+
 ## [1.0.0-alpha.3] - 2026-11-11
 
 ### Added

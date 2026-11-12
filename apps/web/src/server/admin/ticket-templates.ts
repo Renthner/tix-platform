@@ -1,5 +1,6 @@
 'use server';
 
+import { logger } from '@/server/logger';
 import {
   DomainError,
   assignCategoryTicketTemplate,
@@ -42,7 +43,7 @@ function refresh(): void {
 function failure(err: unknown): ActionState {
   if (err instanceof DomainError && err.status === 404) return formError('notFound');
   if (err instanceof DomainError) return formError('generic');
-  console.error('[admin/ticket-templates] action failed', err);
+  logger.error({ err }, '[admin/ticket-templates] action failed');
   return formError('generic');
 }
 
@@ -66,7 +67,7 @@ export async function saveTicketTemplateAction(
     return { status: 'saved', version: row.version, at: Date.now() };
   } catch (err) {
     if (err instanceof DomainError) return fail(err.code);
-    console.error('[admin/ticket-templates] save failed', err);
+    logger.error({ err }, '[admin/ticket-templates] save failed');
     return fail('INTERNAL_ERROR');
   }
 }

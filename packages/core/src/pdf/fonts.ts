@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,7 +65,7 @@ export function loadBundledFontBytes(): Promise<FontBytes | null> {
         // try the next candidate
       }
     }
-    console.warn('[pdf] bundled Noto Sans not found, falling back to PDF standard fonts');
+    coreLog.warn({}, '[pdf] bundled Noto Sans not found, falling back to PDF standard fonts');
     return null;
   })();
   return cached;
@@ -90,7 +91,10 @@ export async function embedPdfFonts(doc: PDFDocument): Promise<PdfFonts> {
         unicode: true,
       };
     } catch (error) {
-      console.warn('[pdf] embedding Noto Sans failed, falling back to standard fonts', error);
+      coreLog.warn(
+        { err: error },
+        '[pdf] embedding Noto Sans failed, falling back to standard fonts',
+      );
     }
   }
   return {

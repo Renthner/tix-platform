@@ -1,4 +1,5 @@
 export * from './context';
+export * from './log';
 export * from './settings';
 export * from './events';
 export * from './content-locale';
@@ -66,3 +67,4 @@ export * from './accounting/datev';
 export * from './accounting/csv';
 export * from './translations-admin';
 export * from './scanner';
+export * from './setup-checklist';

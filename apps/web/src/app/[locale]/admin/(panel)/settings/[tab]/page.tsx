@@ -11,6 +11,7 @@ import {
   SmtpTestForm,
 } from '@/components/admin/commerce-settings-forms';
 import { PageHeader } from '@/components/admin/form-controls';
+import { Button } from '@/components/ui/button';
 import {
   BrandingSettingsForm,
   CheckoutSettingsForm,
@@ -33,6 +34,7 @@ import { resolveLocale } from '@/i18n/locale';
 import { SETTINGS_TABS, type SettingsTab } from '@/lib/settings-tabs';
 import { requireAdmin } from '@/server/auth';
 import { saveSettingsAction, sendTestEmailAction } from '@/server/admin/settings';
+import { restoreSetupChecklistAction } from '@/server/admin/setup-checklist';
 import {
   checkAppleWalletAction,
   checkGoogleWalletAction,
@@ -104,14 +106,31 @@ async function TabContent({
   );
 
   switch (tab) {
-    case 'general':
-      return section(
-        'general',
-        <GeneralSettingsForm
-          action={saveSettingsAction.bind(null, 'general')}
-          initial={await getSetting(core, 'general')}
-        />,
+    case 'general': {
+      const checklistDismissed = (await getSetting(core, 'setupChecklist')).dismissed;
+      return (
+        <>
+          {section(
+            'general',
+            <GeneralSettingsForm
+              action={saveSettingsAction.bind(null, 'general')}
+              initial={await getSetting(core, 'general')}
+            />,
+          )}
+          {checklistDismissed && (
+            <form
+              action={restoreSetupChecklistAction}
+              className="flex items-center justify-between gap-4 rounded-lg border p-4"
+            >
+              <p className="text-sm text-muted-foreground">{t('general.setupChecklistHint')}</p>
+              <Button type="submit" variant="outline" size="sm">
+                {t('general.setupChecklistShow')}
+              </Button>
+            </form>
+          )}
+        </>
       );
+    }
     case 'appearance': {
       const [branding, seatDisplay] = await Promise.all([
         getSetting(core, 'branding'),

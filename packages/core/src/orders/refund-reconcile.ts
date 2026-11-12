@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { randomUUID } from 'node:crypto';
 import {
   orderHistory,
@@ -226,7 +227,7 @@ export async function enqueueRefundReconcile(ctx: Pick<CoreContext, 'jobs'>): Pr
       },
     );
   } catch (err) {
-    console.error('[refunds] reconcile job could not be queued (sweeper retries)', err);
+    coreLog.error({ err }, '[refunds] reconcile job could not be queued (sweeper retries)');
   }
 }
 
@@ -368,7 +369,7 @@ export async function reconcileRefundsAfterRestore(
           if (kind === 'TRANSIENT') {
             result.errors += 1;
             firstError ??= message;
-            console.error('[refunds] reconcile after restore failed', providerOrderId, err);
+            coreLog.error({ err, providerOrderId }, '[refunds] reconcile after restore failed');
             continue;
           }
           if (kind === 'NOT_FOUND') result.notFound += 1;

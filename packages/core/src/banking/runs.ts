@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { randomUUID } from 'node:crypto';
 import { bankConnections, bankSyncRuns, bankTanChallenges, isUniqueViolation } from '@tix/db';
 import type { BankSyncStatus, BankSyncTrigger } from '@tix/shared';
@@ -167,7 +168,7 @@ export async function withMutex<T>(
         .then((renewed) => {
           if (renewed !== 1 && !lostLogged) {
             lostLogged = true;
-            console.warn(`[mutex] lease of "${name}" was lost while its body is still running`);
+            coreLog.warn({ name }, '[mutex] lease was lost while its body is still running');
           }
         })
         .catch(() => undefined);
@@ -187,6 +188,6 @@ export async function withMutex<T>(
         key,
         token,
       )
-      .catch((err) => console.warn(`[mutex] release of "${name}" failed`, err));
+      .catch((err) => coreLog.warn({ err, name }, '[mutex] release failed'));
   }
 }

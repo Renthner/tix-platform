@@ -80,6 +80,13 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
+    // The JVM migration test (Robolectric) reads the exported Room schemas as assets. Debug builds only: never in release.
+    sourceSets.getByName("debug").assets.directories.add("schemas")
+
     packaging {
         resources.excludes += setOf(
             "/META-INF/{AL2.0,LGPL2.1}",
@@ -88,6 +95,11 @@ android {
             "/META-INF/DEPENDENCIES",
         )
     }
+}
+
+ksp {
+    // Every released database version must have its schema file committed here (see TixMigrationTest).
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 kotlin {
@@ -142,4 +154,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.androidx.room.testing)
 }

@@ -5,7 +5,9 @@ nothing is built on the server. You need exactly **two files**: `docker-compose.
 All configuration files (reverse proxy, Redis settings, bucket setup) are embedded in the compose
 file.
 
-Requirements: Docker Engine with **Docker Compose >= 2.23.1** (`docker compose version`).
+Requirements: Docker Engine with **Docker Compose >= 2.23.1** (`docker compose version`; distribution packages are often older: install Docker from Docker's official repository).
+
+The complete step-by-step guide (HTTPS variants for Caddy, Traefik, nginx and others, first configuration, troubleshooting): https://github.com/__TIX_REPOSITORY__/blob/v__TIX_VERSION__/docs/INSTALL.md
 
 ## Quick start
 
@@ -92,6 +94,7 @@ change, lost when you download a new compose file).
 sha256sum -c SHA256SUMS.txt --ignore-missing
 gh attestation verify docker-compose.yml -R __TIX_REPOSITORY__ \
   --signer-workflow __TIX_REPOSITORY__/.github/workflows/release.yml
+# needs cosign v3 or newer
 cosign verify ghcr.io/__TIX_IMAGE_OWNER__/tix-web:__TIX_VERSION__ \
   --certificate-identity-regexp '^https://github\.com/__TIX_REPOSITORY__/\.github/workflows/release\.yml@refs/tags/v.*$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com

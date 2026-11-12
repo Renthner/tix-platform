@@ -12,7 +12,7 @@
     <string name="action_cancel">Cancel</string>
 
     <string name="pairing_title">Pair this device</string>
-    <string name="pairing_hint">Scan the pairing QR code shown in the admin portal under Check-in devices, or enter server address and code manually.</string>
+    <string name="pairing_hint">Enter the server address and pairing code from the admin portal (Check-in devices), or tap “Scan QR code”.</string>
     <string name="pairing_revoked">This device was removed by the server. Pair it again to continue.</string>
     <string name="pairing_device_name">Device name</string>
     <string name="pairing_enter_manually">Enter code manually</string>
@@ -118,6 +118,8 @@
     <string name="settings_green_seconds">Green result duration</string>
     <string name="settings_alert_seconds">Yellow / red result duration</string>
     <string name="settings_seconds">%1$d s</string>
+    <string name="settings_decrease">Decrease %1$s</string>
+    <string name="settings_increase">Increase %1$s</string>
     <string name="settings_sound">Sound</string>
     <string name="settings_vibrate">Vibration</string>
     <string name="settings_version">Version %1$s (%2$d)</string>

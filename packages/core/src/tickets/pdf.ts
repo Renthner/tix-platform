@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import {
   TICKET_FIELD_VARIABLES,
   TICKET_LABEL_KEYS,
@@ -105,7 +106,7 @@ export class TicketPdfResources {
           const source = await load();
           return source ? await embedImage(this.doc, source) : null;
         } catch (err) {
-          console.warn(`[tickets] image ${key} could not be embedded`, err);
+          coreLog.warn({ err, key }, '[tickets] image could not be embedded');
           return null;
         }
       })();

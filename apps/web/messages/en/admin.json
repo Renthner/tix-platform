@@ -205,6 +205,52 @@
       "failing": "The comparison with PayPal keeps failing ({error}). Automatic refunds stay paused.",
       "reviewTitle": "{count, plural, one {# order needs a refund review} other {# orders need a refund review}}",
       "reviewText": "PayPal shows refunds that are not recorded here. Automatic refunds of these orders are on hold."
+    },
+    "setup": {
+      "title": "First steps",
+      "description": "Finish these steps to get your ticket shop ready for the first sale.",
+      "progress": "{done} of {total} steps done",
+      "dismiss": "Hide",
+      "go": "Set up",
+      "done": "done",
+      "open": "open",
+      "steps": {
+        "organizer": {
+          "title": "Organiser details",
+          "description": "Name, address and contact e-mail for invoices and the imprint."
+        },
+        "email": {
+          "title": "E-mail delivery",
+          "description": "Configure SMTP and send a test e-mail so tickets and confirmations reach your customers."
+        },
+        "payment": {
+          "title": "Payment method",
+          "description": "Enable PayPal, or bank transfer together with a default receiving bank account."
+        },
+        "scanner": {
+          "title": "Check-in app server address",
+          "description": "Set an address the phones can reach (not localhost) for pairing the scanner app."
+        },
+        "venue": {
+          "title": "Venue with a seating plan",
+          "description": "Create a venue and draw or import its seating plan."
+        },
+        "event": {
+          "title": "Published event",
+          "description": "Create an event and publish it in the shop."
+        },
+        "backups": {
+          "title": "Automatic backups",
+          "description": "Switch on a backup schedule so your data is safe."
+        },
+        "twoFactor": {
+          "title": "Two-factor authentication",
+          "description": "Protect your admin account with an authenticator app."
+        }
+      },
+      "hints": {
+        "externalBackup": "Tip: also configure an external S3 target so backups are stored off this server."
+      }
     }
   },
   "venues": {
@@ -801,6 +847,8 @@
     "title": "Settings",
     "description": "Shop-wide configuration. Changes take effect within a few seconds.",
     "general": {
+      "setupChecklistHint": "The dashboard's first-steps checklist is hidden.",
+      "setupChecklistShow": "Show setup checklist on the dashboard again",
       "title": "General",
       "description": "Shop name and defaults for new events.",
       "shopName": "Shop name",

@@ -197,7 +197,7 @@ of the address, orders are only listed after the e-mail has been verified
 | `PAID`               | Fully paid (`amount_paid >= total_gross`); items `CONFIRMED`, invoice + confirmation queued                 |
 | `CANCELLED`          | Unpaid order cancelled (admin, customer, dunning) – items `CANCELLED`, seats / GA capacity released         |
 | `EXPIRED`            | Abandoned online payment                                                                                    |
-| `REFUNDED` / partial | Refund workflow (phase 5)                                                                                   |
+| `REFUNDED` / partial | Refund workflow                                                                                             |
 
 - **Payment reference** `PREFIX-YYYY-NNNNNN-C`: random 6-digit number per year, `C` = Luhn
   check digit over year + number (detects typos and swapped digits). Unique per order.

@@ -1,5 +1,6 @@
 'use server';
 
+import { logger } from '@/server/logger';
 import {
   DomainError,
   completeManualRefund,
@@ -36,7 +37,7 @@ async function run(refundId: string, fn: () => Promise<OrderActionState>) {
     return result;
   } catch (err) {
     if (err instanceof DomainError) return fail(err.code);
-    console.error('[admin/refunds] action failed', err);
+    logger.error({ err }, '[admin/refunds] action failed');
     return fail('INTERNAL_ERROR');
   }
 }
@@ -152,7 +153,7 @@ export async function resolveRestoreReviewAction(
     return ok('restoreReviewResolved');
   } catch (err) {
     if (err instanceof DomainError) return fail(err.code);
-    console.error('[admin/refunds] review action failed', err);
+    logger.error({ err }, '[admin/refunds] review action failed');
     return fail('INTERNAL_ERROR');
   }
 }
@@ -217,7 +218,7 @@ export async function recordExistingRefundAction(
     return ok('existingRefundRecorded');
   } catch (err) {
     if (err instanceof DomainError) return fail(err.code);
-    console.error('[admin/refunds] record existing refund failed', err);
+    logger.error({ err }, '[admin/refunds] record existing refund failed');
     return fail('INTERNAL_ERROR');
   }
 }
@@ -238,7 +239,7 @@ export async function skipRefundReconciliationAction(
     revalidatePath('/[locale]/admin', 'layout');
     return ok('reconciliationSkipped');
   } catch (err) {
-    console.error('[admin/refunds] skip reconciliation failed', err);
+    logger.error({ err }, '[admin/refunds] skip reconciliation failed');
     return fail('INTERNAL_ERROR');
   }
 }

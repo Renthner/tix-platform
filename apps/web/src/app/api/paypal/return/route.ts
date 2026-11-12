@@ -1,3 +1,4 @@
+import { requestLogger } from '@/server/logger';
 import {
   completePayPalPayment,
   verifyOrderAccessToken,
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
     if (result.status === 'RETRY' && result.url) return NextResponse.redirect(result.url, 303);
     outcome = OUTCOME[result.status];
   } catch (err) {
-    console.error('[paypal] capture after return failed', err);
+    requestLogger(request).error({ err, orderId }, '[paypal] capture after return failed');
   }
   return NextResponse.redirect(`${page}&paypal=${outcome}`, 303);
 }

@@ -11,7 +11,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,7 +61,7 @@ fun TixApp() {
     }
     when (paired) {
         null -> Box(Modifier.fillMaxSize())
-        false -> PairingScreen(vm)
+        false -> ReadableWidth { PairingScreen(vm) }
         true -> PairedApp(vm)
     }
     // The result covers everything (also the manual lookup) until dismissed.
@@ -82,9 +90,30 @@ private fun PairedApp(vm: MainViewModel) {
         if (selected != null && current == Destination.Events.route && events.size == 1) go(Destination.Scanner)
     }
 
+    val compact = currentWidthClass() == WidthClass.COMPACT
+    val destinationItems: @Composable (Boolean) -> Unit = { rail ->
+        Destination.entries.forEach { dest ->
+            if (rail) {
+                NavigationRailItem(
+                    selected = current == dest.route,
+                    onClick = { go(dest) },
+                    icon = { Icon(painterResource(dest.icon), contentDescription = stringResource(dest.label)) },
+                    label = { Text(stringResource(dest.label), maxLines = 1) },
+                    alwaysShowLabel = true,
+                )
+            }
+        }
+    }
+    Row(Modifier.fillMaxSize()) {
+    if (!compact) {
+        NavigationRail { destinationItems(true) }
+    }
     Scaffold(
+        modifier = Modifier.weight(1f),
+        contentWindowInsets = if (compact) ScaffoldDefaults.contentWindowInsets
+        else WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End + WindowInsetsSides.Bottom),
         bottomBar = {
-            NavigationBar {
+            if (compact) NavigationBar {
                 Destination.entries.forEach { dest ->
                     NavigationBarItem(
                         selected = current == dest.route,
@@ -116,12 +145,13 @@ private fun PairedApp(vm: MainViewModel) {
             startDestination = Destination.Events.route,
             modifier = Modifier.weight(1f),
         ) {
-            composable(Destination.Events.route) { EventsScreen(vm, onSelected = { go(Destination.Scanner) }) }
+            composable(Destination.Events.route) { ReadableWidth { EventsScreen(vm, onSelected = { go(Destination.Scanner) }) } }
             composable(Destination.Scanner.route) { ScannerScreen(vm, onChooseEvent = { go(Destination.Events) }) }
-            composable(Destination.Lookup.route) { LookupScreen(vm, onChooseEvent = { go(Destination.Events) }) }
-            composable(Destination.History.route) { HistoryScreen(vm) }
-            composable(Destination.Settings.route) { SettingsScreen(vm) }
+            composable(Destination.Lookup.route) { ReadableWidth { LookupScreen(vm, onChooseEvent = { go(Destination.Events) }) } }
+            composable(Destination.History.route) { ReadableWidth { HistoryScreen(vm) } }
+            composable(Destination.Settings.route) { ReadableWidth { SettingsScreen(vm) } }
         }
         }
+    }
     }
 }

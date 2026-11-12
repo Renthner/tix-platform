@@ -12,10 +12,12 @@ import org.tix.checkin.core.contract.ScanColor
 /**
  * Distinct sound + haptic pattern per result colour. Tones come from the platform's
  * ToneGenerator (no audio assets). The generator is created once: creating one per scan costs latency.
+ * Tones play on the notification stream (sonification usage), so a muted media volume does not silence the scanner
+ * while ringer silent/Do-Not-Disturb still does (deliberately not bypassed).
  */
 class Feedback(context: Context) {
     private val tone: ToneGenerator? = try {
-        ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+        ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
     } catch (_: RuntimeException) {
         null
     }

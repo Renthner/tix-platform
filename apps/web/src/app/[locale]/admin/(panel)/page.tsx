@@ -6,6 +6,7 @@ import {
   countRefundRestoreReviews,
   getRefundReconcileStatus,
   getBackupFailure,
+  getSetupChecklist,
 } from '@tix/core';
 import { Building2, CalendarPlus, DatabaseBackup, Hourglass, Undo2 } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
@@ -13,6 +14,7 @@ import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { LiveDashboard } from '@/components/admin/live-dashboard';
+import { SetupChecklistCard } from '@/components/admin/setup-checklist-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -57,6 +59,7 @@ export default async function AdminDashboardPage({
     live,
     refundReviews,
     reconcile,
+    setup,
   ] = await Promise.all([
     getTranslations('admin.dashboard'),
     getTranslations('backups.dashboardAlert'),
@@ -76,6 +79,10 @@ export default async function AdminDashboardPage({
     hasRole(session, ['FINANCE'])
       ? getRefundReconcileStatus(getCore()).catch(() => null)
       : Promise.resolve(null),
+    // Same role as the settings pages; a failing probe must never break the dashboard.
+    session.roles.includes('SUPER_ADMIN')
+      ? getSetupChecklist(getCore(), session.userId).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -87,6 +94,7 @@ export default async function AdminDashboardPage({
             <AlertDescription>{t('denied')}</AlertDescription>
           </Alert>
         )}
+        {setup && !setup.allDone && <SetupChecklistCard checklist={setup} />}
         {backupFailure && (
           <Alert variant="destructive">
             <DatabaseBackup className="size-4" />

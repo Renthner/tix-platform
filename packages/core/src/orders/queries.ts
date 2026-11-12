@@ -404,7 +404,8 @@ export async function searchOrders(
     conditions.push(eq(orders.status, 'AWAITING_PAYMENT'), sql`${orders.paymentDueAt} < now()`);
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const ticketCount = sql<number>`(SELECT count(*)::int FROM ${orderItems} WHERE ${orderItems.orderId} = ${orders.id})`;
+  // Drizzle renders columns unqualified in a single-table select, so the outer column is spelled out.
+  const ticketCount = sql<number>`(SELECT count(*)::int FROM ${orderItems} WHERE ${orderItems.orderId} = "orders"."id")`;
   const [rows, [totalRow]] = await Promise.all([
     ctx.db
       .select({

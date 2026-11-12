@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Installation guide
+    url: https://github.com/Renthner/tix-platform/blob/main/docs/INSTALL.md
+    about: Step-by-step server installation and troubleshooting table.
+  - name: Report a security vulnerability
+    url: https://github.com/Renthner/tix-platform/security/advisories/new
+    about: Please report security problems privately, not as a public issue.

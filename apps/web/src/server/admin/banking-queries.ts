@@ -28,7 +28,8 @@ export type BankConnectionRow = typeof bankConnections.$inferSelect;
 
 export async function listBankAccounts() {
   const { db } = getCore();
-  const connectionCount = sql<number>`(SELECT count(*)::int FROM ${bankConnections} WHERE ${bankConnections.bankAccountId} = ${bankAccounts.id})`;
+  // Drizzle renders columns unqualified in a single-table select, so the outer column is spelled out.
+  const connectionCount = sql<number>`(SELECT count(*)::int FROM ${bankConnections} WHERE ${bankConnections.bankAccountId} = "bank_accounts"."id")`;
   return db
     .select({
       id: bankAccounts.id,

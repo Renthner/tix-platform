@@ -132,6 +132,66 @@ jobs:
         if: always()
         run: docker rm -f "$TIX_CI_PG" "$TIX_CI_REDIS" || true
 
+  e2e:
+    name: End-to-end (Playwright)
+    needs: node
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || vars.CI_RUNS_ON == '' }}
+    runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    env:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+      E2E_BUILD_CACHE_DIR: ${{ github.workspace }}/.buildx-cache
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Enable pnpm (corepack)
+        run: corepack enable pnpm
+
+      - name: pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Layer cache for the three image builds (docker-container driver is required for it).
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ env.E2E_BUILD_CACHE_DIR }}
+          key: e2e-buildx-${{ runner.os }}-${{ github.sha }}
+          restore-keys: e2e-buildx-${{ runner.os }}-
+
+      - name: End-to-end tests
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report and traces
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
+          if-no-files-found: ignore
+
   android:
     name: Android (unit tests, lint, debug build)
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository || vars.CI_RUNS_ON == '' }}

@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { orderAccessToken } from '../orders/access';
 import { escapeHtml, trustedHtml } from '../email/template';
 import type { CoreContext } from '../context';
@@ -71,7 +72,7 @@ export async function walletLinksForOrder(
     }));
   } catch (err) {
     // A wallet problem must never block an e-mail.
-    console.error('[wallet] could not build wallet links', err);
+    coreLog.error({ err }, '[wallet] could not build wallet links');
     return [];
   }
 }

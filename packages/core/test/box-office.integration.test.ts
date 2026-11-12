@@ -45,6 +45,7 @@ import {
   holdBoxOfficeSeats,
   quoteBoxOfficeOrder,
   releaseBoxOfficeHold,
+  searchOrders,
   saveSetting,
   createCoreContext,
   enterShop,
@@ -285,6 +286,9 @@ describe.skipIf(!adminUrl || !redisUrl)('box office & complimentary tickets (int
       .from(orderItems)
       .where(eq(orderItems.orderId, order!.id));
     expect(items.every((i) => i.status === 'CONFIRMED')).toBe(true);
+    // Correlated ticketCount subquery of the admin order list must count this order's items only.
+    const listed = await searchOrders(ctx, { q: result.orderNumber });
+    expect(listed.rows.find((r) => r.id === order!.id)?.ticketCount).toBe(items.length);
     const ticketRows = await handle.db.select().from(tickets).where(eq(tickets.orderId, order!.id));
     expect(ticketRows).toHaveLength(2);
     expect(ticketRows.every((t) => t.status === 'VALID')).toBe(true);

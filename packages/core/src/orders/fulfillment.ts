@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import {
   orderHistory,
   orderItems,
@@ -364,7 +365,7 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
   await releaseInventory(ctx, outcome.items);
   if (outcome.messageId) {
     await dispatchEmailMessage(ctx, outcome.messageId).catch((err: unknown) =>
-      console.error('[orders] cancellation e-mail stored but not queued (outbox retries)', err),
+      coreLog.error({ err }, '[orders] cancellation e-mail stored but not queued (outbox retries)'),
     );
   }
   return true;

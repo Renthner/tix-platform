@@ -1,0 +1,61 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please check the troubleshooting table in
+        [docs/INSTALL.md](https://github.com/Renthner/tix-platform/blob/main/docs/INSTALL.md#troubleshooting) first.
+        **Remove passwords, keys and customer data from everything you paste.**
+  - type: input
+    id: version
+    attributes:
+      label: TIX version
+      description: Shown in the admin sidebar and at /api/health, for example 1.0.0-alpha.3.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Shop / checkout
+        - Seating plan / editor
+        - Waiting room
+        - Payments / bank matching
+        - Tickets / PDF / wallet
+        - E-mail
+        - Admin portal
+        - Android check-in app
+        - Installation / Docker
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, what did you see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Server OS, `docker compose version`, reverse proxy (Caddy bundled / Traefik / nginx / other), browser or Android version.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Output of `docker compose ps` and relevant lines of `docker compose logs <service>`.
+      render: text

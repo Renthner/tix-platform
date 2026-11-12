@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { randomInt } from 'node:crypto';
 import {
   bankAccounts,
@@ -503,7 +504,10 @@ export async function cancelAdjustment(
   });
   if (messageId) {
     await dispatchEmailMessage(ctx, messageId).catch((err: unknown) =>
-      console.error('[adjustments] cancellation mail stored but not queued (outbox retries)', err),
+      coreLog.error(
+        { err },
+        '[adjustments] cancellation mail stored but not queued (outbox retries)',
+      ),
     );
   }
 }
@@ -829,12 +833,12 @@ async function afterAdjustmentCommit(
 ): Promise<void> {
   for (const invoiceId of outcome.renders ?? []) {
     await enqueueInvoiceRender(ctx, invoiceId).catch((err: unknown) =>
-      console.error('[adjustments] invoice PDF not queued (rendered on first download)', err),
+      coreLog.error({ err }, '[adjustments] invoice PDF not queued (rendered on first download)'),
     );
   }
   if (outcome.messageId) {
     await dispatchEmailMessage(ctx, outcome.messageId).catch((err: unknown) =>
-      console.error('[adjustments] e-mail stored but not queued (outbox retries)', err),
+      coreLog.error({ err }, '[adjustments] e-mail stored but not queued (outbox retries)'),
     );
   }
 }
@@ -1114,11 +1118,11 @@ export async function sendAdjustmentReminders(ctx: CoreContext, now = new Date()
       sent += 1;
       if (messageId) {
         await dispatchEmailMessage(ctx, messageId).catch((err: unknown) =>
-          console.error('[adjustments] reminder stored but not queued (outbox retries)', err),
+          coreLog.error({ err }, '[adjustments] reminder stored but not queued (outbox retries)'),
         );
       }
     } catch (err) {
-      console.error(`[adjustments] reminder failed for adjustment ${id}`, err);
+      coreLog.error({ err, adjustmentId: id }, '[adjustments] reminder failed');
     }
   }
   return sent;
@@ -1400,7 +1404,7 @@ export async function repairOrderInvoice(
   if (!outcome) return { repaired: false };
   for (const invoiceId of outcome) {
     await enqueueInvoiceRender(ctx, invoiceId).catch((err: unknown) =>
-      console.error('[adjustments] invoice PDF not queued (rendered on first download)', err),
+      coreLog.error({ err }, '[adjustments] invoice PDF not queued (rendered on first download)'),
     );
   }
   return { repaired: true };

@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import { emailMessages, orderAdjustments } from '@tix/db';
 import { and, eq, lt, or, sql } from 'drizzle-orm';
 import type { SendMailOptions } from 'nodemailer';
@@ -152,8 +153,13 @@ export async function deliverEmailMessage(
       );
       if (exceedsMaxMessageSize(estimate, maxMessageSizeMb)) {
         // Too large for the mail server: send without the tickets PDF (they stay downloadable).
-        console.warn(
-          `[email] message ${messageId} would be ~${Math.round(estimate / 1024 / 1024)} MB (limit ${maxMessageSizeMb} MB): sending without the tickets PDF`,
+        coreLog.warn(
+          {
+            messageId,
+            estimatedMb: Math.round(estimate / 1024 / 1024),
+            limitMb: maxMessageSizeMb,
+          },
+          '[email] message exceeds the size limit: sending without the tickets PDF',
         );
         files = allFiles.filter((f) => !f.isTickets);
         ticketsOmitted = true;

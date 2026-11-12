@@ -64,7 +64,7 @@ export async function listTemplates(venueId: string) {
       version: seatMaps.version,
       updatedAt: seatMaps.updatedAt,
       seats:
-        sql<number>`(select count(*) from ${seats} where ${seats.seatMapId} = ${seatMaps.id} and ${seats.removedAt} is null)`.mapWith(
+        sql<number>`(select count(*) from ${seats} where ${seats.seatMapId} = "seat_maps"."id" and ${seats.removedAt} is null)`.mapWith(
           Number,
         ),
     })

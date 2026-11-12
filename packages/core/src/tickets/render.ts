@@ -1,3 +1,4 @@
+import { coreLog } from '../log';
 import {
   events,
   orderItems,
@@ -66,7 +67,7 @@ function usable(row: TemplateRow | undefined): ResolvedTicketTemplate | null {
   if (!row) return null;
   const layout = ticketLayoutSchema.safeParse(row.layout);
   if (!layout.success) {
-    console.warn(`[tickets] template ${row.id} has an invalid layout, skipping it`);
+    coreLog.warn({ templateId: row.id }, '[tickets] template has an invalid layout, skipping it');
     return null;
   }
   return {

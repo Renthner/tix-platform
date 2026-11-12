@@ -68,6 +68,7 @@ async function main(): Promise<void> {
     secrets,
     storage: objectStorageFromEnv(env),
     jobs,
+    logger,
   });
   const loops = startLoops(core, workerId, logger);
 

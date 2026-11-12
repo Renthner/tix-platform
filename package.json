@@ -22,9 +22,11 @@
     "admin:create": "pnpm --filter @tix/db admin:create",
     "infra:up": "docker compose up -d postgres redis minio minio-init",
     "infra:down": "docker compose down",
-    "db:demo": "pnpm --filter @tix/core db:demo"
+    "db:demo": "pnpm --filter @tix/core db:demo",
+    "test:e2e": "node scripts/e2e/run.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "prettier": "^3.9.10",
     "turbo": "^2.11.10",
     "typescript": "~6.0.3"
