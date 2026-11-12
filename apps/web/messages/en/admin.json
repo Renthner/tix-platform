@@ -899,7 +899,7 @@
       "requireBillingAddress": "Require billing address at checkout",
       "requireBillingAddressHint": "Customers must enter their address so the invoice can be issued correctly. When off, the address stays optional.",
       "companionSeatsRequireWheelchair": "Companion seats only together with their wheelchair space",
-      "companionSeatsRequireWheelchairHint": "A companion seat can only be booked when its wheelchair space (adjacent or assigned in the seating editor) is in the same order. Checked on “Continue to cart”.",
+      "companionSeatsRequireWheelchairHint": "A companion seat can only be booked when its wheelchair space (adjacent or assigned in the seating editor) is in the same order – or when that wheelchair space was already sold to the same e-mail address. Checked on “Continue to cart” and again before payment. Can be changed per event on the “Sales” tab.",
       "timeline": {
         "title": "How seats stay reserved",
         "cart": "Cart: every newly selected seat (re)starts the reservation of the whole cart at {minutes} min. The timer in the shop header shows the remaining time; when it runs out, the seats are released.",

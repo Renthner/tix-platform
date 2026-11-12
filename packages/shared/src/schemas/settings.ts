@@ -93,7 +93,7 @@ const checkoutSchema = z.object({
   bestAvailableEnabled: z.boolean().default(true),
   orphanSeatRuleEnabled: z.boolean().default(true),
   /** Companion seats can only be booked together with their wheelchair space. */
-  companionSeatsRequireWheelchair: z.boolean().default(false),
+  companionSeatsRequireWheelchair: z.boolean().default(true),
   requireTermsAcceptance: z.boolean().default(true),
   /** Phone number is mandatory in the online checkout. */
   requirePhone: z.boolean().default(true),

@@ -8,6 +8,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.10] - 2026-11-12
+
+### Changed
+
+- The rule "companion seats only together with their wheelchair space" is now on by default for
+  new installations (Settings → Checkout; can still be changed globally and per event). The hint
+  explains the exception (wheelchair space already sold to the same e-mail address) and that the
+  rule is checked again before payment.
+
+### Fixed
+
+- An integration test of the FinTS TAN flow could fail by timing.
+
 ## [1.0.0-alpha.9] - 2026-11-12
 
 The tag `v1.0.0-alpha.8` was never published (its release run stopped at the tests); this release

@@ -899,7 +899,7 @@
       "requireBillingAddress": "Rechnungsadresse an der Kasse verlangen",
       "requireBillingAddressHint": "Kunden müssen ihre Adresse angeben, damit die Rechnung korrekt ausgestellt werden kann. Ist die Option aus, bleibt die Adresse freiwillig.",
       "companionSeatsRequireWheelchair": "Begleitplätze nur zusammen mit dem zugehörigen Rollstuhlplatz",
-      "companionSeatsRequireWheelchairHint": "Ein Begleitplatz ist nur buchbar, wenn sein Rollstuhlplatz (benachbart oder im Saalplan-Editor zugeordnet) in derselben Bestellung ist. Geprüft bei „Weiter zum Warenkorb“.",
+      "companionSeatsRequireWheelchairHint": "Ein Begleitplatz ist nur buchbar, wenn sein Rollstuhlplatz (benachbart oder im Saalplan-Editor zugeordnet) in derselben Bestellung ist – oder wenn dieser Rollstuhlplatz bereits an dieselbe E-Mail-Adresse verkauft wurde. Geprüft bei „Weiter zum Warenkorb“ und vor der Zahlung. Pro Veranstaltung im Tab „Verkauf“ änderbar.",
       "timeline": {
         "title": "So bleiben Plätze reserviert",
         "cart": "Warenkorb: Mit jedem neu gewählten Platz startet die Reservierung des ganzen Warenkorbs (neu) mit {minutes} Min. Der Timer im Kopfbereich des Shops zeigt die Restzeit; läuft sie ab, werden die Plätze freigegeben.",
