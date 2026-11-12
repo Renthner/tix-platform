@@ -19,7 +19,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 - Rejected PayPal credentials were shown to buyers as "PayPal temporarily unreachable" and logged as
   an unhandled error. They now log a clear configuration error and buyers get a distinct notice.
 - Restoring a backup that contains tickets failed with `relation "ticket_sync_version_seq" does
-  not exist` and was rolled back. Existing backups can be restored again; the ticket sync trigger
+not exist` and was rolled back. Existing backups can be restored again; the ticket sync trigger
   now references the sequence with its schema (migration 0031).
 - A PayPal payment approved by the buyer is no longer marked failed when the PayPal credentials
   are rejected at capture; it is captured once the credentials work again. Automatic refunds keep
