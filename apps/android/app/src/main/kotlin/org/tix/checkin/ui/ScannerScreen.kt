@@ -39,10 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -218,18 +216,22 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
     val announcement = remember(v, style, headline, tapDismiss) {
         resultAnnouncement(context, v, style, headline, tapDismiss)
     }
+    // A live region is only read when an existing node changes, not when the result screen appears, so
+    // the result is announced explicitly – opt-in in the settings (off by default: at the door it is noise).
+    val announce by vm.settings.announceResults.collectAsState()
+    LaunchedEffect(ui.seq) {
+        @Suppress("DEPRECATION")
+        if (announce) view.announceForAccessibility(announcement)
+    }
     val fontScale = LocalDensity.current.fontScale
     Box(
         Modifier.fillMaxSize().background(bg).clickable { vm.dismissVerdict(ui.seq) },
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            // One assertive live region: TalkBack reads the verdict as soon as it appears, instead of the pieces.
+            // One node with the whole verdict, so exploring by touch reads it in one piece instead of the parts.
             Modifier.widthIn(max = 600.dp).fillMaxWidth().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp)
-                .clearAndSetSemantics {
-                    liveRegion = LiveRegionMode.Assertive
-                    contentDescription = announcement
-                },
+                .clearAndSetSemantics { contentDescription = announcement },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {

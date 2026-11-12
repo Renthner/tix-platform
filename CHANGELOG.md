@@ -8,6 +8,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.5] - 2026-11-12
+
+### Fixed
+
+- Check-in app: the scan result was not announced by TalkBack. The announcement is now an option
+  in the app settings ("Read result aloud (TalkBack)"), off by default.
+
 ## [1.0.0-alpha.4] - 2026-11-12
 
 ### Added
