@@ -694,13 +694,14 @@ describe.skipIf(!adminUrl || !redisUrl)('bank reconciliation (integration)', () 
         .where(
           and(eq(bankTanChallenges.connectionId, id), eq(bankTanChallenges.status, 'PENDING')),
         );
-      if (c) {
+      // The challenge row is written just before the connection status: wait for both.
+      if (c && (await connectionRow(id)).lastSyncStatus === 'TAN_REQUIRED') {
         challengeId = c.id;
         expect(c.challengeText).toMatch(/TAN/);
-        expect((await connectionRow(id)).lastSyncStatus).toBe('TAN_REQUIRED');
       } else await new Promise((r) => setTimeout(r, 100));
     }
     expect(challengeId).toBeDefined();
+    expect((await connectionRow(id)).lastSyncStatus).toBe('TAN_REQUIRED');
     await expect(
       respondToTanChallenge(ctx, {
         challengeId: challengeId!,
