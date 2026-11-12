@@ -34,6 +34,7 @@ import {
 import { runMigrations } from '@tix/db/migrate';
 import {
   buildPairingUri,
+  APP_VERSION,
   buildTicketPayload,
   scanColor,
   type ScanRequest,
@@ -647,9 +648,15 @@ describe.skipIf(!adminUrl || !redisUrl)('scanner server side (integration)', () 
           allowChannelOverride: true,
         });
         expect(m2.etag).not.toBe(m1.etag);
-        expect(await githubStaffDownloadUrl(ctx)).toBe('https://github.com/a/b/releases');
+        // The staff link points at the release of the server's own version, whatever the channel.
+        expect(await githubStaffDownloadUrl(ctx)).toBe(
+          `https://github.com/a/b/releases/tag/v${APP_VERSION}`,
+        );
+        expect(m2.serverVersion).toBe(APP_VERSION);
         await saveSetting(ctx, 'scanner', { githubRepository: 'a/b' }, null);
-        expect(await githubStaffDownloadUrl(ctx)).toBe('https://github.com/a/b/releases/latest');
+        expect(await githubStaffDownloadUrl(ctx)).toBe(
+          `https://github.com/a/b/releases/tag/v${APP_VERSION}`,
+        );
       } finally {
         await saveSetting(ctx, 'scanner', {}, null);
       }

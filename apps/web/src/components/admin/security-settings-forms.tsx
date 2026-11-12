@@ -3,6 +3,7 @@
 import {
   APP_UPDATE_CHANNELS,
   APP_UPDATE_SOURCES,
+  APP_VERSION,
   SCAN_RESULT_COLOR_KEYS,
   defaultSetting,
   readableTextColor,
@@ -203,31 +204,37 @@ function AppUpdatesCard({
             maxLength={140}
           />
         </Field>
-        <Field
-          label={t('defaultUpdateChannel')}
-          htmlFor="defaultUpdateChannel"
-          error={err('defaultUpdateChannel')}
-          hint={t('defaultUpdateChannelHint')}
-        >
-          <NativeSelect
-            id="defaultUpdateChannel"
-            name="defaultUpdateChannel"
-            defaultValue={initial.defaultUpdateChannel}
-          >
-            {APP_UPDATE_CHANNELS.map((c) => (
-              <option key={c} value={c}>
-                {t(`channels.${c}`)}
-              </option>
-            ))}
-          </NativeSelect>
-        </Field>
       </div>
-      <SwitchRow
-        name="allowChannelOverride"
-        defaultChecked={initial.allowChannelOverride}
-        label={t('allowChannelOverride')}
-        hint={t('allowChannelOverrideHint')}
-      />
+      <details className="rounded-md border p-3">
+        <summary className="cursor-pointer text-sm font-medium">{t('legacyChannelTitle')}</summary>
+        <div className="mt-3 space-y-3">
+          <Field
+            label={t('defaultUpdateChannel')}
+            htmlFor="defaultUpdateChannel"
+            error={err('defaultUpdateChannel')}
+            hint={t('defaultUpdateChannelHint')}
+          >
+            <NativeSelect
+              id="defaultUpdateChannel"
+              name="defaultUpdateChannel"
+              defaultValue={initial.defaultUpdateChannel}
+            >
+              {APP_UPDATE_CHANNELS.map((c) => (
+                <option key={c} value={c}>
+                  {t(`channels.${c}`)}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <SwitchRow
+            name="allowChannelOverride"
+            defaultChecked={initial.allowChannelOverride}
+            label={t('allowChannelOverride')}
+            hint={t('allowChannelOverrideHint')}
+          />
+        </div>
+      </details>
+      <p className="text-xs text-muted-foreground">{t('versionRule', { version: APP_VERSION })}</p>
     </section>
   );
 }

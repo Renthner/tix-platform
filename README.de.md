@@ -16,7 +16,7 @@ deinem eigenen Server, ohne Plattformgebühren.**
   <img src="docs/img/shop-event.webp" alt="Veranstaltungsseite des Ticketshops" width="900">
 </p>
 
-> **Status:** Vorabversion (`1.0.0-alpha.5`). Funktionsumfang vollständig, aber noch nicht als
+> **Status:** Vorabversion (`1.0.0-alpha.6`). Funktionsumfang vollständig, aber noch nicht als
 > stabil freigegeben. Mach vor jedem Update ein Backup und lies das [CHANGELOG](CHANGELOG.md)
 > (auf Englisch).
 
@@ -108,7 +108,7 @@ Anleitung mit HTTPS-Varianten und Fehlersuche ist [docs/INSTALL.de.md](docs/INST
 
 ```bash
 # 1. Die zwei Dateien des Releases herunterladen
-export TIX_VERSION=1.0.0-alpha.5
+export TIX_VERSION=1.0.0-alpha.6
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -154,8 +154,8 @@ Native Kotlin-App (Android 8+): fortlaufendes Kamera-Scannen, Vollbild-Ergebnis 
 rot, Offline-Datenbank mit Signaturprüfung, manuelle Suche und Check-out, Abgleich im Hintergrund.
 Lade `tix-checkin-<Version>.apk` von der [Release-Seite](https://github.com/Renthner/tix-platform/releases)
 und installiere sie (Installation aus dieser Quelle erlauben). Koppel jedes Handy mit dem QR-Code
-unter **Admin → Einlass-Geräte**. Die App aktualisiert sich selbst über GitHub Releases (Kanal
-`stable` oder `next`) oder von deinem eigenen Server. Details:
+unter **Admin → Einlass-Geräte**. Die App folgt immer der Version deines Servers und aktualisiert sich selbst über GitHub Releases
+oder von deinem eigenen Server. Details:
 [apps/android/README.md](apps/android/README.md), [docs/SCANNER.md](docs/SCANNER.md) (Englisch).
 
 <table>

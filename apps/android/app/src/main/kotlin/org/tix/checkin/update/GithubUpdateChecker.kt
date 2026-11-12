@@ -9,6 +9,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
+import org.tix.checkin.core.AppVersion
 import org.tix.checkin.core.GithubRateLimit
 import org.tix.checkin.core.GithubReleases
 import org.tix.checkin.core.GithubUpdateCandidate
@@ -75,13 +76,72 @@ class GithubUpdateChecker(
         return toLatest(candidate)
     }
 
-    /** At most every six hours: refreshes the cached list so the settings screen opens with a current answer. */
-    suspend fun backgroundCheck(repository: String, channel: UpdateChannel) {
+    /**
+     * The release of exactly [version] (the server's version) as an [AppLatest], or null when GitHub has no
+     * installable release with that tag. Uses the cached list first; when the tag is missing (e.g. the server was
+     * upgraded minutes ago) the list is refreshed once with a conditional request, and if it is still missing
+     * (server more than one page of releases behind) the single tag endpoint is asked.
+     */
+    suspend fun checkExact(repository: String, version: AppVersion, force: Boolean): AppLatest? {
+        var candidate = GithubReleases.selectVersion(releases(repository, force), version, repository)
+        if (candidate == null && !force) {
+            candidate = GithubReleases.selectVersion(releases(repository, true), version, repository)
+        }
+        if (candidate == null) {
+            val release = tagRelease(repository, version) ?: return null
+            candidate = GithubReleases.selectVersion(listOf(release), version, repository)
+        }
+        candidate ?: return null
+        if (candidate.version.versionCode <= installedVersionCode) return null
+        return toLatest(candidate)
+    }
+
+    /** `GET releases/tags/v<version>`: one release, or null on 404 / an unusable answer. */
+    private suspend fun tagRelease(repository: String, version: AppVersion): org.tix.checkin.core.GithubRelease? {
+        val url = GithubReleases.tagUrl(repository, version) ?: throw GithubUpdateException(GithubUpdateException.Kind.REPOSITORY_INVALID)
+        val blockedUntil = prefs.getLong(KEY_BLOCKED_UNTIL, 0)
+        if (now() < blockedUntil) throw GithubUpdateException(GithubUpdateException.Kind.RATE_LIMITED, blockedUntil)
+        val headers = mapOf("Accept" to "application/vnd.github+json", "X-GitHub-Api-Version" to "2022-11-28")
+        val client = TixHttpClient.createGithub(userAgent)
+        try {
+            return client.githubGet(url, headers) { r ->
+                val status = r.status.value
+                when {
+                    status == 200 -> GithubReleases.parseOne(r.readBounded(MAX_TAG_BYTES).toString(Charsets.UTF_8))
+                    status == 404 -> null
+                    else -> {
+                        val until = GithubRateLimit.blockedUntil(
+                            status, r.headers["X-RateLimit-Remaining"], r.headers["X-RateLimit-Reset"], r.headers["Retry-After"], now(),
+                        )
+                        if (until != null) {
+                            prefs.edit().putLong(KEY_BLOCKED_UNTIL, until).apply()
+                            throw GithubUpdateException(GithubUpdateException.Kind.RATE_LIMITED, until)
+                        }
+                        throw GithubUpdateException(GithubUpdateException.Kind.HTTP)
+                    }
+                }
+            }
+        } catch (e: GithubUpdateException) {
+            throw e
+        } catch (e: GithubUrlRefusedException) {
+            throw GithubUpdateException(GithubUpdateException.Kind.URL_REFUSED, cause = e)
+        } catch (e: IOException) {
+            throw GithubUpdateException(GithubUpdateException.Kind.NETWORK, cause = e)
+        } finally {
+            client.close()
+        }
+    }
+
+    /**
+     * At most every six hours: refreshes the cached list so the settings screen opens with a current answer.
+     * With a [serverVersion] the release of that version is looked up, otherwise the newest of [channel].
+     */
+    suspend fun backgroundCheck(repository: String, channel: UpdateChannel, serverVersion: AppVersion? = null) {
         // Random 0-30 min added per attempt so devices behind one venue address do not ask GitHub at the same moment.
         if (!UpdateSchedule.backgroundDue(now(), lastBackgroundCheck() + prefs.getLong(KEY_JITTER, 0))) return
         prefs.edit().putLong(KEY_LAST_BACKGROUND, now()).putLong(KEY_JITTER, kotlin.random.Random.nextLong(0, 30 * 60_000L)).apply()
         try {
-            check(repository, channel, force = false)
+            if (serverVersion != null) checkExact(repository, serverVersion, force = false) else check(repository, channel, force = false)
         } catch (_: Exception) {
             // Best effort; the settings screen reports problems when the operator looks.
         }
@@ -198,6 +258,7 @@ class GithubUpdateChecker(
 
     private companion object {
         const val MAX_RELEASES_BYTES = 2 * 1024 * 1024
+        const val MAX_TAG_BYTES = 256 * 1024
         const val KEY_REPO = "repo"
         const val KEY_ETAG = "etag"
         const val KEY_FETCHED_AT = "fetched_at"

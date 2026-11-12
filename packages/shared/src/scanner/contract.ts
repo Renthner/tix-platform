@@ -137,6 +137,8 @@ export type ManifestEvent = z.infer<typeof manifestEventSchema>;
 
 export const manifestSchema = z.object({
   apiVersion: z.number().int(),
+  /** Version of the server software; the app is kept on exactly this version (absent on older servers). */
+  serverVersion: z.string().optional(),
   serverTime: isoTime,
   /** Hash of the content (without serverTime): equal etag means nothing changed. */
   etag: z.string(),

@@ -8,6 +8,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.6] - 2026-11-12
+
+### Changed
+
+- Check-in app: updates now install exactly the version of the connected server (from GitHub
+  Releases or from your own server), and a newer app is never downgraded. The admin marks devices
+  whose app version differs from the server. The update channel setting only applies to servers
+  that do not report a version.
+
+### Fixed
+
+- Check-in app: "Read result aloud" did not speak (it relied on TalkBack). The app now reads the
+  result itself with the phone's text-to-speech engine, on the notification volume like the tones;
+  the setting shows a hint when no engine or voice is installed.
+
 ## [1.0.0-alpha.5] - 2026-11-12
 
 ### Fixed

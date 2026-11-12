@@ -291,9 +291,9 @@ manual check-in and an offline check-in.
 ### Updates from GitHub releases (default)
 
 By default the app looks for updates in the GitHub releases of the project (Settings -> Scanner in the admin
-portal: source, repository, default channel, "allow changing the channel in the app"). Channels: **Stable**
-(final releases) and **Next** (also alpha/beta/rc). Operators can switch the channel in the app settings when
-allowed. The repository is the server setting, else the one compiled into the app:
+portal: source and repository). The app installs exactly the version the connected server runs (`serverVersion`
+in the manifest, release tag `v<version>`); a newer app is never downgraded and scanning is never blocked by a
+mismatch. The update channels (**Stable** / **Next**) only apply to servers that do not report a version yet. The repository is the server setting, else the one compiled into the app:
 build with `-Ptix.updateRepository=<owner>/<repo>` (CI passes `$GITHUB_REPOSITORY`; empty in local builds, then
 the server must name a repository). A release is used only if it carries `tix-checkin-<version>.apk` and `SHA256SUMS.txt`. The app checks
 when Settings opens (cached for one hour, conditional requests) and about every 6 hours in the background sync;

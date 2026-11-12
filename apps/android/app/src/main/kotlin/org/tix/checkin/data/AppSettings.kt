@@ -14,6 +14,8 @@ data class AppUpdateConfig(
     val githubRepository: String = "",
     val defaultChannel: UpdateChannel = UpdateChannel.STABLE,
     val allowChannelOverride: Boolean = true,
+    /** Version the server reports; null on older servers (channel logic applies). */
+    val serverVersion: String? = null,
 )
 
 /** Local (per device) preferences. No secrets here: the token lives encrypted in the database. */
@@ -39,7 +41,7 @@ class AppSettings(context: Context) {
     val appUpdate: StateFlow<AppUpdateConfig> = _appUpdate
 
     /** False until a manifest with (or without, older server) update settings was stored: the manifest is then fetched without ETag. */
-    val appUpdateKnown: Boolean get() = prefs.contains(KEY_UPD_SOURCE)
+    val appUpdateKnown: Boolean get() = prefs.contains(KEY_UPD_SERVER_VERSION)
 
     /** The operator's own channel choice (only used when the server allows it). */
     val channelOverride: StateFlow<UpdateChannel?> = _channelOverride
@@ -56,20 +58,23 @@ class AppSettings(context: Context) {
         githubRepository = prefs.getString(KEY_UPD_REPO, "").orEmpty(),
         defaultChannel = UpdateChannel.fromWire(prefs.getString(KEY_UPD_DEFAULT, null)) ?: UpdateChannel.STABLE,
         allowChannelOverride = prefs.getBoolean(KEY_UPD_ALLOW, true),
+        serverVersion = prefs.getString(KEY_UPD_SERVER_VERSION, null)?.takeIf { it.isNotEmpty() },
     )
 
     /** Stores the manifest's update settings; null (older server) means "updates from the server". */
-    fun setAppUpdate(m: ManifestAppUpdate?) {
-        val cfg = if (m == null) AppUpdateConfig() else AppUpdateConfig(
+    fun setAppUpdate(m: ManifestAppUpdate?, serverVersion: String? = null) {
+        val cfg = if (m == null) AppUpdateConfig(serverVersion = serverVersion) else AppUpdateConfig(
             source = UpdateSource.fromWire(m.source) ?: UpdateSource.SERVER,
             githubRepository = m.githubRepository,
             defaultChannel = UpdateChannel.fromWire(m.defaultChannel) ?: UpdateChannel.STABLE,
             allowChannelOverride = m.allowChannelOverride,
+            serverVersion = serverVersion,
         )
         _appUpdate.value = cfg
         prefs.edit()
             .putString(KEY_UPD_SOURCE, cfg.source.name).putString(KEY_UPD_REPO, cfg.githubRepository)
             .putString(KEY_UPD_DEFAULT, cfg.defaultChannel.wire).putBoolean(KEY_UPD_ALLOW, cfg.allowChannelOverride)
+            .putString(KEY_UPD_SERVER_VERSION, cfg.serverVersion.orEmpty())
             .apply()
     }
 
@@ -80,7 +85,7 @@ class AppSettings(context: Context) {
 
     /** Unpair: the update settings belong to the old server. The channel choice is a device preference and stays. */
     fun clearAppUpdate() {
-        prefs.edit().remove(KEY_UPD_SOURCE).remove(KEY_UPD_REPO).remove(KEY_UPD_DEFAULT).remove(KEY_UPD_ALLOW).apply()
+        prefs.edit().remove(KEY_UPD_SOURCE).remove(KEY_UPD_REPO).remove(KEY_UPD_DEFAULT).remove(KEY_UPD_ALLOW).remove(KEY_UPD_SERVER_VERSION).apply()
         _appUpdate.value = AppUpdateConfig()
     }
 
@@ -153,6 +158,7 @@ class AppSettings(context: Context) {
         const val KEY_UPD_REPO = "upd_repo"
         const val KEY_UPD_DEFAULT = "upd_default_channel"
         const val KEY_UPD_ALLOW = "upd_allow_override"
+        const val KEY_UPD_SERVER_VERSION = "upd_server_version"
         const val KEY_UPD_CHANNEL = "upd_channel_override"
         const val KEY_LAN_MASTER = "lan_master"
         const val KEY_LAN_PORT = "lan_port"

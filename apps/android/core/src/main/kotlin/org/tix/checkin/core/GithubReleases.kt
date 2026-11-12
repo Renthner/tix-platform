@@ -6,6 +6,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import org.tix.checkin.core.contract.ScannerJson
 
 /** Update channel: `STABLE` = newest final release, `NEXT` = newest release including alpha / beta / rc. */
@@ -71,6 +72,10 @@ object GithubReleases {
     fun releasesUrl(repository: String, perPage: Int = 30): String? =
         if (isValidRepository(repository)) "https://api.github.com/repos/$repository/releases?per_page=$perPage" else null
 
+    /** URL of the single release with the tag `v<version>`; null when the repository name is not valid. */
+    fun tagUrl(repository: String, version: AppVersion): String? =
+        if (isValidRepository(repository)) "https://api.github.com/repos/$repository/releases/tags/v${version.name}" else null
+
     fun apkAssetName(version: AppVersion) = "tix-checkin-${version.name}.apk"
 
     /** Decodes the releases JSON; entries that do not look like a release are dropped. Null when it is not a JSON array. */
@@ -89,6 +94,20 @@ object GithubReleases {
         }
     }
 
+    /** Decodes one release object (the `releases/tags/<tag>` answer); null when it is not a release object. */
+    fun parseOne(json: String, decoder: Json = ScannerJson): GithubRelease? {
+        val obj = try {
+            decoder.parseToJsonElement(json) as? JsonObject
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        return try {
+            decoder.decodeFromJsonElement(GithubRelease.serializer(), obj)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /**
      * The release to offer on [channel]: drafts are skipped, `stable` also skips pre-releases (by the GitHub flag
      * and by the version), tags must be `v<semver>`, the APK `tix-checkin-<version>.apk` and `SHA256SUMS.txt` must
@@ -98,22 +117,37 @@ object GithubReleases {
     fun select(releases: List<GithubRelease>, channel: UpdateChannel, repository: String): GithubUpdateCandidate? =
         releases.asSequence()
             .filter { !it.draft }
-            .mapNotNull { release ->
-                val version = AppVersion.parseTag(release.tagName) ?: return@mapNotNull null
-                if (channel == UpdateChannel.STABLE && (release.prerelease || version.prerelease)) return@mapNotNull null
-                val apkName = apkAssetName(version)
-                val apk = release.assets.firstOrNull { it.name == apkName } ?: return@mapNotNull null
-                val sums = release.assets.firstOrNull { it.name == SUMS_ASSET } ?: return@mapNotNull null
-                val prefix = "https://github.com/$repository/releases/download/${release.tagName}/"
-                if (!apk.browserDownloadUrl.startsWith(prefix, ignoreCase = true) ||
-                    !sums.browserDownloadUrl.startsWith(prefix, ignoreCase = true) ||
-                    !GithubHosts.isAllowedUrl(apk.browserDownloadUrl) || !GithubHosts.isAllowedUrl(sums.browserDownloadUrl)
-                ) {
-                    return@mapNotNull null
-                }
-                GithubUpdateCandidate(version, apkName, apk.browserDownloadUrl, apk.size, sums.browserDownloadUrl, release.body)
-            }
+            .mapNotNull { candidate(it, repository) }
+            .filter { channel != UpdateChannel.STABLE || !it.second }
+            .map { it.first }
             .maxByOrNull { it.version }
+
+    /**
+     * Exactly the release `v<version>` (the server's version): drafts are skipped, pre-releases are fine, and the
+     * same asset / URL checks as [select] apply. Null when the tag is not in the list or is not installable.
+     */
+    fun selectVersion(releases: List<GithubRelease>, version: AppVersion, repository: String): GithubUpdateCandidate? =
+        releases.asSequence()
+            .filter { !it.draft && it.tagName == "v${version.name}" }
+            .mapNotNull { candidate(it, repository)?.first }
+            .firstOrNull()
+
+    /** The candidate of one release plus whether it is a pre-release (flag or version); null when not installable. */
+    private fun candidate(release: GithubRelease, repository: String): Pair<GithubUpdateCandidate, Boolean>? {
+        val version = AppVersion.parseTag(release.tagName) ?: return null
+        val apkName = apkAssetName(version)
+        val apk = release.assets.firstOrNull { it.name == apkName } ?: return null
+        val sums = release.assets.firstOrNull { it.name == SUMS_ASSET } ?: return null
+        val prefix = "https://github.com/$repository/releases/download/${release.tagName}/"
+        if (!apk.browserDownloadUrl.startsWith(prefix, ignoreCase = true) ||
+            !sums.browserDownloadUrl.startsWith(prefix, ignoreCase = true) ||
+            !GithubHosts.isAllowedUrl(apk.browserDownloadUrl) || !GithubHosts.isAllowedUrl(sums.browserDownloadUrl)
+        ) {
+            return null
+        }
+        val candidate = GithubUpdateCandidate(version, apkName, apk.browserDownloadUrl, apk.size, sums.browserDownloadUrl, release.body)
+        return candidate to (release.prerelease || version.prerelease)
+    }
 }
 
 /** `SHA256SUMS.txt` as written by `sha256sum`: `<64 hex>  <file name>` (a `*` before the name marks binary mode). */

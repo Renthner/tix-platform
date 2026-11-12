@@ -216,13 +216,7 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
     val announcement = remember(v, style, headline, tapDismiss) {
         resultAnnouncement(context, v, style, headline, tapDismiss)
     }
-    // A live region is only read when an existing node changes, not when the result screen appears, so
-    // the result is announced explicitly – opt-in in the settings (off by default: at the door it is noise).
-    val announce by vm.settings.announceResults.collectAsState()
-    LaunchedEffect(ui.seq) {
-        @Suppress("DEPRECATION")
-        if (announce) view.announceForAccessibility(announcement)
-    }
+    // Reading the result aloud (opt-in setting) is done by MainViewModel.show with text-to-speech.
     val fontScale = LocalDensity.current.fontScale
     Box(
         Modifier.fillMaxSize().background(bg).clickable { vm.dismissVerdict(ui.seq) },
@@ -260,7 +254,7 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
 }
 
 /** Spoken form of the full-screen result: headline, ticket data, warnings, first scan. */
-private fun resultAnnouncement(context: android.content.Context, v: ScanVerdict, style: ResultStyle, headline: String, tapDismiss: String): String {
+internal fun resultAnnouncement(context: android.content.Context, v: ScanVerdict, style: ResultStyle, headline: String, tapDismiss: String?): String {
     val parts = mutableListOf(headline)
     v.ticket?.let { t ->
         t.attendeeName?.takeIf { it.isNotBlank() }?.let { parts += it }
@@ -274,7 +268,7 @@ private fun resultAnnouncement(context: android.content.Context, v: ScanVerdict,
     if (v.result == org.tix.checkin.core.contract.ScanResult.REJECTED_ALREADY_CHECKED_IN) {
         v.firstScan?.let { parts += context.getString(R.string.result_first_scan, formatTime(context, it.at), it.deviceName ?: "-") }
     }
-    parts += tapDismiss
+    tapDismiss?.let { parts += it }
     return parts.joinToString(". ")
 }
 

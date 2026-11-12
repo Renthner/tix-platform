@@ -5,6 +5,8 @@ import androidx.room.Room
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import org.tix.checkin.lan.LanManager
@@ -25,7 +27,7 @@ import org.tix.checkin.sync.SyncScheduler
 import org.tix.checkin.ui.Feedback
 
 /** Hand-wired dependency container (one per process; the WorkManager worker uses it too). */
-class AppContainer(app: Application) {
+class AppContainer(private val app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val db: TixDatabase = Room.databaseBuilder(app, TixDatabase::class.java, "tix-checkin.db")
         .addMigrations(*org.tix.checkin.data.ALL_MIGRATIONS) // never a destructive fallback: unsent scans live here
@@ -46,6 +48,30 @@ class AppContainer(app: Application) {
     val clock = OffsetClock()
     val monitor = ConnectionMonitor(app)
     val feedback = Feedback(app)
+
+    /** Text-to-speech for "read result aloud"; created on demand (binds the engine service) and recreatable. */
+    private val _speech = MutableStateFlow<org.tix.checkin.ui.Speech?>(null)
+
+    /** The current instance (null until first use); follows a recreation. */
+    val currentSpeech: StateFlow<org.tix.checkin.ui.Speech?> = _speech
+
+    @Synchronized
+    fun speech(): org.tix.checkin.ui.Speech = _speech.value ?: org.tix.checkin.ui.Speech(app).also { _speech.value = it }
+
+    fun speechIfStarted(): org.tix.checkin.ui.Speech? = _speech.value
+
+    /** Engine missing/failed earlier (e.g. a voice was installed since): release it and start a fresh one. */
+    @Synchronized
+    fun restartSpeechIfNotReady() {
+        val current = _speech.value
+        if (current != null) {
+            val state = current.state.value
+            if (state == org.tix.checkin.ui.Speech.State.READY || state == org.tix.checkin.ui.Speech.State.STARTING) return
+            current.release()
+        }
+        _speech.value = org.tix.checkin.ui.Speech(app)
+    }
+
     private val http = TixHttpClient.create()
 
     /** User agent for GitHub requests: app name and version only, nothing personal. */

@@ -92,7 +92,7 @@ auf und melde dich neu an: `sudo usermod -aG docker $USER`. Diese Anleitung geht
 TIX braucht genau zwei Dateien von der Release-Seite: `docker-compose.yml` und `env.example`.
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.5
+export TIX_VERSION=1.0.0-alpha.6
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -465,8 +465,8 @@ Stolpersteine:
 - Reines `http://` wird nur für private Adressen wie `http://192.168.1.20:8080` akzeptiert. Jede
   öffentliche Adresse braucht `https://`.
 - Einstellungen → Scanner → Server-URL muss die Adresse sein, die die **Handys** erreichen.
-- Die App aktualisiert sich über GitHub Releases (Kanal `stable` oder `next`). Im Admin kannst du auf
-  Updates von deinem eigenen Server umstellen.
+- Die App aktualisiert sich immer genau auf die Version, die dein Server gerade betreibt (über GitHub
+  Releases). Im Admin kannst du auf Updates von deinem eigenen Server umstellen.
 
 Mehr dazu: [SCANNER.md](SCANNER.md) und [apps/android/README.md](../apps/android/README.md)
 (Englisch).

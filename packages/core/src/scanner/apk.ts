@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { scannerApkReleases, withTransaction } from '@tix/db';
-import type { AppLatestResponse } from '@tix/shared';
+import { APP_VERSION, type AppLatestResponse } from '@tix/shared';
 import { signToken, verifyToken } from '@tix/shared/server';
 import { desc, eq } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
@@ -210,8 +210,7 @@ export async function apkDownloadUrl(ctx: CoreContext, token: string): Promise<s
 export async function githubStaffDownloadUrl(ctx: CoreContext): Promise<string | null> {
   const s = await getSetting(ctx, 'scanner');
   if (!s.githubRepository) return null;
-  const base = `https://github.com/${s.githubRepository}/releases`;
-  return s.defaultUpdateChannel === 'next' ? base : `${base}/latest`;
+  return `https://github.com/${s.githubRepository}/releases/tag/v${APP_VERSION}`;
 }
 
 /**
