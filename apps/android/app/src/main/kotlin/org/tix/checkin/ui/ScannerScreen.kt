@@ -72,7 +72,7 @@ fun resultBackground(c: ScanColor): Color = when (c) {
 fun resultForeground(c: ScanColor): Color = if (c == ScanColor.YELLOW) Color(0xFF1A1400) else Color.White
 
 @Composable
-fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
+fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit, onOpenSettings: () -> Unit) {
     val event by vm.selectedEvent.collectAsState()
     val mode by vm.mode.collectAsState()
     val connection by vm.connection.collectAsState()
@@ -81,6 +81,7 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
     val checkedIn by vm.checkedInCount.collectAsState()
     val status by vm.syncStatus.collectAsState()
     val lan by vm.lanState.collectAsState()
+    val versionHint by vm.versionHint.collectAsState()
     val context = LocalContext.current
 
     // Keep the screen on while scanning.
@@ -140,6 +141,7 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 LanStatusLine(lan)
+                versionHint?.let { VersionHintStrip(it, onOpenSettings) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = mode == ScanAction.CHECK_IN,
@@ -172,6 +174,27 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
                 QrScanner(onCode = vm::onCode, modifier = Modifier.fillMaxSize(), debounceMillis = 2_500)
             }
         }
+    }
+}
+
+/**
+ * One compact line in the status panel (never over the viewfinder, below the full-screen result, does not
+ * block scanning). The update hint opens Settings; the "server is older" hint is information only.
+ */
+@Composable
+private fun VersionHintStrip(hint: VersionHint, onOpenSettings: () -> Unit) {
+    val text = when (hint) {
+        is VersionHint.UpdateAvailable -> stringResource(R.string.scanner_hint_update_available, hint.version)
+        is VersionHint.ServerOlder -> stringResource(R.string.scanner_hint_server_older, hint.version)
+    }
+    val tappable = hint is VersionHint.UpdateAvailable
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth().then(if (tappable) Modifier.clickable(onClick = onOpenSettings) else Modifier),
+    ) {
+        Text(text, style = MaterialTheme.typography.bodySmall, maxLines = 2, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
     }
 }
 

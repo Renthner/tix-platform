@@ -56,6 +56,7 @@ export * from './banking';
 export * from './tickets/keys';
 export * from './tickets/issue';
 export * from './tickets/pdf';
+export { loadBundledFontBytes, type FontBytes } from './pdf/fonts';
 export * from './tickets/render';
 export * from './tickets/email-links';
 export * from './tickets/template-admin';

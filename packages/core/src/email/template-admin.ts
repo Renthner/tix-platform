@@ -20,6 +20,7 @@ import {
 } from './editor';
 import type { EmailTemplateRow } from './render';
 import { EmailConfigurationError, smtpSender, type MailSender } from './transport';
+import { classifyMailError, type MailErrorKind } from './error-kind';
 import { shopVariables } from './variables';
 
 /** Admin service of the e-mail template editor (list, edit, override, reset, test send). */
@@ -313,7 +314,13 @@ export async function resetEmailTemplate(
 export type DraftTestResult =
   | { ok: true; messageId: string; providerMessageId: string | null }
   /** `reason` lets the UI show a translated message; `error` stays the technical detail. */
-  | { ok: false; error: string; reason: 'validation' | 'smtpNotConfigured' | 'delivery' };
+  | {
+      ok: false;
+      error: string;
+      reason: 'validation' | 'smtpNotConfigured' | 'delivery';
+      /** Classification of a `delivery` failure (`other` for the other reasons). */
+      kind: MailErrorKind;
+    };
 
 /**
  * Sends the (unsaved) draft with sample data to `to`: subject is prefixed with "[Test]". The
@@ -337,6 +344,7 @@ export async function sendDraftTestEmail(
       ok: false,
       error: validation.errors.map((e) => e.detail).join('; '),
       reason: 'validation',
+      kind: 'other',
     };
   }
   const { variables: shop } = await shopVariables(ctx, params.locale);
@@ -369,6 +377,7 @@ export async function sendDraftTestEmail(
       ok: false,
       error,
       reason: err instanceof EmailConfigurationError ? 'smtpNotConfigured' : 'delivery',
+      kind: classifyMailError(err),
     };
   }
   const messageId = await logTest(ctx, params, subject, 'SENT', providerMessageId, null);

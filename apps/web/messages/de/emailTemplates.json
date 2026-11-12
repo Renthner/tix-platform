@@ -159,7 +159,16 @@
     "sendTest": "Test-E-Mail senden",
     "sendTestHint": "Sendet den aktuellen (ungespeicherten) Text mit Beispieldaten an {email}.",
     "testSent": "Test-E-Mail an {to} gesendet.",
-    "testFailed": "Die Test-E-Mail konnte nicht gesendet werden: {message}",
+    "testKinds": {
+      "auth": "Der Mailserver hat die Anmeldung abgelehnt. Benutzername und Passwort prüfen (viele Anbieter verlangen ein App-Passwort).",
+      "connection": "Keine Verbindung zum Mailserver. Host und Port prüfen und kontrollieren, ob eine Firewall ausgehendes SMTP blockiert.",
+      "timeout": "Der Mailserver hat nicht rechtzeitig geantwortet oder die Verbindung getrennt. Host, Port und Firewall prüfen und erneut versuchen.",
+      "dns": "Der Host-Name konnte nicht aufgelöst werden. Schreibweise des SMTP-Hosts prüfen.",
+      "tls": "Die sichere Verbindung ist fehlgeschlagen. Port 465 benötigt in der Regel SSL/TLS, Port 587 verwendet STARTTLS; außerdem das Serverzertifikat prüfen.",
+      "recipientRejected": "Der Mailserver hat die Empfängeradresse abgelehnt. Adresse und Absenderberechtigung prüfen.",
+      "other": "Die E-Mail konnte nicht gesendet werden. Technische Details siehe unten."
+    },
+    "testDetail": "Technische Details:",
     "testInvalid": "Die Vorlage kann noch nicht gesendet werden. Bitte zuerst die Fehler beheben.",
     "testNotConfigured": "SMTP ist noch nicht eingerichtet. Bitte zuerst unter Einstellungen → E-Mail konfigurieren.",
     "emptyText": "Die Nur-Text-Version wird beim Versand aus dem HTML erzeugt."

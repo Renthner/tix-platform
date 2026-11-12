@@ -720,8 +720,11 @@ export function SmtpTestForm({
         <Alert variant="destructive">
           <AlertDescription>
             <span className="block font-medium">{t('failed')}</span>
+            <span className="mt-1 block">{t(`kinds.${state.kind ?? 'other'}`)}</span>
             {state.message && (
-              <span className="mt-1 block font-mono text-xs break-all">{state.message}</span>
+              <span className="mt-1 block font-mono text-xs break-all">
+                {t('detail')} {state.message}
+              </span>
             )}
           </AlertDescription>
         </Alert>

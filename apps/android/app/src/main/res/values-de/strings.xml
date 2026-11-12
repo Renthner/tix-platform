@@ -137,6 +137,8 @@
     <string name="settings_update_no_release_server">Auf dem Server ist keine App für Version %1$s hochgeladen.</string>
     <string name="settings_update_failed">Update-Prüfung fehlgeschlagen.</string>
     <string name="settings_update_server_url_missing">Auf dem Server ist keine öffentliche Adresse hinterlegt. Bitte eine Administratorin oder einen Administrator bitten, die Scanner-Serveradresse zu setzen (Einstellungen, Scanner).</string>
+    <string name="scanner_hint_update_available">App-Update v%1$s verfügbar – tippen für Einstellungen</string>
+    <string name="scanner_hint_server_older">Server ist älter als die App (v%1$s) – Server aktualisieren</string>
     <string name="settings_update_available">Update verfügbar: %1$s (%2$d)</string>
     <string name="settings_update_sha">SHA-256: %1$s</string>
     <string name="settings_update_source_github">Updates von GitHub-Releases (%1$s)</string>

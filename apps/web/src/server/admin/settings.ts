@@ -8,6 +8,7 @@ import {
   saveSecretSetting,
   saveSetting,
   sendTestEmail,
+  type MailErrorKind,
 } from '@tix/core';
 import { SCAN_RESULT_COLOR_KEYS } from '@tix/shared';
 import { revalidatePath } from 'next/cache';
@@ -383,7 +384,13 @@ export async function saveSettingsAction(
 export type TestMailState =
   | { status: 'idle' }
   | { status: 'success'; to: string; at: number }
-  | { status: 'error'; code: 'email' | 'failed'; message?: string; at: number };
+  | {
+      status: 'error';
+      code: 'email' | 'failed';
+      message?: string;
+      kind?: MailErrorKind;
+      at: number;
+    };
 
 /** Sends the SMTP_TEST template synchronously with the saved SMTP settings. */
 export async function sendTestEmailAction(
@@ -400,9 +407,9 @@ export async function sendTestEmailAction(
     to,
     ok: result.ok,
     messageId: result.messageId,
-    ...(result.ok ? {} : { error: result.error }),
+    ...(result.ok ? {} : { error: result.error, kind: result.kind }),
   });
   return result.ok
     ? { status: 'success', to, at: Date.now() }
-    : { status: 'error', code: 'failed', message: result.error, at: Date.now() };
+    : { status: 'error', code: 'failed', message: result.error, kind: result.kind, at: Date.now() };
 }

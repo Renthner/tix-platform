@@ -61,6 +61,15 @@ data class TicketRow(
     val firstCheckedInAt: String? = null,
 )
 
+/** Non-blocking hint on the scanner screen when the app version differs from the server's. */
+sealed interface VersionHint {
+    /** The server runs a newer version than this app: update the app (opens Settings). */
+    data class UpdateAvailable(val version: String) : VersionHint
+
+    /** The app is newer than the server: the server should be updated (the app is never downgraded). */
+    data class ServerOlder(val version: String) : VersionHint
+}
+
 sealed interface PairUi {
     data object Idle : PairUi
     data object Working : PairUi
@@ -226,6 +235,18 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
     val resultPalette: StateFlow<org.tix.checkin.core.scan.ResultPalette> = c.dao.deviceConfigFlow()
         .map { org.tix.checkin.core.scan.ResultPalette.fromJson(it?.resultStyleJson) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, org.tix.checkin.core.scan.ResultPalette.DEFAULT)
+
+    /** Version mismatch hint for the scanner screen, derived from the same decision as the update logic. */
+    val versionHint: StateFlow<VersionHint?> = settings.appUpdate
+        .map { cfg ->
+            val installed = org.tix.checkin.core.AppVersion.parse(org.tix.checkin.BuildConfig.VERSION_NAME) ?: return@map null
+            when (val d = org.tix.checkin.core.UpdateTarget.decide(installed, cfg.serverVersion)) {
+                is org.tix.checkin.core.UpdateTarget.UpdateAvailable -> VersionHint.UpdateAvailable(d.target.name)
+                is org.tix.checkin.core.UpdateTarget.AppNewerThanServer -> VersionHint.ServerOlder(d.server.name)
+                else -> null
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val mode = MutableStateFlow(ScanAction.CHECK_IN)
     private val _verdict = MutableStateFlow<VerdictUi?>(null)

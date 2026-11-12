@@ -7,6 +7,7 @@ export * from './render';
 export * from './transport';
 export * from './deliver';
 export * from './outbox';
+export * from './error-kind';
 export * from './sanitize';
 export * from './editor';
 export * from './template-admin';

@@ -1093,7 +1093,17 @@
         "send": "Send test e-mail",
         "sending": "Sending…",
         "success": "The mail server accepted the test e-mail for {to}.",
-        "failed": "The test e-mail could not be sent:"
+        "failed": "The test e-mail could not be sent.",
+        "kinds": {
+          "auth": "The mail server rejected the login. Check the user name and password (many providers require an app password).",
+          "connection": "No connection to the mail server. Check host and port and whether a firewall blocks outgoing SMTP.",
+          "timeout": "The mail server did not respond in time or closed the connection. Check host, port and firewall, then try again.",
+          "dns": "The host name could not be resolved. Check the spelling of the SMTP host.",
+          "tls": "The secure connection failed. Port 465 normally needs SSL/TLS, port 587 uses STARTTLS; also check the server certificate.",
+          "recipientRejected": "The mail server rejected the recipient address. Check the address and the sender permissions.",
+          "other": "The mail could not be sent. See the technical detail below."
+        },
+        "detail": "Technical detail:"
       }
     },
     "customerAccounts": {

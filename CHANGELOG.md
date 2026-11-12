@@ -8,6 +8,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.7] - 2026-11-12
+
+### Added
+
+- Check-in app: a small hint on the scanner screen when the app version differs from the server
+  (update available, or server older than the app).
+
+### Changed
+
+- Ticket designer: the preview uses the same font (Noto Sans) as the PDF, so line breaks match.
+- SMTP test e-mails: delivery errors are explained in the admin language (login, connection,
+  timeout, host name, TLS, recipient) with the technical detail below.
+
 ## [1.0.0-alpha.6] - 2026-11-12
 
 ### Changed
