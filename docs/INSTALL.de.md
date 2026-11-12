@@ -92,7 +92,7 @@ auf und melde dich neu an: `sudo usermod -aG docker $USER`. Diese Anleitung geht
 TIX braucht genau zwei Dateien von der Release-Seite: `docker-compose.yml` und `env.example`.
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.10
+export TIX_VERSION=1.0.0-alpha.11
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example

@@ -1,6 +1,6 @@
 {
   "name": "@tix/db",
-  "version": "1.0.0-alpha.10",
+  "version": "1.0.0-alpha.11",
   "private": true,
   "license": "PolyForm-Shield-1.0.0",
   "type": "module",

@@ -8,6 +8,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.11] - 2026-11-12
+
 ### Added
 
 - Customisable shop start page while no event is published (Settings → Appearance): headline,
