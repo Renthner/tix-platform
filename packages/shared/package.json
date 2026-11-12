@@ -1,6 +1,6 @@
 {
   "name": "@tix/shared",
-  "version": "1.0.0-alpha.8",
+  "version": "1.0.0-alpha.9",
   "private": true,
   "license": "PolyForm-Shield-1.0.0",
   "type": "module",
