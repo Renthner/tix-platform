@@ -1,5 +1,6 @@
+import { sanitizeCustomHtml } from '@tix/core';
 import { mediaAssets } from '@tix/db';
-import { resolveStartPageTexts, type StartPageSettings } from '@tix/shared';
+import { resolveStartPageHtml, resolveStartPageTexts, type StartPageSettings } from '@tix/shared';
 import { inArray } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,12 @@ function aspect({ width, height }: Size, min: number, max: number): number {
   return Math.min(Math.max(width / height, min), max);
 }
 
+/** Sanitised custom HTML when HTML mode is on and a text exists for the locale/default locale. */
+function customHtml(settings: StartPageSettings, locale: string, defaultLocale: string): string {
+  if (settings.mode !== 'HTML') return '';
+  return sanitizeCustomHtml(resolveStartPageHtml(settings, locale, defaultLocale));
+}
+
 /**
  * True when the admin configured anything visible; otherwise the shop keeps its built-in
  * "no events" text.
@@ -26,6 +33,7 @@ export function hasStartPageContent(
   locale: string,
   defaultLocale: string,
 ): boolean {
+  if (customHtml(settings, locale, defaultLocale)) return true;
   const r = resolveStartPageTexts(settings, locale, defaultLocale);
   return !!(
     r.headline ||
@@ -46,6 +54,12 @@ export async function StartPage({
   locale: string;
   defaultLocale: string;
 }) {
+  const custom = customHtml(settings, locale, defaultLocale);
+  if (custom) {
+    // Sanitised with the wide custom-HTML allowlist (no scripts/frames/handlers), also on save.
+    // No prose styles here so the admin's own CSS controls the look.
+    return <div className="tix-start-custom" dangerouslySetInnerHTML={{ __html: custom }} />;
+  }
   const t = await getTranslations('shop.home');
   const r = resolveStartPageTexts(settings, locale, defaultLocale);
   const ids = [

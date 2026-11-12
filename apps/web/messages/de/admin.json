@@ -960,7 +960,15 @@
       "galleryImage": "Galeriebild {n}",
       "galleryHint": "Bis zu {max} weitere Bilder, als Raster unter dem Text.",
       "galleryAlt": "Alternativtext von Galeriebild {n}",
-      "altHint": "Alternativtexte beschreiben die Bilder für Screenreader; bei rein dekorativen Bildern leer lassen. Fehlende Texte werden aus der Standardsprache des Shops übernommen."
+      "altHint": "Alternativtexte beschreiben die Bilder für Screenreader; bei rein dekorativen Bildern leer lassen. Fehlende Texte werden aus der Standardsprache des Shops übernommen.",
+      "mode": "Aufbau",
+      "modes": {
+        "BUILDER": "Baukasten",
+        "HTML": "Eigenes HTML"
+      },
+      "html": "HTML-Code",
+      "htmlInsertImage": "Bild einfügen",
+      "htmlHint": "Fülle die Seite mit eigenem HTML und CSS (style-Elemente und style-Attribute sind erlaubt; begrenze dein CSS mit der Klasse .tix-start-custom). Skripte, eingebettete Frames, Formulare und Event-Handler (onclick usw.) werden beim Speichern und bei der Anzeige entfernt. Bilder lädst du unter Medien hoch und verweist mit /api/media/ID darauf, oder du fügst über „Bild einfügen“ ein img-Tag an der Cursorposition ein. Höchstens {max} KB pro Sprache; eine leere Sprache greift auf die Standardsprache des Shops zurück, ganz ohne HTML wird der Baukasten-Inhalt angezeigt. Die Baukasten-Inhalte bleiben beim Umschalten erhalten."
     },
     "secret": {
       "stored": "gespeichert",

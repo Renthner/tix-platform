@@ -69,3 +69,4 @@ export * from './accounting/csv';
 export * from './translations-admin';
 export * from './scanner';
 export * from './setup-checklist';
+export * from './custom-html';

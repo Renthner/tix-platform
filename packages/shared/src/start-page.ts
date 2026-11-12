@@ -39,3 +39,13 @@ export function resolveStartPageTexts(
     ),
   };
 }
+
+/** Custom HTML of `locale`, else of the shop default locale (empty = none). */
+export function resolveStartPageHtml(
+  settings: Pick<StartPageSettings, 'texts'>,
+  locale: string,
+  defaultLocale: string,
+): string {
+  const t = settings.texts as Record<string, StartPageText | undefined>;
+  return t[locale]?.html?.trim() || t[defaultLocale]?.html?.trim() || '';
+}

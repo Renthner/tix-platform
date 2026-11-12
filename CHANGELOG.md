@@ -8,6 +8,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.12] - 2026-11-13
+
+### Added
+
+- Start page: besides the builder, the page can be filled completely with custom HTML and CSS
+  (per language). Scripts, frames, forms and event handlers are removed; images from the media
+  library can be inserted.
+
+### Changed
+
+- Dashboard "first steps": the collapse and hide buttons sit to the right of the title on wider
+  screens and below it on phones.
+- Admin event list: cover thumbnails keep their original aspect ratio instead of being cropped to
+  16:9.
+
 ## [1.0.0-alpha.11] - 2026-11-12
 
 ### Added

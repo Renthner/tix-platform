@@ -113,20 +113,21 @@ export default async function EventsPage({
                         <div className="flex items-center gap-3">
                           <div
                             data-testid="event-cover-thumb"
-                            className="flex h-[27px] w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-muted text-muted-foreground"
+                            className="flex h-10 w-16 shrink-0 items-center justify-center"
                           >
                             {event.heroImageAssetId ? (
+                              // Original aspect ratio, scaled into the fixed slot (names stay aligned).
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={`/api/media/${event.heroImageAssetId}`}
                                 alt=""
-                                width={48}
-                                height={27}
                                 loading="lazy"
-                                className="size-full object-cover"
+                                className="h-auto max-h-10 w-auto max-w-16 rounded"
                               />
                             ) : (
-                              <ImageIcon className="size-4" aria-hidden />
+                              <span className="flex size-full items-center justify-center rounded bg-muted text-muted-foreground">
+                                <ImageIcon className="size-4" aria-hidden />
+                              </span>
                             )}
                           </div>
                           <Link href={`/admin/events/${event.id}`} className="hover:underline">

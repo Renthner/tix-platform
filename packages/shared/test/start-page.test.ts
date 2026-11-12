@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { SETTINGS, START_PAGE_MAX_GALLERY, resolveStartPageTexts } from '../src';
+import {
+  SETTINGS,
+  START_PAGE_HTML_MAX,
+  START_PAGE_MAX_GALLERY,
+  resolveStartPageTexts,
+} from '../src';
 
 const schema = SETTINGS.startPage.schema;
 const uuid = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
 
 describe('startPage setting', () => {
   it('defaults to an empty page', () => {
-    expect(schema.parse({})).toEqual({ layout: 'ABOVE', galleryAssetIds: [], texts: {} });
+    expect(schema.parse({})).toEqual({
+      mode: 'BUILDER',
+      layout: 'ABOVE',
+      galleryAssetIds: [],
+      texts: {},
+    });
   });
 
   it('accepts https and shop-relative button links only', () => {
@@ -35,6 +45,14 @@ describe('startPage setting', () => {
   it('rejects unknown layouts and locales', () => {
     expect(schema.safeParse({ layout: 'GRID' }).success).toBe(false);
     expect(schema.safeParse({ texts: { fr: { headline: 'x' } } }).success).toBe(false);
+  });
+
+  it('accepts the HTML mode and limits the custom HTML size', () => {
+    expect(schema.safeParse({ mode: 'HTML' }).success).toBe(true);
+    expect(schema.safeParse({ mode: 'WYSIWYG' }).success).toBe(false);
+    const ok = 'x'.repeat(START_PAGE_HTML_MAX);
+    expect(schema.safeParse({ texts: { en: { html: ok } } }).success).toBe(true);
+    expect(schema.safeParse({ texts: { en: { html: ok + 'x' } } }).success).toBe(false);
   });
 
   it('limits text lengths', () => {

@@ -6,6 +6,7 @@ import {
   getSetting,
   hasSecretSetting,
   saveSecretSetting,
+  sanitizeCustomHtml,
   saveSetting,
   sendTestEmail,
   testPayPalConnection,
@@ -13,6 +14,7 @@ import {
 } from '@tix/core';
 import {
   SCAN_RESULT_COLOR_KEYS,
+  START_PAGE_HTML_MAX,
   START_PAGE_MAX_GALLERY,
   SUPPORTED_LOCALES,
   isPublicMediaKind,
@@ -207,10 +209,16 @@ async function readInput(
           heroAlt: text(fd, `heroAlt.${loc}`),
           // Alt texts stay aligned with the images that remain after skipping empty slots.
           galleryAlt: slots.map((i) => text(fd, `galleryAlt${i}.${loc}`) ?? ''),
+          // Over-long input is passed on unchanged so validation rejects it instead of truncating.
+          html: (() => {
+            const raw = text(fd, `html.${loc}`) ?? '';
+            return raw.length > START_PAGE_HTML_MAX ? raw : sanitizeCustomHtml(raw) || undefined;
+          })(),
         };
       }
       return {
         input: {
+          mode: text(fd, 'mode'),
           layout: text(fd, 'layout'),
           heroAssetId,
           galleryAssetIds,

@@ -186,6 +186,7 @@ async function TabContent({
             <StartPageSettingsForm
               action={saveSettingsAction.bind(null, 'startPage')}
               initial={{
+                mode: startPage.mode,
                 layout: startPage.layout,
                 hero: await pickerAsset(startPage.heroAssetId),
                 gallery: await Promise.all(startPage.galleryAssetIds.map(pickerAsset)),

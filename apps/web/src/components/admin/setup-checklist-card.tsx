@@ -28,15 +28,17 @@ export async function SetupChecklistCard({
   const Chevron = collapsed ? ChevronDown : ChevronUp;
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div className="space-y-1">
+      {/* CardHeader is a grid by default: flex puts the actions beside the text from `sm` up and
+          below it (wrapping) on phones. */}
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="min-w-0 space-y-1">
           <CardTitle>{t('title')}</CardTitle>
           {!collapsed && <p className="text-sm text-muted-foreground">{t('description')}</p>}
           <p className="text-sm font-medium">
             {t('progress', { done: checklist.doneCount, total: checklist.total })}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex shrink-0 flex-wrap items-start gap-2 sm:flex-nowrap">
           <form action={setSetupChecklistCollapsedAction.bind(null, !collapsed)}>
             <Button type="submit" variant="ghost" size="sm" aria-expanded={!collapsed}>
               <Chevron className="size-4" aria-hidden />
@@ -44,17 +46,28 @@ export async function SetupChecklistCard({
             </Button>
           </form>
           {canDismiss && !collapsed && (
-            <form action={dismissSetupChecklistAction} className="flex flex-col items-end gap-1">
-              <Button type="submit" variant="outline" size="sm">
+            <form action={dismissSetupChecklistAction}>
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                title={t('dismissHint')}
+                aria-describedby="setup-dismiss-hint"
+              >
                 {t('dismiss')}
               </Button>
-              <p className="max-w-56 text-right text-xs text-muted-foreground">
-                {t('dismissHint')}
-              </p>
             </form>
           )}
         </div>
       </CardHeader>
+      {canDismiss && !collapsed && (
+        <p
+          id="setup-dismiss-hint"
+          className="-mt-3 px-6 text-xs text-muted-foreground sm:text-right"
+        >
+          {t('dismissHint')}
+        </p>
+      )}
       {!collapsed && (
         <CardContent>
           <ul className="divide-y">

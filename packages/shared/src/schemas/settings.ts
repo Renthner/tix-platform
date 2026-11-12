@@ -300,6 +300,10 @@ const seatDisplaySchema = z.object({
 export const START_PAGE_LAYOUTS = ['ABOVE', 'OVERLAY'] as const;
 export type StartPageLayout = (typeof START_PAGE_LAYOUTS)[number];
 export const START_PAGE_MAX_GALLERY = 4;
+export const START_PAGE_MODES = ['BUILDER', 'HTML'] as const;
+export type StartPageMode = (typeof START_PAGE_MODES)[number];
+/** Maximum size of the custom start page HTML per locale (characters). */
+export const START_PAGE_HTML_MAX = 200_000;
 
 /** Button target: an https URL or a path inside the shop ("/events", not "//host"). */
 export const startPageLinkSchema = z
@@ -325,11 +329,15 @@ const startPageTextSchema = z.object({
   heroAlt: z.string().trim().max(200).optional(),
   /** Alt texts of the gallery images, same order as `galleryAssetIds` (empty = decorative). */
   galleryAlt: z.array(z.string().trim().max(200)).max(START_PAGE_MAX_GALLERY).optional(),
+  /** Custom HTML (mode HTML), sanitised on save and on render. */
+  html: z.string().max(START_PAGE_HTML_MAX).optional(),
 });
 export type StartPageText = z.output<typeof startPageTextSchema>;
 
 /** Shop home page while no event is published (nothing configured = built-in text). */
 const startPageSchema = z.object({
+  /** BUILDER = structured fields below; HTML = the per-locale custom HTML replaces them. */
+  mode: z.enum(START_PAGE_MODES).default('BUILDER'),
   layout: z.enum(START_PAGE_LAYOUTS).default('ABOVE'),
   /** Public media assets (kind EVENT_IMAGE). */
   heroAssetId: z.uuid().optional(),

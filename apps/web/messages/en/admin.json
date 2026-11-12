@@ -960,7 +960,15 @@
       "galleryImage": "Gallery image {n}",
       "galleryHint": "Up to {max} more images, shown as a grid below the text.",
       "galleryAlt": "Alt text of gallery image {n}",
-      "altHint": "Alt texts describe the images for screen readers; leave them empty for purely decorative images. Missing texts fall back to the shop default language."
+      "altHint": "Alt texts describe the images for screen readers; leave them empty for purely decorative images. Missing texts fall back to the shop default language.",
+      "mode": "Structure",
+      "modes": {
+        "BUILDER": "Builder",
+        "HTML": "Custom HTML"
+      },
+      "html": "HTML code",
+      "htmlInsertImage": "Insert image",
+      "htmlHint": "Fill the page with your own HTML and CSS (style elements and style attributes are allowed; scope your CSS with the class .tix-start-custom). Scripts, embedded frames, forms and event handlers (onclick etc.) are removed when saving and when the page is shown. Upload images under Media and reference them as /api/media/ID, or use \"Insert image\" below to add an img tag at the cursor. Maximum {max} KB per language; an empty language falls back to the shop default language, and without any HTML the builder content is shown. The builder content is kept while you switch."
     },
     "secret": {
       "stored": "stored",
