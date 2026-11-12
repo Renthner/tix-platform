@@ -1045,6 +1045,18 @@
       "webhookIdHint": "ID of the webhook registered in your PayPal app; used to verify webhook signatures.",
       "approvalTimeoutSeconds": "Approval time limit (seconds)",
       "approvalTimeoutSecondsHint": "Orders not approved at PayPal within this time expire and the seats are released.",
+      "test": {
+        "button": "Test connection",
+        "testing": "Testing …",
+        "hint": "Uses the saved values – save your changes first.",
+        "notConfigured": "Save client ID and client secret first.",
+        "ok": "PayPal accepted the credentials for {environment}.",
+        "rejected": "PayPal rejected the client ID or secret. Check that both come from the same app and the same environment (sandbox or live).",
+        "failed": "PayPal could not be reached:",
+        "webhookOk": "The webhook ID exists.",
+        "webhookNotFound": "Webhook ID not found. Check the webhook ID of this app and environment.",
+        "webhookUnknown": "The webhook ID could not be verified."
+      },
       "webhookUrlHint": "Webhook URL for the PayPal developer dashboard (events: Checkout order approved, Payment capture completed / denied / refunded / reversed):",
       "guide": {
         "title": "Guide: set up PayPal and test with the sandbox",

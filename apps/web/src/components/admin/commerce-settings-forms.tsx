@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { centsToInput } from '@/lib/money';
-import type { TestMailState } from '@/server/admin/settings';
+import type { PayPalTestState, TestMailState } from '@/server/admin/settings';
 import { ActionFeedback, ActionForm, Field, NativeSelect, SubmitButton } from './form-controls';
 import { SwitchRow, useSettingsForm, type Action } from './settings-forms';
 
@@ -654,6 +654,58 @@ export function SmtpSettingsForm({
         <SwitchRow name="clearPassword" defaultChecked={false} label={t('clearPassword')} />
       )}
       <SubmitButton>{tc('save')}</SubmitButton>
+    </ActionForm>
+  );
+}
+
+export function PaypalTestForm({
+  action,
+}: {
+  action: (state: PayPalTestState, fd: FormData) => Promise<PayPalTestState>;
+}) {
+  const t = useTranslations('admin.settings.paypal.test');
+  const te = useTranslations('admin.settings.paypal.environments');
+  const [state, formAction] = useActionState(action, { status: 'idle' } as PayPalTestState);
+  return (
+    <ActionForm action={formAction} className="mt-4 space-y-3 rounded-lg border bg-muted/30 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <SubmitButton variant="outline" pendingLabel={t('testing')}>
+          {t('button')}
+        </SubmitButton>
+        <p className="text-xs text-muted-foreground">{t('hint')}</p>
+      </div>
+      {state.status === 'ok' && (
+        <Alert>
+          <AlertDescription>
+            <span className="block">{t('ok', { environment: te(state.environment) })}</span>
+            {state.webhook === 'OK' && <span className="mt-1 block">{t('webhookOk')}</span>}
+            {state.webhook === 'NOT_FOUND' && (
+              <span className="mt-1 block text-destructive">{t('webhookNotFound')}</span>
+            )}
+            {state.webhook === 'UNKNOWN' && (
+              <span className="mt-1 block">{t('webhookUnknown')}</span>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+      {state.status === 'notConfigured' && (
+        <Alert variant="destructive">
+          <AlertDescription>{t('notConfigured')}</AlertDescription>
+        </Alert>
+      )}
+      {state.status === 'rejected' && (
+        <Alert variant="destructive">
+          <AlertDescription>{t('rejected')}</AlertDescription>
+        </Alert>
+      )}
+      {state.status === 'failed' && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            <span className="block">{t('failed')}</span>
+            <span className="mt-1 block font-mono text-xs break-all">{state.message}</span>
+          </AlertDescription>
+        </Alert>
+      )}
     </ActionForm>
   );
 }

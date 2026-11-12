@@ -59,6 +59,7 @@
     "MIXED_CURRENCIES": "Events with different currencies cannot be bought in one order.",
     "PRICE_CHANGED": "The total of your order changed. Please check the updated prices and order again.",
     "PAYMENT_METHOD_UNAVAILABLE": "This payment method is not available for your order.",
+    "PAYPAL_UNAVAILABLE": "PayPal payment is currently not available. Your seats stay reserved – please try again later.",
     "LOGIN_REQUIRED": "Please sign in to complete your order.",
     "TERMS_NOT_ACCEPTED": "Please accept the terms and conditions.",
     "PHONE_REQUIRED": "Please enter your phone number.",

@@ -38,6 +38,7 @@ const PAYPAL_NOTICES = [
   'failed',
   'expired',
   'unavailable',
+  'notavailable',
 ] as const;
 type PayPalNotice = (typeof PAYPAL_NOTICES)[number];
 

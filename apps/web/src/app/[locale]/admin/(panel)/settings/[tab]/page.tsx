@@ -7,6 +7,7 @@ import {
   InvoicingSettingsForm,
   OrganizerSettingsForm,
   PaypalSettingsForm,
+  PaypalTestForm,
   SmtpSettingsForm,
   SmtpTestForm,
 } from '@/components/admin/commerce-settings-forms';
@@ -33,7 +34,11 @@ import {
 import { resolveLocale } from '@/i18n/locale';
 import { SETTINGS_TABS, type SettingsTab } from '@/lib/settings-tabs';
 import { requireAdmin } from '@/server/auth';
-import { saveSettingsAction, sendTestEmailAction } from '@/server/admin/settings';
+import {
+  saveSettingsAction,
+  sendTestEmailAction,
+  testPayPalConnectionAction,
+} from '@/server/admin/settings';
 import { restoreSetupChecklistAction } from '@/server/admin/setup-checklist';
 import {
   checkAppleWalletAction,
@@ -235,6 +240,7 @@ async function TabContent({
               initial={paypal}
               secretStored={secretStored}
             />
+            <PaypalTestForm action={testPayPalConnectionAction} />
           </SettingsSection>
         </>
       );

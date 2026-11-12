@@ -218,6 +218,13 @@
       "when": 1794392669222,
       "tag": "0030_refund_reconcile_state",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794400000000,
+      "tag": "0031_ticket_sync_seq_qualified",
+      "breakpoints": true
     }
   ]
 }

@@ -204,6 +204,33 @@ run('backup, verify and restore (real PostgreSQL)', () => {
     await query(
       `INSERT INTO customers (id, email, first_name, last_name) VALUES ('11111111-1111-4111-8111-111111111111', 'jane@example.org', 'Jane', 'Doe')`,
     );
+    // A ticket row: the restore carry-forward UPDATEs tickets, firing the sync-version trigger
+    // (nextval) while pg_restore left an empty search_path. FKs are dropped (scratch database)
+    // so a single row does not need the whole event/order graph.
+    await query(`DO $$ DECLARE c record; BEGIN
+      FOR c IN SELECT conname FROM pg_constraint WHERE conrelid = 'public.tickets'::regclass AND contype = 'f'
+      LOOP EXECUTE format('ALTER TABLE public.tickets DROP CONSTRAINT %I', c.conname); END LOOP; END $$`);
+    await query(
+      `INSERT INTO tickets (id, order_item_id, order_id, event_id, ticket_code, signing_key_id, qr_payload)
+       VALUES (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'TICKET-RESTORE-1', gen_random_uuid(), 'tix://v1/x')`,
+    );
+    // Simulate a backup made before migration 0031: the dump carries the OLD trigger body with the
+    // unqualified sequence (migrations only run after the restore, so only the search_path reset helps).
+    await query(`CREATE OR REPLACE FUNCTION tickets_bump_sync_version() RETURNS trigger
+      LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.sync_version IS NOT DISTINCT FROM OLD.sync_version
+           AND (to_jsonb(NEW) - ARRAY['pdf_object_key', 'pkpass_object_key', 'google_wallet_object_id', 'updated_at'])
+               IS NOT DISTINCT FROM
+               (to_jsonb(OLD) - ARRAY['pdf_object_key', 'pkpass_object_key', 'google_wallet_object_id', 'updated_at'])
+        THEN
+          RETURN NEW;
+        END IF;
+        NEW.sync_version := nextval('ticket_sync_version_seq');
+        NEW.sync_xid := pg_current_xact_id();
+        RETURN NEW;
+      END;
+      $$`);
     buckets.assets.objects.set('logo.png', { body: randomBytes(1_000), contentType: 'image/png' });
     buckets.documents.objects.set('invoices/a.pdf', {
       body: randomBytes(300_000),
@@ -390,6 +417,13 @@ run('backup, verify and restore (real PostgreSQL)', () => {
       "SELECT last_value FROM pg_sequences WHERE sequencename = 'ticket_sync_version_seq'",
     );
     expect(Number(seq.rows[0].last_value)).toBeGreaterThanOrEqual(500);
+    // The ticket survives the restore and the sync trigger ran (version and xid assigned).
+    const ticket = await query(
+      "SELECT sync_version, sync_xid::text AS xid FROM tickets WHERE ticket_code = 'TICKET-RESTORE-1'",
+    );
+    expect(ticket.rows).toHaveLength(1);
+    expect(Number(ticket.rows[0].sync_version)).toBeGreaterThan(0);
+    expect(ticket.rows[0].xid).not.toBe('0');
     expect(await getRestoreIncomplete(rt.ctx)).toBeNull();
     // Files that were not part of the backup are quarantined, not deleted.
     expect(result.filesQuarantined).toBe(1);

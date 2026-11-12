@@ -1,5 +1,5 @@
 import { requestLogger } from '@/server/logger';
-import { DomainError, placeOrder, startPayPalPayment } from '@tix/core';
+import { DomainError, PayPalCredentialsError, placeOrder, startPayPalPayment } from '@tix/core';
 import { checkoutInputSchema } from '@tix/shared';
 import { NextResponse } from 'next/server';
 import { getCore } from '@/server/core';
@@ -35,8 +35,13 @@ export async function POST(request: Request) {
         if (started.status === 'REDIRECT') redirect = started.url;
       } catch (err) {
         // The order exists and keeps its seats; the customer can retry on the order page.
-        requestLogger(request).error({ err }, '[checkout] PayPal payment could not be started');
-        redirect = `${orderPath}&paypal=unavailable`;
+        if (err instanceof PayPalCredentialsError) {
+          // Configuration problem, already logged by core.
+          redirect = `${orderPath}&paypal=notavailable`;
+        } else {
+          requestLogger(request).error({ err }, '[checkout] PayPal payment could not be started');
+          redirect = `${orderPath}&paypal=unavailable`;
+        }
       }
     }
     return NextResponse.json(

@@ -59,6 +59,7 @@
     "MIXED_CURRENCIES": "Veranstaltungen mit unterschiedlichen Währungen können nicht in einer Bestellung gekauft werden.",
     "PRICE_CHANGED": "Der Gesamtbetrag deiner Bestellung hat sich geändert. Bitte prüfe die aktualisierten Preise und bestelle erneut.",
     "PAYMENT_METHOD_UNAVAILABLE": "Diese Zahlungsart ist für deine Bestellung nicht verfügbar.",
+    "PAYPAL_UNAVAILABLE": "Die Zahlung mit PayPal ist gerade nicht möglich. Deine Plätze bleiben reserviert – versuche es später erneut.",
     "LOGIN_REQUIRED": "Bitte melde dich an, um deine Bestellung abzuschließen.",
     "TERMS_NOT_ACCEPTED": "Bitte akzeptiere die AGB.",
     "PHONE_REQUIRED": "Bitte gib deine Telefonnummer an.",

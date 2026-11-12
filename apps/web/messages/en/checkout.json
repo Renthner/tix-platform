@@ -82,7 +82,8 @@
       "cancelled": "The PayPal payment was cancelled. Your seats are still reserved – you can try again below.",
       "failed": "The PayPal payment could not be completed. Please try again or choose another funding source at PayPal.",
       "expired": "The payment window of this order has expired and the seats were released. If money was taken, it is refunded automatically.",
-      "unavailable": "PayPal is temporarily unavailable. Your seats are reserved – please try again in a moment."
+      "unavailable": "PayPal is temporarily unavailable. Your seats are reserved – please try again in a moment.",
+      "notavailable": "PayPal payment is currently not available. Your seats stay reserved – please try again later."
     },
     "walletNotice": {
       "unavailable": "Adding to the wallet did not work just now. Please try again later or use the PDF ticket."
@@ -180,7 +181,8 @@
         "cancelled": "The PayPal payment was cancelled. You can try again below.",
         "failed": "The PayPal payment could not be completed. Please try again.",
         "expired": "This additional payment is no longer open. If money was taken, it is refunded automatically.",
-        "unavailable": "PayPal is temporarily unavailable. Please try again in a moment."
+        "unavailable": "PayPal is temporarily unavailable. Please try again in a moment.",
+        "notavailable": "PayPal payment is currently not available. Please try again later."
       },
       "difference": "Price difference",
       "alreadyPaid": "Already paid (overpayment)",

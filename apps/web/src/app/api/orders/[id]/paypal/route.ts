@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { getCore } from '@/server/core';
 import { enforceRateLimit, handle, parseBody, uuidParam } from '@/server/http';
 import { canAccessOrder } from '@/server/order-access';
+import { rethrowPayPalCredentials } from '@/server/paypal-errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     await enforceRateLimit('paypal-start', id, 10, 60_000);
     const core = getCore();
-    const started = await startPayPalPayment(core, id);
+    const started = await startPayPalPayment(core, id).catch(rethrowPayPalCredentials);
     if (started.status === 'REDIRECT') return NextResponse.json({ redirect: started.url });
     const [order] = await core.db
       .select({ id: orders.id, orderNumber: orders.orderNumber, locale: orders.locale })

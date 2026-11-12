@@ -82,7 +82,8 @@
       "cancelled": "Die PayPal-Zahlung wurde abgebrochen. Deine Plätze sind weiterhin reserviert – du kannst es unten erneut versuchen.",
       "failed": "Die PayPal-Zahlung konnte nicht abgeschlossen werden. Bitte versuche es erneut oder wähle bei PayPal eine andere Zahlungsquelle.",
       "expired": "Das Zahlungsfenster dieser Bestellung ist abgelaufen, die Plätze wurden freigegeben. Falls Geld abgebucht wurde, wird es automatisch erstattet.",
-      "unavailable": "PayPal ist vorübergehend nicht erreichbar. Deine Plätze sind reserviert – bitte versuche es gleich noch einmal."
+      "unavailable": "PayPal ist vorübergehend nicht erreichbar. Deine Plätze sind reserviert – bitte versuche es gleich noch einmal.",
+      "notavailable": "Die Zahlung mit PayPal ist gerade nicht möglich. Deine Plätze bleiben reserviert – versuche es später erneut."
     },
     "walletNotice": {
       "unavailable": "Das Hinzufügen zur Wallet hat gerade nicht geklappt. Bitte versuch es später noch einmal oder nutze das PDF-Ticket."
@@ -180,7 +181,8 @@
         "cancelled": "Die PayPal-Zahlung wurde abgebrochen. Du kannst es unten erneut versuchen.",
         "failed": "Die PayPal-Zahlung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
         "expired": "Diese Nachzahlung ist nicht mehr offen. Wurde Geld abgebucht, wird es automatisch erstattet.",
-        "unavailable": "PayPal ist vorübergehend nicht erreichbar. Bitte versuche es gleich noch einmal."
+        "unavailable": "PayPal ist vorübergehend nicht erreichbar. Bitte versuche es gleich noch einmal.",
+        "notavailable": "Die Zahlung mit PayPal ist gerade nicht möglich. Bitte versuche es später erneut."
       },
       "difference": "Preisdifferenz",
       "alreadyPaid": "Bereits bezahlt (Überzahlung)",

@@ -8,6 +8,7 @@ import {
   saveSecretSetting,
   saveSetting,
   sendTestEmail,
+  testPayPalConnection,
   type MailErrorKind,
 } from '@tix/core';
 import { SCAN_RESULT_COLOR_KEYS } from '@tix/shared';
@@ -377,6 +378,45 @@ export async function saveSettingsAction(
   });
   revalidatePath('/', 'layout');
   return success('saved');
+}
+
+// ─── PayPal connection test ─────────────────────────────────────────────────
+
+export type PayPalTestState =
+  | { status: 'idle' }
+  | { status: 'notConfigured'; at: number }
+  | {
+      status: 'ok';
+      environment: 'sandbox' | 'live';
+      webhook: 'NONE' | 'OK' | 'NOT_FOUND' | 'UNKNOWN';
+      at: number;
+    }
+  | { status: 'rejected'; at: number }
+  | { status: 'failed'; message: string; at: number };
+
+/** Requests an OAuth token with the SAVED PayPal credentials (and checks a saved webhook id). */
+export async function testPayPalConnectionAction(
+  _prev: PayPalTestState,
+  _fd: FormData,
+): Promise<PayPalTestState> {
+  const session = await requireAdmin(['SUPER_ADMIN']);
+  const core = getCore();
+  const result = await testPayPalConnection(core);
+  await audit(core.db, session, 'settings.paypal.test', 'system_setting', 'paypal', {
+    result: result.status,
+    ...(result.status === 'OK' ? { environment: result.environment, webhook: result.webhook } : {}),
+  });
+  const at = Date.now();
+  switch (result.status) {
+    case 'NOT_CONFIGURED':
+      return { status: 'notConfigured', at };
+    case 'OK':
+      return { status: 'ok', environment: result.environment, webhook: result.webhook, at };
+    case 'CREDENTIALS_REJECTED':
+      return { status: 'rejected', at };
+    case 'ERROR':
+      return { status: 'failed', message: result.message.slice(0, 300), at };
+  }
 }
 
 // ─── SMTP test e-mail ───────────────────────────────────────────────────────

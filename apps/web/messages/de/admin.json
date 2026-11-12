@@ -1045,6 +1045,18 @@
       "webhookIdHint": "ID des in Ihrer PayPal-App registrierten Webhooks; dient zur Prüfung der Webhook-Signaturen.",
       "approvalTimeoutSeconds": "Zeitlimit für die Freigabe (Sekunden)",
       "approvalTimeoutSecondsHint": "Bestellungen, die nicht innerhalb dieser Zeit bei PayPal freigegeben werden, verfallen und die Plätze werden freigegeben.",
+      "test": {
+        "button": "Verbindung testen",
+        "testing": "Teste …",
+        "hint": "Verwendet die gespeicherten Werte – speichere deine Änderungen zuerst.",
+        "notConfigured": "Speichere zuerst Client-ID und Client-Secret.",
+        "ok": "PayPal hat die Zugangsdaten für {environment} akzeptiert.",
+        "rejected": "PayPal hat Client-ID oder Secret abgelehnt. Prüfe, ob beide aus derselben App und derselben Umgebung (Sandbox oder Live) stammen.",
+        "failed": "PayPal ist nicht erreichbar:",
+        "webhookOk": "Die Webhook-ID existiert.",
+        "webhookNotFound": "Webhook-ID nicht gefunden. Prüfe die Webhook-ID dieser App und Umgebung.",
+        "webhookUnknown": "Die Webhook-ID konnte nicht überprüft werden."
+      },
       "webhookUrlHint": "Webhook-URL für das PayPal-Entwicklerportal (Ereignisse: Checkout order approved, Payment capture completed / denied / refunded / reversed):",
       "guide": {
         "title": "Anleitung: PayPal einrichten und mit der Sandbox testen",
