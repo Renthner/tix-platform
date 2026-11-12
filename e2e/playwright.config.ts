@@ -30,7 +30,7 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'shop',
-      testMatch: /(shop|not-found)\.spec\.ts/,
+      testMatch: /(shop|not-found|fonts)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
       dependencies: ['setup'],
     },
