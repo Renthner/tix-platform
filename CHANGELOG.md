@@ -8,6 +8,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.4] - 2026-11-12
+
 ### Added
 
 - Setup checklist on the admin dashboard for new installations (organiser details, e-mail
