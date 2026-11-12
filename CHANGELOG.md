@@ -24,6 +24,8 @@ not exist` and was rolled back. Existing backups can be restored again; the tick
 - A PayPal payment approved by the buyer is no longer marked failed when the PayPal credentials
   are rejected at capture; it is captured once the credentials work again. Automatic refunds keep
   retrying instead of failing permanently.
+- A restore could stop as "incomplete" when the last session-termination round hit the migration
+  connection opened right after the database was replaced.
 
 ## [1.0.0-alpha.7] - 2026-11-12
 

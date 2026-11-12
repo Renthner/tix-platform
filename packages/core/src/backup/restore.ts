@@ -304,7 +304,11 @@ export async function restoreBackup(
     // database is replaced (Redis flag; harmless when the restore rolls back - the pass finds nothing).
     const reconcileToken = await markRefundsForReconciliation(rt.ctx, 'restore', undefined, 'pre');
     await at('DATABASE_RESTORE');
-    const kill = () => terminateOtherSessions(killer!, RESTORE_APPLICATIONS).catch(() => 0);
+    // The last termination round is remembered: one already sent when the timer is cleared would
+    // otherwise still run and could kill the migration connection opened right afterwards.
+    let pendingKill: Promise<number> = Promise.resolve(0);
+    const kill = () =>
+      (pendingKill = terminateOtherSessions(killer!, RESTORE_APPLICATIONS).catch(() => 0));
     await kill();
     killTimer = setInterval(() => void kill(), SESSION_KILL_INTERVAL_MS);
     // GoBD: read the live counters only after the other sessions are gone.
@@ -338,6 +342,7 @@ export async function restoreBackup(
     } finally {
       clearInterval(killTimer);
       killTimer = undefined;
+      await pendingKill;
     }
 
     await at('MIGRATIONS');
