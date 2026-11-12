@@ -105,7 +105,11 @@ async function main() {
       const cache = process.env.E2E_BUILD_CACHE_DIR;
       for (const t of TARGETS) {
         log(`building ${image(t)}`);
-        const args = ['build', '--target', t, '-t', image(t)];
+        // `docker build` uses the default builder (docker driver, no cache export); the cached
+        // build has to go through `docker buildx build` to use the builder set up by CI.
+        const args = cache
+          ? ['buildx', 'build', '--target', t, '-t', image(t)]
+          : ['build', '--target', t, '-t', image(t)];
         if (cache) {
           args.push(
             '--load',
