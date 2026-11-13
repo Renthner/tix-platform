@@ -8,6 +8,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.15] - 2026-11-13
+
 ### Added
 
 - Settings → Checkout: optional maximum cart lifetime (5–1440 minutes since the first reserved
