@@ -2,6 +2,8 @@ import { bankTransactions, emailMessages, events } from '@tix/db';
 import { QUEUE_NAMES, listLiveRealtime, listLiveWorkers, type QueueName } from '@tix/redis';
 import { APP_VERSION } from '@tix/shared';
 import { inArray, sql } from 'drizzle-orm';
+import { shopCacheStats } from '../cache/shop-cache';
+import type { CacheStats } from '../cache/tag-cache';
 import type { CoreContext } from '../context';
 import { coreLog } from '../log';
 import { shopPresenceCounts } from '../presence';
@@ -43,6 +45,8 @@ export interface SystemStats {
     rssBytes: number;
     heapUsedBytes: number;
   };
+  /** Shop data cache of THIS web process (counters since process start). */
+  shopCache: CacheStats;
   postgres: {
     version: string;
     connections: number;
@@ -327,6 +331,7 @@ export async function collectSystemStats(ctx: CoreContext): Promise<SystemStats>
       rssBytes: memory.rss,
       heapUsedBytes: memory.heapUsed,
     },
+    shopCache: shopCacheStats(),
     postgres,
     redis,
     queues: queueData?.queues ?? null,

@@ -1,4 +1,5 @@
 import 'server-only';
+import { resolveSecretEnv } from '@tix/shared/server';
 import { z } from 'zod';
 
 /**
@@ -48,12 +49,22 @@ const envSchema = z
 
 export type ServerEnv = z.infer<typeof envSchema>;
 
+/** S3 credentials may come from files (S3_*_FILE, written by the storage-credentials service). */
+function resolveStorageSecrets(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  try {
+    return resolveSecretEnv(['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'], source);
+  } catch (error) {
+    throw new Error(`Invalid web environment:
+  - ${error instanceof Error ? error.message : error}`);
+  }
+}
+
 let cached: ServerEnv | undefined;
 
 /** Validated environment; throws a readable error listing every invalid variable. */
 export function getEnv(): ServerEnv {
   if (cached) return cached;
-  const parsed = envSchema.safeParse(process.env);
+  const parsed = envSchema.safeParse(resolveStorageSecrets(process.env));
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join('.')}: ${i.message}`)

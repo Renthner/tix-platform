@@ -7,6 +7,7 @@ import {
   deleteArchivedEvent,
   duplicateEvent,
   getSetting,
+  eventTags,
 } from '@tix/core';
 import {
   events,
@@ -21,7 +22,6 @@ import {
 import { EVENT_STATUSES, isMediaKindAllowed } from '@tix/shared';
 import { and, eq } from 'drizzle-orm';
 import { getLocale, getTranslations } from 'next-intl/server';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { redirect } from '@/i18n/navigation';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
@@ -31,6 +31,7 @@ import { requireAdmin } from '@/server/auth';
 import { richTextToPlain, sanitizeRichText } from '@/server/rich-text';
 import { getCore } from '@/server/core';
 import { audit } from './audit';
+import { refreshShop } from './shop-refresh';
 import { fieldError, flag, formError, success, text, triState, zodFieldErrors } from './form';
 import { checklistComplete, getEventWithVenue, publishChecklist } from './queries';
 
@@ -183,7 +184,7 @@ export async function createEventAction(_prev: ActionState, fd: FormData): Promi
     if (isUniqueViolation(err, 'events_slug_uq')) return fieldError({ slug: 'slugTaken' });
     throw err;
   }
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   redirect({ href: `/admin/events/${eventId}`, locale: await getLocale() });
   return success('created');
 }
@@ -253,7 +254,7 @@ export async function updateEventDetailsAction(
     throw err;
   }
   await audit(db, session, 'event.update', 'event', eventId, { ...values, heroImageAssetId });
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success('saved');
 }
 
@@ -286,7 +287,7 @@ export async function setEventStatusAction(
     from: event.status,
     to: status.data,
   });
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success(status.data === 'PUBLISHED' ? 'published' : 'saved');
 }
 
@@ -400,7 +401,7 @@ export async function updateEventSalesAction(
   const { db } = getCore();
   await db.update(events).set(values).where(eq(events.id, eventId));
   await audit(db, session, 'event.sales', 'event', eventId, values);
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success('saved');
 }
 
@@ -435,7 +436,7 @@ export async function deleteEventAction(
     }
     throw err;
   }
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   redirect({ href: '/admin/events?deleted=1', locale: await getLocale() });
   return success('deleted');
 }
@@ -487,7 +488,7 @@ export async function duplicateEventAction(
     }
     throw err;
   }
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(newId));
   redirect({ href: `/admin/events/${newId}?duplicated=1`, locale: await getLocale() });
   return success('created');
 }

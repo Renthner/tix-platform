@@ -1,13 +1,14 @@
 'use server';
 
+import { SHOP_TAGS } from '@tix/core';
 import { events, withTransaction } from '@tix/db';
 import { shopOrderInputSchema } from '@tix/shared';
 import { eq, inArray, isNotNull, notInArray } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
 import type { ActionState } from '@/lib/action-state';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { audit } from './audit';
+import { refreshShop } from './shop-refresh';
 import { formError, success, text } from './form';
 
 /** Saves the shop order: contiguous 0..n-1 for the given events, all others back to "by date". */
@@ -40,7 +41,7 @@ export async function saveShopOrderAction(_prev: ActionState, fd: FormData): Pro
     return true;
   });
   if (!ok) return formError('notFound');
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.events]);
   return success('saved');
 }
 
@@ -52,6 +53,6 @@ export async function resetShopOrderAction(_prev: ActionState): Promise<ActionSt
     await tx.update(events).set({ shopSortOrder: null }).where(isNotNull(events.shopSortOrder));
     await audit(tx, session, 'event.shopOrder', 'event', null, { reset: true });
   });
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.events]);
   return success('reset');
 }

@@ -212,6 +212,49 @@ answered with `503 BUSY` + `Retry-After: 2` (web API and scanner API) instead of
 shows "Lots of traffic right now - please try again in a moment" and keeps the form; the order
 transaction has rolled back, so a retry creates exactly one order. The default web pool is 40.
 
+## Shop page data cache
+
+The shop pages are rendered per request (CSP nonce, cookies), so the data behind them is cached
+in each web process and invalidated by tags over Redis pub/sub (docs/ARCHITECTURE.md, "Shop data
+cache"). Measured with [autocannon](https://github.com/mcollina/autocannon) against the isolated
+e2e stack (`E2E_KEEP=1 node scripts/e2e/run.mjs`, project `tix-e2e`, one web container, demo
+event, Docker Desktop on a developer PC that was doing other work). 100 connections, 20 s per URL,
+anonymous visitors (no cookies); database transactions per request = delta of
+`pg_stat_database.xact_commit` minus the idle rate of the background worker, divided by the number
+of requests (every query of these pages is an autocommit statement).
+
+| Page                 | Before (rps / p50 / DB tx per request)   | After (rps / p50 / DB tx per request)             |
+| -------------------- | ---------------------------------------- | ------------------------------------------------- |
+| Shop home `/`        | 39 rps / 2,290 ms / **2.27**             | 75–77 rps / 1,120–1,135 ms / **0.01**             |
+| Event page           | 53 rps / 1,690 ms / **4.53**             | 71–84 rps / 1,070–1,200 ms / **0.03**             |
+| Seat plan JSON (API) | 367 rps / 145 ms (p97.5 1,025 ms) / 0.17 | 546–629 rps / 62–71 ms (p97.5 2,100–2,900 ms) / 0 |
+
+"After" are two runs of the final build, "before" one run of the previous build (single run, the
+machine was noisy: earlier "after" runs of the same code gave 56–70 rps for the home page and
+46–64 rps for the event page, so differences below roughly 20 % are not significant). Honest
+reading:
+
+- **Database load is the clear win:** a page view no longer touches PostgreSQL in steady state
+  (2.3 / 4.5 queries before; what remains is the 60 s safety reloads and the 1 s seat map version
+  check). At T-0 the number of database queries no longer grows with the number of visitors, and
+  an admin edit costs one reload per instance instead of one per page view.
+- **Throughput of the pages is bound by server-side rendering (CPU), not by the database.** The
+  cache alone changed page throughput little (run-to-run noise on the event page). The page
+  HTML shrank from 138 KB to 73 KB because the shop no longer ships the 74 KB admin message
+  catalogue to every visitor (it only needs the admin menu and form feedback strings); together
+  with the cache this roughly doubled the home page rate and gave +35–60 % on the event page.
+- The seat plan endpoint no longer re-localises and re-serialises the plan per request and answers
+  revalidations with `304` (ETag); its tail latency under 100 connections is dominated by the
+  single Node process of the test stack.
+- Several web replicas multiply throughput linearly (each caches independently; the invalidation
+  fan-out is one small Redis message per admin change).
+
+Reproduce: start the stack as above, then run autocannon (`npx autocannon -c 100 -d 20 http://localhost:18090/events/demo-concert`)
+and read `xact_commit` before and after:
+`docker exec tix-e2e-postgres-1 psql -U tix -d tix -Atc "select xact_commit from pg_stat_database where datname='tix'"`.
+The cache counters of a running instance are on the admin System page and in `/api/metrics`
+(`tix_shop_cache_lookups_total{result="hit|miss|coalesced|bypass|discarded"}`).
+
 ## Tuning
 
 - **Web pool** `WEB_DATABASE_POOL_MAX` (default 40 per `web` replica; `.env.example`). One checkout

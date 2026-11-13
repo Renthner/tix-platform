@@ -1,6 +1,6 @@
 'use server';
 
-import { cloneSeatMap } from '@tix/core';
+import { cloneSeatMap, SHOP_TAGS } from '@tix/core';
 import { events, isUniqueViolation, seatMaps, venues, withTransaction } from '@tix/db';
 import { and, count, eq } from 'drizzle-orm';
 import { getLocale } from 'next-intl/server';
@@ -13,6 +13,7 @@ import { SLUG_PATTERN } from '@/lib/slug';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { audit } from './audit';
+import { refreshShop } from './shop-refresh';
 import { fieldError, flag, formError, success, text, zodFieldErrors } from './form';
 
 const optionalText = (max: number) => z.string().max(max).optional();
@@ -109,7 +110,7 @@ export async function saveVenueAction(
     if (isUniqueViolation(err, 'venues_slug_uq')) return fieldError({ slug: 'slugTaken' });
     throw err;
   }
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.venues]);
   if (!venueId) redirect({ href: `/admin/venues/${id}`, locale: await getLocale() });
   return success('saved');
 }
@@ -229,7 +230,7 @@ export async function deleteVenueAction(venueId: string, _prev: ActionState): Pr
     name: result.name,
     slug: result.slug,
   });
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.venues, SHOP_TAGS.events]);
   redirect({ href: '/admin/venues?deleted=1', locale: await getLocale() });
   return success('deleted');
 }

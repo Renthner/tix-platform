@@ -1,15 +1,14 @@
 import {
   computeSaleState,
   effectiveCheckoutConfig,
-  effectiveQueueConfig,
-  getEventWithVenueBySlug,
-  getMediaAsset,
   getPublicSeatMap,
   getSetting,
+  getShopAnnouncements,
+  getShopEventBySlug,
+  getShopQueueConfig,
   localizeEventRow,
   localizeVenueRow,
   saleOpensAt,
-  symbolsByIds,
   type VenueRow,
 } from '@tix/core';
 import {
@@ -20,8 +19,6 @@ import {
   type InfoBoxSize,
   type PageBlockRef,
 } from '@tix/shared';
-import { queueAnnouncements } from '@tix/db';
-import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { CalendarDays, DoorOpen, ExternalLink, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { headers } from 'next/headers';
@@ -53,15 +50,11 @@ function mapsUrl(venue: VenueRow): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-const loadEvent = cache(async (slug: string) => {
-  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) return null;
-  const found = await getEventWithVenueBySlug(getCore(), slug);
-  if (!found || (found.event.status !== 'PUBLISHED' && found.event.status !== 'POSTPONED'))
-    return null;
-  return found;
-});
-
-const loadCover = cache((id: string) => getMediaAsset(getCore(), id));
+/**
+ * Event, venue, cover and info box symbols of a slug from the shop data cache (tag invalidated
+ * by every admin change, see docs/ARCHITECTURE.md); memoised per request on top.
+ */
+const loadEvent = cache((slug: string) => getShopEventBySlug(getCore(), slug));
 
 export async function generateMetadata({ params }: Params) {
   const { slug, locale } = await params;
@@ -73,7 +66,7 @@ export async function generateMetadata({ params }: Params) {
   ]);
   const event = localizeEventRow(raw.event, content.locale, content.defaultLocale);
   const description = event.subtitle || plainSnippet(event.description) || undefined;
-  const cover = event.heroImageAssetId ? await loadCover(event.heroImageAssetId) : null;
+  const cover = raw.cover;
   return {
     title: event.title,
     description,
@@ -103,44 +96,24 @@ export default async function EventPage({ params }: Params) {
   const content = await loadContentLocale(locale);
   const event = localizeEventRow(found.event, content.locale, content.defaultLocale);
   const venue = localizeVenueRow(found.venue, content.locale, content.defaultLocale);
-  const [
-    checkout,
-    queue,
-    format,
-    t,
-    announcements,
-    seatDisplay,
-    cover,
-    priceRange,
-    organizer,
-    nonce,
-  ] = await Promise.all([
-    effectiveCheckoutConfig(core, event),
-    effectiveQueueConfig(core, event.id),
-    getFormatter(),
-    getTranslations('shop.event'),
-    core.db
-      .select()
-      .from(queueAnnouncements)
-      .where(
-        and(
-          or(eq(queueAnnouncements.eventId, event.id), isNull(queueAnnouncements.eventId)),
-          or(isNull(queueAnnouncements.expiresAt), gt(queueAnnouncements.expiresAt, new Date())),
-        ),
-      )
-      .orderBy(desc(queueAnnouncements.publishedAt))
-      .limit(5),
-    getSetting(core, 'seatDisplay'),
-    event.heroImageAssetId ? loadCover(event.heroImageAssetId) : null,
-    event.seatMapId
-      ? getPublicSeatMap(core, found.event)
-          .then((map) => publicPriceRanges(map).overall)
-          // Structured data is auxiliary: never fail the page because of it.
-          .catch(() => null)
-      : null,
-    getSetting(core, 'organizer'),
-    headers().then((h) => h.get('x-nonce') ?? undefined),
-  ]);
+  const [checkout, queue, format, t, announcements, seatDisplay, priceRange, organizer, nonce] =
+    await Promise.all([
+      effectiveCheckoutConfig(core, event),
+      getShopQueueConfig(core, event.id),
+      getFormatter(),
+      getTranslations('shop.event'),
+      getShopAnnouncements(core, event.id),
+      getSetting(core, 'seatDisplay'),
+      event.seatMapId
+        ? getPublicSeatMap(core, found.event)
+            .then((map) => publicPriceRanges(map).overall)
+            // Structured data is auxiliary: never fail the page because of it.
+            .catch(() => null)
+        : null,
+      getSetting(core, 'organizer'),
+      headers().then((h) => h.get('x-nonce') ?? undefined),
+    ]);
+  const cover = found.cover;
   const base = publicBaseUrl();
   const jsonLd = jsonLdString(
     buildEventJsonLd({
@@ -162,14 +135,7 @@ export default async function EventPage({ params }: Params) {
     }),
   );
   const infoBoxes = event.infoBoxes.filter((b) => b.title || b.content);
-  const boxSymbols = new Map(
-    (
-      await symbolsByIds(
-        core.db,
-        infoBoxes.flatMap((b) => (b.symbolId ? [b.symbolId] : [])),
-      )
-    ).map((sym) => [sym.id, sym]),
-  );
+  const boxSymbols = new Map(Object.entries(found.symbols));
   const descriptionHtml = descriptionToHtml(event.description);
   const boxById = new Map(infoBoxes.map((b) => [b.id, b]));
   const layoutRows = normalizePageLayout(

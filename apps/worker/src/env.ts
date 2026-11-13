@@ -1,3 +1,4 @@
+import { resolveSecretEnv } from '@tix/shared/server';
 import { z } from 'zod';
 
 const envSchema = z
@@ -45,7 +46,15 @@ const envSchema = z
 export type WorkerEnv = z.infer<typeof envSchema>;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): WorkerEnv {
-  const parsed = envSchema.safeParse(source);
+  let resolved: NodeJS.ProcessEnv;
+  try {
+    // S3 credentials may come from files (S3_*_FILE, written by the storage-credentials service).
+    resolved = resolveSecretEnv(['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'], source);
+  } catch (error) {
+    throw new Error(`Invalid worker environment:
+  - ${error instanceof Error ? error.message : error}`);
+  }
+  const parsed = envSchema.safeParse(resolved);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join('.')}: ${i.message}`)

@@ -24,6 +24,7 @@
     "version": "Version {version}",
     "uptime": "Up for {duration}",
     "memory": "Memory {rss} (heap {heap})",
+    "shopCache": "Shop cache: {ratio} hits, {entries} entries ({state})",
     "database": "Database connections",
     "databaseDetail": "of {max} allowed, {size}",
     "redisMemory": "Redis memory",

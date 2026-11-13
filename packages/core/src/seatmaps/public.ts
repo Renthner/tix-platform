@@ -1,4 +1,5 @@
 import {
+  events,
   priceCategories,
   priceCategoryTicketTypes,
   seatMapElements,
@@ -19,71 +20,172 @@ import {
   type PublicTicketType,
   type SalesChannel,
 } from '@tix/shared';
+import { createHash } from 'node:crypto';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { SHOP_TAGS, shopCache } from '../cache/shop-cache';
 import { DomainError, type CoreContext } from '../context';
 import { contentLocale } from '../content-locale';
 import type { EventRow } from '../events';
 import { symbolsByIds } from '../symbols';
 
 /**
- * Public seating plan of an event (no availability). Cached in Redis per seat map version
- * (shared by all processes) and in a small in-process LRU for hot events, so 1,000+
- * simultaneous page loads cost one build.
+ * Public seating plan of an event (no availability). Cached in Redis per snapshot stamp (shared
+ * by all processes) and in the process-wide shop data cache (tag invalidated, see
+ * cache/shop-cache.ts), so 1,000+ simultaneous page loads cost one build.
+ *
+ * The stamp = (seat map version, event public map generation). The version changes on every plan
+ * save, the generation (database triggers, same transaction) on every change of categories,
+ * tariffs, the pricing matrix or the currency. Both are part of every cache key, so a snapshot
+ * built before a committed change is never looked up again: correctness does not depend on the
+ * post-commit invalidation (which only frees memory and makes other processes notice quickly).
  */
 
-const LOCAL_MAX = 32;
-/**
- * In-process copies expire quickly so pricing changes made through another web instance
- * (which only clears Redis and its own memory) become visible everywhere within seconds.
- */
-const LOCAL_TTL_MS = 10_000;
-const local = new Map<string, { map: PublicSeatMap; expires: number }>();
-
+/** Safety TTL of the cached version (invalidation normally makes a save visible at once). */
 const VERSION_TTL_MS = 1_000;
-const versionCache = new Map<string, { version: number; expires: number }>();
+const versionTags = (seatMapId: string) => [
+  SHOP_TAGS.events,
+  SHOP_TAGS.symbols,
+  `seatmap:${seatMapId}`,
+];
 
-/** Current seat map version (cached for 1 s – saves broadcast the new version anyway). */
-export async function seatMapVersion(
-  ctx: Pick<CoreContext, 'db'>,
-  seatMapId: string,
-): Promise<number> {
-  const hit = versionCache.get(seatMapId);
-  if (hit && hit.expires > Date.now()) return hit.version;
-  const [row] = await ctx.db
-    .select({ version: seatMaps.version })
-    .from(seatMaps)
-    .where(eq(seatMaps.id, seatMapId));
-  if (!row) throw new DomainError('SEAT_MAP_NOT_FOUND', 'Seat map not found', 404);
-  versionCache.set(seatMapId, { version: row.version, expires: Date.now() + VERSION_TTL_MS });
-  if (versionCache.size > 500) versionCache.delete(versionCache.keys().next().value!);
-  return row.version;
+/**
+ * Current seat map version (shop data cache, 1 s safety TTL). A plan save invalidates the event
+ * tags on every instance, which drops the cached version as well.
+ */
+export function seatMapVersion(ctx: Pick<CoreContext, 'db'>, seatMapId: string): Promise<number> {
+  return shopCache.get(
+    `seatmap-version:${seatMapId}`,
+    async () => {
+      const [row] = await ctx.db
+        .select({ version: seatMaps.version })
+        .from(seatMaps)
+        .where(eq(seatMaps.id, seatMapId));
+      if (!row) throw new DomainError('SEAT_MAP_NOT_FOUND', 'Seat map not found', 404);
+      return row.version;
+    },
+    { tags: versionTags(seatMapId), ttlMs: VERSION_TTL_MS },
+  );
 }
 
-/** Forgets the cached version (call right after saving a seat map in this process). */
+/** Forgets the cached version in this process (call right after saving a seat map). */
 export function forgetSeatMapVersion(seatMapId: string): void {
-  versionCache.delete(seatMapId);
+  shopCache.invalidate([`seatmap:${seatMapId}`]);
 }
 
-export async function getPublicSeatMap(ctx: CoreContext, event: EventRow): Promise<PublicSeatMap> {
+interface MapStamp {
+  seatMapId: string;
+  version: number;
+  generation: number;
+  /** Part of the map but read with the stamp (the passed event row may come from a cache). */
+  currency: string;
+}
+
+/** Stamp straight from the database (one indexed lookup, always current). */
+async function readStamp(ctx: Pick<CoreContext, 'db'>, event: EventRow): Promise<MapStamp> {
+  const [row] = await ctx.db
+    .select({
+      seatMapId: seatMaps.id,
+      version: seatMaps.version,
+      generation: events.publicMapGeneration,
+      currency: events.currency,
+    })
+    .from(events)
+    .innerJoin(seatMaps, eq(seatMaps.id, events.seatMapId))
+    .where(eq(events.id, event.id));
+  if (!row) throw new DomainError('SEAT_MAP_NOT_FOUND', 'Event has no seat map', 404);
+  return row;
+}
+
+/**
+ * Stamp for display paths: cached for at most ~1 s (and dropped by the tag invalidation of a
+ * change). Money paths pass `fresh` and read the database.
+ */
+function publicMapStamp(ctx: CoreContext, event: EventRow, fresh: boolean): Promise<MapStamp> {
+  if (fresh) return readStamp(ctx, event);
+  return shopCache.get(`pubmap-stamp:${event.id}`, () => readStamp(ctx, event), {
+    tags: [...versionTags(event.seatMapId ?? ''), SHOP_TAGS.event(event.id)],
+    ttlMs: VERSION_TTL_MS,
+  });
+}
+
+const stampKey = (s: MapStamp) => `${s.seatMapId}.${s.version}.g${s.generation}`;
+const sameStamp = (a: MapStamp, b: MapStamp) =>
+  a.seatMapId === b.seatMapId && a.version === b.version && a.generation === b.generation;
+
+/** Attempts to build a map that was not changed by a commit while it was being read. */
+const BUILD_ATTEMPTS = 3;
+
+interface BuiltMap {
+  map: PublicSeatMap;
+  /** False when the data changed during every build attempt (map may mix generations). */
+  consistent: boolean;
+}
+
+/** Process cache lifetime of a consistent map (the cache default). */
+const DEFAULT_PLAN_TTL_MS = 60_000;
+
+export interface PublicSeatMapOptions {
+  /**
+   * Read the stamp from the database instead of the ~1 s process cache. Required by everything
+   * that prices a cart / order (checkout, quote, box office); display paths may omit it.
+   */
+  fresh?: boolean;
+}
+
+export async function getPublicSeatMap(
+  ctx: CoreContext,
+  event: EventRow,
+  options: PublicSeatMapOptions = {},
+): Promise<PublicSeatMap> {
   if (!event.seatMapId) throw new DomainError('SEAT_MAP_NOT_FOUND', 'Event has no seat map', 404);
-  const version = await seatMapVersion(ctx, event.seatMapId);
-  const cacheKey = `${event.id}:${version}:${PUBLIC_MAP_FORMAT}`;
-  const hit = local.get(cacheKey);
-  if (hit && hit.expires > Date.now()) return hit.map;
-
-  const redisKey = ctx.keys.seatMapSnapshot(event.id, version, PUBLIC_MAP_FORMAT);
-  const cached = await ctx.redis.get(redisKey);
-  let map: PublicSeatMap;
-  if (cached) {
-    map = JSON.parse(cached) as PublicSeatMap;
-  } else {
-    map = await buildPublicSeatMap(ctx, event, event.seatMapId, version);
-    await ctx.redis.set(redisKey, JSON.stringify(map), 'EX', 3600);
+  const fresh = options.fresh === true;
+  const stamp = await publicMapStamp(ctx, event, fresh);
+  const built = await shopCache.get(
+    `pubmap:${event.id}:${stampKey(stamp)}:${PUBLIC_MAP_FORMAT}`,
+    async (): Promise<BuiltMap> => {
+      const redisKey = ctx.keys.seatMapSnapshot(
+        event.id,
+        stamp.version,
+        stamp.generation,
+        PUBLIC_MAP_FORMAT,
+      );
+      const cached = await ctx.redis.get(redisKey);
+      if (cached) return { map: JSON.parse(cached) as PublicSeatMap, consistent: true };
+      // The stamp was read before the data, so the data is at least as new as the key. A commit
+      // during the build makes it newer, or mixed across the separate queries; the stamp re-read
+      // then differs and such a map is neither stored under the old key nor trusted (rebuilt).
+      let current = stamp;
+      let map = await buildPublicSeatMap(ctx, event, current);
+      for (let attempt = 1; ; attempt++) {
+        const after = await readStamp(ctx, event);
+        if (sameStamp(after, current)) {
+          const key = ctx.keys.seatMapSnapshot(
+            event.id,
+            current.version,
+            current.generation,
+            PUBLIC_MAP_FORMAT,
+          );
+          await ctx.redis.set(key, JSON.stringify(map), 'EX', 3600);
+          return { map, consistent: true };
+        }
+        // Out of attempts: the map may mix generations, so it is not stored anywhere.
+        if (attempt >= BUILD_ATTEMPTS) return { map, consistent: false };
+        current = after;
+        map = await buildPublicSeatMap(ctx, event, current);
+      }
+    },
+    { tags: planTags(event.id), ttlMs: (value) => (value.consistent ? DEFAULT_PLAN_TTL_MS : 0) },
+  );
+  // Money paths never price from a possibly mixed map (retryable); display paths may show the
+  // newest build, which the next request replaces.
+  if (!built.consistent && fresh) {
+    throw new DomainError('PRICES_UPDATING', 'Prices are being updated, please retry', 503);
   }
-  local.set(cacheKey, { map, expires: Date.now() + LOCAL_TTL_MS });
-  if (local.size > LOCAL_MAX) local.delete(local.keys().next().value!);
-  return map;
+  return built.map;
 }
+
+/** Tags of a cached plan: its event (prices, tariffs, categories) and the symbol library. */
+const planTags = (eventId: string) => [SHOP_TAGS.event(eventId), SHOP_TAGS.symbols];
 
 /** Public plan with all content translations resolved for `locale` (shop API, documents). */
 export async function getLocalizedPublicSeatMap(
@@ -95,14 +197,35 @@ export async function getLocalizedPublicSeatMap(
   return localizePublicSeatMap(await getPublicSeatMap(ctx, event), loc, defaultLocale);
 }
 
-/** Drops cached snapshots of an event (prices or tariffs changed without a map save). */
-export async function invalidatePublicSeatMap(
+/** Serialised localized plan plus a content hash for HTTP revalidation (ETag). */
+export interface PublicSeatMapPayload {
+  json: string;
+  etag: string;
+}
+
+/**
+ * Localized public plan as ready-to-send JSON with a strong ETag (content hash). Built once per
+ * (event, plan stamp, locale) and shared by all requests until a tag invalidation (price or
+ * tariff change, plan save, symbol change, event delete) drops it. `loc` is always a supported
+ * locale (contentLocale), so the key space is bounded.
+ */
+export async function getPublicSeatMapPayload(
   ctx: CoreContext,
-  eventId: string,
-  version: number,
-): Promise<void> {
-  for (const key of local.keys()) if (key.startsWith(`${eventId}:`)) local.delete(key);
-  await ctx.redis.del(ctx.keys.seatMapSnapshot(eventId, version, PUBLIC_MAP_FORMAT));
+  event: EventRow,
+  locale?: string | null,
+): Promise<PublicSeatMapPayload> {
+  if (!event.seatMapId) throw new DomainError('SEAT_MAP_NOT_FOUND', 'Event has no seat map', 404);
+  const stamp = await publicMapStamp(ctx, event, false);
+  const { locale: loc, defaultLocale } = await contentLocale(ctx, locale);
+  return shopCache.get(
+    `pubmap-json:${event.id}:${stampKey(stamp)}:${PUBLIC_MAP_FORMAT}:${loc}:${defaultLocale}`,
+    async () => {
+      const map = localizePublicSeatMap(await getPublicSeatMap(ctx, event), loc, defaultLocale);
+      const json = JSON.stringify(map);
+      return { json, etag: `"${createHash('sha1').update(json).digest('base64url')}"` };
+    },
+    { tags: planTags(event.id) },
+  );
 }
 
 /**
@@ -168,7 +291,7 @@ export async function getSeatMapForChannel(
   event: EventRow,
   channel: SalesChannel,
 ): Promise<PublicSeatMap> {
-  const map = await getPublicSeatMap(ctx, event);
+  const map = await getPublicSeatMap(ctx, event, { fresh: true });
   if (channel === 'ONLINE') return map;
   const types = await ctx.db
     .select()
@@ -181,10 +304,10 @@ export async function getSeatMapForChannel(
 async function buildPublicSeatMap(
   ctx: CoreContext,
   event: EventRow,
-  seatMapId: string,
-  version: number,
+  stamp: MapStamp,
 ): Promise<PublicSeatMap> {
   const db = ctx.db;
+  const { seatMapId, version } = stamp;
   const [map] = await db.select().from(seatMaps).where(eq(seatMaps.id, seatMapId));
   if (!map) throw new DomainError('SEAT_MAP_NOT_FOUND', 'Seat map not found', 404);
 
@@ -245,7 +368,7 @@ async function buildPublicSeatMap(
     canvasHeight: map.canvasHeight,
     settings: map.settings,
     backgroundUrl: null,
-    currency: event.currency,
+    currency: stamp.currency,
     categories: categories.map((c) => ({
       id: c.id,
       name: c.name,

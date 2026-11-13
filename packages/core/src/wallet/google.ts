@@ -4,6 +4,7 @@ import { SUPPORTED_LOCALES, isBlankText, isPublicMediaKind, type Translations } 
 import { eq } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { documentLocale, mailTranslator } from '../i18n/mail-messages';
+import { eventTags, invalidateShopCache } from '../cache/shop-cache';
 import { getMediaAsset } from '../media';
 import { getSecretSetting, getSetting } from '../settings';
 import type { WalletCheckIssue } from './apple';
@@ -466,6 +467,7 @@ export async function ensureGoogleSaveUrl(
       .set({ googleWalletClassId: classId })
       .where(eq(events.id, data.eventId));
     data.googleWalletClassId = classId;
+    await invalidateShopCache(ctx, eventTags(data.eventId));
   }
 
   const objectBody = buildGoogleObject(config, data);

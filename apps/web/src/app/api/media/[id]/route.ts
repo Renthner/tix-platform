@@ -1,6 +1,6 @@
 import {
   findMediaVariant,
-  getMediaAsset,
+  getShopMediaAsset,
   loadMediaBytes,
   loadMediaVariantBytes,
   type MediaVariantRow,
@@ -39,7 +39,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const wanted = parseMediaVariantQuery(url.searchParams);
     if (wanted === 'invalid') return apiError('INVALID_QUERY', 'Invalid width or format', 400);
     const core = getCore();
-    const asset = await getMediaAsset(core, id.data);
+    // Catalogue row from the shop data cache (invalidated by every media change).
+    const asset = await getShopMediaAsset(core, id.data);
     if (!asset) return apiError('NOT_FOUND', 'Not found', 404);
 
     const isPublic = isPublicMediaKind(asset.kind);

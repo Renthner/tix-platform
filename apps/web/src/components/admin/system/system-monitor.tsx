@@ -248,6 +248,19 @@ export function SystemMonitor({
                 heap: bytes(stats.app.heapUsedBytes),
               })}
             </div>
+            <div className="text-xs text-muted-foreground">
+              {t('overview.shopCache', {
+                ratio:
+                  stats.shopCache.hits + stats.shopCache.misses > 0
+                    ? format.number(
+                        stats.shopCache.hits / (stats.shopCache.hits + stats.shopCache.misses),
+                        { style: 'percent', maximumFractionDigits: 0 },
+                      )
+                    : '–',
+                entries: num(stats.shopCache.entries),
+                state: stats.shopCache.state,
+              })}
+            </div>
           </CardContent>
         </Card>
         <Tile

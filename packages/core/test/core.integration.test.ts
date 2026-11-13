@@ -37,7 +37,8 @@ import {
   discardCart,
   removeSeats,
   getPublicSeatMap,
-  invalidatePublicSeatMap,
+  invalidateShopCache,
+  eventTags,
   seatMapVersion,
   bestAvailable,
   claimPass,
@@ -462,7 +463,7 @@ describe.skipIf(!adminUrl || !redisUrl)('core services (integration)', () => {
     expect(saved.ok).toBe(true);
 
     const fresh = await getEventById(ctx, event.id);
-    await invalidatePublicSeatMap(ctx, event.id, await seatMapVersion(ctx, fresh.seatMapId!));
+    await invalidateShopCache(ctx, eventTags(event.id));
     const map = await getPublicSeatMap(ctx, fresh);
     expect(map.ticketTypes.find((t) => t.name === 'Reduced')!.prices[categoryId]).toBe(3500);
     expect(map.symbols.map((s) => s.id)).toContain(symbol.id);
@@ -559,8 +560,7 @@ describe.skipIf(!adminUrl || !redisUrl)('core services (integration)', () => {
   });
 
   it('enforces per-order limits of categories, tariffs and access codes', async () => {
-    const refresh = async () =>
-      invalidatePublicSeatMap(ctx, event.id, await seatMapVersion(ctx, event.seatMapId!));
+    const refresh = async () => invalidateShopCache(ctx, eventTags(event.id));
     const freeSeats = async (sid: string) => {
       const availability = await getAvailability(ctx, sid, event);
       const busy = new Set([...availability.locked, ...availability.taken]);

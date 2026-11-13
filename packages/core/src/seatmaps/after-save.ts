@@ -1,3 +1,4 @@
+import { eventTags, invalidateShopCache } from '../cache/shop-cache';
 import type { CoreContext } from '../context';
 import { getEventById } from '../events';
 import { rebuildInventory } from '../inventory';
@@ -18,6 +19,8 @@ export async function afterSeatMapSaved(
   if (result.kind !== 'EVENT' || !result.eventId) return;
   const event = await getEventById(ctx, result.eventId);
   if (event.seatMapId) forgetSeatMapVersion(event.seatMapId);
+  // Plan geometry, prices and the event page price range changed: drop them on every instance.
+  await invalidateShopCache(ctx, eventTags(event.id));
   await rebuildInventory(ctx, event);
   const doc = await ctx.seats.takenSeats(event.id);
   const forced = [

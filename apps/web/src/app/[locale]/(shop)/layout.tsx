@@ -80,7 +80,11 @@ export default async function ShopLayout({
         'cart',
         'checkout',
         'account',
-        'admin',
+        // Only what the client components of the shop read (admin menu, form feedback): the whole
+        // admin namespace is ~70 KB per page view.
+        'admin.nav',
+        'admin.errors',
+        'admin.messages',
       ])}
     >
       <CartProvider>

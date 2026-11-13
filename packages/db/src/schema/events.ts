@@ -107,6 +107,12 @@ export const events = pgTable(
 
     // ── Money ──────────────────────────────────────────────────────────────
     currency: currency().notNull(),
+    /**
+     * Bumped by database triggers in the transaction of every change to what the public seat map
+     * shows besides the plan itself (categories, tariffs, pricing matrix, currency). Part of the
+     * public map cache keys, so a snapshot built before a committed change can never be served.
+     */
+    publicMapGeneration: integer('public_map_generation').notNull().default(1),
     taxRateId: uuid('tax_rate_id')
       .notNull()
       .references((): AnyPgColumn => taxRates.id, { onDelete: 'restrict' }),

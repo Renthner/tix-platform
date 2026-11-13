@@ -8,6 +8,68 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+### Added
+
+- Shop data cache for presale load: event pages, the shop home, queue texts and announcements,
+  the public seat plan and media catalogue rows are served from a per-process cache (single-flight,
+  tag invalidation, 60 s safety TTL) instead of the database. Admin changes (events, sales pause,
+  prices, tariffs, seat plan, venues, symbols, translations, media, waiting room texts, settings,
+  backup restore) are visible on the next page load on **all** web instances, because every change
+  publishes an invalidation over Redis pub/sub; while that subscription is down entries live
+  only 2 s (concurrent misses still share one load). Seat status, carts, the waiting room and sessions are never cached. The seat plan JSON
+  is built once per plan version, price generation and locale and delivered with an ETag
+  (`no-cache` + 304).
+  Cache hit / miss counters on the System page and in `/api/metrics`. See
+  docs/ARCHITECTURE.md ("Shop data cache") and docs/LOAD-TEST.md.
+
+### Changed
+
+- Shop pages are about half the size: the whole admin message catalogue (74 KB) was embedded in
+  every shop page; only the admin menu and form feedback strings are sent now.
+- **MinIO credentials are generated automatically.** The new one-shot service `storage-credentials`
+  creates the MinIO administrator pair and the application's access key pair on the first start
+  and keeps them in the Docker volume `storage-credentials` (existing files are never
+  regenerated; the MinIO administrator pair is readable only by the MinIO containers, the
+  application gets only its own pair, read-only). `web` and `worker` read `S3_ACCESS_KEY_ID_FILE` /
+  `S3_SECRET_ACCESS_KEY_FILE` (a plain `S3_*` variable still wins). `minio-init` always sets the
+  stored secret on the application user. **Existing installations:** keep `MINIO_ROOT_USER`,
+  `MINIO_ROOT_PASSWORD`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` in `.env` for the first start of
+  this version (the values are copied into the volume; afterwards they are optional). If they are
+  removed before that, `storage-credentials` stops instead of inventing a new administrator
+  password for existing MinIO data. The compose file changed: download the new
+  `docker-compose.yml` of this release. A `MINIO_ROOT_*` value in `.env` that differs from the
+  stored pair is refused (MinIO keeps its original root credentials). After changing the
+  application key pair run `docker compose up -d --force-recreate web worker`. Rolling back across
+  this release needs that release's compose file and the credentials in `.env` (INSTALL.md,
+  Updates).
+- **Minimal `.env`:** the release `env.example` lists only `PUBLIC_URL`, the address settings,
+  `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `APP_ENCRYPTION_KEYS`, `SESSION_SECRET` and
+  `TIX_CHANNEL`; everything else is an optional, commented-out block with defaults in the compose
+  file (`TIX_IMAGE_OWNER` is no longer in the file).
+- **Install guide restructured** (`docs/INSTALL.md`, `docs/INSTALL.de.md`, README quick guide):
+  Part 1 is a one-screen quick start (download, one command for the `.env`, start, first admin,
+  setup checklist, updating); Part 2 is the appendix (Docker installation, `.env` details,
+  HTTPS variants incl. own reverse proxy and Cloudflare, first configuration, check-in phones,
+  updates, monitoring, variable reference, troubleshooting incl. storage credentials).
+
+### Fixed
+
+- Prices and tariffs can never be served stale from the seat plan cache: price categories,
+  tariffs, the pricing matrix and the currency carry a generation (database triggers, same
+  transaction as the change) that is part of every plan cache key, and checkout, quotes and the
+  box office read it from the database (migration 0034). A plan snapshot built while an admin saved a price is
+  never looked up again, even if the post-commit invalidation fails.
+- `?locale=` values other than the supported UI languages no longer create cache entries of
+  their own (unknown values use the shop default language).
+- Settings read while an invalidation arrives are no longer cached from the pre-invalidation
+  load; a secret setting changed on another instance is refreshed as well.
+- `pnpm db:demo` publishes a full shop cache invalidation (best effort) when Redis is reachable.
+- Changing a setting on one web instance now reaches the others within a second (the
+  invalidation was published but never consumed; they used to catch up after up to 10 s). The
+  shop default language of the URL rules follows the same way.
+- The seat plan response is no longer cached by browsers for 30 s: after a price change the
+  next load shows the new prices.
+
 ## [1.0.0-alpha.16] - 2026-11-13
 
 ### Added

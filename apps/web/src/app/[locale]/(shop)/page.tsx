@@ -1,7 +1,5 @@
-import { computeSaleState, getMediaAsset, getSetting } from '@tix/core';
+import { computeSaleState, getSetting, getShopEventList, getShopMediaAsset } from '@tix/core';
 import { localized, SHOP_EVENTS_PER_ROW_MAX } from '@tix/shared';
-import { events, mediaAssets, priceCategories, venues } from '@tix/db';
-import { and, eq, inArray, min } from 'drizzle-orm';
 import { CalendarDays, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +12,6 @@ import { getCore } from '@/server/core';
 import { loadContentLocale, pageSeo, publicBaseUrl } from '@/server/seo';
 import { MediaImage } from '@/components/media-image';
 import { StartPage, hasStartPageContent } from '@/components/shop/start-page';
-import { shopOrderBy, shopVisibleCondition } from '@/server/shop-events';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +31,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     getSetting(getCore(), 'general'),
     getSetting(getCore(), 'branding'),
   ]);
-  const logo = branding.logoAssetId ? await getMediaAsset(getCore(), branding.logoAssetId) : null;
+  const logo = branding.logoAssetId
+    ? await getShopMediaAsset(getCore(), branding.logoAssetId)
+    : null;
   const description = tc('meta.description');
   return {
     title: t('title'),
@@ -54,39 +53,12 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const locale = await resolveLocale(params);
-  const { db } = getCore();
   const content = await loadContentLocale(locale);
   const L = (e: Parameters<typeof localized>[0], field: string, base: string | null) =>
     localized(e, field, content.locale, content.defaultLocale, base);
   const [t, format] = await Promise.all([getTranslations('shop'), getFormatter()]);
-  const rows = await db
-    .select({
-      event: events,
-      venue: { name: venues.name, city: venues.city, translations: venues.translations },
-      cover: { id: mediaAssets.id, width: mediaAssets.width, height: mediaAssets.height },
-    })
-    .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
-    .leftJoin(mediaAssets, eq(mediaAssets.id, events.heroImageAssetId))
-    .where(shopVisibleCondition())
-    .orderBy(...shopOrderBy())
-    .limit(100);
-  const prices = rows.length
-    ? await db
-        .select({ eventId: priceCategories.eventId, from: min(priceCategories.basePrice) })
-        .from(priceCategories)
-        .where(
-          and(
-            inArray(
-              priceCategories.eventId,
-              rows.map((r) => r.event.id),
-            ),
-            eq(priceCategories.isActive, true),
-          ),
-        )
-        .groupBy(priceCategories.eventId)
-    : [];
-  const fromPrice = new Map(prices.map((p) => [p.eventId, p.from]));
+  // Cached read model (tag invalidated by admin changes); sale state is computed below.
+  const rows = await getShopEventList(getCore());
 
   // No event published: the configured start page replaces the built-in text.
   if (rows.length === 0) {
@@ -137,9 +109,8 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           perRow >= 5 && 'xl:gap-3',
         )}
       >
-        {rows.map(({ event, venue, cover }) => {
+        {rows.map(({ event, venue, cover, fromPrice: price }) => {
           const state = computeSaleState(event);
-          const price = fromPrice.get(event.id);
           const when = (dateStyle: 'full' | 'medium') =>
             format.dateTime(event.startsAt, {
               dateStyle,

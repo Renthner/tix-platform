@@ -904,7 +904,7 @@ export async function holdBoxOfficeSeats(
   if (seatIds.length === 0 || seatIds.length > 200) {
     throw new DomainError('INVALID_REQUEST', 'Select between 1 and 200 seats', 400);
   }
-  const index = seatIndex(await getPublicSeatMap(ctx, event));
+  const index = seatIndex(await getPublicSeatMap(ctx, event, { fresh: true }));
   for (const id of seatIds) {
     const seat = index.get(id);
     if (!seat || !seat.c || (seat.f & SEAT_FLAG.BLOCKED) !== 0) throw lockError('UNAVAILABLE', id);
@@ -951,7 +951,9 @@ export async function setBoxOfficeStandingHold(
 ): Promise<{ expiresAt: number | null; remaining: number }> {
   const event = await sellableEvent(ctx, ref.eventId);
   const sessionId = boxOfficeSessionId(ref.userId, ref.tabId);
-  const section = (await getPublicSeatMap(ctx, event)).sections.find((s) => s.id === ref.sectionId);
+  const section = (await getPublicSeatMap(ctx, event, { fresh: true })).sections.find(
+    (s) => s.id === ref.sectionId,
+  );
   if (!section || section.type !== 'STANDING' || !section.priceCategoryId) {
     throw new DomainError('SECTION_NOT_FOUND', 'Standing area not found', 404);
   }

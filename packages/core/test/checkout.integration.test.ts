@@ -46,6 +46,7 @@ import {
   completePayPalPayment,
   createCoreContext,
   customerAccountsOffered,
+  discardCart,
   enterShop,
   extendCartForCheckout,
   getCart,
@@ -313,6 +314,32 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
     // PayPal: + 3 % of the ticket total (5500) = 165
     expect(quotes.PAYPAL.totalGross).toBe(5965);
     expect(quotes.PAYPAL.orderFees[0]).toMatchObject({ name: 'PayPal fee', totalGross: 165 });
+  });
+
+  it('quotes the new price right after a committed price change, even if the invalidation never ran', async () => {
+    const session = sid();
+    await enterShop(ctx, event, session);
+    await addSeats(ctx, session, event, [seatIds[5]!]);
+    try {
+      const before = (await getCheckoutOptions(ctx, session)).quotes.BANK_TRANSFER;
+      expect(before.subtotalGross).toBe(3000);
+      // The pricing actions are simulated by a plain commit: no cache invalidation at all.
+      await handle.db
+        .update(priceCategories)
+        .set({ basePrice: 3300 })
+        .where(eq(priceCategories.eventId, event.id));
+      const after = (await getCheckoutOptions(ctx, session)).quotes.BANK_TRANSFER;
+      expect(after.subtotalGross).toBe(3300);
+      await expect(
+        placeOrder(ctx, { sessionId: session, input: buyer('BANK_TRANSFER', before.totalGross) }),
+      ).rejects.toMatchObject({ code: 'PRICE_CHANGED' });
+    } finally {
+      await handle.db
+        .update(priceCategories)
+        .set({ basePrice: 3000 })
+        .where(eq(priceCategories.eventId, event.id));
+      await discardCart(ctx, session);
+    }
   });
 
   it('extends the cart once by the payment grace period when the checkout starts', async () => {

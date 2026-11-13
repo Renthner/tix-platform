@@ -17,6 +17,7 @@ import { eq } from 'drizzle-orm';
 import { DomainError, type CoreContext } from './context';
 import { ensureEventSigningKeyTx } from './tickets/keys';
 import { wallClockShifter } from './zoned-time';
+import { eventTags, invalidateShopCache } from './cache/shop-cache';
 import { cloneSeatMap } from './seatmaps/clone';
 
 export interface DuplicateEventInput {
@@ -90,7 +91,7 @@ export async function duplicateEvent(
     throw new DomainError('INVALID_SLUG', 'Invalid slug', 400);
   }
 
-  return withTransaction(ctx.db, async (tx) => {
+  const result = await withTransaction(ctx.db, async (tx) => {
     const [source] = await tx.select().from(events).where(eq(events.id, input.sourceEventId));
     if (!source) throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
 
@@ -291,4 +292,7 @@ export async function duplicateEvent(
 
     return { eventId: newEventId, slug };
   });
+  // After the commit: the new event may appear in shop lists as soon as it is published.
+  await invalidateShopCache(ctx, eventTags(result.eventId));
+  return result;
 }

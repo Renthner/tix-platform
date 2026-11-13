@@ -452,7 +452,7 @@ export async function addSeats(
       403,
     );
   }
-  const map = await getPublicSeatMap(ctx, event);
+  const map = await getPublicSeatMap(ctx, event, { fresh: true });
   const index = seatIndex(map);
   for (const id of unique) {
     const seat = index.get(id);
@@ -568,7 +568,7 @@ export async function setGeneralAdmission(
   if (!Number.isInteger(quantity) || quantity < 0 || quantity > 100) {
     throw new DomainError('INVALID_REQUEST', 'Invalid quantity', 400);
   }
-  const map = await getPublicSeatMap(ctx, event);
+  const map = await getPublicSeatMap(ctx, event, { fresh: true });
   const section = map.sections.find((s) => s.id === sectionId && s.type === 'STANDING');
   if (!section || !section.priceCategoryId || !defaultTypeFor(map, section.priceCategoryId, null)) {
     throw new DomainError('SECTION_NOT_FOUND', 'Standing area not available', 404);
@@ -659,7 +659,7 @@ export async function bestAvailable(
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > maxQuantity) {
     throw new DomainError('TICKET_LIMIT', 'Invalid quantity', 422, { max: maxQuantity });
   }
-  const map = await getPublicSeatMap(ctx, event);
+  const map = await getPublicSeatMap(ctx, event, { fresh: true });
   if (!map.categories.some((c) => c.id === categoryId)) {
     throw new DomainError('CATEGORY_NOT_FOUND', 'Price category not found', 404);
   }
@@ -754,7 +754,7 @@ export async function setTariff(
   itemKey: string,
   ticketTypeId: string,
 ): Promise<void> {
-  const map = await getPublicSeatMap(ctx, event);
+  const map = await getPublicSeatMap(ctx, event, { fresh: true });
   const cartKey = ctx.keys.cart(sessionId);
   if (itemKey.startsWith('ga:')) {
     const [, sectionId, indexRaw] = itemKey.split(':');
@@ -824,7 +824,7 @@ export async function validateSelection(
   if (!config.orphanSeatRuleEnabled && !config.companionRequiresWheelchair) return none;
   const mine = new Set(await ctx.seats.sessionSeatIds(event.id, sessionId));
   if (mine.size === 0) return none;
-  const map = await getPublicSeatMap(ctx, event);
+  const map = await getPublicSeatMap(ctx, event, { fresh: true });
   const [taken, locked] = await Promise.all([
     ctx.seats.takenSeats(event.id),
     ctx.seats.lockedSeatIds(event.id),
@@ -935,7 +935,9 @@ export async function getCart(
     (a, b) => a.event.startsAt.getTime() - b.event.startsAt.getTime(),
   )) {
     const [map, mine, gaMine, config] = await Promise.all([
-      getPublicSeatMap(ctx, event).then((m) => localizePublicSeatMap(m, loc, defaultLocale)),
+      getPublicSeatMap(ctx, event, { fresh: true }).then((m) =>
+        localizePublicSeatMap(m, loc, defaultLocale),
+      ),
       ctx.seats.sessionSeatIds(event.id, sessionId),
       ctx.seats.sessionGeneralAdmission(event.id, sessionId),
       effectiveCheckoutConfig(ctx, event),

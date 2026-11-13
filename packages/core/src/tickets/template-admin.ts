@@ -6,6 +6,7 @@ import {
 } from '@tix/shared';
 import { and, asc, count, eq, isNull, ne, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
+import { eventTags, invalidateShopCache } from '../cache/shop-cache';
 import { getMediaAsset } from '../media';
 
 /** Admin service of the ticket designer (library, event templates, assignments). */
@@ -217,6 +218,7 @@ export async function assignEventTicketTemplate(
     .where(eq(events.id, eventId))
     .returning({ id: events.id });
   if (updated.length === 0) throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
+  await invalidateShopCache(ctx, eventTags(eventId));
 }
 
 export async function assignCategoryTicketTemplate(
@@ -232,4 +234,5 @@ export async function assignCategoryTicketTemplate(
     )
     .returning({ id: priceCategories.id });
   if (updated.length === 0) throw new DomainError('CATEGORY_NOT_FOUND', 'Category not found', 404);
+  await invalidateShopCache(ctx, eventTags(params.eventId));
 }

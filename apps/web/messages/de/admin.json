@@ -1,6 +1,5 @@
 {
   "panelTitle": "Admin-Portal",
-  "menu": "Menü",
   "logout": "Abmelden",
   "shopLink": "Zum Ticketshop",
   "nav": {
@@ -24,7 +23,8 @@
     "backups": "Sicherungen",
     "scanners": "Einlass-Geräte",
     "statistics": "Statistiken",
-    "system": "System"
+    "system": "System",
+    "menu": "Menü"
   },
   "login": {
     "title": "Admin-Anmeldung",

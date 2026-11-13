@@ -113,13 +113,12 @@ export function AdminMobileMenu({
   children?: ReactNode;
 }) {
   const t = useTranslations('admin.nav');
-  const tAdmin = useTranslations('admin');
   const pathname = usePathname();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" aria-label={tAdmin('menu')}>
-          <Menu className="size-4" /> <span>{tAdmin('menu')}</span>
+        <Button variant="outline" size="sm" aria-label={t('menu')}>
+          <Menu className="size-4" /> <span>{t('menu')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" collisionPadding={8} className="min-w-56">

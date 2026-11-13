@@ -32,6 +32,7 @@
   },
   "errors": {
     "WALLET_UNAVAILABLE": "Wallet is currently unavailable. Please try again later or use the PDF ticket.",
+    "PRICES_UPDATING": "Prices are being updated. Please try again in a moment.",
     "SEAT_UNAVAILABLE": "This seat is no longer available.",
     "SEAT_LOCKED": "Someone else just selected this seat.",
     "CART_EXPIRED": "Your reservation time expired. Please select your seats again.",

@@ -50,6 +50,40 @@ export function renderPrometheus(stats: SystemStats): string {
   g('tix_process_uptime_seconds', 'Uptime of the web process.', stats.app.uptimeSeconds);
   g('tix_process_resident_memory_bytes', 'Resident memory of the web process.', stats.app.rssBytes);
   g('tix_process_heap_used_bytes', 'Used V8 heap of the web process.', stats.app.heapUsedBytes);
+  const c = stats.shopCache;
+  g('tix_shop_cache_entries', 'Entries in the shop data cache of this web process.', c.entries);
+  g(
+    'tix_shop_cache_synced',
+    '1 when the shop data cache is subscribed to cross-instance invalidations.',
+    c.state === 'synced' ? 1 : 0,
+  );
+  for (const [result, value] of [
+    ['hit', c.hits],
+    ['miss', c.misses],
+    ['coalesced', c.coalesced],
+    ['bypass', c.bypasses],
+    ['discarded', c.discarded],
+  ] as const) {
+    w.metric(
+      'tix_shop_cache_lookups_total',
+      'Shop data cache lookups by result (since process start).',
+      'counter',
+      value,
+      { result },
+    );
+  }
+  w.metric(
+    'tix_shop_cache_invalidations_total',
+    'Tag invalidations applied (local and received from other instances).',
+    'counter',
+    c.invalidations,
+  );
+  w.metric(
+    'tix_shop_cache_flushes_total',
+    'Full flushes of the shop data cache.',
+    'counter',
+    c.flushes,
+  );
   for (const block of stats.errors) {
     g('tix_collect_error', '1 when a status block could not be collected.', 1, { block });
   }

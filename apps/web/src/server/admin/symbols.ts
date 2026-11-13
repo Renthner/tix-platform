@@ -1,15 +1,21 @@
 'use server';
 
-import { DomainError, createSymbol, forgetSeatMapVersion, publishSeatDelta } from '@tix/core';
+import {
+  DomainError,
+  createSymbol,
+  forgetSeatMapVersion,
+  publishSeatDelta,
+  SHOP_TAGS,
+} from '@tix/core';
 import { events, seatMapElements, seatMaps, seats, svgSymbols, withTransaction } from '@tix/db';
 import { SYMBOL_KINDS } from '@tix/shared';
 import { eq, inArray, sql } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { audit } from './audit';
+import { refreshShop } from './shop-refresh';
 import { fieldError, flag, formError, success, text, zodFieldErrors } from './form';
 
 const MAX_SVG_BYTES = 200_000;
@@ -58,7 +64,7 @@ export async function uploadSymbolAction(_prev: ActionState, fd: FormData): Prom
       return fieldError({ file: SVG_ERRORS[err.code] });
     throw err;
   }
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.symbols]);
   return success('created');
 }
 
@@ -78,7 +84,7 @@ export async function renameSymbolAction(
     .returning({ id: svgSymbols.id });
   if (updated.length === 0) return formError('notFound');
   await audit(db, session, 'symbol.rename', 'svg_symbol', symbolId, { name: name.data });
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.symbols]);
   return success('saved');
 }
 
@@ -158,6 +164,6 @@ export async function deleteSymbolAction(
       });
     }
   }
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.symbols]);
   return success('deleted');
 }

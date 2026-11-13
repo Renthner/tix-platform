@@ -9,6 +9,7 @@ import {
 } from '@tix/shared';
 import { QUEUE_NAMES } from '@tix/redis';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { SHOP_TAGS, invalidateShopCache } from './cache/shop-cache';
 import { DomainError, requireCapability, type CoreContext } from './context';
 import { coreLog } from './log';
 import type { ImageInfo, MediaAssetRow } from './media';
@@ -245,6 +246,8 @@ async function markVariantsProcessed(ctx: CoreContext, assetId: string): Promise
     .update(mediaAssets)
     .set({ variantsProcessedAt: sql`coalesce(${mediaAssets.variantsProcessedAt}, now())` })
     .where(eq(mediaAssets.id, assetId));
+  // The cached catalogue row decides the cache headers of the delivery route.
+  await invalidateShopCache(ctx, [SHOP_TAGS.media]);
 }
 
 /**
@@ -272,6 +275,7 @@ async function recordVariantAttempt(
       processedAt: mediaAssets.variantsProcessedAt,
     });
   if (!row) return false;
+  if (row.processedAt) await invalidateShopCache(ctx, [SHOP_TAGS.media]);
   if (!complete && row.processedAt && row.attempts === MEDIA_VARIANTS_MAX_ATTEMPTS) {
     coreLog.warn(
       { assetId, attempts: row.attempts },

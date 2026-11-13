@@ -3,7 +3,9 @@ import { adminUsers, auditLogs, PgClient } from '@tix/db';
 import { runMigrations } from '@tix/db/migrate';
 import { QUEUE_NAMES, type Keyspace, type Redis } from '@tix/redis';
 import { eq } from 'drizzle-orm';
+import { invalidateShopCache } from '../cache/shop-cache';
 import type { JobQueues } from '../job-queues';
+import { invalidateSettings } from '../settings';
 import { replayErasureLedger } from '../customers/privacy';
 import { runPrivacyRetention } from '../customers/privacy';
 import { enqueueRefundReconcile, markRefundsForReconciliation } from '../orders/refund-reconcile';
@@ -370,6 +372,15 @@ export async function restoreBackup(
 
     await at('REDIS_CLEANUP');
     await cleanupRedisAfterRestore(rt.ctx);
+    // Every cached shop page / setting of every web instance describes the replaced database.
+    invalidateSettings();
+    // Best effort: the restore itself is complete; other instances fall back to the safety TTLs.
+    try {
+      await rt.ctx.publisher.publish(rt.ctx.channels.configInvalidation(), '{}');
+    } catch (err) {
+      rt.logger.warn({ err: describeError(err) }, 'settings cache flush could not be published');
+    }
+    await invalidateShopCache(rt.ctx, 'all');
     await enqueueRefundReconcile(rt.ctx);
 
     await retry(() =>

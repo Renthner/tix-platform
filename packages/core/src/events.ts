@@ -2,6 +2,7 @@ import { events, queueConfigs, venues } from '@tix/db';
 import type { QueueAdmissionOrder, QueueMode, Translations } from '@tix/shared';
 import { and, eq, isNull, or } from 'drizzle-orm';
 import { DomainError, type CoreContext } from './context';
+import { SHOP_TAGS, shopCache } from './cache/shop-cache';
 import { getSetting } from './settings';
 
 export type EventRow = typeof events.$inferSelect;
@@ -147,23 +148,23 @@ export async function getEventById(
   return event;
 }
 
-const EVENT_CACHE_TTL_MS = 3_000;
-const eventCache = new Map<string, { event: EventRow; expires: number }>();
+/** Safety TTL of `getEventCached`; the normal freshness mechanism is tag invalidation. */
+const EVENT_CACHE_TTL_MS = 10_000;
 
 /**
- * Event lookup for hot shop paths (seat clicks of 1,000+ concurrent users) with a short
- * in-process cache. Admin changes become visible within EVENT_CACHE_TTL_MS.
+ * Event lookup for hot shop paths (seat clicks of 1,000+ concurrent users) from the shop data
+ * cache. Event changes (sales pause, dates, status, ...) invalidate the `event:<id>` tag on every
+ * web instance within milliseconds; processes without a cache subscription fall back to a few
+ * seconds.
  */
 export async function getEventCached(
   ctx: Pick<CoreContext, 'db'>,
   eventId: string,
 ): Promise<EventRow> {
-  const hit = eventCache.get(eventId);
-  if (hit && hit.expires > Date.now()) return hit.event;
-  const event = await getEventById(ctx, eventId);
-  eventCache.set(eventId, { event, expires: Date.now() + EVENT_CACHE_TTL_MS });
-  if (eventCache.size > 500) eventCache.delete(eventCache.keys().next().value!);
-  return event;
+  return shopCache.get(`event-row:${eventId}`, () => getEventById(ctx, eventId), {
+    tags: [SHOP_TAGS.event(eventId)],
+    ttlMs: EVENT_CACHE_TTL_MS,
+  });
 }
 
 export async function getEventWithVenueBySlug(

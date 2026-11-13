@@ -50,7 +50,8 @@ const SOURCES = [CADDYFILE, MINIO_INIT, REDIS_CONF];
 // Services whose host ports are published in the base file (local tools) but intentionally not here.
 const UNPUBLISHED = ['postgres', 'redis', 'minio'];
 const OWNER_PLACEHOLDER = 'TIX_IMAGE_OWNER_DEFAULT';
-const APP_SERVICES = ['migrate', 'web', 'worker', 'realtime'];
+// storage-credentials is a one-shot that runs on the worker image.
+const APP_SERVICES = ['migrate', 'web', 'worker', 'realtime', 'storage-credentials'];
 
 // Minimal ZIP writer (deflate, unix permissions kept; no dependency, no `zip` binary needed).
 function zip(entries) {
@@ -228,7 +229,9 @@ function check() {
     tmp,
     readFileSync(join(deployDir, '.env.example'), 'utf8')
       .replaceAll('__TIX_CHANNEL__', 'stable')
-      .replaceAll('__TIX_IMAGE_OWNER__', 'owner'),
+      .replaceAll('__TIX_IMAGE_OWNER__', 'owner') +
+      // The template does not carry the owner (the compose default holds it); resolve it for the check.
+      '\nTIX_IMAGE_OWNER=owner\n',
   );
   try {
     writeFileSync(rendered, renderCompose());

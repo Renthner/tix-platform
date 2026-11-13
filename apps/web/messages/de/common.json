@@ -32,6 +32,7 @@
   },
   "errors": {
     "WALLET_UNAVAILABLE": "Wallet ist gerade nicht verfügbar. Bitte versuche es später erneut oder nutze das PDF-Ticket.",
+    "PRICES_UPDATING": "Die Preise werden gerade aktualisiert. Bitte versuche es gleich noch einmal.",
     "SEAT_UNAVAILABLE": "Dieser Platz ist nicht mehr verfügbar.",
     "SEAT_LOCKED": "Jemand anderes hat diesen Platz gerade ausgewählt.",
     "CART_EXPIRED": "Deine Reservierungszeit ist abgelaufen. Bitte wähle deine Plätze erneut.",

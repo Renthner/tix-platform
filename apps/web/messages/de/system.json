@@ -24,6 +24,7 @@
     "version": "Version {version}",
     "uptime": "Läuft seit {duration}",
     "memory": "Speicher {rss} (Heap {heap})",
+    "shopCache": "Shop-Cache: {ratio} Treffer, {entries} Einträge ({state})",
     "database": "Datenbankverbindungen",
     "databaseDetail": "von {max} erlaubten, {size}",
     "redisMemory": "Redis-Speicher",

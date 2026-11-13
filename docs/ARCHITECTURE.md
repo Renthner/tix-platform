@@ -49,6 +49,64 @@ Seat locking, waiting room and realtime data flow: see [REDIS.md](REDIS.md).
 4. Unclaimed locks expire (`PXAT` = cart expiry); the worker sweeper broadcasts the release.
 5. At checkout PostgreSQL's partial unique index is the final authority.
 
+## Shop data cache
+
+Presale traffic (> 1,000 buyers opening the event page at T-0) must not turn into thousands of
+identical database queries, while everything that matters for a purchase stays live. The pages
+cannot be cached as HTML (every response carries a per-request CSP nonce and cookies), so the
+**data** behind them is cached in each web process.
+
+**What is cached** (`packages/core/src/shop-data.ts`, `seatmaps/public.ts`, `events.ts`):
+event + venue + cover + info box symbols by slug, the event list of the home page (with
+"from" prices), queue display texts and announcements, the public seat plan (geometry, categories,
+tariffs, prices) as ready-to-send JSON per locale with an ETag, the media catalogue row, and the
+event row used by the seat / cart API (`getEventCached`). Settings keep their own small cache
+(`settings.ts`), which now also follows invalidations of other instances.
+
+**What is never cached:** seat status and counters (Redis / realtime), carts, queue positions and
+passes, customer / admin sessions, rate limits. Nothing time dependent is evaluated at load time:
+the sale state (`computeSaleState`), "event already started" and announcement expiry are decided
+at render time from the cached timestamps; a cached list expires itself when its first event starts.
+
+**Mechanism** (`packages/core/src/cache/`): in-process LRU (`TagCache`) with single-flight loading,
+tags, a safety TTL (60 s; 10 s for the event row of the seat API) and Redis pub/sub for
+cross-instance invalidation (channel `<prefix>:ch:cache`; settings use `<prefix>:ch:config`).
+`invalidateShopCache(ctx, tags)` evicts locally at once and publishes; every web instance and the
+worker subscribe (`startShopCacheSync`). A load that was running while one of its tags was
+invalidated is never stored. While the subscription is down entries live only 2 s (concurrent misses
+still share one load, so there is no stampede), and every (re)subscription flushes the cache, so a
+missed message can never go unnoticed.
+Processes without a subscription (CLI, tests) cap the TTL at 3 s. Next.js `use cache` was not used:
+its default handler is per process and cannot be invalidated across replicas.
+
+**Tags:** `event:<id>` (one event: row, categories, tariffs, matrix, plan, info boxes),
+`events` (catalogue: slugs, status, order, visibility, list), `venues`, `media`, `symbols`,
+`queue`. `eventTags(id)` = `events` + `event:<id>` is the safe default after any event edit.
+
+**Rules for new features**
+
+1. Data that is cached must be identical for every visitor and must not embed live state or the
+   current time.
+2. Every code path that changes cached data calls `invalidateShopCache` (or, in the web admin,
+   `refreshShop` from `server/admin/shop-refresh.ts`) **after** its transaction committed – never
+   inside it, otherwise another instance can reload the old row and cache it.
+3. Prefer invalidating inside the core function that writes (covers every caller, including the
+   worker); admin server actions that write directly call `refreshShop(eventTags(eventId))`.
+   **Prices are the exception to "invalidate after commit":** the public plan's cache keys contain
+   `seat_maps.version` and `events.public_map_generation` (bumped by database triggers on
+   categories, tariffs, the pricing matrix and the currency, in the writer's transaction), and every
+   money path (cart, quote, checkout, box office) reads that stamp from the database
+   (`getPublicSeatMap(..., { fresh: true })`). A stale snapshot is therefore never looked up after a
+   commit, whatever happens to the invalidation.
+4. New cached read model = new loader in `shop-data.ts` with tags; add the matching invalidation to
+   every writer of the tables it reads (`grep` for `.update(<table>)`).
+5. Backup restore flushes everything (`invalidateShopCache(ctx, 'all')`).
+
+The admin System page and `/api/metrics` show hit / miss / bypass counters of the process that
+answered (`tix_shop_cache_*`). The seat plan endpoint answers `Cache-Control: no-cache` with a
+strong ETag: browsers revalidate on every load (304 without a body), so a price change is never
+hidden by a browser cache. Measurements: [LOAD-TEST.md](LOAD-TEST.md#shop-page-data-cache).
+
 ## Checkout, orders & payments
 
 ```text

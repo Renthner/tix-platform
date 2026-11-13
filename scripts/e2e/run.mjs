@@ -144,20 +144,28 @@ async function main() {
       HTTPS_PORT: String(await freePort()),
       POSTGRES_PASSWORD: pgPassword,
       REDIS_PASSWORD: hex(),
-      MINIO_ROOT_PASSWORD: hex(),
-      S3_SECRET_ACCESS_KEY: hex(),
       APP_ENCRYPTION_KEYS: `k1:${randomBytes(32).toString('base64')}`,
       SESSION_SECRET: hex(32),
       TIX_CHANNEL: 'next',
     };
-    const envText = readFileSync(join(bundle, '.env.example'), 'utf8')
+    // Overrides replace an active line of the template; keys that the template only carries as a
+    // comment (or not at all) are appended, so the stack never falls back to the default project
+    // name / ports (those belong to a real installation).
+    const seen = new Set();
+    const lines = readFileSync(join(bundle, '.env.example'), 'utf8')
       .split(/\r?\n/)
       .map((line) => {
         const m = /^([A-Z0-9_]+)=/.exec(line);
-        return m && m[1] in overrides ? `${m[1]}=${overrides[m[1]]}` : line;
-      })
-      .join('\n');
-    writeFileSync(join(dir, '.env'), envText);
+        if (m && m[1] in overrides) {
+          seen.add(m[1]);
+          return `${m[1]}=${overrides[m[1]]}`;
+        }
+        return line;
+      });
+    for (const [key, value] of Object.entries(overrides)) {
+      if (!seen.has(key)) lines.push(`${key}=${value}`);
+    }
+    writeFileSync(join(dir, '.env'), lines.join('\n') + '\n');
     const svc = (t) => `    image: ${image(t)}\n    pull_policy: never\n`;
     writeFileSync(
       join(dir, 'docker-compose.override.yml'),
@@ -165,7 +173,8 @@ async function main() {
   postgres:
     ports:
       - "127.0.0.1:${dbPort}:5432"
-  migrate:
+  storage-credentials:
+${svc('worker')}  migrate:
 ${svc('worker')}  worker:
 ${svc('worker')}  web:
 ${svc('web')}  realtime:

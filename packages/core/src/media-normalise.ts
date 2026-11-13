@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { mediaAssetVariants, mediaAssets, withTransaction } from '@tix/db';
 import { and, asc, eq, isNull } from 'drizzle-orm';
+import { SHOP_TAGS, invalidateShopCache } from './cache/shop-cache';
 import { DomainError, requireCapability, type CoreContext } from './context';
 import { coreLog } from './log';
 import { detectImage, type MediaAssetRow } from './media';
@@ -148,6 +149,8 @@ export async function normaliseAssetMaster(
     await storage.delete(bucket, newKey).catch(() => undefined);
     return 'skipped';
   }
+  // Dimensions / content hash of the asset changed (cached catalogue row, <img> sizes).
+  await invalidateShopCache(ctx, [SHOP_TAGS.media]);
 
   // After the commit: the old master and the stale variants (the orphan sweep is the fallback).
   for (const key of staleVariantKeys) {

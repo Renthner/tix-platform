@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidatePublicSeatMap, seatMapVersion } from '@tix/core';
+import { eventTags } from '@tix/core';
 import {
   events,
   findPgError,
@@ -13,24 +13,29 @@ import {
 } from '@tix/db';
 import { DISCOUNT_KINDS, SALES_CHANNELS, SEAT_FEATURES } from '@tix/shared';
 import { and, eq, inArray, ne } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
 import { parseMoneyToCents, parsePercentToBasisPoints } from '@/lib/money';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { audit } from './audit';
+import { refreshShop } from './shop-refresh';
 import { fieldError, flag, formError, success, text, zodFieldErrors } from './form';
 
-/** Pricing changes alter the public seat-map snapshot (prices per tariff) → drop it. */
-async function refreshSnapshot(eventId: string): Promise<void> {
-  const core = getCore();
-  const [event] = await core.db
-    .select({ seatMapId: events.seatMapId })
+/**
+ * First statement of every transaction that writes categories, tariffs or the matrix: the price
+ * triggers update the event row, so the event is locked before any child row (same order as
+ * translations-admin and fees), which rules out lock-order deadlocks between concurrent saves.
+ */
+async function lockEvent(
+  tx: Parameters<Parameters<typeof withTransaction>[1]>[0],
+  eventId: string,
+) {
+  await tx
+    .select({ id: events.id })
     .from(events)
-    .where(eq(events.id, eventId));
-  if (!event?.seatMapId) return;
-  await invalidatePublicSeatMap(core, eventId, await seatMapVersion(core, event.seatMapId));
+    .where(eq(events.id, eventId))
+    .for('no key update');
 }
 
 function money(
@@ -103,6 +108,7 @@ export async function saveCategoryAction(
   const { db } = getCore();
   try {
     await withTransaction(db, async (tx) => {
+      await lockEvent(tx, eventId);
       if (categoryId) {
         const updated = await tx
           .update(priceCategories)
@@ -135,8 +141,7 @@ export async function saveCategoryAction(
       return fieldError({ name: 'nameTaken' });
     throw err;
   }
-  await refreshSnapshot(eventId);
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success(categoryId ? 'saved' : 'created');
 }
 
@@ -160,8 +165,7 @@ export async function deleteCategoryAction(
     if (isReferenced(err)) return formError('inUse');
     throw err;
   }
-  await refreshSnapshot(eventId);
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success('deleted');
 }
 
@@ -236,6 +240,7 @@ export async function saveTicketTypeAction(
   const { db } = getCore();
   try {
     await withTransaction(db, async (tx) => {
+      await lockEvent(tx, eventId);
       let id = ticketTypeId;
       if (values.isDefault) {
         // Exactly one default tariff per event (partial unique index).
@@ -287,8 +292,7 @@ export async function saveTicketTypeAction(
     if (isUniqueViolation(err, 'ticket_types_name_uq')) return fieldError({ name: 'nameTaken' });
     throw err;
   }
-  await refreshSnapshot(eventId);
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success(ticketTypeId ? 'saved' : 'created');
 }
 
@@ -312,8 +316,7 @@ export async function deleteTicketTypeAction(
     if (isReferenced(err)) return formError('inUse');
     throw err;
   }
-  await refreshSnapshot(eventId);
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success('deleted');
 }
 
@@ -386,6 +389,7 @@ export async function saveMatrixAction(
   if (Object.keys(errors).length > 0) return fieldError(errors);
 
   await withTransaction(db, async (tx) => {
+    await lockEvent(tx, eventId);
     if (categories.length > 0) {
       await tx.delete(priceCategoryTicketTypes).where(
         inArray(
@@ -397,7 +401,6 @@ export async function saveMatrixAction(
     if (rows.length > 0) await tx.insert(priceCategoryTicketTypes).values(rows);
     await audit(tx, session, 'pricing.matrix', 'event', eventId, { offered: rows.length });
   });
-  await refreshSnapshot(eventId);
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success('saved');
 }

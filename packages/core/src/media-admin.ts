@@ -1,3 +1,4 @@
+import { SHOP_TAGS, invalidateShopCache } from './cache/shop-cache';
 import { coreLog } from './log';
 import {
   mediaAssets,
@@ -424,7 +425,7 @@ export async function renameMediaAsset(
 ): Promise<MediaAssetRow> {
   const trimmed = name.trim();
   if (!trimmed) throw new DomainError('MEDIA_NAME_REQUIRED', 'A name is required', 422);
-  return withTransaction(ctx.db, async (tx) => {
+  const renamed = await withTransaction(ctx.db, async (tx) => {
     const [current] = await tx.select().from(mediaAssets).where(eq(mediaAssets.id, id));
     if (!current || PROTECTED_KINDS.includes(current.kind)) {
       throw new DomainError('MEDIA_NOT_FOUND', 'Media asset not found', 404);
@@ -438,6 +439,8 @@ export async function renameMediaAsset(
     await audit?.(tx, row!);
     return row!;
   });
+  await invalidateShopCache(ctx, [SHOP_TAGS.media]);
+  return renamed;
 }
 
 export type MediaDeleteResult =
@@ -483,6 +486,7 @@ export async function tryDeleteMediaAsset(
     return { deleted: true, asset, variantKeys: variants.map((v) => v.storageKey) };
   });
   if (result.deleted) {
+    await invalidateShopCache(ctx, [SHOP_TAGS.media, SHOP_TAGS.events]);
     const { asset, variantKeys } = result;
     for (const key of variantKeys) {
       await storage

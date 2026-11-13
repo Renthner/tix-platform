@@ -239,6 +239,13 @@
       "when": 1794599201748,
       "tag": "0033_media_variants",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794606466668,
+      "tag": "0034_public_map_generation",
+      "breakpoints": true
     }
   ]
 }

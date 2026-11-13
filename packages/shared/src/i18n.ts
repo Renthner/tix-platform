@@ -24,8 +24,13 @@ export function localizedPath(locale: string, path: string, defaultLocale: strin
   return `/${locale}${pathname === '/' ? '' : pathname}${rest}`;
 }
 
+/** Base language of a locale tag ("de-DE" → "de") if it is a supported locale, else null. */
+export function supportedLocaleOrNull(tag: string | null | undefined): AppLocale | null {
+  const base = (tag ?? '').toLowerCase().split(/[-_]/)[0] ?? '';
+  return isAppLocale(base) ? base : null;
+}
+
 /** Base language of a locale tag ("de-DE" → "de") if supported, else "en". */
 export function normalizeLocale(tag: string | null | undefined): AppLocale {
-  const base = (tag ?? '').toLowerCase().split(/[-_]/)[0] ?? '';
-  return isAppLocale(base) ? base : 'en';
+  return supportedLocaleOrNull(tag) ?? 'en';
 }

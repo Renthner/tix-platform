@@ -1,6 +1,5 @@
 {
   "panelTitle": "Admin portal",
-  "menu": "Menu",
   "logout": "Sign out",
   "shopLink": "Go to ticket shop",
   "nav": {
@@ -24,7 +23,8 @@
     "backups": "Backups",
     "scanners": "Check-in devices",
     "statistics": "Statistics",
-    "system": "System"
+    "system": "System",
+    "menu": "Menu"
   },
   "login": {
     "title": "Admin sign-in",
