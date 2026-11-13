@@ -28,7 +28,7 @@ area. The `.env` file only holds the few technical settings.
 ### 1. Download the two files
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.16
+export TIX_VERSION=1.0.0-alpha.17
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example

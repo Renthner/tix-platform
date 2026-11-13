@@ -8,6 +8,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.17] - 2026-11-14
+
 ### Added
 
 - Shop data cache for presale load: event pages, the shop home, queue texts and announcements,
