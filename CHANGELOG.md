@@ -8,6 +8,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.13] - 2026-11-13
+
 ### Added
 
 - Settings → Appearance: number of events per row in the shop event list (1–10, default 3; fewer
