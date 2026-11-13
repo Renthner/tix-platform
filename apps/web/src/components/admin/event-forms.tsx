@@ -283,6 +283,7 @@ export function EventDetailsForm({
           <MediaPicker
             name="heroImageAssetId"
             kind="EVENT_IMAGE"
+            visibility="public"
             initialAsset={initial.cover}
             fit="contain"
             previewClassName="max-w-md"

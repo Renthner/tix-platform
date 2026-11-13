@@ -18,6 +18,7 @@ import {
   CheckoutSettingsForm,
   GeneralSettingsForm,
   SeatDisplaySettingsForm,
+  ShopLayoutSettingsForm,
   StartPageSettingsForm,
   SettingsSection,
 } from '@/components/admin/settings-forms';
@@ -109,6 +110,7 @@ async function TabContent({
       | 'organizer'
       | 'checkout'
       | 'seatDisplay'
+      | 'shopLayout'
       | 'startPage'
       | 'bankTransfer',
     children: React.ReactNode,
@@ -145,10 +147,12 @@ async function TabContent({
       );
     }
     case 'appearance': {
-      const [branding, seatDisplay, startPage] = await Promise.all([
+      const [branding, seatDisplay, shopLayout, startPage, general] = await Promise.all([
         getSetting(core, 'branding'),
         getSetting(core, 'seatDisplay'),
+        getSetting(core, 'shopLayout'),
         getSetting(core, 'startPage'),
+        getSetting(core, 'general'),
       ]);
       const startPageTexts = Object.fromEntries(
         Object.entries(startPage.texts).map(([loc, v]) => [
@@ -182,6 +186,13 @@ async function TabContent({
             />,
           )}
           {section(
+            'shopLayout',
+            <ShopLayoutSettingsForm
+              action={saveSettingsAction.bind(null, 'shopLayout')}
+              initial={shopLayout}
+            />,
+          )}
+          {section(
             'startPage',
             <StartPageSettingsForm
               action={saveSettingsAction.bind(null, 'startPage')}
@@ -191,6 +202,7 @@ async function TabContent({
                 hero: await pickerAsset(startPage.heroAssetId),
                 gallery: await Promise.all(startPage.galleryAssetIds.map(pickerAsset)),
                 buttonUrl: startPage.buttonUrl,
+                defaultLocale: general.defaultLocale,
                 texts: startPageTexts,
               }}
             />,

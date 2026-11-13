@@ -45,6 +45,7 @@
   },
   "errors": {
     "required": "Dieses Feld ist erforderlich.",
+    "pngOnly": "Hier sind nur PNG-Bilder erlaubt (Vorgabe von Apple Wallet).",
     "invalid": "Dieser Wert ist ungültig.",
     "tooLong": "Dieser Text ist zu lang.",
     "tooSmall": "Dieser Wert ist zu klein.",
@@ -795,6 +796,18 @@
     "replace": "Bild ersetzen",
     "remove": "Entfernen",
     "uploading": "Wird hochgeladen…",
+    "library": {
+      "open": "Aus Mediathek wählen",
+      "title": "Bild aus der Mediathek wählen",
+      "descriptionPublic": "Es werden nur Bilder angeboten, die öffentlich angezeigt werden dürfen.",
+      "descriptionPrivate": "Es werden alle Bilder der Mediathek angeboten.",
+      "search": "Nach Dateinamen suchen",
+      "empty": "Keine passenden Bilder gefunden.",
+      "error": "Die Mediathek konnte nicht geladen werden.",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "page": "Seite {page} von {total}"
+    },
     "errors": {
       "generic": "Der Upload ist fehlgeschlagen. Bitte versuche es erneut.",
       "MEDIA_EMPTY": "Die Datei ist leer.",
@@ -938,6 +951,12 @@
       "seatChangeCurrentColor": "Bestellte Plätze (unverändert) – Platzänderung",
       "seatChangeReplacedColor": "Zu ersetzender Platz – Platzänderung",
       "seatChangeNewColor": "Neuer Platz – Platzänderung"
+    },
+    "shopLayout": {
+      "title": "Veranstaltungsliste im Shop",
+      "description": "Wie die Veranstaltungen auf der Startseite des Shops angeordnet werden.",
+      "eventsPerRow": "Veranstaltungen pro Zeile",
+      "eventsPerRowHint": "Anzahl der Veranstaltungskarten nebeneinander auf breiten Bildschirmen (1–10). Auf schmaleren Bildschirmen werden automatisch weniger angezeigt: 1 auf Smartphones, bis zu 2 auf kleinen Tablets, bis zu 3 auf mittleren Bildschirmen."
     },
     "startPage": {
       "title": "Startseite ohne Veranstaltungen",
@@ -1242,6 +1261,9 @@
       "SETTING": "Einstellung",
       "OTHER": "Sonstige Verwendung"
     },
+    "copyId": "ID kopieren",
+    "copyUrl": "URL kopieren",
+    "copied": "Kopiert",
     "dimensions": "Größe",
     "size": "Dateigröße",
     "uploaded": "Hochgeladen",

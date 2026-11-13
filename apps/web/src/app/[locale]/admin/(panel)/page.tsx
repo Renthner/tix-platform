@@ -205,9 +205,15 @@ export default async function AdminDashboardPage({
                 </TableHeader>
                 <TableBody>
                   {upcoming.slice(0, 20).map(({ event, venueName }) => (
-                    <TableRow key={event.id}>
+                    <TableRow
+                      key={event.id}
+                      className="relative cursor-pointer focus-within:bg-muted/50"
+                    >
                       <TableCell className="font-medium">
-                        <Link href={`/admin/events/${event.id}`} className="hover:underline">
+                        <Link
+                          href={`/admin/events/${event.id}`}
+                          className="outline-none after:absolute after:inset-0 hover:underline focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
+                        >
                           {event.title}
                         </Link>
                       </TableCell>

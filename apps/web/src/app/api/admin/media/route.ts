@@ -1,5 +1,10 @@
-import { uploadMediaAsset } from '@tix/core';
-import { MEDIA_ASSET_KINDS, MEDIA_MAX_BYTES, type MediaAssetKind } from '@tix/shared';
+import { listMediaAssets, uploadMediaAsset } from '@tix/core';
+import {
+  MEDIA_ASSET_KINDS,
+  MEDIA_MAX_BYTES,
+  mediaKindsFor,
+  type MediaAssetKind,
+} from '@tix/shared';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { audit } from '@/server/admin/audit';
@@ -24,6 +29,56 @@ export interface MediaUploadResponse {
     height: number | null;
     altText: string | null;
   };
+}
+
+const listQuerySchema = z.object({
+  visibility: z.enum(['public', 'private']).default('private'),
+  q: z.string().trim().max(100).optional(),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+});
+
+export interface MediaListResponse {
+  items: {
+    id: string;
+    kind: MediaAssetKind;
+    fileName: string;
+    sizeBytes: number;
+    width: number | null;
+    height: number | null;
+  }[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** GET `?visibility=public|private&q=&page=` – paginated library listing for the picker dialog. */
+export async function GET(request: Request) {
+  return handle(async () => {
+    const session = await adminForApi(['EVENT_MANAGER']);
+    if (!session) return apiError('FORBIDDEN', 'Not allowed', 403);
+    const query = listQuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+    if (!query.success) return apiError('INVALID_QUERY', 'Invalid query', 400);
+    const result = await listMediaAssets(getCore(), {
+      kinds: mediaKindsFor(query.data.visibility),
+      search: query.data.q,
+      page: query.data.page,
+      pageSize: 24,
+    });
+    const body: MediaListResponse = {
+      items: result.items.map((a) => ({
+        id: a.id,
+        kind: a.kind,
+        fileName: a.fileName,
+        sizeBytes: a.sizeBytes,
+        width: a.width,
+        height: a.height,
+      })),
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+    };
+    return NextResponse.json(body, { headers: { 'cache-control': 'no-store' } });
+  });
 }
 
 /**

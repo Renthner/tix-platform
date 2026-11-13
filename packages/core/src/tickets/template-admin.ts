@@ -1,5 +1,9 @@
 import { events, priceCategories, ticketTemplates, withTransaction, type Executor } from '@tix/db';
-import { ticketTemplateInputSchema, type TicketTemplateInput } from '@tix/shared';
+import {
+  isMediaKindAllowed,
+  ticketTemplateInputSchema,
+  type TicketTemplateInput,
+} from '@tix/shared';
 import { and, asc, count, eq, isNull, ne, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { getMediaAsset } from '../media';
@@ -80,6 +84,10 @@ async function assertBackground(ctx: CoreContext, assetId: string | null | undef
   if (!assetId) return;
   const asset = await getMediaAsset(ctx, assetId);
   if (!asset) throw new DomainError('MEDIA_NOT_FOUND', 'Background image not found', 404);
+  // Ticket backgrounds are private: any library image is fine, generated documents are not.
+  if (!isMediaKindAllowed(asset.kind, 'private')) {
+    throw new DomainError('MEDIA_NOT_FOUND', 'Background image not found', 404);
+  }
 }
 
 export async function createTicketTemplate(

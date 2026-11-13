@@ -8,6 +8,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Appearance: number of events per row in the shop event list (1–10, default 3; fewer
+  columns on small screens).
+- Media library: "Copy ID" on every image and "Copy URL" for public images.
+- Every image field can reuse an image from the media library ("Choose from library") instead of
+  uploading it again; private images (ticket backgrounds, wallet images) cannot be used in public
+  places.
+- Scan log (device page and event check-in tab): entries per page (5–100, default 25), page
+  navigation and a search by order number, ticket code, seat and name.
+
+### Changed
+
+- Start page card: one language at a time with a content-language dropdown (default: shop
+  default language), in the builder and in custom-HTML mode.
+- Admin event list and dashboard "upcoming events": the whole row opens the event; buttons in the
+  row (e.g. Duplicate) keep working.
+- Wallet pass images must be PNG (Apple Wallet requirement) and show their error at the field.
+
 ## [1.0.0-alpha.12] - 2026-11-13
 
 ### Added

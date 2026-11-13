@@ -485,17 +485,22 @@ export function WalletDesignForm({
               ['stripAssetId', 'strip', initial.strip, 375 / 98],
             ] as const
           ).map(([name, key, asset, ratio]) => (
-            <div key={name} className="space-y-1">
-              <div className="text-sm font-medium">{t(`images.${key}`)}</div>
+            <Field
+              key={name}
+              label={t(`images.${key}`)}
+              htmlFor={name}
+              error={err(name)}
+              hint={t(`images.${key}Hint`)}
+            >
               <MediaPicker
                 name={name}
                 kind="WALLET_IMAGE"
+                visibility="private"
                 initialAsset={asset}
                 aspectRatio={ratio}
                 previewClassName="max-w-[12rem]"
               />
-              <p className="text-xs text-muted-foreground">{t(`images.${key}Hint`)}</p>
-            </div>
+            </Field>
           ))}
         </div>
         <SubmitButton>{tc('save')}</SubmitButton>

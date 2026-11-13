@@ -238,6 +238,7 @@ export function BrandingSettingsForm({
           <MediaPicker
             name="logoAssetId"
             kind="LOGO"
+            visibility="public"
             initialAsset={initial.logo}
             previewClassName="max-w-xs"
             previewAlt={t('logo')}
@@ -252,6 +253,7 @@ export function BrandingSettingsForm({
           <MediaPicker
             name="faviconAssetId"
             kind="LOGO"
+            visibility="public"
             initialAsset={initial.favicon}
             aspectRatio={1}
             previewClassName="max-w-32"
@@ -695,6 +697,59 @@ export function SettingsSection({
   );
 }
 
+// ─── Shop event list layout ─────────────────────────────────────────────────
+
+export function ShopLayoutSettingsForm({
+  action,
+  initial,
+}: {
+  action: Action;
+  initial: { eventsPerRow: number };
+}) {
+  const t = useTranslations('admin.settings.shopLayout');
+  const tc = useTranslations('common.actions');
+  const { state, formAction, err } = useSettingsForm(action);
+  const [perRow, setPerRow] = useState(initial.eventsPerRow);
+  return (
+    <ActionForm action={formAction} className="space-y-6">
+      <ActionFeedback state={state} />
+      <Field
+        label={t('eventsPerRow')}
+        htmlFor="eventsPerRow"
+        error={err('eventsPerRow')}
+        hint={t('eventsPerRowHint')}
+      >
+        <div className="flex items-center gap-4">
+          <input
+            id="eventsPerRow"
+            name="eventsPerRow"
+            type="range"
+            min={1}
+            max={10}
+            step={1}
+            value={perRow}
+            onChange={(e) => setPerRow(Number(e.target.value))}
+            className="w-full max-w-xs"
+          />
+          <Input
+            type="number"
+            min={1}
+            max={10}
+            value={perRow}
+            onChange={(e) => {
+              const n = Math.round(Number(e.target.value));
+              if (Number.isFinite(n)) setPerRow(Math.min(10, Math.max(1, n)));
+            }}
+            aria-label={t('eventsPerRow')}
+            className="w-20"
+          />
+        </div>
+      </Field>
+      <SubmitButton>{tc('save')}</SubmitButton>
+    </ActionForm>
+  );
+}
+
 // ─── Start page without events ──────────────────────────────────────────────
 
 export interface StartPageValues {
@@ -703,6 +758,8 @@ export interface StartPageValues {
   hero: MediaPickerAsset | null;
   gallery: (MediaPickerAsset | null)[];
   buttonUrl?: string;
+  /** Shop default language: preselected content language. */
+  defaultLocale: string;
   texts: Partial<
     Record<
       string,
@@ -786,6 +843,40 @@ export function StartPageSettingsForm({
   // Both variants stay in the form (hidden, not removed) so switching never discards data.
   const [mode, setMode] = useState<StartPageMode>(initial.mode);
   const builder = mode === 'BUILDER';
+  // One content language is shown at a time; all languages stay mounted (hidden) and submitted.
+  const tsw = useTranslations('translations.switcher');
+  const [current, setCurrent] = useState<string>(
+    (SUPPORTED_LOCALES as readonly string[]).includes(initial.defaultLocale)
+      ? initial.defaultLocale
+      : SUPPORTED_LOCALES[0],
+  );
+  // A validation error in a hidden language switches the dropdown to that language.
+  const [seenAt, setSeenAt] = useState(0);
+  if (state.status === 'error' && state.at !== seenAt) {
+    setSeenAt(state.at);
+    const withError = SUPPORTED_LOCALES.find((loc) =>
+      Object.keys(state.fieldErrors ?? {}).some((k) => k.endsWith(`.${loc}`)),
+    );
+    if (withError && withError !== current) setCurrent(withError);
+  }
+  const localeSwitcher = (
+    <label className="flex items-center gap-2 text-sm">
+      <span className="text-muted-foreground">{tsw('label')}</span>
+      <NativeSelect
+        aria-label={tsw('label')}
+        value={current}
+        className="h-9 w-auto min-w-44"
+        onChange={(e) => setCurrent(e.target.value)}
+      >
+        {SUPPORTED_LOCALES.map((loc) => (
+          <option key={loc} value={loc}>
+            {tl(loc)}
+            {loc === initial.defaultLocale ? ` ${tsw('default')}` : ''}
+          </option>
+        ))}
+      </NativeSelect>
+    </label>
+  );
   return (
     <ActionForm action={formAction} className="space-y-6">
       <ActionFeedback state={state} />
@@ -810,8 +901,12 @@ export function StartPageSettingsForm({
         <p className="text-sm text-muted-foreground">
           {t('htmlHint', { max: Math.round(START_PAGE_HTML_MAX / 1000) })}
         </p>
+        {localeSwitcher}
         {SUPPORTED_LOCALES.map((loc) => (
-          <fieldset key={loc} className="space-y-4 rounded-lg border p-4">
+          <fieldset
+            key={loc}
+            className={loc === current ? 'space-y-4 rounded-lg border p-4' : 'hidden'}
+          >
             <legend className="px-1 text-sm font-semibold">{tl(loc)}</legend>
             <StartPageHtmlField
               loc={loc}
@@ -847,10 +942,14 @@ export function StartPageSettingsForm({
             />
           </Field>
         </div>
+        {localeSwitcher}
         {SUPPORTED_LOCALES.map((loc) => {
           const v = initial.texts[loc] ?? {};
           return (
-            <fieldset key={loc} className="space-y-4 rounded-lg border p-4">
+            <fieldset
+              key={loc}
+              className={loc === current ? 'space-y-4 rounded-lg border p-4' : 'hidden'}
+            >
               <legend className="px-1 text-sm font-semibold">{tl(loc)}</legend>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field

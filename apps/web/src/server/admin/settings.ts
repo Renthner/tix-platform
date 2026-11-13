@@ -36,6 +36,7 @@ export type EditableSettingKey =
   | 'branding'
   | 'checkout'
   | 'seatDisplay'
+  | 'shopLayout'
   | 'startPage'
   | 'organizer'
   | 'invoicing'
@@ -85,7 +86,7 @@ interface SecretChange {
   clear: boolean;
 }
 
-/** Optional LOGO media asset id: empty = none; unknown id / wrong kind is rejected. */
+/** Optional logo / favicon asset id (any public image kind, also from the library): empty = none; unknown id / private kind is rejected. */
 async function logoAssetField(
   fd: FormData,
   name: string,
@@ -94,7 +95,7 @@ async function logoAssetField(
   const id = text(fd, name);
   if (id === undefined) return undefined;
   const asset = z.uuid().safeParse(id).success ? await getMediaAsset(getCore(), id) : null;
-  if (!asset || asset.kind !== 'LOGO') {
+  if (!asset || !isPublicMediaKind(asset.kind)) {
     errors[name] = 'invalid';
     return undefined;
   }
@@ -188,6 +189,10 @@ async function readInput(
           seatChangeNewColor: text(fd, 'seatChangeNewColor'),
         },
       };
+    case 'shopLayout': {
+      const perRow = requiredInt(fd, 'eventsPerRow', errors);
+      return { input: { eventsPerRow: perRow } };
+    }
     case 'startPage': {
       const heroAssetId = await publicImageField(fd, 'heroAssetId', errors);
       const galleryAssetIds: string[] = [];

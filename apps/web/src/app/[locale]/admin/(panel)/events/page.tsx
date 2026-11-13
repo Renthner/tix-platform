@@ -108,7 +108,11 @@ export default async function EventsPage({
                 </TableHeader>
                 <TableBody>
                   {rows.map(({ event, venueName }) => (
-                    <TableRow key={event.id}>
+                    <TableRow
+                      key={event.id}
+                      data-testid="event-row"
+                      className="relative cursor-pointer focus-within:bg-muted/50"
+                    >
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-3">
                           <div
@@ -130,7 +134,10 @@ export default async function EventsPage({
                               </span>
                             )}
                           </div>
-                          <Link href={`/admin/events/${event.id}`} className="hover:underline">
+                          <Link
+                            href={`/admin/events/${event.id}`}
+                            className="outline-none after:absolute after:inset-0 hover:underline focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
+                          >
                             {event.title}
                           </Link>
                         </div>
@@ -146,12 +153,14 @@ export default async function EventsPage({
                         <SaleStateBadge state={computeSaleState(event)} />
                       </TableCell>
                       <TableCell>
-                        <EventDuplicateDialog
-                          size="sm"
-                          action={duplicateEventAction.bind(null, event.id)}
-                          title={event.title}
-                          startsAt={utcToZonedWallTime(event.startsAt, event.timeZone)}
-                        />
+                        <div className="relative z-10">
+                          <EventDuplicateDialog
+                            size="sm"
+                            action={duplicateEventAction.bind(null, event.id)}
+                            title={event.title}
+                            startsAt={utcToZonedWallTime(event.startsAt, event.timeZone)}
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

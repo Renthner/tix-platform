@@ -1547,6 +1547,68 @@ describe.skipIf(!adminUrl || !redisUrl)('scanner server side (integration)', () 
       const page2 = await listScanLog(ctx, { eventId, deviceId: d.id, pageSize: 2, page: 2 });
       expect(page2.entries).toHaveLength(2);
     });
+
+    it('pages and searches the journal together with the filters', async () => {
+      const d = await pairDevice('Search device', { entranceId: northId });
+      const { tickets: made } = await makeTickets([
+        { attendeeName: 'Qwerty Percent%Name' },
+        { attendeeName: 'Qwerty Plain' },
+        { attendeeName: 'Other Person' },
+      ]);
+      for (const t of made) await scanOnline(ctx, d, scanReq(t));
+      await scanOnline(ctx, d, scanReq(made[0]!)); // rejected duplicate
+
+      const all = await listScanLog(ctx, { eventId, deviceId: d.id, pageSize: 3 });
+      expect(all.total).toBe(4);
+      expect(all.entries).toHaveLength(3);
+      const p2 = await listScanLog(ctx, { eventId, deviceId: d.id, pageSize: 3, page: 2 });
+      expect(p2.entries).toHaveLength(1);
+      expect(new Set([...all.entries, ...p2.entries].map((e) => e.id)).size).toBe(4);
+      // Out-of-range page falls back to the last page.
+      expect((await listScanLog(ctx, { eventId, deviceId: d.id, pageSize: 3, page: 9 })).page).toBe(
+        2,
+      );
+
+      const byName = await listScanLog(ctx, { eventId, deviceId: d.id, search: 'qWeRtY' });
+      expect(byName.total).toBe(3);
+      // Several words must all match (any field).
+      expect(
+        (await listScanLog(ctx, { eventId, deviceId: d.id, search: 'qwerty plain' })).total,
+      ).toBe(1);
+      // % and _ are literals, not wildcards.
+      expect((await listScanLog(ctx, { eventId, deviceId: d.id, search: 't%N' })).total).toBe(2);
+      expect((await listScanLog(ctx, { eventId, deviceId: d.id, search: '%' })).total).toBe(2);
+      expect(
+        (await listScanLog(ctx, { eventId, deviceId: d.id, search: 'Qwerty_Plain' })).total,
+      ).toBe(0);
+      // Ticket code, seat and order number.
+      const code = made[2]!.ticketCode;
+      expect(
+        (await listScanLog(ctx, { eventId, deviceId: d.id, search: code.toLowerCase() })).total,
+      ).toBe(1);
+      expect((await listScanLog(ctx, { eventId, deviceId: d.id, search: 'floor' })).total).toBe(4);
+      const [ord] = await handle.db
+        .select({ n: orders.orderNumber })
+        .from(tickets)
+        .innerJoin(orders, eq(orders.id, tickets.orderId))
+        .where(eq(tickets.id, made[1]!.id));
+      expect(
+        (await listScanLog(ctx, { eventId, deviceId: d.id, search: ord!.n.toLowerCase() })).total,
+      ).toBeGreaterThanOrEqual(1);
+      // Search combined with the result filter and paging.
+      const combo = await listScanLog(ctx, {
+        eventId,
+        deviceId: d.id,
+        search: 'Percent',
+        result: 'REJECTED_ALREADY_CHECKED_IN',
+        pageSize: 1,
+      });
+      expect(combo.total).toBe(1);
+      expect(combo.entries[0]?.ticketCode).toBe(made[0]!.ticketCode);
+      // Newest first.
+      const times = all.entries.map((e) => e.scannedAt.getTime());
+      expect([...times].sort((a, b) => b - a)).toEqual(times);
+    });
   });
 
   describe('deleting revoked devices', () => {

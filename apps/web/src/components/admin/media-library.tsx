@@ -1,8 +1,8 @@
 'use client';
 
 import type { MediaUsageType } from '@tix/core';
-import type { MediaAssetKind } from '@tix/shared';
-import { Download, ExternalLink, Trash2, Upload } from 'lucide-react';
+import { isPublicMediaKind, type MediaAssetKind } from '@tix/shared';
+import { Check, Copy, Download, ExternalLink, Trash2, Upload } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -129,6 +129,10 @@ export function MediaGrid({ items }: { items: MediaCard[] }) {
               )}
               <div className="mt-auto flex flex-wrap gap-2 pt-1">
                 <RenameDialog name={m.fileName} action={m.rename} />
+                <CopyButton value={m.id} label={t('copyId')} />
+                {isPublicMediaKind(m.kind) && (
+                  <CopyButton value={`/api/media/${m.id}`} label={t('copyUrl')} />
+                )}
                 <Button asChild size="sm" variant="outline">
                   <a href={`/api/media/${m.id}`} target="_blank" rel="noreferrer">
                     <ExternalLink /> {t('open')}
@@ -155,6 +159,45 @@ export function MediaGrid({ items }: { items: MediaCard[] }) {
         );
       })}
     </ul>
+  );
+}
+
+/** Copies `value` to the clipboard; falls back to selecting a read-only input when the API rejects. */
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const t = useTranslations('admin.mediaLibrary');
+  const [copied, setCopied] = useState(false);
+  const fallback = useRef<HTMLInputElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const done = () => {
+    setCopied(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 1500);
+  };
+  const onClick = () => {
+    const select = () => {
+      const input = fallback.current;
+      if (!input) return;
+      input.hidden = false;
+      input.focus();
+      input.select();
+      try {
+        if (document.execCommand('copy')) done();
+      } finally {
+        input.hidden = true;
+      }
+    };
+    if (!navigator.clipboard) return select();
+    navigator.clipboard.writeText(value).then(done, select);
+  };
+  return (
+    <>
+      <Button type="button" size="sm" variant="outline" onClick={onClick} title={value}>
+        {copied ? <Check /> : <Copy />} {copied ? t('copied') : label}
+      </Button>
+      <input ref={fallback} readOnly hidden value={value} aria-hidden tabIndex={-1} />
+    </>
   );
 }
 

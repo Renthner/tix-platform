@@ -969,6 +969,7 @@ function PageProps({
         <MediaPicker
           name="backgroundAssetId"
           kind="TICKET_BACKGROUND"
+          visibility="private"
           initialAsset={draft.background}
           aspectRatio={draft.pageWidthMm / draft.pageHeightMm}
           previewClassName="max-w-full"

@@ -283,6 +283,8 @@ export type MediaListItem = MediaAssetRow & { uploadedByName: string | null };
 
 export interface MediaListQuery {
   kind?: MediaAssetKind;
+  /** Restrict to these kinds (e.g. the kinds a picker context allows). */
+  kinds?: readonly MediaAssetKind[];
   usage?: 'used' | 'unused';
   search?: string;
   sort?: 'date' | 'size';
@@ -298,7 +300,10 @@ export interface MediaSummary {
   unusedBytes: number;
 }
 
-async function filters(db: Executor, q: Pick<MediaListQuery, 'kind' | 'usage' | 'search'>) {
+async function filters(
+  db: Executor,
+  q: Pick<MediaListQuery, 'kind' | 'kinds' | 'usage' | 'search'>,
+) {
   const conds: SQL[] = [
     sql`${mediaAssets.kind} NOT IN (${sql.join(
       PROTECTED_KINDS.map((k) => sql`${k}`),
@@ -306,6 +311,9 @@ async function filters(db: Executor, q: Pick<MediaListQuery, 'kind' | 'usage' | 
     )})`,
   ];
   if (q.kind) conds.push(eq(mediaAssets.kind, q.kind));
+  if (q.kinds) {
+    conds.push(q.kinds.length > 0 ? inArray(mediaAssets.kind, [...q.kinds]) : sql`false`);
+  }
   const term = q.search?.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
   if (term) conds.push(ilike(mediaAssets.fileName, `%${term}%`));
   if (q.usage) {

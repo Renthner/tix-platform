@@ -297,6 +297,12 @@ const seatDisplaySchema = z.object({
   seatChangeNewColor: hexColorSchema.default('#16A34A'),
 });
 
+/** Layout of the shop home page event list. */
+const shopLayoutSchema = z.object({
+  /** Event cards per row on wide screens (fewer on narrower screens). */
+  eventsPerRow: z.number().int().min(1).max(10).default(3),
+});
+
 export const START_PAGE_LAYOUTS = ['ABOVE', 'OVERLAY'] as const;
 export type StartPageLayout = (typeof START_PAGE_LAYOUTS)[number];
 export const START_PAGE_MAX_GALLERY = 4;
@@ -516,6 +522,11 @@ export const SETTINGS = {
     schema: seatDisplaySchema,
     secret: false,
     description: 'Colours of seats in other carts, sold and blocked seats',
+  }),
+  shopLayout: define({
+    schema: shopLayoutSchema,
+    secret: false,
+    description: 'Event list layout of the shop home page',
   }),
   startPage: define({
     schema: startPageSchema,

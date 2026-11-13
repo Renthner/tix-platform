@@ -19,16 +19,19 @@ import {
 } from '@/components/ui/table';
 import { Link } from '@/i18n/navigation';
 import { getCore } from '@/server/core';
-import { NativeSelect } from '../form-controls';
 import { AutoRefresh } from './auto-refresh';
+import { LogFilterForm } from './log-filter-form';
 
 export interface CheckInFilters {
   result?: string;
   device?: string;
-  page?: string;
+  logPage?: string;
+  logSize?: string;
+  logQ?: string;
 }
 
-const PAGE_SIZE = 50;
+export const LOG_PAGE_SIZES = [5, 10, 15, 20, 25, 30, 50, 100];
+const DEFAULT_PAGE_SIZE = 25;
 
 /** Live check-in statistics and the filterable scan journal of one event. */
 export async function CheckInPanel({
@@ -45,21 +48,26 @@ export async function CheckInPanel({
   const format = await getFormatter();
   const result = SCAN_RESULTS.find((r) => r === filters.result);
   const deviceId = /^[0-9a-f-]{36}$/i.test(filters.device ?? '') ? filters.device : undefined;
-  const page = Math.max(1, Number.parseInt(filters.page ?? '1', 10) || 1);
+  const requestedPage = Math.max(1, Number.parseInt(filters.logPage ?? '1', 10) || 1);
+  const sizeParam = Number.parseInt(filters.logSize ?? '', 10);
+  const pageSize = LOG_PAGE_SIZES.includes(sizeParam) ? sizeParam : DEFAULT_PAGE_SIZE;
+  const search = (filters.logQ ?? '').trim().slice(0, 100);
   const [stats, log, devices, scannerSettings] = await Promise.all([
     getCheckInStats(core, eventId),
-    listScanLog(core, { eventId, result, deviceId, page, pageSize: PAGE_SIZE }),
+    listScanLog(core, { eventId, result, deviceId, search, page: requestedPage, pageSize }),
     listScanLogDevices(core, eventId),
     getSetting(core, 'scanner'),
   ]);
   const colors = scannerSettings.resultColors;
-  const pages = Math.max(1, Math.ceil(log.total / PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(log.total / pageSize));
   const percent = stats.valid > 0 ? Math.round((stats.checkedIn / stats.valid) * 100) : 0;
   const dateTime = (d: Date) => format.dateTime(d, { dateStyle: 'short', timeStyle: 'medium' });
   const query = (nextPage: number) => ({
     ...(result ? { result } : {}),
     ...(deviceId ? { device: deviceId } : {}),
-    page: String(nextPage),
+    ...(search ? { logQ: search } : {}),
+    ...(pageSize !== DEFAULT_PAGE_SIZE ? { logSize: String(pageSize) } : {}),
+    ...(nextPage > 1 ? { logPage: String(nextPage) } : {}),
   });
 
   const statCards: {
@@ -133,33 +141,26 @@ export async function CheckInPanel({
               {t('log.total', { count: log.total })}
             </span>
           </h2>
-          <form method="get" className="flex flex-wrap items-end gap-2">
-            <label className="space-y-1 text-xs">
-              <span className="block text-muted-foreground">{t('log.filterResult')}</span>
-              <NativeSelect name="result" defaultValue={result ?? ''} className="w-56">
-                <option value="">{t('log.all')}</option>
-                {SCAN_RESULTS.map((r) => (
-                  <option key={r} value={r}>
-                    {t(`results.${r}`)}
-                  </option>
-                ))}
-              </NativeSelect>
-            </label>
-            <label className="space-y-1 text-xs">
-              <span className="block text-muted-foreground">{t('log.filterDevice')}</span>
-              <NativeSelect name="device" defaultValue={deviceId ?? ''} className="w-48">
-                <option value="">{t('log.all')}</option>
-                {devices.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.deleted ? `${d.name} (${t('log.deletedSuffix')})` : d.name}
-                  </option>
-                ))}
-              </NativeSelect>
-            </label>
-            <Button type="submit" variant="outline">
-              {t('log.apply')}
-            </Button>
-          </form>
+          <LogFilterForm
+            result={result ?? ''}
+            device={deviceId ?? ''}
+            q={search}
+            size={pageSize}
+            pageSizes={LOG_PAGE_SIZES}
+            resultOptions={SCAN_RESULTS.map((r) => ({ value: r, label: t(`results.${r}`) }))}
+            deviceOptions={devices.map((d) => ({
+              value: d.id,
+              label: d.deleted ? `${d.name} (${t('log.deletedSuffix')})` : d.name,
+            }))}
+            labels={{
+              result: t('log.filterResult'),
+              device: t('log.filterDevice'),
+              search: t('log.search'),
+              searchPlaceholder: t('log.searchPlaceholder'),
+              pageSize: t('log.pageSize'),
+              all: t('log.all'),
+            }}
+          />
         </div>
         {log.entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('log.empty')}</p>
@@ -249,9 +250,11 @@ export async function CheckInPanel({
             </TableBody>
           </Table>
         )}
-        {pages > 1 ? (
+        {log.total > 0 ? (
           <div className="flex items-center justify-between text-sm">
-            <span>{t('log.page', { page: log.page, pages })}</span>
+            <span>
+              {t('log.page', { page: log.page, pages })} · {t('log.total', { count: log.total })}
+            </span>
             <div className="flex gap-2">
               {log.page > 1 ? (
                 <Button asChild variant="outline" size="sm">

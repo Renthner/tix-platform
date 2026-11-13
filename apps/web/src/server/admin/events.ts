@@ -18,7 +18,7 @@ import {
   venues,
   withTransaction,
 } from '@tix/db';
-import { EVENT_STATUSES } from '@tix/shared';
+import { EVENT_STATUSES, isMediaKindAllowed } from '@tix/shared';
 import { and, eq } from 'drizzle-orm';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { revalidatePath } from 'next/cache';
@@ -224,7 +224,8 @@ export async function updateEventDetailsAction(
     endsAt: dates.endsAt,
     doorsOpenAt: dates.doorsOpenAt,
   };
-  // Cover image: the picker submits the asset id (empty = no cover). Only event images count.
+  // Cover image: the picker submits the asset id (empty = no cover). The cover is shown in the
+  // shop, so any public image kind (also picked from the library) is accepted, nothing private.
   const coverRaw = text(fd, 'heroImageAssetId');
   let heroImageAssetId: string | null = null;
   if (coverRaw) {
@@ -235,7 +236,7 @@ export async function updateEventDetailsAction(
           .from(mediaAssets)
           .where(eq(mediaAssets.id, id.data))
       : [];
-    if (!id.success || asset?.kind !== 'EVENT_IMAGE')
+    if (!id.success || !asset || !isMediaKindAllowed(asset.kind, 'public'))
       return fieldError({ heroImageAssetId: 'invalid' });
     heroImageAssetId = id.data;
   }

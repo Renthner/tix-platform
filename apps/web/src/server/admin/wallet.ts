@@ -6,6 +6,7 @@ import {
   checkGoogleWalletConfiguration,
   clearSecretSetting,
   deleteWalletPassDesign,
+  getMediaAsset,
   getSecretSetting,
   parseAppleCertificates,
   parseServiceAccountJson,
@@ -13,6 +14,7 @@ import {
   saveSetting,
   saveWalletPassDesign,
 } from '@tix/core';
+import { isMediaKindAllowed } from '@tix/shared';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
@@ -280,15 +282,26 @@ export async function saveWalletDesignAction(
   const description = text(fd, 'description') ?? null;
   if (logoText && logoText.length > 40) errors.logoText = 'tooLong';
   if (description && description.length > 200) errors.description = 'tooLong';
+  // Pass images are private (any library image is fine); unknown ids / documents are rejected.
+  const assetIds: Record<'logoAssetId' | 'iconAssetId' | 'stripAssetId', string | null> = {
+    logoAssetId: uuidOrNull(fd, 'logoAssetId'),
+    iconAssetId: uuidOrNull(fd, 'iconAssetId'),
+    stripAssetId: uuidOrNull(fd, 'stripAssetId'),
+  };
+  for (const [name, id] of Object.entries(assetIds)) {
+    if (!id) continue;
+    const asset = await getMediaAsset(core, id);
+    if (!asset || !isMediaKindAllowed(asset.kind, 'private')) errors[name] = 'invalid';
+    // Apple Wallet only accepts PNG; with library reuse a JPEG/WebP event image is easy to pick.
+    else if (asset.mimeType !== 'image/png') errors[name] = 'pngOnly';
+  }
   if (Object.keys(errors).length > 0) return fieldError(errors);
 
   const input = {
     ...colors,
     logoText,
     description,
-    logoAssetId: uuidOrNull(fd, 'logoAssetId'),
-    iconAssetId: uuidOrNull(fd, 'iconAssetId'),
-    stripAssetId: uuidOrNull(fd, 'stripAssetId'),
+    ...assetIds,
     heroAssetId: null,
   };
   await saveWalletPassDesign(core.db, eventId, input);

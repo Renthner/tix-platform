@@ -30,6 +30,7 @@ export const FIELD_ERROR_CODES = [
   'dunningOrder',
   'secretRequired',
   'prefixFormat',
+  'pngOnly',
 ] as const;
 export type FieldErrorCode = (typeof FIELD_ERROR_CODES)[number];
 

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
+import { cn } from '@/lib/utils';
 import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
 import { StartPage, hasStartPageContent } from '@/components/shop/start-page';
@@ -78,11 +79,26 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     }
   }
 
+  const perRow = (await getSetting(getCore(), 'shopLayout')).eventsPerRow;
+  // Fewer columns on narrower screens: 1 (phone) / ≤2 (sm) / ≤3 (md) / ≤5 (lg) / setting (xl+).
+  const gridVars = {
+    '--cols-sm': Math.min(perRow, 2),
+    '--cols-md': Math.min(perRow, 3),
+    '--cols-lg': Math.min(perRow, 5),
+    '--cols-xl': perRow,
+  } as React.CSSProperties;
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t('home.title')}</h1>
       {rows.length === 0 && <p className="text-muted-foreground">{t('home.empty')}</p>}
-      <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        style={gridVars}
+        className={cn(
+          'grid grid-cols-1 items-start gap-4 sm:grid-cols-[repeat(var(--cols-sm),minmax(0,1fr))] md:grid-cols-[repeat(var(--cols-md),minmax(0,1fr))] lg:grid-cols-[repeat(var(--cols-lg),minmax(0,1fr))] xl:grid-cols-[repeat(var(--cols-xl),minmax(0,1fr))]',
+          perRow === 1 && 'mx-auto max-w-xl',
+        )}
+      >
         {rows.map(({ event, venue, cover }) => {
           const state = computeSaleState(event);
           const price = fromPrice.get(event.id);

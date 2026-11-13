@@ -45,6 +45,7 @@
   },
   "errors": {
     "required": "This field is required.",
+    "pngOnly": "Only PNG images are allowed here (Apple Wallet requirement).",
     "invalid": "This value is not valid.",
     "tooLong": "This text is too long.",
     "tooSmall": "This value is too small.",
@@ -795,6 +796,18 @@
     "replace": "Replace image",
     "remove": "Remove",
     "uploading": "Uploading…",
+    "library": {
+      "open": "Choose from library",
+      "title": "Choose an image from the library",
+      "descriptionPublic": "Only images that may be shown publicly are offered.",
+      "descriptionPrivate": "All images of the media library are offered.",
+      "search": "Search by file name",
+      "empty": "No matching images found.",
+      "error": "The media library could not be loaded.",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {page} of {total}"
+    },
     "errors": {
       "generic": "The upload failed. Please try again.",
       "MEDIA_EMPTY": "The file is empty.",
@@ -938,6 +951,12 @@
       "seatChangeCurrentColor": "Order seats (unchanged) – seat change",
       "seatChangeReplacedColor": "Seat being replaced – seat change",
       "seatChangeNewColor": "New seat – seat change"
+    },
+    "shopLayout": {
+      "title": "Event list in the shop",
+      "description": "How the events are arranged on the shop home page.",
+      "eventsPerRow": "Events per row",
+      "eventsPerRowHint": "Number of event cards side by side on wide screens (1–10). Narrower screens automatically show fewer: 1 on phones, up to 2 on small tablets, up to 3 on medium screens."
     },
     "startPage": {
       "title": "Home page without events",
@@ -1242,6 +1261,9 @@
       "SETTING": "Setting",
       "OTHER": "Other reference"
     },
+    "copyId": "Copy ID",
+    "copyUrl": "Copy URL",
+    "copied": "Copied",
     "dimensions": "Size",
     "size": "File size",
     "uploaded": "Uploaded",
