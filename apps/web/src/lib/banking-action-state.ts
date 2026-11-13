@@ -14,6 +14,7 @@ export const BANKING_FIELD_ERRORS = [
   'bankCode',
   'url',
   'pollInterval',
+  'hostNotAllowed',
   'tan',
   'amount',
 ] as const;
@@ -32,6 +33,7 @@ export const BANKING_FORM_ERRORS = [
   'currencyMismatch',
   'amountExceeds',
   'resolved',
+  'notFullyAssigned',
   'hasAllocations',
   'notCredit',
   'notSupported',
@@ -62,6 +64,7 @@ export const BANKING_MESSAGES = [
   'assignedOverpaid',
   'assignedAlreadyPaid',
   'ignored',
+  'resolvedMarked',
   'rematched',
   'webFormReady',
   'upToDate',

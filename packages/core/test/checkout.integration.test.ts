@@ -54,6 +54,7 @@ import {
   handlePayPalWebhook,
   loadSeatMapDocument,
   placeOrder,
+  purgeUnverifiedWebhookEvents,
   recordPayment,
   runDunning,
   saveSecretSetting,
@@ -70,7 +71,7 @@ import {
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 const uuid = () => randomUUID();
 
 describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integration)', () => {
@@ -738,6 +739,83 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
     ]);
     const [order] = await handle.db.select().from(orders).where(eq(orders.id, placed.orderId));
     expect(order).toMatchObject({ status: 'PAID', amountPaid: 3245 });
+  });
+
+  it('processes a verified webhook delivery after an unverified one with the same event id', async () => {
+    mockPayPal();
+    const body = (note: string) =>
+      JSON.stringify({ id: 'WH-EVT-RETRY', event_type: 'CUSTOMER.DISPUTE.CREATED', note });
+    // Forged / unverifiable delivery first (no signature headers): stored for audit only.
+    expect(await handlePayPalWebhook(ctx, new Headers(), body('forged'))).toBe('INVALID_SIGNATURE');
+    const [stored] = await handle.db
+      .select()
+      .from(webhookEvents)
+      .where(eq(webhookEvents.externalId, 'WH-EVT-RETRY'));
+    expect(stored).toMatchObject({ signatureValid: false, status: 'IGNORED' });
+    // The genuine delivery of the same event id must not be swallowed as a duplicate.
+    const headers = new Headers({
+      'paypal-auth-algo': 'SHA256withRSA',
+      'paypal-cert-url': 'https://api.paypal.com/cert',
+      'paypal-transmission-id': 't-retry',
+      'paypal-transmission-sig': 'sig',
+      'paypal-transmission-time': new Date().toISOString(),
+    });
+    expect(await handlePayPalWebhook(ctx, headers, body('genuine'))).toBe('IGNORED');
+    const [after] = await handle.db
+      .select()
+      .from(webhookEvents)
+      .where(eq(webhookEvents.externalId, 'WH-EVT-RETRY'));
+    expect(after).toMatchObject({ signatureValid: true, status: 'IGNORED', attempts: 1 });
+    expect(after!.id).toBe(stored!.id);
+    expect((after!.payload as { note: string }).note).toBe('genuine');
+    // Now it is a real duplicate.
+    expect(await handlePayPalWebhook(ctx, headers, body('genuine'))).toBe('DUPLICATE');
+    // A forged delivery after the genuine one changes nothing.
+    expect(await handlePayPalWebhook(ctx, new Headers(), body('late forgery'))).toBe(
+      'INVALID_SIGNATURE',
+    );
+    const [final] = await handle.db
+      .select()
+      .from(webhookEvents)
+      .where(eq(webhookEvents.externalId, 'WH-EVT-RETRY'));
+    expect((final!.payload as { note: string }).note).toBe('genuine');
+  });
+
+  it('purges old unverified webhook rows but keeps verified ones', async () => {
+    const old = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+    await handle.db.insert(webhookEvents).values([
+      {
+        provider: 'paypal',
+        externalId: 'WH-OLD-INVALID',
+        eventType: 'X',
+        payload: {},
+        signatureValid: false,
+        status: 'IGNORED',
+        receivedAt: old,
+      },
+      {
+        provider: 'paypal',
+        externalId: 'WH-OLD-VALID',
+        eventType: 'X',
+        payload: {},
+        signatureValid: true,
+        status: 'PROCESSED',
+        receivedAt: old,
+      },
+      {
+        provider: 'paypal',
+        externalId: 'WH-NEW-INVALID',
+        eventType: 'X',
+        payload: {},
+        signatureValid: false,
+        status: 'IGNORED',
+      },
+    ]);
+    expect(await purgeUnverifiedWebhookEvents(handle.db, 14)).toBe(1);
+    const left = (await handle.db.select().from(webhookEvents)).map((w) => w.externalId);
+    expect(left).toContain('WH-OLD-VALID');
+    expect(left).toContain('WH-NEW-INVALID');
+    expect(left).not.toContain('WH-OLD-INVALID');
   });
 
   it('expires abandoned PayPal orders (after checking PayPal) and releases their spots', async () => {

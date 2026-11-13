@@ -46,6 +46,7 @@
   "errors": {
     "required": "This field is required.",
     "pngOnly": "Only PNG images are allowed here (Apple Wallet requirement).",
+    "hostNotAllowed": "This host is not allowed: it must not be this machine, a link-local or cloud-metadata address, or an internal service of this stack. Private network addresses are fine.",
     "invalid": "This value is not valid.",
     "tooLong": "This text is too long.",
     "tooSmall": "This value is too small.",
@@ -900,6 +901,14 @@
       "paymentGraceSeconds": "Extra time at the checkout (seconds)",
       "paymentGraceHint": "Added once to the remaining time when the checkout is opened. 0 = no extension.",
       "minutes": "= {value} min",
+      "maxCartLifetimeMinutes": "Maximum cart lifetime (minutes)",
+      "maxCartLifetimeHint": "Adding seats restarts the reservation time, but never beyond this many minutes after the first seat was reserved (the extra checkout time comes on top). Empty = off. Does not apply to box office holds.",
+      "checkoutsPerIpPer10Min": "Orders per IP address per 10 minutes",
+      "seatRequestsPerIpPerMinute": "Seat selections per IP address per minute",
+      "ipLimitHint": "Generous safety net on top of the per-browser limits; many visitors can share one address (e.g. company or mobile networks). Empty or 0 = off (default). Only enable it when the real visitor address reaches the application (see the detected address above).",
+      "seatIpLimitHint": "Protection against scripts that click seats en masse, on top of the per-browser limit. Default 600 – normal buyers do not reach it even when sharing an address. Empty or 0 = off. If the real visitor address does not reach the application (see above), all visitors share this limit.",
+      "detectedIp": "Detected IP of your current request: {ip}",
+      "detectedIpPrivateWarning": "This looks like a private or loopback address, so a reverse proxy in front of the application probably hides the real visitor addresses. All visitors would then share one IP limit. Set TRUSTED_PROXIES in your .env (see docs/INSTALL) before enabling an IP limit.",
       "maxTicketsPerOrder": "Max. tickets per order",
       "maxTicketsPerCustomer": "Max. tickets per customer and event",
       "unlimitedHint": "Empty = unlimited.",
@@ -951,6 +960,14 @@
       "seatChangeCurrentColor": "Order seats (unchanged) – seat change",
       "seatChangeReplacedColor": "Seat being replaced – seat change",
       "seatChangeNewColor": "New seat – seat change"
+    },
+    "cookieNotice": {
+      "title": "Cookie notice",
+      "description": "Small information bar in the shop about the cookies it uses. All cookies are technically necessary, so this is information only, not a consent dialog. The list of cookies is generated automatically on the page “Cookies”.",
+      "enabled": "Show the cookie notice",
+      "enabledHint": "Visitors can dismiss it; the page “Cookies” stays linked in the footer either way.",
+      "text": "Custom text ({language})",
+      "textHint": "Empty = standard text."
     },
     "shopLayout": {
       "title": "Event list in the shop",

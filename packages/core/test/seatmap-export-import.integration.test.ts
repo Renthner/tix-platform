@@ -44,7 +44,7 @@ import type { ObjectStorage } from '../src';
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 
 function pngBytes(width: number, height: number, salt: number): Uint8Array {
   const b = new Uint8Array(40);

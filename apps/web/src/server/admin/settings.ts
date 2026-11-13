@@ -1,6 +1,8 @@
 'use server';
 
 import {
+  EndpointNotAllowedError,
+  assertMailHostAllowed,
   clearSecretSetting,
   getMediaAsset,
   getSetting,
@@ -37,6 +39,7 @@ export type EditableSettingKey =
   | 'checkout'
   | 'seatDisplay'
   | 'shopLayout'
+  | 'cookieNotice'
   | 'startPage'
   | 'organizer'
   | 'invoicing'
@@ -162,6 +165,10 @@ async function readInput(
         input: {
           cartLockTtlSeconds: requiredInt(fd, 'cartLockTtlSeconds', errors),
           paymentGraceSeconds: requiredInt(fd, 'paymentGraceSeconds', errors),
+          // Empty = off.
+          maxCartLifetimeMinutes: optionalIntOrNull(fd, 'maxCartLifetimeMinutes', errors),
+          checkoutsPerIpPer10Min: optionalIntOrNull(fd, 'checkoutsPerIpPer10Min', errors),
+          seatRequestsPerIpPerMinute: optionalIntOrNull(fd, 'seatRequestsPerIpPerMinute', errors),
           maxTicketsPerOrder: perOrder === undefined ? null : Number(perOrder),
           maxTicketsPerCustomer: perCustomer === undefined ? null : Number(perCustomer),
           manualSeatSelectionEnabled: flag(fd, 'manualSeatSelectionEnabled'),
@@ -189,6 +196,15 @@ async function readInput(
           seatChangeNewColor: text(fd, 'seatChangeNewColor'),
         },
       };
+    case 'cookieNotice': {
+      // Only locales with a custom text are stored (empty = default text).
+      const texts: Record<string, string> = {};
+      for (const loc of SUPPORTED_LOCALES) {
+        const value = text(fd, `text.${loc}`);
+        if (value !== undefined) texts[loc] = value;
+      }
+      return { input: { enabled: flag(fd, 'enabled'), texts } };
+    }
     case 'shopLayout': {
       const perRow = requiredInt(fd, 'eventsPerRow', errors);
       return { input: { eventsPerRow: perRow } };
@@ -404,6 +420,13 @@ function mapZodErrors(err: z.ZodError): Errors {
     delete fields[key];
     fields[m[2] === 'galleryAlt' ? `galleryAlt${m[3] ?? 0}.${m[1]}` : `${m[2]}.${m[1]}`] = code;
   }
+  // Cookie notice: "texts.<locale>" → form field "text.<locale>".
+  for (const [key, code] of Object.entries(fields)) {
+    const m = /^texts\.(\w+)$/.exec(key);
+    if (!m) continue;
+    delete fields[key];
+    fields[`text.${m[1]}`] = code;
+  }
   if (fields.defaultTimeZone) fields.defaultTimeZone = 'timeZone';
   if (fields.country) fields.country = 'country';
   for (const pattern of ['orderNumberPattern', 'invoiceNumberPattern', 'creditNoteNumberPattern']) {
@@ -430,6 +453,15 @@ export async function saveSettingsAction(
   const errors: Errors = {};
   const { input, secret } = await readInput(key, fd, errors);
   await checkSecretRequirements(key, input, secret, errors);
+  // SSRF guard: the mail server must not be this machine, a metadata address or an internal service.
+  if (key === 'smtp' && typeof input.host === 'string' && input.host) {
+    try {
+      await assertMailHostAllowed(input.host);
+    } catch (err) {
+      if (!(err instanceof EndpointNotAllowedError)) throw err;
+      errors.host = 'hostNotAllowed';
+    }
+  }
   if (Object.keys(errors).length > 0) return fieldError(errors);
 
   const core = getCore();

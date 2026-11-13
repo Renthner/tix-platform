@@ -64,7 +64,7 @@ import {
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 // The root `.env` targets the running stack: storage tests only run on explicit opt-in.
 const s3Endpoint = process.env.TEST_S3_OPT_IN === '1' ? process.env.S3_ENDPOINT : undefined;
 const uuid = () => randomUUID();

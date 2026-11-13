@@ -39,6 +39,7 @@ import {
   invalidateSettings,
   matchBankTransactions,
   rematchBankTransaction,
+  resolveBankTransaction,
   respondToTanChallenge,
   runBankSync,
   saveBankAccount,
@@ -56,7 +57,7 @@ loadRootEnv();
 /** lib-fints does not export its TanMethod type from the package root. */
 type TanMethod = FinTSConfig['availableTanMethods'][number];
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 
 const OWN_IBAN = 'DE89370400440532013000';
 const PAYER_IBAN = 'DE02120300000000202051';
@@ -445,6 +446,87 @@ describe.skipIf(!adminUrl || !redisUrl)('bank reconciliation (integration)', () 
         userId: null as unknown as string,
       }),
     ).rejects.toMatchObject({ code: 'ORDER_NOT_PAYABLE' });
+  });
+
+  it('keeps an overpayment on a fully allocated transfer in review until an admin resolves it', async () => {
+    const paid = await createOrder(1300, { status: 'PAID' });
+    const { rows } = await importAndMatch([{ amount: 1300, text: paid.reference }]);
+    const tx = rows[0]!;
+    expect(tx).toMatchObject({ matchStatus: 'NEEDS_REVIEW', reviewReason: 'OVERPAYMENT' });
+    // State left behind by the "order got paid meanwhile" race of the auto-matcher: the payment
+    // was booked and allocated, yet the transfer stays in review as OVERPAYMENT.
+    await handle.db.insert(bankTransactionAllocations).values({
+      bankTransactionId: tx.id,
+      orderId: paid.id,
+      amount: 1300,
+      method: 'AUTO',
+    });
+    // Fully allocated: nothing left to assign, and re-running the matcher does not close the case.
+    await expect(
+      assignBankTransaction(ctx, { transactionId: tx.id, orderId: paid.id, userId: null as never }),
+    ).rejects.toMatchObject({ code: 'TX_RESOLVED' });
+    const rematched = await rematchBankTransaction(ctx, tx.id);
+    expect(rematched).toMatchObject({ status: 'NEEDS_REVIEW', reviewReason: 'OVERPAYMENT' });
+    expect(await txRow(tx.id)).toMatchObject({
+      matchStatus: 'NEEDS_REVIEW',
+      reviewReason: 'OVERPAYMENT',
+    });
+
+    await resolveBankTransaction(ctx, {
+      transactionId: tx.id,
+      userId: null as never,
+      note: 'Excess refunded manually',
+    });
+    expect(await txRow(tx.id)).toMatchObject({
+      matchStatus: 'MANUALLY_MATCHED',
+      reviewReason: null,
+      reviewNote: 'Excess refunded manually',
+    });
+    await expect(
+      resolveBankTransaction(ctx, { transactionId: tx.id, userId: null as never, note: 'again' }),
+    ).rejects.toMatchObject({ code: 'TX_RESOLVED' });
+  });
+
+  it('refuses to mark a partly unassigned transaction as resolved', async () => {
+    const order = await createOrder(5000);
+    const { rows } = await importAndMatch([{ amount: 4000, text: order.reference }]);
+    await expect(
+      resolveBankTransaction(ctx, { transactionId: rows[0]!.id, userId: null as never, note: 'x' }),
+    ).rejects.toMatchObject({ code: 'TX_NOT_FULLY_ASSIGNED' });
+  });
+
+  it('puts a transaction allocated for more than its amount back into review', async () => {
+    const order = await createOrder(5000);
+    const { rows } = await importAndMatch([{ amount: 4100, text: order.reference }]);
+    const tx = rows[0]!;
+    expect(tx.matchStatus).toBe('NEEDS_REVIEW');
+    // Earlier double assignment: 2 x 2500 allocated for a 4100 transfer.
+    await handle.db.insert(bankTransactionAllocations).values([
+      { bankTransactionId: tx.id, orderId: order.id, amount: 2500, method: 'MANUAL' },
+      { bankTransactionId: tx.id, orderId: order.id, amount: 2500, method: 'MANUAL' },
+    ]);
+    const result = await rematchBankTransaction(ctx, tx.id);
+    expect(result).toMatchObject({ status: 'NEEDS_REVIEW', reviewReason: 'OVERPAYMENT' });
+    expect((await txRow(tx.id)).matchStatus).toBe('NEEDS_REVIEW');
+  });
+
+  it('allows only one allocation per payment', async () => {
+    const order = await createOrder(1500);
+    const { rows } = await importAndMatch([{ amount: 1500, text: order.reference }]);
+    const [allocation] = await handle.db
+      .select()
+      .from(bankTransactionAllocations)
+      .where(eq(bankTransactionAllocations.bankTransactionId, rows[0]!.id));
+    expect(allocation?.paymentId).toBeTruthy();
+    await expect(
+      handle.db.insert(bankTransactionAllocations).values({
+        bankTransactionId: rows[0]!.id,
+        orderId: order.id,
+        paymentId: allocation!.paymentId,
+        amount: 1500,
+        method: 'MANUAL',
+      }),
+    ).rejects.toThrow();
   });
 
   it('splits a collective transfer over several referenced orders', async () => {

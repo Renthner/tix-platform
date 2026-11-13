@@ -21,7 +21,7 @@ function isNonPublicV4(a: number, b: number): boolean {
 }
 
 /** Eight 16-bit groups of an IPv6 address (handles "::" and an embedded dotted IPv4). */
-function parseIPv6(address: string): number[] | null {
+export function parseIPv6(address: string): number[] | null {
   let text = address.toLowerCase().split('%')[0]!;
   const dotted = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(text);
   if (dotted) {

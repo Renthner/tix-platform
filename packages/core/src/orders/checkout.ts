@@ -647,8 +647,10 @@ async function createOrderRows(
 
 /**
  * One customer record per e-mail address. Guest data refreshes the record; name and
- * company of a customer account are never overwritten by checkout input. A newly entered
- * phone / address wins (the invoice needs them) but stored values are never blanked out.
+ * company, phone and address of a registered customer account (has a password) are never
+ * overwritten by checkout input – a guest checkout with that e-mail must not change the account;
+ * the order keeps its own billing data (invoices read the order, not the customer). For
+ * guest-only records a newly entered phone / address wins but stored values are never blanked out.
  */
 export async function upsertCustomer(
   tx: Transaction,
@@ -669,8 +671,9 @@ export async function upsertCustomer(
       first_name = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(NULLIF(EXCLUDED.first_name, ''), ${customers.firstName}) ELSE ${customers.firstName} END,
       last_name  = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(NULLIF(EXCLUDED.last_name, ''), ${customers.lastName}) ELSE ${customers.lastName} END,
       company    = CASE WHEN ${customers.passwordHash} IS NULL THEN (CASE WHEN ${keep}::boolean THEN COALESCE(NULLIF(EXCLUDED.company, ''), ${customers.company}) ELSE EXCLUDED.company END) ELSE ${customers.company} END,
-      phone      = COALESCE(EXCLUDED.phone, ${customers.phone}),
-      address    = COALESCE(EXCLUDED.address, ${customers.address}),
+      -- Registered accounts: only fill an empty phone / address, never overwrite stored values.
+      phone      = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(EXCLUDED.phone, ${customers.phone}) ELSE COALESCE(NULLIF(${customers.phone}, ''), EXCLUDED.phone) END,
+      address    = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(EXCLUDED.address, ${customers.address}) ELSE (CASE WHEN ${customers.address} IS NULL OR ${customers.address} = '{}'::jsonb OR ${customers.address} = 'null'::jsonb THEN COALESCE(EXCLUDED.address, ${customers.address}) ELSE ${customers.address} END) END,
       locale     = CASE WHEN ${keep}::boolean THEN COALESCE(${customers.locale}, EXCLUDED.locale) ELSE EXCLUDED.locale END,
       updated_at = now()
     RETURNING id`);

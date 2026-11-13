@@ -314,6 +314,10 @@ export const bankTransactionAllocations = pgTable(
   (t) => [
     index('bank_tx_allocations_tx_idx').on(t.bankTransactionId),
     index('bank_tx_allocations_order_idx').on(t.orderId),
+    // One allocation per payment (reversed rows included): makes ensureBankAllocation race-free.
+    uniqueIndex('bank_tx_allocations_payment_uq')
+      .on(t.paymentId)
+      .where(sql`${t.paymentId} IS NOT NULL`),
     check('bank_tx_allocations_amount_positive', sql`${t.amount} > 0`),
   ],
 );

@@ -3,7 +3,64 @@
     "events": "Events",
     "imprint": "Imprint",
     "privacy": "Privacy",
-    "terms": "Terms"
+    "terms": "Terms",
+    "cookies": "Cookies"
+  },
+  "cookies": {
+    "notice": "We only use technically necessary cookies (e.g. for your cart).",
+    "learnMore": "Learn more",
+    "dismiss": "OK",
+    "title": "Cookies",
+    "intro": "This shop only uses cookies that are technically necessary to provide its functions (for example your cart, the waiting room or signing in). Because of this we do not ask for your consent. We do not use cookies for tracking or advertising.",
+    "shopHeading": "Cookies in the shop",
+    "staffHeading": "Cookies for staff only",
+    "staffIntro": "These cookies are only set after signing in to the back office.",
+    "columns": {
+      "name": "Name",
+      "purpose": "Purpose",
+      "lifetime": "Lifetime"
+    },
+    "items": {
+      "session": {
+        "purpose": "Anonymous session: identifies your cart and your place in the waiting room.",
+        "lifetime": "30 days"
+      },
+      "queuePass": {
+        "purpose": "Shows that you were let in from the waiting room (one cookie per event).",
+        "lifetime": "Until your shopping time ends"
+      },
+      "customer": {
+        "purpose": "Keeps you signed in to your customer account.",
+        "lifetime": "As configured by the shop; deleted when you sign out"
+      },
+      "locale": {
+        "purpose": "Remembers the language you chose.",
+        "lifetime": "1 year"
+      },
+      "notice": {
+        "purpose": "Remembers that you dismissed the cookie notice.",
+        "lifetime": "1 year"
+      },
+      "admin": {
+        "purpose": "Keeps a staff member signed in to the back office.",
+        "lifetime": "As configured by the shop; deleted when signing out"
+      },
+      "adminTwoFactor": {
+        "purpose": "Carries the sign-in between password and two-factor code.",
+        "lifetime": "5 minutes"
+      },
+      "editLocale": {
+        "purpose": "Remembers the content language selected in the back office.",
+        "lifetime": "90 days"
+      },
+      "setupCollapsed": {
+        "purpose": "Remembers that the setup checklist is collapsed.",
+        "lifetime": "1 year"
+      }
+    },
+    "ipHeading": "IP addresses",
+    "ip": "To protect the shop against abuse, the IP address of your requests is processed briefly for rate limiting. For this it is kept in short-lived counters only and not stored long-term. When you place an order, the IP address is stored with the order as part of the order record.",
+    "privacy": "For more information please read our privacy policy."
   },
   "home": {
     "title": "Upcoming events",

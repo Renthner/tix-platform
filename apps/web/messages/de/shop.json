@@ -3,7 +3,64 @@
     "events": "Veranstaltungen",
     "imprint": "Impressum",
     "privacy": "Datenschutz",
-    "terms": "AGB"
+    "terms": "AGB",
+    "cookies": "Cookies"
+  },
+  "cookies": {
+    "notice": "Wir verwenden nur technisch notwendige Cookies (z. B. für deinen Warenkorb).",
+    "learnMore": "Mehr erfahren",
+    "dismiss": "OK",
+    "title": "Cookies",
+    "intro": "Dieser Shop verwendet nur Cookies, die technisch notwendig sind, um seine Funktionen bereitzustellen (zum Beispiel dein Warenkorb, der Warteraum oder die Anmeldung). Deshalb fragen wir nicht nach deiner Einwilligung. Wir setzen keine Cookies zum Tracking oder für Werbung ein.",
+    "shopHeading": "Cookies im Shop",
+    "staffHeading": "Cookies nur für Mitarbeitende",
+    "staffIntro": "Diese Cookies werden erst nach der Anmeldung im Verwaltungsbereich gesetzt.",
+    "columns": {
+      "name": "Name",
+      "purpose": "Zweck",
+      "lifetime": "Laufzeit"
+    },
+    "items": {
+      "session": {
+        "purpose": "Anonyme Sitzung: erkennt deinen Warenkorb und deinen Platz im Warteraum.",
+        "lifetime": "30 Tage"
+      },
+      "queuePass": {
+        "purpose": "Zeigt, dass du aus dem Warteraum eingelassen wurdest (ein Cookie pro Veranstaltung).",
+        "lifetime": "Bis deine Einkaufszeit endet"
+      },
+      "customer": {
+        "purpose": "Hält dich in deinem Kundenkonto angemeldet.",
+        "lifetime": "Vom Shop festgelegt; wird beim Abmelden gelöscht"
+      },
+      "locale": {
+        "purpose": "Merkt sich die gewählte Sprache.",
+        "lifetime": "1 Jahr"
+      },
+      "notice": {
+        "purpose": "Merkt sich, dass du den Cookie-Hinweis geschlossen hast.",
+        "lifetime": "1 Jahr"
+      },
+      "admin": {
+        "purpose": "Hält Mitarbeitende im Verwaltungsbereich angemeldet.",
+        "lifetime": "Vom Shop festgelegt; wird beim Abmelden gelöscht"
+      },
+      "adminTwoFactor": {
+        "purpose": "Verbindet die Anmeldung zwischen Passwort und Zwei-Faktor-Code.",
+        "lifetime": "5 Minuten"
+      },
+      "editLocale": {
+        "purpose": "Merkt sich die im Verwaltungsbereich gewählte Inhaltssprache.",
+        "lifetime": "90 Tage"
+      },
+      "setupCollapsed": {
+        "purpose": "Merkt sich, dass die Einrichtungs-Checkliste eingeklappt ist.",
+        "lifetime": "1 Jahr"
+      }
+    },
+    "ipHeading": "IP-Adressen",
+    "ip": "Zum Schutz des Shops vor Missbrauch wird die IP-Adresse deiner Anfragen kurzzeitig für eine Mengenbegrenzung verarbeitet. Dafür liegt sie nur in kurzlebigen Zählern und wird nicht dauerhaft gespeichert. Wenn du eine Bestellung aufgibst, wird die IP-Adresse zusätzlich als Teil des Bestelldatensatzes gespeichert.",
+    "privacy": "Weitere Informationen findest du in unserer Datenschutzerklärung."
   },
   "home": {
     "title": "Kommende Veranstaltungen",

@@ -13,6 +13,7 @@ import {
   refreshFinApiConnection,
   rematchBankTransaction,
   requestBankSync,
+  resolveBankTransaction,
   reverseBankAllocation,
   respondToTanChallenge,
   saveBankAccount,
@@ -102,6 +103,7 @@ const DOMAIN_TO_FORM: Record<string, BankingFormError> = {
   ORDER_NOT_FOUND: 'orderNotFound',
   CURRENCY_MISMATCH: 'currencyMismatch',
   TX_RESOLVED: 'resolved',
+  TX_NOT_FULLY_ASSIGNED: 'notFullyAssigned',
   TX_HAS_ALLOCATIONS: 'hasAllocations',
   TX_NOT_CREDIT: 'notCredit',
   NOT_SUPPORTED: 'notSupported',
@@ -136,6 +138,8 @@ function failure(err: unknown): BankingActionState {
         return fieldErrors({ [`secret.${String(err.details?.field ?? '')}`]: 'required' });
       case 'NAME_REQUIRED':
         return fieldErrors({ name: 'required' });
+      case 'HOST_NOT_ALLOWED':
+        return fieldErrors({ [String(err.details?.field ?? 'host')]: 'hostNotAllowed' });
       case 'TAN_INVALID':
         return fieldErrors({ tan: 'tan' });
       case 'AMOUNT_EXCEEDS':
@@ -574,6 +578,26 @@ export async function ignoreTransactionAction(
   await audit(core.db, session, 'bank.tx.ignore', 'bank_transaction', transactionId, { note });
   revalidate();
   return ok('ignored');
+}
+
+/** "Mark as resolved": closes a fully allocated Klärfall (e.g. overpayment refunded on the order). */
+export async function resolveTransactionAction(
+  transactionId: string,
+  _prev: BankingActionState,
+  fd: FormData,
+): Promise<BankingActionState> {
+  const session = await requireAdmin(ROLES);
+  const core = getCore();
+  const note = text(fd, 'note')?.slice(0, 1000);
+  if (!note) return fieldErrors({ note: 'required' });
+  try {
+    await resolveBankTransaction(core, { transactionId, userId: session.userId, note });
+  } catch (err) {
+    return failure(err);
+  }
+  await audit(core.db, session, 'bank.tx.resolve', 'bank_transaction', transactionId, { note });
+  revalidate();
+  return ok('resolvedMarked');
 }
 
 export async function rematchTransactionAction(

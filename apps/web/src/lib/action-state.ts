@@ -31,6 +31,7 @@ export const FIELD_ERROR_CODES = [
   'secretRequired',
   'prefixFormat',
   'pngOnly',
+  'hostNotAllowed',
 ] as const;
 export type FieldErrorCode = (typeof FIELD_ERROR_CODES)[number];
 

@@ -1,5 +1,11 @@
 import { requestLogger } from '@/server/logger';
-import { DomainError, PayPalCredentialsError, placeOrder, startPayPalPayment } from '@tix/core';
+import {
+  DomainError,
+  PayPalCredentialsError,
+  getSetting,
+  placeOrder,
+  startPayPalPayment,
+} from '@tix/core';
 import { checkoutInputSchema } from '@tix/shared';
 import { NextResponse } from 'next/server';
 import { getCore } from '@/server/core';
@@ -19,6 +25,12 @@ export async function POST(request: Request) {
     if (!sid) throw new DomainError('CART_EMPTY', 'Your cart is empty', 409);
     await enforceRateLimit('checkout', sid, 10, 60_000);
     const input = await parseBody(request, checkoutInputSchema);
+    // Safety net per IP address (configurable, off when empty / 0). Charged only for requests
+    // that passed input validation, so malformed submissions do not use up the allowance.
+    const { checkoutsPerIpPer10Min } = await getSetting(getCore(), 'checkout');
+    if (checkoutsPerIpPer10Min) {
+      await enforceRateLimit('checkout-ip', await clientIp(), checkoutsPerIpPer10Min, 600_000);
+    }
     const customer = await getCustomerSession();
     const core = getCore();
     const placed = await placeOrder(core, {

@@ -65,10 +65,12 @@ jobs:
           redis_port=$(docker port "$TIX_CI_REDIS" 6379/tcp | head -n 1 | sed 's/.*://')
           url="postgres://postgres:postgres@127.0.0.1:${pg_port}/postgres"
           {
+            echo "TIX_TEST_THROWAWAY=1"
             echo "TEST_DATABASE_URL=$url"
             echo "DATABASE_URL=$url"
             echo "BACKUP_TEST_DATABASE_URL=$url"
             echo "REDIS_URL=redis://127.0.0.1:${redis_port}/0"
+            echo "TEST_REDIS_URL=redis://127.0.0.1:${redis_port}/0"
           } >> "$GITHUB_ENV"
 
       # pg_dump / pg_restore / psql 18 for the backup integration tests (must match the server

@@ -366,6 +366,11 @@ Any proxy works if it does these things:
 1. `.env`: `PUBLIC_URL=https://tickets.example.org`, `SITE_ADDRESS=:80`, `HTTP_PORT=8080`
    (or `127.0.0.1:8080` if the proxy runs on the same server), `TRUSTED_PROXIES=` the address of the
    proxy (for example `192.168.1.10`, a network such as `192.168.1.0/24`, or `private_ranges`).
+   The IP-based limits (Settings → Checkout: orders per IP address, seat selections per IP
+   address) rely on this: without it every visitor appears with the proxy's address and shares
+   one limit. The order limit per IP address is off by default; the seat selection limit
+   (600 per minute) is on by default. Enable the order limit only when Settings → Checkout shows
+   your real address as "Detected IP of your current request".
 2. Forward `https://tickets.example.org` to `http://<server-ip>:8080`, scheme **http**.
 3. **WebSockets must be enabled.** In Nginx Proxy Manager tick **Websockets Support** on the proxy
    host. Without it the seat plan does not update live.

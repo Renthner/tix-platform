@@ -8,6 +8,42 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Checkout: optional maximum cart lifetime (5–1440 minutes since the first reserved
+  seat). Adding seats still restarts the reservation timer, but never beyond this limit; the
+  one-time extra checkout time comes on top and is not re-armed at the limit. Empty = off (as
+  before); box office holds are not affected.
+- Settings → Checkout: configurable per-IP safety nets for orders (default off) and seat
+  selections (default 600 per minute); empty or 0 switches them off. The primary limits stay per
+  browser. The settings page shows the IP address the server detects for the current request and
+  warns when it looks like a proxy address (set `TRUSTED_PROXIES`, see the install guide). The
+  order limit is only charged for requests that passed input validation.
+- Cookie notice in the shop (information only: all cookies are strictly necessary) with a new page
+  "Cookies" listing every cookie with purpose and lifetime plus a note on the short-lived
+  processing of IP addresses for abuse protection. Linked in the shop footer. Settings →
+  Appearance: switch the notice off or replace its text per language.
+
+### Changed
+
+- Database migration 0032: partial index on `orders.cart_session_id` for the checkout re-submit
+  lookup, and a unique partial index on `bank_transaction_allocations.payment_id` (one allocation
+  per payment; allocations are now created with `ON CONFLICT DO NOTHING`).
+- SMTP and IMAP hosts that point at the stack's own services (`postgres`, `redis`, `minio`, `web`,
+  `worker`, `realtime`, `proxy`), at loopback or at link-local / cloud-metadata addresses are now
+  rejected. Private LAN addresses and `host.docker.internal` stay allowed (mail relay on the
+  Docker host). A rejected SMTP host is logged as an error (throttled); the resolved service
+  addresses are cached for about one minute.
+- Bank review: an overpayment case on an already fully allocated transfer is no longer a dead end.
+  The assign form is hidden, the affected orders are linked (refund the excess there) and the case
+  can be closed with "Mark as resolved" (Finance role, audited). Re-running the matching keeps an
+  overpayment case in review, and a transfer allocated for more than its amount is put back into
+  review instead of being marked as matched.
+- Cart: when a maximum cart lifetime is set and less than 30 seconds of it remain, adding seats is
+  refused with a clear message.
+- Checkout: stored phone number and billing address of a registered account are only filled in
+  when empty, never overwritten.
+
 ## [1.0.0-alpha.14] - 2026-11-13
 
 ### Added

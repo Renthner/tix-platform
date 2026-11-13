@@ -1,4 +1,10 @@
-import { getMediaAsset, getSecretSetting, getSetting, hasSecretSetting } from '@tix/core';
+import {
+  getMediaAsset,
+  getSecretSetting,
+  getSetting,
+  hasSecretSetting,
+  isNonPublicAddress,
+} from '@tix/core';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import {
@@ -16,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import {
   BrandingSettingsForm,
   CheckoutSettingsForm,
+  CookieNoticeSettingsForm,
   GeneralSettingsForm,
   SeatDisplaySettingsForm,
   ShopLayoutSettingsForm,
@@ -52,6 +59,7 @@ import {
 import { loadWalletDesignValues } from '@/server/admin/wallet-design';
 import { getCore } from '@/server/core';
 import { getEnv } from '@/server/env';
+import { clientIp } from '@/server/http';
 import { descriptionToHtml } from '@/server/rich-text';
 
 export async function generateMetadata({ params }: { params: Promise<{ tab: string }> }) {
@@ -112,6 +120,7 @@ async function TabContent({
       | 'seatDisplay'
       | 'shopLayout'
       | 'startPage'
+      | 'cookieNotice'
       | 'bankTransfer',
     children: React.ReactNode,
   ) => (
@@ -147,13 +156,15 @@ async function TabContent({
       );
     }
     case 'appearance': {
-      const [branding, seatDisplay, shopLayout, startPage, general] = await Promise.all([
-        getSetting(core, 'branding'),
-        getSetting(core, 'seatDisplay'),
-        getSetting(core, 'shopLayout'),
-        getSetting(core, 'startPage'),
-        getSetting(core, 'general'),
-      ]);
+      const [branding, seatDisplay, shopLayout, startPage, general, cookieNotice] =
+        await Promise.all([
+          getSetting(core, 'branding'),
+          getSetting(core, 'seatDisplay'),
+          getSetting(core, 'shopLayout'),
+          getSetting(core, 'startPage'),
+          getSetting(core, 'general'),
+          getSetting(core, 'cookieNotice'),
+        ]);
       const startPageTexts = Object.fromEntries(
         Object.entries(startPage.texts).map(([loc, v]) => [
           loc,
@@ -183,6 +194,13 @@ async function TabContent({
             <SeatDisplaySettingsForm
               action={saveSettingsAction.bind(null, 'seatDisplay')}
               initial={seatDisplay}
+            />,
+          )}
+          {section(
+            'cookieNotice',
+            <CookieNoticeSettingsForm
+              action={saveSettingsAction.bind(null, 'cookieNotice')}
+              initial={cookieNotice}
             />,
           )}
           {section(
@@ -219,14 +237,18 @@ async function TabContent({
           initial={await getSetting(core, 'organizer')}
         />,
       );
-    case 'checkout':
+    case 'checkout': {
+      const detectedIp = await clientIp();
       return section(
         'checkout',
         <CheckoutSettingsForm
           action={saveSettingsAction.bind(null, 'checkout')}
           initial={await getSetting(core, 'checkout')}
+          detectedIp={detectedIp}
+          detectedIpPrivate={detectedIp === '0.0.0.0' || isNonPublicAddress(detectedIp)}
         />,
       );
+    }
     case 'payments': {
       const [bankTransfer, paypal, secretStored] = await Promise.all([
         getSetting(core, 'bankTransfer'),

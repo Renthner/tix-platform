@@ -56,6 +56,7 @@
     <string name="result_already_checked_in">Bereits eingecheckt</string>
     <string name="result_not_checked_in">Nicht eingecheckt</string>
     <string name="result_invalid">Ungültiges Ticket</string>
+    <string name="result_unknown_key">Signaturschlüssel unbekannt – Gerät synchronisieren</string>
     <string name="result_wrong_event">Falsche Veranstaltung</string>
     <string name="result_void">Ticket storniert</string>
     <string name="result_unknown_ticket">Unbekanntes Ticket</string>

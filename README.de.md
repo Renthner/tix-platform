@@ -193,14 +193,14 @@ pnpm dev                    # web :3000, Realtime-Gateway :3001, Worker
 Gesamter Stack aus dem Quellcode: `cp .env.example .env`, Geheimnisse eintragen, dann
 `docker compose up -d --build` (Shop unter `http://localhost:8080`).
 
-| Befehl                                  | Beschreibung                                                                      |
-| --------------------------------------- | --------------------------------------------------------------------------------- |
-| `pnpm typecheck`                        | TypeScript über alle Pakete                                                       |
-| `pnpm test`                             | Unit- und PostgreSQL-Integrationstests (braucht `TEST_DATABASE_URL`)              |
-| `pnpm db:generate`                      | Migration erzeugen, nachdem `packages/db/src/schema` geändert wurde               |
-| `pnpm db:studio`                        | Drizzle Studio                                                                    |
-| `node scripts/smoke/shop.mjs <eventId>` | Ende-zu-Ende-Test von Sperren, Warenkorb, Tarifen, Realtime gegen laufende Server |
-| `scripts/load/run.ps1 -Vus 1200`        | Lasttest in einem isolierten Stack, siehe [docs/LOAD-TEST.md](docs/LOAD-TEST.md)  |
+| Befehl                                  | Beschreibung                                                                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm typecheck`                        | TypeScript über alle Pakete                                                                                                          |
+| `pnpm test`                             | Unit- und PostgreSQL-Integrationstests (braucht `TIX_TEST_THROWAWAY=1` + `TEST_DATABASE_URL`/`TEST_REDIS_URL` eines Wegwerf-Servers) |
+| `pnpm db:generate`                      | Migration erzeugen, nachdem `packages/db/src/schema` geändert wurde                                                                  |
+| `pnpm db:studio`                        | Drizzle Studio                                                                                                                       |
+| `node scripts/smoke/shop.mjs <eventId>` | Ende-zu-Ende-Test von Sperren, Warenkorb, Tarifen, Realtime gegen laufende Server                                                    |
+| `scripts/load/run.ps1 -Vus 1200`        | Lasttest in einem isolierten Stack, siehe [docs/LOAD-TEST.md](docs/LOAD-TEST.md)                                                     |
 
 Health-Endpunkte: `GET /api/health?probe=live` (Liveness), `GET /api/health` (Bereitschaft:
 PostgreSQL, Redis, laufende Worker), Worker `:8081/healthz`, Realtime `:3001/healthz`.

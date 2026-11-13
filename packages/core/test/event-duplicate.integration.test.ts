@@ -36,7 +36,7 @@ import { createCoreContext, duplicateEvent, ensureEventSigningKey, type CoreCont
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 const uuid = () => randomUUID();
 const DAY = 86_400_000;
 const NO_USER = null as never;

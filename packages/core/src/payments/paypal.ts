@@ -7,8 +7,9 @@ import {
   refunds,
   webhookEvents,
   withTransaction,
+  type Database,
 } from '@tix/db';
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { coreLog } from '../log';
 import { orderAccessToken, orderUrl } from '../orders/access';
@@ -1158,6 +1159,16 @@ interface PayPalWebhookEvent {
   };
 }
 
+/** Deletes webhook inbox rows that never passed signature verification and are older than `days`. */
+export async function purgeUnverifiedWebhookEvents(db: Database, days: number): Promise<number> {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const deleted = await db
+    .delete(webhookEvents)
+    .where(and(eq(webhookEvents.signatureValid, false), lt(webhookEvents.receivedAt, cutoff)))
+    .returning({ id: webhookEvents.id });
+  return deleted.length;
+}
+
 export type WebhookOutcome = 'PROCESSED' | 'DUPLICATE' | 'IGNORED' | 'INVALID_SIGNATURE';
 
 /**
@@ -1198,10 +1209,30 @@ export async function handlePayPalWebhook(
   let inboxId = inserted?.id;
   if (!inboxId) {
     const [existing] = await ctx.db
-      .select({ id: webhookEvents.id, status: webhookEvents.status })
+      .select({
+        id: webhookEvents.id,
+        status: webhookEvents.status,
+        signatureValid: webhookEvents.signatureValid,
+      })
       .from(webhookEvents)
       .where(and(eq(webhookEvents.provider, 'paypal'), eq(webhookEvents.externalId, event.id)));
-    if (!existing || existing.status === 'PROCESSED' || existing.status === 'IGNORED') {
+    if (!existing) return 'DUPLICATE';
+    if (!existing.signatureValid) {
+      // An earlier delivery of this event id failed verification (stored as IGNORED for audit).
+      // A verified delivery supersedes it – claim the row atomically and process the event.
+      const [claimed] = await ctx.db
+        .update(webhookEvents)
+        .set({
+          eventType: event.event_type,
+          payload: event,
+          signatureValid: true,
+          status: 'RECEIVED',
+          lastError: null,
+        })
+        .where(and(eq(webhookEvents.id, existing.id), eq(webhookEvents.signatureValid, false)))
+        .returning({ id: webhookEvents.id });
+      if (!claimed) return 'DUPLICATE';
+    } else if (existing.status === 'PROCESSED' || existing.status === 'IGNORED') {
       return 'DUPLICATE';
     }
     inboxId = existing.id;

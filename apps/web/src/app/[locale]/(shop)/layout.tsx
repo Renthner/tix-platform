@@ -2,7 +2,10 @@ import { getSetting } from '@tix/core';
 import { UserRound } from 'lucide-react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
+import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
+import { CookieNotice } from '@/components/shop/cookie-notice';
+import { COOKIE_NOTICE_COOKIE } from '@/lib/cookie-inventory';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { AdminMenu } from '@/components/shop/admin-menu';
 import { CartProvider } from '@/components/shop/cart-context';
@@ -27,20 +30,37 @@ export default async function ShopLayout({
   children: ReactNode;
   params: Promise<{ locale: string }>;
 }) {
-  await resolveLocale(params);
+  const locale = await resolveLocale(params);
   const core = getCore();
-  const [general, branding, t, accounts, customer, tAccount, tAdminNav, adminSession, maintenance] =
-    await Promise.all([
-      getSetting(core, 'general'),
-      getSetting(core, 'branding'),
-      getTranslations('shop.layout'),
-      getSetting(core, 'customerAccounts'),
-      getCustomerSession(),
-      getTranslations('account.nav'),
-      getTranslations('admin.nav'),
-      getAdminSession(),
-      readMaintenance(),
-    ]);
+  const [
+    general,
+    branding,
+    t,
+    accounts,
+    customer,
+    tAccount,
+    tAdminNav,
+    adminSession,
+    maintenance,
+    cookieNotice,
+    tCookies,
+    cookieJar,
+  ] = await Promise.all([
+    getSetting(core, 'general'),
+    getSetting(core, 'branding'),
+    getTranslations('shop.layout'),
+    getSetting(core, 'customerAccounts'),
+    getCustomerSession(),
+    getTranslations('account.nav'),
+    getTranslations('admin.nav'),
+    getAdminSession(),
+    readMaintenance(),
+    getSetting(core, 'cookieNotice'),
+    getTranslations('shop.cookies'),
+    cookies(),
+  ]);
+  const showCookieNotice =
+    cookieNotice.enabled && cookieJar.get(COOKIE_NOTICE_COOKIE)?.value !== '1';
   // Signed-in admin users get a dashboard button (never while a restore holds the system).
   const adminMenu = adminSession && !maintenance.active ? adminSession : null;
   const footerHtml = descriptionToHtml(branding.footerText);
@@ -124,6 +144,13 @@ export default async function ShopLayout({
             </div>
           </header>
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+          {showCookieNotice && (
+            <CookieNotice
+              text={cookieNotice.texts[locale] || tCookies('notice')}
+              moreLabel={tCookies('learnMore')}
+              dismissLabel={tCookies('dismiss')}
+            />
+          )}
           <footer className="border-t py-6 text-sm text-muted-foreground">
             <div className="mx-auto flex max-w-7xl flex-wrap items-start gap-x-6 gap-y-3 px-4">
               {footerHtml ? (
@@ -140,6 +167,9 @@ export default async function ShopLayout({
                   {l.label}
                 </a>
               ))}
+              <Link href="/cookies" className="hover:underline">
+                {t('cookies')}
+              </Link>
             </div>
           </footer>
         </div>

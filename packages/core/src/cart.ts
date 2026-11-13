@@ -21,6 +21,7 @@ import { ensureInventory } from './inventory';
 import { publishSeatDelta } from './realtime';
 import { contentLocale } from './content-locale';
 import { getPublicSeatMap } from './seatmaps/public';
+import { getSetting } from './settings';
 
 /**
  * Multi-event cart of one browser session.
@@ -34,6 +35,8 @@ import { getPublicSeatMap } from './seatmaps/public';
 
 const CART_RETENTION_MS = 60 * 60 * 1000;
 const BEST_AVAILABLE_ATTEMPTS = 5;
+/** Below this remaining cart lifetime (maxCartLifetimeMinutes) no further seats can be added. */
+const MIN_REMAINING_LIFETIME_MS = 30_000;
 
 export interface CartItemView {
   key: string;
@@ -129,9 +132,43 @@ async function freshCartExpiry(
   ttlSeconds: number,
 ): Promise<number> {
   const now = Date.now();
-  const current = await cartExpiry(ctx, sessionId);
-  if (current && current <= now + 1_000) await discardCart(ctx, sessionId);
-  return now + ttlSeconds * 1000;
+  let current = await cartExpiry(ctx, sessionId);
+  if (current && current <= now + 1_000) {
+    await discardCart(ctx, sessionId);
+    current = null;
+  }
+  const proposed = now + ttlSeconds * 1000;
+  const lifetimeMs = await cartLifetimeMs(ctx);
+  if (lifetimeMs === null) return proposed;
+  const key = ctx.keys.cart(sessionId);
+  // No live timer: a cart that expired was discarded above; this also drops the leftover of a
+  // selection that failed before locking anything. Removing single seats keeps the lifetime
+  // running (otherwise removing and re-adding seats would circumvent the limit); emptying the
+  // whole cart (`discardCart`, DELETE /api/cart) does start a new lifetime – acceptable, because
+  // all seats are released immediately.
+  if (current === null) await ctx.redis.hdel(key, 'first');
+  // Written here (not when the seats are locked) so the cap stays exactly the same afterwards.
+  await ctx.redis.hsetnx(key, 'first', String(now));
+  // A failed selection must not leave a hash without expiry behind.
+  await ctx.redis.pexpire(key, ttlSeconds * 1000 + CART_RETENTION_MS, 'NX');
+  const first = Number(await ctx.redis.hget(key, 'first'));
+  // Practically at the end of the cart lifetime: adding seats would only hand out a reservation
+  // that expires within seconds.
+  if (first + lifetimeMs - now < MIN_REMAINING_LIFETIME_MS) {
+    throw new DomainError(
+      'CART_LIFETIME_REACHED',
+      'The cart lifetime is almost over – complete the order or empty the cart',
+      409,
+    );
+  }
+  // Never shorten what the cart already holds (e.g. after the payment grace period).
+  return Math.max(current ?? 0, Math.min(proposed, first + lifetimeMs));
+}
+
+/** Maximum total cart lifetime in milliseconds; null = not limited. */
+async function cartLifetimeMs(ctx: CoreContext): Promise<number | null> {
+  const { maxCartLifetimeMinutes } = await getSetting(ctx, 'checkout');
+  return maxCartLifetimeMinutes ? maxCartLifetimeMinutes * 60_000 : null;
 }
 
 /** Moves the whole cart (all events, seats and standing spots) to a new expiry. */
@@ -149,7 +186,13 @@ async function setCartExpiry(ctx: CoreContext, sessionId: string, exp: number): 
 
 /** New seats were added: restart the timer and re-arm the payment grace period. */
 async function restartCartTimer(ctx: CoreContext, sessionId: string, exp: number): Promise<void> {
-  await ctx.redis.hdel(ctx.keys.cart(sessionId), 'grace');
+  const key = ctx.keys.cart(sessionId);
+  const before = await cartExpiry(ctx, sessionId);
+  // With a lifetime limit the grace period is only re-armed when the timer really moved on,
+  // otherwise adding seats at the limit would hand out another grace extension each time.
+  if ((await cartLifetimeMs(ctx)) === null || before === null || exp > before) {
+    await ctx.redis.hdel(key, 'grace');
+  }
   // Last time seats were added: lets the checkout recognise a re-submit of an already ordered cart.
   await ctx.redis.hset(ctx.keys.cart(sessionId), 'changed', String(Date.now()));
   await setCartExpiry(ctx, sessionId, exp);

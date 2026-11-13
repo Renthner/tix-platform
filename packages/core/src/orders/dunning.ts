@@ -114,6 +114,7 @@ export async function runDunning(ctx: CoreContext, now = new Date()): Promise<Du
         reason: 'PAYMENT_OVERDUE',
         actor: { type: 'SYSTEM' },
         notifyCustomer: true,
+        onlyIfUnpaidAndDue: { now },
       });
       if (done) result.cancelled += 1;
     } catch (err) {

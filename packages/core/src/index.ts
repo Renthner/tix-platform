@@ -62,6 +62,7 @@ export * from './tickets/email-links';
 export * from './tickets/template-admin';
 export * from './wallet';
 export * from './backup';
+export * from './network/host-guard';
 export * from './accounting/export';
 export * from './accounting/dates';
 export * from './accounting/datev';

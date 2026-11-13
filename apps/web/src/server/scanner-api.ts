@@ -104,17 +104,17 @@ export async function deviceRoute(
 ): Promise<Response> {
   try {
     await assertNotInMaintenance();
-    // Budget of failed authentications is checked BEFORE the token lookup (429 once exhausted).
     const ip = await clientIp();
-    await assertAuthFailBudget(ip);
     let device: ScannerDeviceAuth;
     try {
       device = await authenticateDevice(getCore(), request.headers.get('authorization'), {
         appVersion: request.headers.get('x-scanner-app-version'),
       });
     } catch (err) {
-      // Failed authentications are charged to the client address (token guessing: 30 per minute).
+      // A valid token is never blocked by the IP budget (devices behind one NAT). Only failed
+      // authentications consult it: 429 once exhausted, otherwise charge and answer the 401.
       if (err instanceof DomainError && err.status === 401) {
+        await assertAuthFailBudget(ip);
         await enforceRateLimit(AUTH_FAIL_BUCKET, ip, AUTH_FAIL_LIMIT, 60_000);
       }
       throw err;

@@ -1,6 +1,7 @@
 import 'server-only';
 import {
   getEventCached,
+  getSetting,
   requireShopAccess,
   type AccessDecision,
   type CoreContext,
@@ -21,9 +22,13 @@ export async function loadShopEvent(
 /** Session + valid QueuePassToken + per-session/IP rate limits for cart mutations. */
 export async function authorizeShopMutation(core: CoreContext, event: EventRow): Promise<string> {
   const sid = await ensureSessionId();
+  const { seatRequestsPerIpPerMinute } = await getSetting(core, 'checkout');
   await Promise.all([
     enforceRateLimit('shop-session', sid, 120, 60_000),
-    enforceRateLimit('shop-ip', await clientIp(), 600, 60_000),
+    // Safety net per IP address (configurable, off when empty / 0).
+    seatRequestsPerIpPerMinute
+      ? enforceRateLimit('shop-ip', await clientIp(), seatRequestsPerIpPerMinute, 60_000)
+      : Promise.resolve(),
   ]);
   await requireShopAccess(core, event, sid, await readPassToken(event.id));
   return sid;

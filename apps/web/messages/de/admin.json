@@ -46,6 +46,7 @@
   "errors": {
     "required": "Dieses Feld ist erforderlich.",
     "pngOnly": "Hier sind nur PNG-Bilder erlaubt (Vorgabe von Apple Wallet).",
+    "hostNotAllowed": "Dieser Host ist nicht erlaubt: Er darf nicht dieser Rechner, eine Link-Local- oder Cloud-Metadaten-Adresse oder ein interner Dienst dieses Stacks sein. Adressen im privaten Netz sind erlaubt.",
     "invalid": "Dieser Wert ist ungültig.",
     "tooLong": "Dieser Text ist zu lang.",
     "tooSmall": "Dieser Wert ist zu klein.",
@@ -900,6 +901,14 @@
       "paymentGraceSeconds": "Zusatzzeit an der Kasse (Sekunden)",
       "paymentGraceHint": "Wird beim Öffnen der Kasse einmalig zur Restzeit addiert. 0 = keine Verlängerung.",
       "minutes": "= {value} Min.",
+      "maxCartLifetimeMinutes": "Maximale Lebensdauer des Warenkorbs (Minuten)",
+      "maxCartLifetimeHint": "Neue Plätze starten die Reservierungszeit neu, aber nie über diese Minutenzahl nach dem ersten reservierten Platz hinaus (die Zusatzzeit an der Kasse kommt obendrauf). Leer = aus. Gilt nicht für Abendkassen-Reservierungen.",
+      "checkoutsPerIpPer10Min": "Bestellungen pro IP-Adresse in 10 Minuten",
+      "seatRequestsPerIpPerMinute": "Platzauswahlen pro IP-Adresse pro Minute",
+      "ipLimitHint": "Großzügiges Sicherheitsnetz zusätzlich zu den Limits pro Browser; viele Besucher können sich eine Adresse teilen (z. B. Firmen- oder Mobilfunknetze). Leer oder 0 = aus (Standard). Aktiviere es nur, wenn die echte Besucheradresse die Anwendung erreicht (siehe erkannte Adresse oben).",
+      "seatIpLimitHint": "Schutz vor Skripten, die massenhaft Plätze anklicken; zusätzlich zum Limit pro Browser. Standard 600 – normale Käufer erreichen das auch bei gemeinsamer Adresse nicht. Leer oder 0 = aus. Erreicht nicht die echte Besucheradresse die Anwendung (siehe oben), teilen sich alle Besucher dieses Limit.",
+      "detectedIp": "Erkannte IP deiner aktuellen Anfrage: {ip}",
+      "detectedIpPrivateWarning": "Das sieht nach einer privaten oder Loopback-Adresse aus, vermutlich verbirgt ein vorgeschalteter Reverse-Proxy die echten Besucheradressen. Dann teilen sich alle Besucher ein IP-Limit. Setze TRUSTED_PROXIES in deiner .env (siehe docs/INSTALL), bevor du ein IP-Limit aktivierst.",
       "maxTicketsPerOrder": "Max. Tickets pro Bestellung",
       "maxTicketsPerCustomer": "Max. Tickets pro Kunde und Veranstaltung",
       "unlimitedHint": "Leer = unbegrenzt.",
@@ -951,6 +960,14 @@
       "seatChangeCurrentColor": "Bestellte Plätze (unverändert) – Platzänderung",
       "seatChangeReplacedColor": "Zu ersetzender Platz – Platzänderung",
       "seatChangeNewColor": "Neuer Platz – Platzänderung"
+    },
+    "cookieNotice": {
+      "title": "Cookie-Hinweis",
+      "description": "Kleine Hinweisleiste im Shop zu den verwendeten Cookies. Alle Cookies sind technisch notwendig, daher ist das nur eine Information und kein Einwilligungsdialog. Die Cookie-Liste wird automatisch auf der Seite „Cookies“ erzeugt.",
+      "enabled": "Cookie-Hinweis anzeigen",
+      "enabledHint": "Besucher können ihn schließen; die Seite „Cookies“ bleibt in jedem Fall im Footer verlinkt.",
+      "text": "Eigener Text ({language})",
+      "textHint": "Leer = Standardtext."
     },
     "shopLayout": {
       "title": "Veranstaltungsliste im Shop",

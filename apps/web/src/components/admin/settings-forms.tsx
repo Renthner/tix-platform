@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  COOKIE_NOTICE_TEXT_MAX,
   SEAT_SELECTION_STYLES,
   START_PAGE_LAYOUTS,
   START_PAGE_HTML_MAX,
@@ -329,6 +330,9 @@ export function BrandingSettingsForm({
 export interface CheckoutValues {
   cartLockTtlSeconds: number;
   paymentGraceSeconds: number;
+  maxCartLifetimeMinutes: number | null;
+  checkoutsPerIpPer10Min: number | null;
+  seatRequestsPerIpPerMinute: number | null;
   maxTicketsPerOrder: number | null;
   maxTicketsPerCustomer: number | null;
   manualSeatSelectionEnabled: boolean;
@@ -344,9 +348,14 @@ export interface CheckoutValues {
 export function CheckoutSettingsForm({
   action,
   initial,
+  detectedIp,
+  detectedIpPrivate,
 }: {
   action: Action;
   initial: CheckoutValues;
+  /** Address the server detects for the current admin request (what IP limits would see). */
+  detectedIp: string;
+  detectedIpPrivate: boolean;
 }) {
   const t = useTranslations('admin.settings.checkout');
   const tc = useTranslations('common.actions');
@@ -385,6 +394,14 @@ export function CheckoutSettingsForm({
           <li>{t('timeline.order')}</li>
         </ol>
       </div>
+      <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+        <p>{t('detectedIp', { ip: detectedIp })}</p>
+        {detectedIpPrivate ? (
+          <Alert variant="destructive" className="mt-2">
+            <AlertDescription>{t('detectedIpPrivateWarning')}</AlertDescription>
+          </Alert>
+        ) : null}
+      </div>
       <div className="grid gap-4 md:grid-cols-2">
         <Field
           label={t('cartLockTtlSeconds')}
@@ -418,6 +435,51 @@ export function CheckoutSettingsForm({
             value={grace}
             onChange={(e) => setGrace(e.target.value)}
             required
+          />
+        </Field>
+        <Field
+          label={t('maxCartLifetimeMinutes')}
+          htmlFor="maxCartLifetimeMinutes"
+          error={err('maxCartLifetimeMinutes')}
+          hint={t('maxCartLifetimeHint')}
+        >
+          <Input
+            id="maxCartLifetimeMinutes"
+            name="maxCartLifetimeMinutes"
+            type="number"
+            min={5}
+            max={1440}
+            defaultValue={initial.maxCartLifetimeMinutes ?? ''}
+          />
+        </Field>
+        <Field
+          label={t('checkoutsPerIpPer10Min')}
+          htmlFor="checkoutsPerIpPer10Min"
+          error={err('checkoutsPerIpPer10Min')}
+          hint={t('ipLimitHint')}
+        >
+          <Input
+            id="checkoutsPerIpPer10Min"
+            name="checkoutsPerIpPer10Min"
+            type="number"
+            min={0}
+            max={100000}
+            defaultValue={initial.checkoutsPerIpPer10Min ?? ''}
+          />
+        </Field>
+        <Field
+          label={t('seatRequestsPerIpPerMinute')}
+          htmlFor="seatRequestsPerIpPerMinute"
+          error={err('seatRequestsPerIpPerMinute')}
+          hint={t('seatIpLimitHint')}
+        >
+          <Input
+            id="seatRequestsPerIpPerMinute"
+            name="seatRequestsPerIpPerMinute"
+            type="number"
+            min={0}
+            max={100000}
+            defaultValue={initial.seatRequestsPerIpPerMinute ?? ''}
           />
         </Field>
         <Field
@@ -697,6 +759,52 @@ export function SettingsSection({
       </div>
       {children}
     </section>
+  );
+}
+
+// ─── Cookie notice ──────────────────────────────────────────────────────────
+
+export function CookieNoticeSettingsForm({
+  action,
+  initial,
+}: {
+  action: Action;
+  initial: { enabled: boolean; texts: Record<string, string> };
+}) {
+  const t = useTranslations('admin.settings.cookieNotice');
+  const tl = useTranslations('common.locale');
+  const tc = useTranslations('common.actions');
+  const { state, formAction, err } = useSettingsForm(action);
+  return (
+    <ActionForm action={formAction} className="space-y-4">
+      <ActionFeedback state={state} />
+      <SwitchRow
+        name="enabled"
+        defaultChecked={initial.enabled}
+        label={t('enabled')}
+        hint={t('enabledHint')}
+      />
+      <div className="grid gap-4 md:grid-cols-2">
+        {SUPPORTED_LOCALES.map((loc) => (
+          <Field
+            key={loc}
+            label={t('text', { language: tl(loc) })}
+            htmlFor={`cookieNoticeText-${loc}`}
+            error={err(`text.${loc}`)}
+            hint={t('textHint')}
+          >
+            <Textarea
+              id={`cookieNoticeText-${loc}`}
+              name={`text.${loc}`}
+              rows={3}
+              maxLength={COOKIE_NOTICE_TEXT_MAX}
+              defaultValue={initial.texts[loc] ?? ''}
+            />
+          </Field>
+        ))}
+      </div>
+      <SubmitButton>{tc('save')}</SubmitButton>
+    </ActionForm>
   );
 }
 

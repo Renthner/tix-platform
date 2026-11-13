@@ -3,6 +3,7 @@ import {
   bankTransactions,
   orderAdjustments,
   orders,
+  payments,
   withTransaction,
   type Database,
   type Executor,
@@ -19,8 +20,13 @@ import {
 } from '@tix/shared';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
+import { coreLog } from '../log';
 import { completeAdjustment, findOpenAdjustment } from '../orders/adjustments';
-import { recordPayment, type RecordPaymentResult } from '../orders/fulfillment';
+import {
+  ensureBankAllocation,
+  recordPayment,
+  type RecordPaymentResult,
+} from '../orders/fulfillment';
 import { getSetting } from '../settings';
 import { withMutex } from './runs';
 
@@ -146,6 +152,35 @@ async function allocatedAmount(db: Executor, transactionId: string): Promise<num
   return row?.total ?? 0;
 }
 
+/**
+ * Heals payments booked for a bank transaction whose allocation row is missing (crash between
+ * payment and allocation in older versions): such a transaction would look unassigned and
+ * could be assigned to a second order. Idempotent; returns the number of repaired payments.
+ */
+export async function repairMissingAllocations(
+  db: Database,
+  transactionId: string,
+): Promise<number> {
+  const orphans = await db
+    .select({ id: payments.id })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.bankTransactionId, transactionId),
+        inArray(payments.status, ['CAPTURED', 'REFUNDED', 'PARTIALLY_REFUNDED']),
+        sql`NOT EXISTS (SELECT 1 FROM ${bankTransactionAllocations} a WHERE a.payment_id = ${payments.id})`,
+      ),
+    );
+  let repaired = 0;
+  for (const { id } of orphans) {
+    const created = await withTransaction(db, (t) =>
+      ensureBankAllocation(t, id, { method: 'AUTO' }),
+    );
+    if (created) repaired += 1;
+  }
+  return repaired;
+}
+
 function outcome(
   tx: Pick<TxRow, 'id' | 'matchStatus' | 'reviewReason'>,
   orderIds: string[] = [],
@@ -179,18 +214,39 @@ async function matchLocked(
     .from(bankTransactions)
     .where(eq(bankTransactions.id, transactionId));
   if (!tx) return null;
-  if (tx.matchStatus === 'AUTO_MATCHED' || tx.matchStatus === 'MANUALLY_MATCHED')
-    return outcome(tx);
+  const repaired = await repairMissingAllocations(ctx.db, tx.id);
+  const already = await allocatedAmount(ctx.db, tx.id);
+  // More money allocated than the transfer holds (an earlier double assignment, now visible
+  // because a missing allocation was healed): never settle silently, a human clears it up.
+  const overAllocated = tx.amount > 0 && already > tx.amount;
+  const alreadyMatched = tx.matchStatus === 'AUTO_MATCHED' || tx.matchStatus === 'MANUALLY_MATCHED';
+  if (alreadyMatched && !(overAllocated && repaired > 0)) return outcome(tx);
   if (tx.matchStatus === 'IGNORED' && !force) return outcome(tx);
   if (tx.amount <= 0) {
     await setStatus(ctx.db, tx.id, { matchStatus: 'IGNORED', reviewReason: null });
     return { ...outcome(tx), status: 'IGNORED', reviewReason: null };
   }
   // Partially assigned by an admin: never act automatically on the remainder.
-  const already = await allocatedAmount(ctx.db, tx.id);
   if (already > 0) {
-    const status: BankTxMatchStatus = already >= tx.amount ? 'MANUALLY_MATCHED' : 'NEEDS_REVIEW';
-    const reason = status === 'NEEDS_REVIEW' ? (tx.reviewReason ?? 'OVERPAYMENT') : null;
+    if (overAllocated) {
+      coreLog.error(
+        { transactionId: tx.id, amount: tx.amount, allocated: already },
+        '[banking] bank transaction is allocated for more than its amount',
+      );
+    }
+    // An OVERPAYMENT review stays open until an admin resolves it (refund or "mark as resolved").
+    const keepOverpaymentReview =
+      tx.matchStatus === 'NEEDS_REVIEW' && tx.reviewReason === 'OVERPAYMENT';
+    const status: BankTxMatchStatus =
+      already >= tx.amount && !overAllocated && !keepOverpaymentReview
+        ? 'MANUALLY_MATCHED'
+        : 'NEEDS_REVIEW';
+    const reason =
+      status === 'NEEDS_REVIEW'
+        ? overAllocated
+          ? 'OVERPAYMENT'
+          : (tx.reviewReason ?? 'OVERPAYMENT')
+        : null;
     await setStatus(ctx.db, tx.id, { matchStatus: status, reviewReason: reason });
     return { ...outcome(tx), status, reviewReason: reason };
   }
@@ -391,6 +447,7 @@ async function matchAdjustment(
     capturedAt: bookingInstant(tx.bookingDate),
     providerResponse: { bankTransactionId: tx.id, method: 'AUTO', adjustmentId: adjustment.id },
     actor: { type: 'SYSTEM' },
+    bankAllocation: { method: 'AUTO' },
   });
   if (done.status === 'NOT_PAYABLE') {
     return done.reason === 'CURRENCY_MISMATCH'
@@ -433,6 +490,9 @@ async function autoAllocate(
 ): Promise<MatchResult> {
   const done: { orderId: string; paymentId: string; amount: number }[] = [];
   let failure: { reason: BankTxReviewReason; order: OrderInfo } | null = null;
+  // Order that was already fully paid (race with PayPal / another transfer): the money is
+  // booked as overpayment and a human decides about the refund.
+  let overpaid: OrderInfo | null = null;
   for (const part of parts) {
     if (part.amount <= 0) continue;
     let result: RecordPaymentResult;
@@ -447,6 +507,8 @@ async function autoAllocate(
         providerResponse: { bankTransactionId: tx.id, method: 'AUTO' },
         actor: { type: 'SYSTEM' },
         settleShortfallUpTo: tolerance,
+        // Payment + allocation commit together (never a payment without its allocation).
+        bankAllocation: { method: 'AUTO' },
       });
     } catch (err) {
       if (err instanceof DomainError && err.code === 'CURRENCY_MISMATCH') {
@@ -459,14 +521,19 @@ async function autoAllocate(
       failure = { reason: 'ORDER_NOT_PAYABLE', order: part.order };
       break;
     }
+    if (result.status === 'ALREADY_PAID') overpaid ??= part.order;
     done.push({ orderId: part.order.id, paymentId: result.paymentId, amount: part.amount });
   }
+  // Allocations are written together with the payments; this only heals leftovers (idempotent).
   await persistAllocations(ctx.db, tx.id, done, 'AUTO', null, null);
+  if (!failure && overpaid) failure = { reason: 'OVERPAYMENT', order: overpaid };
   if (failure) {
     const reasons: MatchCandidateReason[] =
       failure.reason === 'CURRENCY_MISMATCH'
         ? ['REFERENCE', 'CURRENCY']
-        : ['REFERENCE', 'ORDER_NOT_PAYABLE'];
+        : failure.reason === 'OVERPAYMENT'
+          ? ['REFERENCE', 'ALREADY_PAID']
+          : ['REFERENCE', 'ORDER_NOT_PAYABLE'];
     if (done.length > 0) {
       // Some orders of a collective transfer were paid – the rest needs a human.
       await setStatus(ctx.db, tx.id, {
@@ -531,15 +598,22 @@ async function persistAllocations(
           ),
         );
       if (exists) continue;
-      await t.insert(bankTransactionAllocations).values({
-        bankTransactionId: transactionId,
-        orderId: a.orderId,
-        paymentId: a.paymentId,
-        amount: a.amount,
-        method,
-        allocatedByUserId: userId,
-        note,
-      });
+      await t
+        .insert(bankTransactionAllocations)
+        .values({
+          bankTransactionId: transactionId,
+          orderId: a.orderId,
+          paymentId: a.paymentId,
+          amount: a.amount,
+          method,
+          allocatedByUserId: userId,
+          note,
+        })
+        // One allocation per payment (unique index; a reversed one is never recreated).
+        .onConflictDoNothing({
+          target: bankTransactionAllocations.paymentId,
+          where: sql`${bankTransactionAllocations.paymentId} IS NOT NULL`,
+        });
     }
   });
 }
@@ -782,6 +856,7 @@ export async function assignBankTransaction(
       .where(eq(bankTransactions.id, params.transactionId));
     if (!tx) throw new DomainError('TX_NOT_FOUND', 'Bank transaction not found', 404);
     if (tx.amount <= 0) throw new DomainError('TX_NOT_CREDIT', 'Only credits can be assigned', 422);
+    await repairMissingAllocations(ctx.db, tx.id);
     const already = await allocatedAmount(ctx.db, tx.id);
     const unassigned = tx.amount - already;
     if (unassigned <= 0)
@@ -825,6 +900,11 @@ export async function assignBankTransaction(
           adjustmentId: adjustment.id,
         },
         actor: { type: 'ADMIN', userId: params.userId },
+        bankAllocation: {
+          method: 'MANUAL',
+          userId: params.userId,
+          note: params.note?.trim() || null,
+        },
       });
       if (done.status === 'NOT_PAYABLE') {
         throw new DomainError(
@@ -878,6 +958,11 @@ export async function assignBankTransaction(
       capturedAt: bookingInstant(tx.bookingDate),
       providerResponse: { bankTransactionId: tx.id, method: 'MANUAL' },
       actor: { type: 'ADMIN', userId: params.userId },
+      bankAllocation: {
+        method: 'MANUAL',
+        userId: params.userId,
+        note: params.note?.trim() || null,
+      },
     });
     if (result.status === 'NOT_PAYABLE') {
       throw new DomainError('ORDER_NOT_PAYABLE', `Order is ${result.orderStatus}`, 409, {
@@ -922,11 +1007,51 @@ export async function ignoreBankTransaction(
       .from(bankTransactions)
       .where(eq(bankTransactions.id, params.transactionId));
     if (!tx) throw new DomainError('TX_NOT_FOUND', 'Bank transaction not found', 404);
+    await repairMissingAllocations(ctx.db, tx.id);
     if ((await allocatedAmount(ctx.db, tx.id)) > 0) {
       throw new DomainError('TX_HAS_ALLOCATIONS', 'Assigned transactions cannot be ignored', 409);
     }
     await setStatus(ctx.db, tx.id, {
       matchStatus: 'IGNORED',
+      reviewReason: null,
+      reviewedByUserId: params.userId,
+      reviewedAt: new Date(),
+      reviewNote: params.note.trim().slice(0, 1000),
+    });
+  });
+  if (!locked) throw new DomainError('BUSY', 'The transaction is being processed – try again', 409);
+}
+
+/**
+ * Closes a Klärfall whose transfer is already fully allocated (typically an OVERPAYMENT review
+ * after the order was paid in the meantime): there is nothing left to assign, the admin refunds
+ * the excess on the order and then marks the case as resolved. Sets MANUALLY_MATCHED.
+ */
+export async function resolveBankTransaction(
+  ctx: CoreContext,
+  params: { transactionId: string; userId: string; note: string },
+): Promise<void> {
+  const locked = await withMutex(ctx, `bank-tx:${params.transactionId}`, MUTEX_TTL_MS, async () => {
+    const [tx] = await ctx.db
+      .select()
+      .from(bankTransactions)
+      .where(eq(bankTransactions.id, params.transactionId));
+    if (!tx) throw new DomainError('TX_NOT_FOUND', 'Bank transaction not found', 404);
+    if (tx.amount <= 0) throw new DomainError('TX_NOT_CREDIT', 'Only credits can be resolved', 422);
+    if (tx.matchStatus !== 'NEEDS_REVIEW') {
+      throw new DomainError('TX_RESOLVED', 'The transaction is not in review', 409);
+    }
+    await repairMissingAllocations(ctx.db, tx.id);
+    const allocated = await allocatedAmount(ctx.db, tx.id);
+    if (allocated < tx.amount) {
+      throw new DomainError(
+        'TX_NOT_FULLY_ASSIGNED',
+        'Part of the transaction is still unassigned – assign or ignore it instead',
+        409,
+      );
+    }
+    await setStatus(ctx.db, tx.id, {
+      matchStatus: 'MANUALLY_MATCHED',
       reviewReason: null,
       reviewedByUserId: params.userId,
       reviewedAt: new Date(),

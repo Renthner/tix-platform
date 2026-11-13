@@ -291,6 +291,7 @@ internal fun resultAnnouncement(context: android.content.Context, v: ScanVerdict
     if (v.result == org.tix.checkin.core.contract.ScanResult.REJECTED_ALREADY_CHECKED_IN) {
         v.firstScan?.let { parts += context.getString(R.string.result_first_scan, formatTime(context, it.at), it.deviceName ?: "-") }
     }
+    if (v.unknownKey) parts += context.getString(R.string.result_unknown_key)
     tapDismiss?.let { parts += it }
     return parts.joinToString(". ")
 }
@@ -331,6 +332,9 @@ private fun ResultDetails(v: ScanVerdict, style: ResultStyle, fg: Color) {
                 style = MaterialTheme.typography.titleMedium, color = fg, textAlign = TextAlign.Center,
             )
         }
+    }
+    if (v.unknownKey) {
+        Text(stringResource(R.string.result_unknown_key), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = fg, textAlign = TextAlign.Center)
     }
     if (v.provisional) {
         Text(stringResource(R.string.result_provisional), style = MaterialTheme.typography.bodyLarge, color = fg, textAlign = TextAlign.Center)

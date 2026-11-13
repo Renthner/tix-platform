@@ -86,6 +86,19 @@ const checkoutSchema = z.object({
   cartLockTtlSeconds: z.number().int().min(60).max(3_600).default(600),
   /** Added once the customer starts payment so seats never expire mid-payment. */
   paymentGraceSeconds: z.number().int().min(0).max(3_600).default(600),
+  /**
+   * Maximum total lifetime of a cart (minutes since its first seat was locked): adding seats
+   * restarts the reservation timer, but never beyond this limit. The one-time payment grace
+   * period comes on top. Null = off (every addition restarts the timer).
+   */
+  maxCartLifetimeMinutes: z.number().int().min(5).max(1_440).nullable().default(null),
+  /**
+   * Safety net per client IP address (the primary limits are per browser session): orders
+   * placed per 10 minutes. Null / 0 = off.
+   */
+  checkoutsPerIpPer10Min: z.number().int().min(0).max(100_000).nullable().default(null),
+  /** Safety net per client IP address: seat selection requests per minute. Null / 0 = off. */
+  seatRequestsPerIpPerMinute: z.number().int().min(0).max(100_000).nullable().default(600),
   /** Tickets per order (cart). Null = unlimited. */
   maxTicketsPerOrder: z.number().int().min(1).max(10_000).nullable().default(10),
   /** Across all orders of the same e-mail address per event. Null = unlimited. */
@@ -310,6 +323,19 @@ const shopLayoutSchema = z.object({
       z.number().int().min(1).max(SHOP_EVENTS_PER_ROW_MAX),
     )
     .default(3),
+});
+
+/** Maximum length of a custom cookie notice text (per locale). */
+export const COOKIE_NOTICE_TEXT_MAX = 400;
+
+/**
+ * Information bar about the strictly necessary cookies of the shop (information only, no
+ * consent). The list of cookies itself is a technical fact and lives in code.
+ */
+const cookieNoticeSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** Optional replacement of the default notice text per locale (empty = default text). */
+  texts: z.record(z.string(), z.string().trim().max(COOKIE_NOTICE_TEXT_MAX)).default({}),
 });
 
 export const START_PAGE_LAYOUTS = ['ABOVE', 'OVERLAY'] as const;
@@ -540,6 +566,11 @@ export const SETTINGS = {
     schema: shopLayoutSchema,
     secret: false,
     description: 'Event list layout of the shop home page',
+  }),
+  cookieNotice: define({
+    schema: cookieNoticeSchema,
+    secret: false,
+    description: 'Information bar about the strictly necessary cookies of the shop',
   }),
   startPage: define({
     schema: startPageSchema,

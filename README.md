@@ -189,14 +189,14 @@ pnpm dev                    # web :3000, realtime gateway :3001, worker
 Full stack from source: `cp .env.example .env`, fill in the secrets, then
 `docker compose up -d --build` (shop on `http://localhost:8080`).
 
-| Command                                 | Description                                                                  |
-| --------------------------------------- | ---------------------------------------------------------------------------- |
-| `pnpm typecheck`                        | TypeScript across all packages                                               |
-| `pnpm test`                             | Unit tests + PostgreSQL integration tests (needs `TEST_DATABASE_URL`)        |
-| `pnpm db:generate`                      | Generate a migration after changing `packages/db/src/schema`                 |
-| `pnpm db:studio`                        | Drizzle Studio                                                               |
-| `node scripts/smoke/shop.mjs <eventId>` | End-to-end check of locking, cart, tariffs, realtime against running servers |
-| `scripts/load/run.ps1 -Vus 1200`        | Load test in an isolated stack, see [docs/LOAD-TEST.md](docs/LOAD-TEST.md)   |
+| Command                                 | Description                                                                                                                            |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`                        | TypeScript across all packages                                                                                                         |
+| `pnpm test`                             | Unit tests + PostgreSQL integration tests (needs `TIX_TEST_THROWAWAY=1` + `TEST_DATABASE_URL`/`TEST_REDIS_URL` of a throw-away server) |
+| `pnpm db:generate`                      | Generate a migration after changing `packages/db/src/schema`                                                                           |
+| `pnpm db:studio`                        | Drizzle Studio                                                                                                                         |
+| `node scripts/smoke/shop.mjs <eventId>` | End-to-end check of locking, cart, tariffs, realtime against running servers                                                           |
+| `scripts/load/run.ps1 -Vus 1200`        | Load test in an isolated stack, see [docs/LOAD-TEST.md](docs/LOAD-TEST.md)                                                             |
 
 Health endpoints: `GET /api/health?probe=live` (liveness), `GET /api/health` (readiness:
 PostgreSQL, Redis, live workers), worker `:8081/healthz`, realtime `:3001/healthz`.

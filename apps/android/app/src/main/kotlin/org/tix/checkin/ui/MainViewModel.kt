@@ -289,7 +289,19 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
         }
     }
 
+    private var lastKeyRefreshAt = 0L
+
+    /** Unknown signing key (rotated after the last sync): pull the manifest, at most once per [KEY_REFRESH_MIN_MS]. */
+    private fun refreshKeysSoon() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastKeyRefreshAt != 0L && now - lastKeyRefreshAt < KEY_REFRESH_MIN_MS) return
+        if (!c.monitor.isUsable()) return
+        lastKeyRefreshAt = now
+        viewModelScope.launch { c.sync.syncOnce() }
+    }
+
     private fun show(v: ScanVerdict) {
+        if (v.unknownKey) refreshKeysSoon()
         _verdict.value = VerdictUi(++verdictSeq, v)
         if (v.notice?.isInfo == true) {
             c.feedback.playInfo(settings.sound.value, settings.vibrate.value)
@@ -680,6 +692,9 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
     }
 
     companion object {
+        /** Minimum gap between two manifest refreshes triggered by an unknown signing key. */
+        private const val KEY_REFRESH_MIN_MS = 30_000L
+
         fun factory(app: Application) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =

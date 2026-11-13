@@ -235,6 +235,10 @@ export const orders = pgTable(
     index('orders_status_created_idx').on(t.status, t.createdAt),
     index('orders_email_idx').on(sql`lower(${t.email})`),
     index('orders_customer_idx').on(t.customerId),
+    // findOrderOfCart: re-submit detection of a cart at the checkout.
+    index('orders_cart_session_idx')
+      .on(t.cartSessionId)
+      .where(sql`${t.cartSessionId} IS NOT NULL`),
     index('orders_created_idx').on(t.createdAt),
     index('orders_paid_at_idx')
       .on(t.paidAt)

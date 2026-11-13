@@ -18,6 +18,7 @@ import {
   assignTransactionAction,
   ignoreTransactionAction,
   rematchTransactionAction,
+  resolveTransactionAction,
   searchAssignableOrders,
   type AssignableOrder,
 } from '@/server/admin/banking-actions';
@@ -96,6 +97,12 @@ export function ReviewCase({
     format.number(cents / 100, { style: 'currency', currency: view.currency });
   const open = view.matchStatus === 'NEEDS_REVIEW' || view.matchStatus === 'UNMATCHED';
   const credit = view.amount > 0;
+  // Fully allocated but still in review (OVERPAYMENT after ALREADY_PAID): nothing to assign.
+  const activeAllocations = view.allocations.filter((a) => !a.reversed);
+  const fullyAllocated = open && credit && activeAllocations.length > 0 && view.unassigned <= 0;
+  const allocatedOrders = [
+    ...new Map(activeAllocations.map((a) => [a.orderId, a.orderNumber])).entries(),
+  ];
 
   return (
     <Card>
@@ -189,7 +196,22 @@ export function ReviewCase({
           </div>
         ) : null}
 
-        {open && credit ? (
+        {fullyAllocated ? (
+          <div className="space-y-2 rounded-md border p-3 text-sm">
+            <p>{t('fullyAllocated')}</p>
+            <div className="flex flex-wrap gap-2">
+              {allocatedOrders.map(([orderId, orderNumber]) => (
+                <Button key={orderId} asChild variant="outline" size="sm">
+                  <Link href={`/admin/orders/${orderId}`}>
+                    {t('openOrder', { order: orderNumber })}
+                  </Link>
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {open && credit && !fullyAllocated ? (
           <>
             <div className="space-y-2">
               <div className="text-sm font-medium">{t('candidates')}</div>
@@ -285,7 +307,33 @@ export function ReviewCase({
               {t('ignore')}
             </BankingConfirm>
           ) : null}
+          {fullyAllocated ? (
+            <BankingConfirm
+              action={resolveTransactionAction.bind(null, view.id)}
+              title={t('resolveTitle')}
+              description={t('resolveDescription')}
+              confirmLabel={t('resolve')}
+              fields={(state) => (
+                <BankField
+                  label={t('resolveNote')}
+                  htmlFor={`resolve-${view.id}`}
+                  error={bankingError(state, 'note')}
+                >
+                  <Textarea
+                    id={`resolve-${view.id}`}
+                    name="note"
+                    rows={3}
+                    maxLength={1000}
+                    required
+                  />
+                </BankField>
+              )}
+            >
+              {t('resolve')}
+            </BankingConfirm>
+          ) : null}
           {credit &&
+          !fullyAllocated &&
           view.matchStatus !== 'AUTO_MATCHED' &&
           view.matchStatus !== 'MANUALLY_MATCHED' ? (
             <BankingActionButton

@@ -56,6 +56,7 @@
     <string name="result_already_checked_in">Already checked in</string>
     <string name="result_not_checked_in">Not checked in</string>
     <string name="result_invalid">Invalid ticket</string>
+    <string name="result_unknown_key">Signing key unknown – sync the device</string>
     <string name="result_wrong_event">Wrong event</string>
     <string name="result_void">Ticket cancelled</string>
     <string name="result_unknown_ticket">Unknown ticket</string>

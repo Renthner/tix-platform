@@ -15,7 +15,12 @@ import {
   type AdjustmentItemSnapshot,
   type Transaction,
 } from '@tix/db';
-import { buildPaymentReference, splitGross, type PaymentMethod } from '@tix/shared';
+import {
+  buildPaymentReference,
+  splitGross,
+  type AllocationMethod,
+  type PaymentMethod,
+} from '@tix/shared';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { allowedTypesFor, seatIndex } from '../cart';
@@ -33,7 +38,7 @@ import {
   type AdjustmentRow,
 } from './adjustment-state';
 import { orderCredit, orderNetPaid } from './credit';
-import type { OrderActor } from './fulfillment';
+import { ensureBankAllocation, type OrderActor } from './fulfillment';
 import { paymentAvailabilityForEvents } from './pricing';
 import { issueFullCreditNote } from './refunds';
 
@@ -527,6 +532,8 @@ export interface AdjustmentPaymentReceipt {
   receivedByUserId?: string | null;
   providerResponse?: unknown;
   actor: OrderActor;
+  /** Bank payments: write the allocation in the same transaction as the payment. */
+  bankAllocation?: { method: AllocationMethod; userId?: string | null; note?: string | null };
 }
 
 export type NotPayableReason =
@@ -866,6 +873,7 @@ export async function completeAdjustment(
     await lockOrderTickets(tx, orderId);
     const duplicate = await findDuplicate(tx, receipt);
     if (duplicate) {
+      if (receipt.bankAllocation) await ensureBankAllocation(tx, duplicate, receipt.bankAllocation);
       return {
         result: {
           status: 'DUPLICATE',
@@ -980,6 +988,7 @@ export async function completeAdjustment(
             ...captured,
           })
           .returning({ id: payments.id });
+    if (receipt.bankAllocation) await ensureBankAllocation(tx, payment!.id, receipt.bankAllocation);
 
     // The other PayPal attempts of this adjustment are obsolete now.
     await tx

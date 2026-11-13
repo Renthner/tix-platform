@@ -54,6 +54,7 @@
     "TARIFF_LIMIT": "The tariff “{tariff}” is limited to {max} tickets per order.",
     "CART_EMPTY": "Your cart is empty.",
     "CART_OUTDATED": "Your cart changed. Please review it.",
+    "CART_LIFETIME_REACHED": "Your reservation time is almost over – complete your order or empty your cart.",
     "CART_CHANGED": "Your cart changed in the meantime. Please review it before ordering.",
     "CHECKOUT_IN_PROGRESS": "Your order is already being processed. Please wait a moment.",
     "MIXED_CURRENCIES": "Events with different currencies cannot be bought in one order.",

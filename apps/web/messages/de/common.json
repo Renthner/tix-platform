@@ -54,6 +54,7 @@
     "TARIFF_LIMIT": "Der Tarif „{tariff}“ ist auf {max} Tickets pro Bestellung begrenzt.",
     "CART_EMPTY": "Dein Warenkorb ist leer.",
     "CART_OUTDATED": "Dein Warenkorb hat sich geändert. Bitte prüfe ihn.",
+    "CART_LIFETIME_REACHED": "Deine Reservierungszeit ist fast abgelaufen – schließe die Bestellung ab oder leere den Warenkorb.",
     "CART_CHANGED": "Dein Warenkorb hat sich inzwischen geändert. Bitte prüfe ihn vor der Bestellung.",
     "CHECKOUT_IN_PROGRESS": "Deine Bestellung wird bereits verarbeitet. Bitte warte einen Moment.",
     "MIXED_CURRENCIES": "Veranstaltungen mit unterschiedlichen Währungen können nicht in einer Bestellung gekauft werden.",

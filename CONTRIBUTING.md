@@ -16,7 +16,7 @@ See [Development in the README](README.md#development): Node.js 24.7+, pnpm, Doc
 
 ## Before you open a pull request
 
-- `pnpm typecheck` and `pnpm test` pass (`pnpm test` needs a PostgreSQL `TEST_DATABASE_URL`).
+- `pnpm typecheck` and `pnpm test` pass (the database/Redis integration tests only run with `TIX_TEST_THROWAWAY=1`, `TEST_DATABASE_URL` and `TEST_REDIS_URL` pointing at a throw-away server; otherwise they are skipped).
 - Changes to the shop, checkout or admin UI: run `pnpm test:e2e` (see below).
 - Run `pnpm prettier --check` on the files you changed (`pnpm prettier --write` fixes them).
 - **Every user-visible text exists in English and German.** Texts live in

@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 import { createTransport, type Transporter } from 'nodemailer';
+import { EndpointNotAllowedError } from '../backup/endpoint-guard';
 import type { CoreContext } from '../context';
+import { assertMailHostAllowed } from '../network/host-guard';
+import { coreLog } from '../log';
 import { getSecretSetting, getSetting } from '../settings';
 
 /** SMTP is not (completely) configured in the Admin Portal. */
@@ -15,6 +18,26 @@ export interface MailSender {
   bcc?: string;
 }
 
+/** In-process throttle: one "host rejected by the guard" log per host and 10 minutes. */
+const GUARD_LOG_INTERVAL_MS = 10 * 60_000;
+const guardLogged = new Map<string, number>();
+
+function logRejectedMailHost(host: string, reason: string): void {
+  const now = Date.now();
+  const last = guardLogged.get(host);
+  if (last !== undefined && now - last < GUARD_LOG_INTERVAL_MS) return;
+  guardLogged.set(host, now);
+  coreLog.error(
+    { host, reason },
+    '[email] SMTP host rejected by the mail host guard – no e-mails are sent until Settings → E-mail points to another server',
+  );
+}
+
+/** Test hook: forgets the log throttle. */
+export function resetMailGuardLogThrottle(): void {
+  guardLogged.clear();
+}
+
 let cached: { fingerprint: string; transporter: Transporter } | null = null;
 
 /**
@@ -27,6 +50,16 @@ export async function smtpSender(ctx: CoreContext): Promise<MailSender> {
     throw new EmailConfigurationError(
       'SMTP is not configured (host and sender address are required)',
     );
+  }
+  // SSRF guard right before connecting (DNS may have changed since the settings were saved).
+  try {
+    await assertMailHostAllowed(smtp.host);
+  } catch (err) {
+    if (err instanceof EndpointNotAllowedError) {
+      logRejectedMailHost(smtp.host, err.message);
+      throw new EmailConfigurationError(`SMTP host not allowed: ${err.message}`);
+    }
+    throw err;
   }
   const credentials = smtp.username ? await getSecretSetting(ctx, 'smtp.credentials') : null;
   if (smtp.username && !credentials) {

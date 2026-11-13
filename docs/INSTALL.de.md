@@ -371,7 +371,12 @@ Jeder Proxy funktioniert, wenn er Folgendes tut:
 1. `.env`: `PUBLIC_URL=https://tickets.example.org`, `SITE_ADDRESS=:80`, `HTTP_PORT=8080`
    (oder `127.0.0.1:8080`, wenn der Proxy auf demselben Server läuft), `TRUSTED_PROXIES=` die
    Adresse des Proxys (zum Beispiel `192.168.1.10`, ein Netz wie `192.168.1.0/24` oder
-   `private_ranges`).
+   `private_ranges`). Die IP-basierten Limits (Einstellungen → Kasse: Bestellungen bzw.
+   Platzauswahlen pro IP-Adresse) hängen davon ab: Ohne diese Angabe erscheinen alle Besucher mit
+   der Adresse des Proxys und teilen sich ein Limit. Das Bestell-Limit pro IP-Adresse ist
+   standardmäßig aus, das Limit für Platzauswahlen (600 pro Minute) standardmäßig an. Aktiviere
+   das Bestell-Limit nur, wenn Einstellungen → Kasse unter „Erkannte IP deiner aktuellen Anfrage“
+   deine echte Adresse zeigt.
 2. `https://tickets.example.org` weiterleiten an `http://<Server-IP>:8080`, Schema **http**.
 3. **WebSockets müssen aktiviert sein.** Im Nginx Proxy Manager setze am Proxy-Host den Haken bei
    **Websockets Support**. Ohne ihn aktualisiert sich der Sitzplan nicht live.

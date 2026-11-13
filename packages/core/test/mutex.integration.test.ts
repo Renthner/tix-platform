@@ -7,7 +7,7 @@ import { loadRootEnv } from '@tix/db';
 import { withMutex } from '../src/banking/runs';
 
 loadRootEnv();
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 
 describe.skipIf(!redisUrl)('withMutex', () => {
   let redis: Redis;

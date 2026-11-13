@@ -1,0 +1,2 @@
+CREATE INDEX "orders_cart_session_idx" ON "orders" USING btree ("cart_session_id") WHERE "orders"."cart_session_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "bank_tx_allocations_payment_uq" ON "bank_transaction_allocations" USING btree ("payment_id") WHERE "bank_transaction_allocations"."payment_id" IS NOT NULL;
