@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { MediaThumb } from '@/components/media-image';
 import { Link } from '@/i18n/navigation';
 import { formatBytes } from '@/lib/bytes';
 import { IDLE, type ActionState } from '@/lib/action-state';
@@ -71,11 +72,10 @@ export function MediaGrid({ items }: { items: MediaCard[] }) {
               rel="noreferrer"
               className="flex h-40 items-center justify-center overflow-hidden rounded-t-xl bg-muted/40"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/api/media/${m.id}`}
+              <MediaThumb
+                assetId={m.id}
+                variantWidth={640}
                 alt={m.fileName}
-                loading="lazy"
                 className="max-h-full max-w-full object-contain"
               />
             </a>

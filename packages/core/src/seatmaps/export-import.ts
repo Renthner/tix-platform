@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  mediaAssets,
   priceCategories,
   seatMaps,
   svgSymbols,
@@ -21,7 +20,7 @@ import {
 } from '@tix/shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
-import { getMediaAsset, loadMediaBytes, uploadMediaAsset } from '../media';
+import { findMediaAssetByHash, getMediaAsset, loadMediaBytes, uploadMediaAsset } from '../media';
 import { deleteMediaAsset } from '../media-admin';
 import { sanitizeSvg } from '../symbols';
 import { SaveAbort, applySeatMapDocument, getSeatMapMeta, loadSeatMapDocument } from './document';
@@ -351,11 +350,7 @@ export async function importSeatMap(
   const upload = async (image: PlanImage): Promise<string> => {
     const bytes = new Uint8Array(Buffer.from(image.dataBase64, 'base64'));
     const sha256 = createHash('sha256').update(bytes).digest('hex');
-    const [existing] = await ctx.db
-      .select({ id: mediaAssets.id })
-      .from(mediaAssets)
-      .where(and(eq(mediaAssets.kind, 'VENUE_BACKGROUND'), eq(mediaAssets.sha256, sha256)))
-      .limit(1);
+    const existing = await findMediaAssetByHash(ctx.db, 'VENUE_BACKGROUND', sha256);
     const row = await uploadMediaAsset(ctx, {
       kind: 'VENUE_BACKGROUND',
       bytes,

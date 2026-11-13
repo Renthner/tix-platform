@@ -20,6 +20,7 @@ import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { formatInZone, utcToZonedWallTime } from '@/lib/datetime';
 import { cn } from '@/lib/utils';
+import { MediaThumb } from '@/components/media-image';
 import { requireAdmin } from '@/server/auth';
 import { duplicateEventAction } from '@/server/admin/events';
 import { listEvents } from '@/server/admin/queries';
@@ -121,11 +122,10 @@ export default async function EventsPage({
                           >
                             {event.heroImageAssetId ? (
                               // Original aspect ratio, scaled into the fixed slot (names stay aligned).
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={`/api/media/${event.heroImageAssetId}`}
+                              <MediaThumb
+                                assetId={event.heroImageAssetId}
+                                variantWidth={320}
                                 alt=""
-                                loading="lazy"
                                 className="h-auto max-h-10 w-auto max-w-16 rounded"
                               />
                             ) : (

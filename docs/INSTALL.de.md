@@ -388,6 +388,90 @@ Jeder Proxy funktioniert, wenn er Folgendes tut:
 Läuft der Proxy in Docker auf demselben Server, kannst du auch wie in Variante B ein gemeinsames
 Docker-Netzwerk nutzen und an `proxy:80` weiterleiten.
 
+### Hinter Cloudflare
+
+Cloudflare (orange Wolke) kann vor jeder der obigen Varianten stehen. Die Anfrage läuft dann über
+mehrere Stationen:
+
+```text
+Besucher -> Cloudflare -> (Port-Weiterleitung im Router) -> Traefik / nginx / anderer Proxy -> mitgelieferter Caddy -> TIX
+```
+
+Jede Station muss der davor vertrauen, sonst sieht die App die Adresse eines Proxys statt die des
+Besuchers (alle IP-Limits treffen dann alle auf einmal, das Audit-Log zeigt eine einzige IP).
+Cloudflare schickt die Adresse des Besuchers in `X-Forwarded-For`; sie wird nur geglaubt, wenn die
+Verbindung von einer vertrauenswürdigen Adresse kommt. Zwei Schritte:
+
+**1. Der äußere Proxy muss Cloudflares Adressbereiche als vertrauenswürdig kennen.** Sonst ersetzt
+er den von Cloudflare gesendeten `X-Forwarded-For`-Header durch Cloudflares eigene Adresse.
+
+- **Traefik**, statische Konfiguration (`traefik.yml`), am Entrypoint, der den Verkehr annimmt:
+
+  ```yaml
+  entryPoints:
+    websecure:
+      address: ':443'
+      forwardedHeaders:
+        trustedIPs:
+          - 173.245.48.0/20
+          - 103.21.244.0/22
+          - 103.22.200.0/22
+          - 103.31.4.0/22
+          - 141.101.64.0/18
+          - 108.162.192.0/18
+          - 190.93.240.0/20
+          - 188.114.96.0/20
+          - 197.234.240.0/22
+          - 198.41.128.0/17
+          - 162.158.0.0/15
+          - 104.16.0.0/13
+          - 104.24.0.0/14
+          - 172.64.0.0/13
+          - 131.0.72.0/22
+          - 2400:cb00::/32
+          - 2606:4700::/32
+          - 2803:f800::/32
+          - 2405:b500::/32
+          - 2405:8100::/32
+          - 2a06:98c0::/29
+          - 2c0f:f248::/32
+  ```
+
+  Dasselbe als Kommandozeilen-Flag (Bereiche kommagetrennt):
+  `--entryPoints.websecure.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,...`
+  Starte Traefik danach neu.
+
+- **nginx**: eine Zeile `set_real_ip_from <Bereich>;` pro Bereich (im `http`- oder `server`-Block)
+  plus `real_ip_header X-Forwarded-For;` und `real_ip_recursive on;`. nginx ersetzt dann
+  `$remote_addr` durch die Adresse des Besuchers; zu TIX hin bleibt
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` bestehen.
+- **Nginx Proxy Manager**: dieselben Zeilen (`set_real_ip_from ...;`,
+  `real_ip_header X-Forwarded-For;`, `real_ip_recursive on;`) im Reiter **Advanced** des
+  Proxy-Hosts (eigene Nginx-Konfiguration) eintragen; NPM hat dafür kein Kästchen.
+
+**2. TIX muss dem äußeren Proxy und Cloudflare vertrauen.** Trage in der `.env` `private_ranges`
+(der äußere Proxy in deinem LAN oder Docker-Netz) **und** die Cloudflare-Bereiche ein, durch
+Leerzeichen getrennt in **einer** Zeile:
+
+```bash
+TRUSTED_PROXIES=private_ranges 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+```
+
+Danach `docker compose up -d`. Cloudflares Bereiche ändern sich selten; die aktuelle Liste steht auf
+<https://www.cloudflare.com/ips/> (ab und zu prüfen und an beiden Stellen nachziehen).
+
+**Prüfen:** Öffne im Admin Einstellungen → Kasse. „Erkannte IP deiner aktuellen Anfrage“ muss
+deine eigene öffentliche Adresse zeigen, nicht eine Cloudflare- oder private Adresse.
+
+Tipps:
+
+- Stelle im Cloudflare-Dashboard unter **SSL/TLS → Übersicht** den Modus **Vollständig (streng)**
+  ein („Full (strict)“; der Ursprungsserver muss ein gültiges Zertifikat liefern, z. B. von
+  Traefik oder dem mitgelieferten Caddy). „Flexibel“ führt zu Weiterleitungsschleifen.
+- Härtung: Wenn alles läuft, lass Firewall oder Router Port 443 nur noch von den
+  Cloudflare-Bereichen annehmen, damit niemand den Server direkt erreicht und den Header fälschen
+  kann.
+
 ## Schritt 5: Starten und ersten Admin anlegen
 
 ```bash
@@ -529,6 +613,45 @@ cd tix
 docker compose down        # stoppt und entfernt die Container, BEHÄLT deine Daten
 docker compose down -v     # LÖSCHT zusätzlich alle Daten (Datenbank, Dateien, Zertifikate) - unwiderruflich
 ```
+
+## Monitoring
+
+Die Admin-Seite **System** (Super-Admins) zeigt den Live-Status: Version und Laufzeit der
+Anwendung, PostgreSQL-Verbindungen und -Größe, Redis-Speicher und -Durchsatz, die Job-Warteschlangen
+mit ihren fehlgeschlagenen Jobs, den Warteraum, in Warenkörben gehaltene Plätze, verbundene
+Echtzeit-Clients, Worker und offene Rückstände (E-Mails, Erstattungen, Bankumsätze). Sie
+aktualisiert sich alle paar Sekunden und zeigt einen Verlauf der letzten zehn Minuten.
+
+Für Prometheus (oder Grafana Agent, VictoriaMetrics, Zabbix, ...) stehen dieselben Zahlen als Text
+unter `/api/metrics` bereit. Den Endpunkt gibt es erst, wenn du unter **Einstellungen, Sicherheit,
+Monitoring** ein Token anlegst (es wird nur einmal angezeigt; ein neues Token ersetzt das alte,
+Entfernen schaltet den Endpunkt wieder ab). Falsche Tokens werden pro Client-Adresse begrenzt.
+
+```bash
+curl -H "Authorization: Bearer <Token>" https://tickets.example.org/api/metrics
+```
+
+Eine minimale Prometheus-Scrape-Konfiguration:
+
+```yaml
+scrape_configs:
+  - job_name: tix
+    scrape_interval: 30s
+    scheme: https
+    metrics_path: /api/metrics
+    authorization:
+      type: Bearer
+      credentials: <Token> # oder credentials_file: /etc/prometheus/tix.token
+    static_configs:
+      - targets: ['tickets.example.org']
+```
+
+Sinnvolle Alarme: `tix_queue_jobs{state="failed"} > 0`, `tix_workers == 0`,
+`tix_worker_leader_present == 0`, `tix_postgres_connections / tix_postgres_max_connections > 0.85`,
+`tix_redis_used_memory_bytes / tix_redis_max_memory_bytes > 0.9` (wenn `maxmemory` gesetzt ist)
+und `tix_collect_error > 0`. Das Echtzeit-Gateway meldet sich alle 10 Sekunden bei Redis
+(`tix_realtime_instances`); Images aus Versionen davor tun das nicht und erscheinen als „meldet
+nicht“.
 
 ## Fehlersuche
 

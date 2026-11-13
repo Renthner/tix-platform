@@ -1,5 +1,11 @@
 import 'server-only';
-import { JobQueues, createCoreContext, objectStorageFromEnv, type CoreContext } from '@tix/core';
+import {
+  JobQueues,
+  createCoreContext,
+  objectStorageFromEnv,
+  useConservativeSharp,
+  type CoreContext,
+} from '@tix/core';
 import { createSecretBox, parseKeyRing } from '@tix/shared/server';
 import { getDb } from './db';
 import { getEnv } from './env';
@@ -11,6 +17,8 @@ const globalForCore = globalThis as typeof globalThis & { __tixCore?: CoreContex
 /** Process-wide domain context (DB pool, Redis engines, secrets). */
 export function getCore(): CoreContext {
   if (!globalForCore.__tixCore) {
+    // Upload normalisation runs in this process: keep sharp frugal (variants are made by the worker).
+    useConservativeSharp();
     const env = getEnv();
     const { connections, keys } = getRedis();
     globalForCore.__tixCore = createCoreContext({

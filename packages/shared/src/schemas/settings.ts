@@ -466,6 +466,11 @@ const backupCredentialsSchema = z.object({
   secretAccessKey: z.string().min(1).max(1_024),
 });
 
+/** Bearer token of the Prometheus endpoint `/api/metrics` (no token = endpoint disabled). */
+const metricsCredentialsSchema = z.object({
+  token: z.string().min(24).max(200),
+});
+
 /** First-steps checklist on the admin dashboard. */
 const setupChecklistSchema = z.object({
   /** Hidden by a super admin ("Hide"); the card also disappears by itself once everything is done. */
@@ -601,6 +606,11 @@ export const SETTINGS = {
     schema: setupChecklistSchema,
     secret: false,
     description: 'Dashboard first-steps checklist state',
+  }),
+  'metrics.credentials': define({
+    schema: metricsCredentialsSchema,
+    secret: true,
+    description: 'Bearer token of the Prometheus metrics endpoint',
   }),
   'backup.external.credentials': define({
     schema: backupCredentialsSchema,

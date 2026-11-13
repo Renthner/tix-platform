@@ -138,6 +138,11 @@ export function createKeyspace(prefix: string) {
     workerHeartbeats: () => `${prefix}:workers:heartbeats`,
     /** STRING JSON heartbeat details, TTL ≈ 3 × interval. */
     workerHeartbeat: (workerId: string) => `${prefix}:workers:hb:${seg(workerId, 'workerId')}`,
+    /** ZSET instanceId → last heartbeat (epoch ms) of the realtime gateway instances. */
+    realtimeHeartbeats: () => `${prefix}:realtime:heartbeats`,
+    /** STRING JSON heartbeat of one realtime instance (connected sockets …), short TTL. */
+    realtimeHeartbeat: (instanceId: string) =>
+      `${prefix}:realtime:hb:${seg(instanceId, 'instanceId')}`,
     /** Key prefix handed to BullMQ (`<prefix>:bull:<queue>:…`). */
     bullPrefix: () => `${prefix}:bull`,
   } as const;

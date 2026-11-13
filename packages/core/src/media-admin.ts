@@ -1,5 +1,12 @@
 import { coreLog } from './log';
-import { mediaAssets, adminUsers, withTransaction, type Executor, type Transaction } from '@tix/db';
+import {
+  mediaAssets,
+  mediaAssetVariants,
+  adminUsers,
+  withTransaction,
+  type Executor,
+  type Transaction,
+} from '@tix/db';
 import type { MediaAssetKind } from '@tix/shared';
 import { and, asc, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from './context';
@@ -55,6 +62,7 @@ async function referencingColumns(db: Executor): Promise<{ table: string; column
     WHERE con.contype = 'f'
       AND con.confrelid = 'media_assets'::regclass
       AND ns.nspname = current_schema()
+      AND cl.relname <> 'media_asset_variants'
   `);
   return result.rows;
 }
@@ -296,6 +304,8 @@ export interface MediaListQuery {
 export interface MediaSummary {
   count: number;
   bytes: number;
+  /** Size of the generated AVIF / WebP variants (not included in `bytes`). */
+  variantBytes: number;
   unusedCount: number;
   unusedBytes: number;
 }
@@ -362,11 +372,14 @@ export async function mediaSummary(ctx: CoreContext): Promise<MediaSummary> {
   const res = await ctx.db.execute<{
     count: number;
     bytes: string | null;
+    variant_bytes: string | null;
     unused_count: number;
     unused_bytes: string | null;
   }>(sql`
     SELECT count(*)::int AS count,
            coalesce(sum(size_bytes), 0)::text AS bytes,
+           (SELECT coalesce(sum(v.size_bytes), 0)::text FROM media_asset_variants v
+              JOIN media_assets a ON a.id = v.asset_id WHERE a.kind <> 'DOCUMENT') AS variant_bytes,
            (count(*) FILTER (WHERE id::text NOT IN (${used})))::int AS unused_count,
            coalesce(sum(size_bytes) FILTER (WHERE id::text NOT IN (${used})), 0)::text AS unused_bytes
     FROM media_assets WHERE kind <> 'DOCUMENT'
@@ -375,6 +388,7 @@ export async function mediaSummary(ctx: CoreContext): Promise<MediaSummary> {
   return {
     count: r?.count ?? 0,
     bytes: Number(r?.bytes ?? 0),
+    variantBytes: Number(r?.variant_bytes ?? 0),
     unusedCount: r?.unused_count ?? 0,
     unusedBytes: Number(r?.unused_bytes ?? 0),
   };
@@ -427,7 +441,8 @@ export async function renameMediaAsset(
 }
 
 export type MediaDeleteResult =
-  { deleted: true; asset: MediaAssetRow } | { deleted: false; usages: MediaUsage[] };
+  | { deleted: true; asset: MediaAssetRow; variantKeys: string[] }
+  | { deleted: false; usages: MediaUsage[] };
 
 /**
  * Deletes an unused asset. The row is locked `FOR UPDATE` first: a concurrent transaction that
@@ -458,12 +473,27 @@ export async function tryDeleteMediaAsset(
       const usages = (await usagesBatch(tx, [id])).get(id) ?? [];
       return { deleted: false, usages };
     }
+    const variants = await tx
+      .select({ storageKey: mediaAssetVariants.storageKey })
+      .from(mediaAssetVariants)
+      .where(eq(mediaAssetVariants.assetId, id));
+    // The variant rows go with the asset (ON DELETE CASCADE).
     await tx.delete(mediaAssets).where(eq(mediaAssets.id, id));
     await audit?.(tx, asset);
-    return { deleted: true, asset };
+    return { deleted: true, asset, variantKeys: variants.map((v) => v.storageKey) };
   });
   if (result.deleted) {
-    const { asset } = result;
+    const { asset, variantKeys } = result;
+    for (const key of variantKeys) {
+      await storage
+        .delete('assets', key)
+        .catch((err: unknown) =>
+          coreLog.error(
+            { err, key },
+            'Media variant could not be removed (left for the orphan sweep)',
+          ),
+        );
+    }
     try {
       // Object keys are unique per row, but stay defensive: never remove an object another row owns.
       const shared = await ctx.db
@@ -550,6 +580,11 @@ export async function sweepOrphanMediaObjects(
         ),
       );
     for (const r of found) known.add(r.key);
+    const variants = await ctx.db
+      .select({ key: mediaAssetVariants.storageKey })
+      .from(mediaAssetVariants)
+      .where(inArray(mediaAssetVariants.storageKey, keys.slice(i, i + 1000)));
+    for (const r of variants) known.add(r.key);
   }
   let deleted = 0;
   for (const o of objects) {

@@ -1,0 +1,156 @@
+{
+  "title": "System",
+  "description": "Live-Status der Anwendung, Datenbank, von Redis, der Job-Warteschlangen und des Echtzeit-Dienstes.",
+  "updated": "Aktualisiert {time}",
+  "refreshing": "Aktualisierung alle {seconds} Sekunden",
+  "pause": "Pausieren",
+  "resume": "Fortsetzen",
+  "refreshNow": "Jetzt aktualisieren",
+  "loadFailed": "Der Status konnte nicht geladen werden. Es werden die letzten Werte angezeigt.",
+  "collectErrors": "Nicht erfassbar: {blocks}",
+  "blocks": {
+    "postgres": "Datenbank",
+    "redis": "Redis",
+    "queues": "Job-Warteschlangen",
+    "waitingRoom": "Warteraum",
+    "seatLocks": "Platzsperren",
+    "realtime": "Echtzeit-Dienst",
+    "workers": "Worker",
+    "backlog": "Rückstände"
+  },
+  "unavailable": "Nicht verfügbar",
+  "overview": {
+    "app": "Anwendung",
+    "version": "Version {version}",
+    "uptime": "Läuft seit {duration}",
+    "memory": "Speicher {rss} (Heap {heap})",
+    "database": "Datenbankverbindungen",
+    "databaseDetail": "von {max} erlaubten, {size}",
+    "redisMemory": "Redis-Speicher",
+    "redisMemoryDetail": "{clients} Clients, {ops} Operationen pro Sekunde",
+    "redisUnlimited": "kein Limit gesetzt",
+    "sockets": "Echtzeit-Verbindungen",
+    "socketsDetail": "{instances, plural, one {# Gateway} other {# Gateways}}",
+    "shopSessions": "Besucher im Shop",
+    "shopSessionsDetail": "aktiv in den letzten 45 Sekunden",
+    "seatLocks": "Plätze in Warenkörben",
+    "seatLocksDetail": "Sitz- und Stehplätze",
+    "backlog": "Wartende Jobs",
+    "backlogDetail": "wartend, laufend oder verzögert"
+  },
+  "postgres": {
+    "title": "PostgreSQL",
+    "version": "Version",
+    "connections": "Verbindungen",
+    "size": "Datenbankgröße",
+    "longestQuery": "Am längsten laufende Abfrage",
+    "seconds": "{value} s"
+  },
+  "redis": {
+    "title": "Redis",
+    "version": "Version",
+    "memory": "Belegter Speicher",
+    "clients": "Verbundene Clients",
+    "ops": "Operationen pro Sekunde",
+    "hitRatio": "Trefferquote",
+    "uptime": "Laufzeit"
+  },
+  "queues": {
+    "title": "Job-Warteschlangen",
+    "description": "Hintergrundjobs des Workers (BullMQ).",
+    "queue": "Warteschlange",
+    "waiting": "Wartend",
+    "active": "Laufend",
+    "delayed": "Verzögert",
+    "failed": "Fehlgeschlagen",
+    "names": {
+      "maintenance": "Aufräumarbeiten",
+      "seat-locks": "Platzsperren",
+      "bank-sync": "Bank-Abruf",
+      "dunning": "Zahlungserinnerungen",
+      "documents": "Dokumente",
+      "email": "E-Mail",
+      "refunds": "Erstattungen",
+      "backups": "Backups",
+      "privacy": "Datenschutz",
+      "media": "Bildvarianten"
+    }
+  },
+  "failedJobs": {
+    "title": "Zuletzt fehlgeschlagene Jobs",
+    "none": "Keine fehlgeschlagenen Jobs.",
+    "queue": "Warteschlange",
+    "job": "Job",
+    "reason": "Grund",
+    "attempts": "Versuche",
+    "time": "Fehlgeschlagen am"
+  },
+  "waitingRoom": {
+    "title": "Warteraum",
+    "none": "Es ist kein Warteraum aktiv.",
+    "event": "Veranstaltung",
+    "waiting": "Wartend",
+    "lobby": "Lobby",
+    "active": "Im Shop"
+  },
+  "seatLocks": {
+    "title": "Platzsperren",
+    "none": "Aktuell sind keine Plätze in Warenkörben gehalten.",
+    "event": "Veranstaltung",
+    "seats": "Sitzplätze",
+    "standing": "Stehplätze"
+  },
+  "realtime": {
+    "title": "Echtzeit-Dienst",
+    "instances": "Meldende Gateways",
+    "sockets": "Verbundene Clients",
+    "notReporting": "Kein Gateway meldet seinen Status. Der Echtzeit-Dienst ist ausgefallen oder läuft noch in einer Version ohne diese Funktion."
+  },
+  "workers": {
+    "title": "Worker",
+    "none": "Es läuft kein Worker: Jobs, E-Mails und die Bereinigung von Platzsperren ruhen.",
+    "id": "Worker",
+    "version": "Version",
+    "lastBeat": "Letztes Lebenszeichen",
+    "leader": "Leader",
+    "leaderHint": "Der Leader führt die Platzsperren-Bereinigung und den Warteraum-Takt aus. Wann welche Schleife zuletzt lief, wird nicht erfasst.",
+    "noLeader": "Kein Worker hält die Leader-Lease."
+  },
+  "backlog": {
+    "title": "Offene Punkte",
+    "emailPending": "E-Mails wartend auf Versand",
+    "emailFailed": "E-Mails fehlgeschlagen",
+    "openRefunds": "Offene Erstattungen",
+    "unmatchedBank": "Bankumsätze zuzuordnen",
+    "refundsLink": "Offene Erstattungen",
+    "bankLink": "Bankumsätze"
+  },
+  "metrics": {
+    "title": "Prometheus-Metriken",
+    "enabled": "Der Metriken-Endpunkt /api/metrics ist aktiv.",
+    "disabled": "Der Metriken-Endpunkt /api/metrics ist abgeschaltet. Lege unter Einstellungen, Sicherheit ein Token an, um ihn zu aktivieren.",
+    "link": "Einstellungen: Sicherheit"
+  },
+  "units": {
+    "days": "{count} T",
+    "hours": "{count} Std",
+    "minutes": "{count} Min",
+    "seconds": "{count} Sek"
+  },
+  "security": {
+    "title": "Monitoring",
+    "description": "Optionaler Prometheus-Endpunkt mit den Zahlen der Seite System.",
+    "statusOn": "Aktiv",
+    "statusOff": "Aus",
+    "intro": "Rufe /api/metrics mit dem Header Authorization: Bearer <Token> ab. Ohne Token existiert der Endpunkt nicht.",
+    "generate": "Neues Token erzeugen",
+    "regenerate": "Token ersetzen",
+    "remove": "Token entfernen (abschalten)",
+    "removeConfirm": "Den Metriken-Endpunkt abschalten? Monitoring-Werkzeuge verlieren den Zugriff.",
+    "tokenTitle": "Dein neues Token",
+    "tokenHint": "Kopiere es jetzt. Es wird nur einmal angezeigt und kann nicht erneut gelesen werden.",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "failed": "Das Token konnte nicht gespeichert werden."
+  }
+}

@@ -22,7 +22,9 @@
     "boxOffice": "Abendkasse",
     "users": "Benutzer",
     "backups": "Sicherungen",
-    "scanners": "Einlass-Geräte"
+    "scanners": "Einlass-Geräte",
+    "statistics": "Statistiken",
+    "system": "System"
   },
   "login": {
     "title": "Admin-Anmeldung",
@@ -113,6 +115,10 @@
     "ENDED": "Verkauf beendet"
   },
   "dashboard": {
+    "analytics": {
+      "statistics": "Statistiken",
+      "system": "Systemstatus"
+    },
     "title": "Übersicht",
     "welcome": "Willkommen zurück, {name}.",
     "denied": "Du hast keine Berechtigung, diese Seite zu öffnen.",
@@ -316,6 +322,7 @@
         "MEDIA_UNSUPPORTED_TYPE": "Ein Bild in der Datei ist weder PNG, JPEG noch WebP.",
         "MEDIA_TOO_LARGE": "Ein Bild in der Datei ist zu groß (max. 10 MB).",
         "MEDIA_DIMENSIONS": "Ein Bild in der Datei hat nicht unterstützte Abmessungen.",
+        "MEDIA_UNDECODABLE": "Ein Bild in der Datei konnte nicht gelesen werden (beschädigt oder kein echtes Bild).",
         "SVG_INVALID": "Ein Symbol in der Datei ist kein gültiges SVG.",
         "SVG_EMPTY": "Ein Symbol in der Datei enthält keine zeichenbaren Formen.",
         "SVG_TOO_LARGE": "Ein Symbol in der Datei ist zu groß.",
@@ -815,6 +822,7 @@
       "MEDIA_TOO_LARGE": "Das Bild ist zu groß (max. 10 MB).",
       "MEDIA_UNSUPPORTED_TYPE": "Es werden nur PNG-, JPEG- und WebP-Bilder unterstützt.",
       "MEDIA_DIMENSIONS": "Die Bildmaße werden nicht unterstützt (max. 12.000 px pro Seite).",
+      "MEDIA_UNDECODABLE": "Das Bild konnte nicht gelesen werden. Die Datei ist möglicherweise beschädigt.",
       "FILE_REQUIRED": "Wähle eine Bilddatei aus.",
       "KIND_INVALID": "Dieser Bildtyp kann hier nicht hochgeladen werden.",
       "FORBIDDEN": "Du darfst keine Bilder hochladen."
@@ -1227,6 +1235,7 @@
     "summary": {
       "total": "Bilder",
       "totalSize": "Speicherbedarf",
+      "variantSize": "Moderne Formate (AVIF/WebP)",
       "unused": "Unbenutzte Bilder",
       "unusedSize": "Unbenutzter Speicher"
     },

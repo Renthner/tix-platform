@@ -40,20 +40,12 @@ import {
   uploadMediaAsset,
   type CoreContext,
 } from '../src';
+import { solidPng } from './image-fixtures';
 import type { ObjectStorage } from '../src';
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
 const redisUrl = process.env.TEST_REDIS_URL;
-
-function pngBytes(width: number, height: number, salt: number): Uint8Array {
-  const b = new Uint8Array(40);
-  b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
-  new DataView(b.buffer).setUint32(16, width);
-  new DataView(b.buffer).setUint32(20, height);
-  b[33] = salt;
-  return b;
-}
 
 const SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>';
@@ -130,7 +122,7 @@ describe.skipIf(!adminUrl || !redisUrl)('seat plan export / import (integration)
     });
     const background = await uploadMediaAsset(ctx, {
       kind: 'VENUE_BACKGROUND',
-      bytes: pngBytes(800, 600, 11),
+      bytes: await solidPng(800, 600, 11),
       fileName: 'hall.png',
       userId: null,
     });
@@ -398,7 +390,7 @@ describe.skipIf(!adminUrl || !redisUrl)('seat plan export / import (integration)
       ...file,
       background: {
         ...file.background!,
-        dataBase64: Buffer.from(pngBytes(800, 600, 99)).toString('base64'),
+        dataBase64: Buffer.from(await solidPng(800, 600, 99)).toString('base64'),
       },
     };
     const assetsBefore = (await handle.db.select({ n: count() }).from(mediaAssets))[0]!.n;

@@ -3,6 +3,7 @@ import {
   getSecretSetting,
   getSetting,
   hasSecretSetting,
+  isMetricsEnabled,
   isNonPublicAddress,
 } from '@tix/core';
 import { getTranslations } from 'next-intl/server';
@@ -34,6 +35,7 @@ import {
   SecuritySettingsForm,
 } from '@/components/admin/security-settings-forms';
 import { SettingsTabs } from '@/components/admin/settings-tabs';
+import { MetricsTokenCard } from '@/components/admin/system/metrics-token-card';
 import {
   AppleWalletForm,
   GoogleWalletForm,
@@ -439,19 +441,26 @@ async function TabContent({
         </>
       );
     }
-    case 'security':
+    case 'security': {
+      const tm = await getTranslations('system.security');
       return (
-        <SettingsSection
-          id="security"
-          title={ts('settings.security.title')}
-          description={ts('settings.security.description')}
-        >
-          <SecuritySettingsForm
-            action={saveSettingsAction.bind(null, 'security')}
-            initial={await getSetting(core, 'security')}
-          />
-        </SettingsSection>
+        <>
+          <SettingsSection
+            id="security"
+            title={ts('settings.security.title')}
+            description={ts('settings.security.description')}
+          >
+            <SecuritySettingsForm
+              action={saveSettingsAction.bind(null, 'security')}
+              initial={await getSetting(core, 'security')}
+            />
+          </SettingsSection>
+          <SettingsSection id="monitoring" title={tm('title')} description={tm('description')}>
+            <MetricsTokenCard enabled={await isMetricsEnabled(core)} />
+          </SettingsSection>
+        </>
       );
+    }
     case 'scanner':
       return (
         <SettingsSection

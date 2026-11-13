@@ -8,7 +8,15 @@ import {
   getBackupFailure,
   getSetupChecklist,
 } from '@tix/core';
-import { Building2, CalendarPlus, DatabaseBackup, Hourglass, Undo2 } from 'lucide-react';
+import {
+  Activity,
+  Building2,
+  CalendarPlus,
+  ChartLine,
+  DatabaseBackup,
+  Hourglass,
+  Undo2,
+} from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { PageHeader } from '@/components/admin/form-controls';
@@ -89,6 +97,26 @@ export default async function AdminDashboardPage({
     <>
       <PageHeader title={t('title')} description={t('welcome', { name: session.displayName })} />
       <div className="space-y-6 p-6">
+        {(hasRole(session, ['EVENT_MANAGER', 'FINANCE']) || hasRole(session, ['SUPER_ADMIN'])) && (
+          <div className="flex flex-wrap gap-2">
+            {hasRole(session, ['EVENT_MANAGER', 'FINANCE']) && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/admin/statistics">
+                  <ChartLine className="size-4" />
+                  {t('analytics.statistics')}
+                </Link>
+              </Button>
+            )}
+            {hasRole(session, ['SUPER_ADMIN']) && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/admin/system">
+                  <Activity className="size-4" />
+                  {t('analytics.system')}
+                </Link>
+              </Button>
+            )}
+          </div>
+        )}
         {denied && (
           <Alert variant="destructive">
             <AlertDescription>{t('denied')}</AlertDescription>

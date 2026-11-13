@@ -3,6 +3,7 @@ import { mediaAssets } from '@tix/db';
 import { resolveStartPageHtml, resolveStartPageTexts, type StartPageSettings } from '@tix/shared';
 import { inArray } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
+import { MediaImage } from '@/components/media-image';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import { RICH_TEXT_CLASS } from '@/lib/rich-text-styles';
@@ -135,12 +136,13 @@ export async function StartPage({
     <div className="space-y-8">
       {overlay && settings.heroAssetId && hero ? (
         <section className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-muted sm:aspect-[16/9] lg:aspect-[21/9]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`/api/media/${settings.heroAssetId}`}
+          <MediaImage
+            assetId={settings.heroAssetId}
             alt={r.heroAlt}
-            width={hero.width ?? 1600}
-            height={hero.height ?? 900}
+            width={hero.width}
+            height={hero.height}
+            sizes="(min-width: 1280px) 1280px, 100vw"
+            loading="eager"
             fetchPriority="high"
             className="absolute inset-0 size-full object-cover"
           />
@@ -154,12 +156,13 @@ export async function StartPage({
               className="w-full overflow-hidden rounded-xl bg-muted"
               style={{ aspectRatio: aspect(hero, 1, 21 / 9) }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/api/media/${settings.heroAssetId}`}
+              <MediaImage
+                assetId={settings.heroAssetId}
                 alt={r.heroAlt}
-                width={hero.width ?? 1600}
-                height={hero.height ?? 900}
+                width={hero.width}
+                height={hero.height}
+                sizes="(min-width: 1280px) 1280px, 100vw"
+                loading="eager"
                 fetchPriority="high"
                 className="size-full object-cover"
               />
@@ -174,13 +177,12 @@ export async function StartPage({
             const size = sizes.get(id) ?? { width: null, height: null };
             return (
               <div key={id} className="aspect-[4/3] overflow-hidden rounded-lg bg-muted">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/media/${id}`}
+                <MediaImage
+                  assetId={id}
                   alt={r.galleryAlt[i] ?? ''}
-                  width={size.width ?? 1200}
-                  height={size.height ?? 900}
-                  loading="lazy"
+                  width={size.width}
+                  height={size.height}
+                  sizes="(min-width: 1024px) 25vw, 50vw"
                   className="size-full object-cover"
                 />
               </div>

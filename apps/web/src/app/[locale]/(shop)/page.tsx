@@ -1,4 +1,4 @@
-import { computeSaleState, contentLocale, getSetting } from '@tix/core';
+import { computeSaleState, getMediaAsset, getSetting } from '@tix/core';
 import { localized, SHOP_EVENTS_PER_ROW_MAX } from '@tix/shared';
 import { events, mediaAssets, priceCategories, venues } from '@tix/db';
 import { and, eq, inArray, min } from 'drizzle-orm';
@@ -11,6 +11,8 @@ import { Link } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
 import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
+import { loadContentLocale, pageSeo, publicBaseUrl } from '@/server/seo';
+import { MediaImage } from '@/components/media-image';
 import { StartPage, hasStartPageContent } from '@/components/shop/start-page';
 import { shopOrderBy, shopVisibleCondition } from '@/server/shop-events';
 
@@ -24,15 +26,36 @@ function coverAspect(width: number | null, height: number | null): number {
   return Math.max(width / height, MIN_COVER_ASPECT);
 }
 
-export async function generateMetadata() {
-  const t = await getTranslations('shop.home');
-  return { title: t('title') };
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
+  const content = await loadContentLocale((await params).locale);
+  const [t, tc, general, branding] = await Promise.all([
+    getTranslations('shop.home'),
+    getTranslations('common'),
+    getSetting(getCore(), 'general'),
+    getSetting(getCore(), 'branding'),
+  ]);
+  const logo = branding.logoAssetId ? await getMediaAsset(getCore(), branding.logoAssetId) : null;
+  const description = tc('meta.description');
+  return {
+    title: t('title'),
+    ...pageSeo({
+      path: '/',
+      locale: content.locale,
+      defaultLocale: content.defaultLocale,
+      title: `${t('title')} · ${general.shopName}`,
+      description,
+      siteName: general.shopName,
+      image: logo
+        ? { url: `${publicBaseUrl()}/api/media/${logo.id}`, width: logo.width, height: logo.height }
+        : undefined,
+    }),
+  };
 }
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const locale = await resolveLocale(params);
   const { db } = getCore();
-  const content = await contentLocale(getCore(), locale);
+  const content = await loadContentLocale(locale);
   const L = (e: Parameters<typeof localized>[0], field: string, base: string | null) =>
     localized(e, field, content.locale, content.defaultLocale, base);
   const [t, format] = await Promise.all([getTranslations('shop'), getFormatter()]);
@@ -93,6 +116,15 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     '--cols-xl': perRow,
   } as React.CSSProperties;
 
+  // Rendered width of a card image per breakpoint (mirrors the grid columns above).
+  const cardImageSizes = [
+    `(min-width: 1280px) ${Math.round(100 / perRow)}vw`,
+    `(min-width: 1024px) ${Math.round(100 / Math.min(perRow, 4))}vw`,
+    `(min-width: 768px) ${Math.round(100 / Math.min(perRow, 3))}vw`,
+    `(min-width: 640px) ${Math.round(100 / Math.min(perRow, 2))}vw`,
+    '100vw',
+  ].join(', ');
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t('home.title')}</h1>
@@ -133,13 +165,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                       } as React.CSSProperties
                     }
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/api/media/${cover.id}`}
+                    <MediaImage
+                      assetId={cover.id}
                       alt=""
-                      width={cover.width ?? 1600}
-                      height={cover.height ?? 900}
-                      loading="lazy"
+                      width={cover.width}
+                      height={cover.height}
+                      sizes={cardImageSizes}
                       className="size-full object-cover"
                     />
                   </Link>

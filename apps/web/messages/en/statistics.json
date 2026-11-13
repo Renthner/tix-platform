@@ -1,0 +1,184 @@
+{
+  "title": "Statistics",
+  "description": "Sales, customers and buying behaviour, based on paid orders.",
+  "chart": {
+    "showTable": "Show data table",
+    "hideTable": "Hide data table",
+    "info": "About this chart",
+    "empty": "No data for this selection."
+  },
+  "filters": {
+    "title": "Filters",
+    "range": "Period",
+    "presets": {
+      "today": "Today",
+      "7d": "7 days",
+      "30d": "30 days",
+      "year": "This year",
+      "custom": "Custom"
+    },
+    "from": "From",
+    "to": "To",
+    "events": "Events",
+    "eventsAll": "All events",
+    "eventsSelected": "{count} selected",
+    "eventsLimit": "At most {max} events can be selected.",
+    "channels": "Sales channel",
+    "channelsAll": "All channels",
+    "methods": "Payment method",
+    "methodsAll": "All methods",
+    "apply": "Apply",
+    "reset": "Reset",
+    "exportCsv": "Export CSV"
+  },
+  "channel": {
+    "ONLINE": "Online shop",
+    "BOX_OFFICE": "Box office",
+    "ADMIN": "Admin order"
+  },
+  "method": {
+    "PAYPAL": "PayPal",
+    "BANK_TRANSFER": "Bank transfer",
+    "CASH": "Cash",
+    "CARD": "Card",
+    "COMPLIMENTARY": "Complimentary"
+  },
+  "summary": {
+    "period": "{from} – {to} ({days, plural, one {# day} other {# days}}), time zone {zone}",
+    "previous": "Compared with {from} – {to}",
+    "interval": {
+      "hour": "per hour",
+      "day": "per day",
+      "week": "per week",
+      "month": "per month"
+    },
+    "otherCurrency": "{count, plural, one {# order} other {# orders}} in another currency than {currency} not included.",
+    "definitionsTitle": "How the figures are calculated",
+    "definitions": {
+      "sale": "A sale is an order with a payment date. It counts on the day it was paid (in the shop time zone), not when it was created.",
+      "tickets": "Tickets are the order items that were sold, including tickets that were refunded later. Tickets replaced by a seat change are counted once.",
+      "revenue": "Revenue is the gross price of the tickets plus service fees. With an event filter, only tickets and fees of the chosen events are counted; per-order fees cannot be assigned to an event and are left out. A tariff upgrade stays on the date of the original payment.",
+      "refunds": "Refunds are successful refunds on the day they were processed (not pure overpayment refunds). Net revenue is revenue minus refunds.",
+      "currency": "Only orders in the shop currency are added up."
+    }
+  },
+  "kpi": {
+    "revenue": "Revenue (gross)",
+    "net": "Net of refunds",
+    "refunds": "Refunds",
+    "tickets": "Tickets sold",
+    "orders": "Orders",
+    "aov": "Average order value",
+    "ticketsPerOrder": "Tickets per order",
+    "previous": "Before: {value}",
+    "noChange": "no change",
+    "newBaseline": "new"
+  },
+  "sections": {
+    "timeline": "Timeline",
+    "preferences": "Customer preferences"
+  },
+  "charts": {
+    "revenue": {
+      "title": "Revenue over time",
+      "description": "Gross revenue by payment date",
+      "aria": "Line chart of gross revenue {interval}, total {total}.",
+      "series": "Revenue"
+    },
+    "tickets": {
+      "title": "Tickets and orders over time",
+      "description": "Tickets sold and orders placed",
+      "aria": "Line chart of tickets sold and orders {interval}, {tickets} tickets in total.",
+      "tickets": "Tickets",
+      "orders": "Orders"
+    },
+    "curve": {
+      "title": "Sales curve (presale progress)",
+      "description": "Cumulative tickets sold by days before the event, over the whole presale",
+      "aria": "Line chart of cumulative tickets sold by days before the event for {count, plural, one {# event} other {# events}}.",
+      "daysBefore": "{days, plural, one {# day before} other {# days before}}",
+      "eventDay": "Event day",
+      "empty": "No sales in this period."
+    },
+    "category": {
+      "title": "Sales by price category",
+      "description": "Tickets, with revenue",
+      "aria": "Tickets sold per price category."
+    },
+    "tariff": {
+      "title": "Sales by tariff",
+      "description": "Tickets, with revenue",
+      "aria": "Tickets sold per tariff."
+    },
+    "method": {
+      "title": "Payment methods",
+      "description": "Revenue and orders by payment method",
+      "aria": "Revenue per payment method."
+    },
+    "channel": {
+      "title": "Sales channels",
+      "description": "Revenue and orders by channel",
+      "aria": "Revenue per sales channel."
+    },
+    "heatmap": {
+      "title": "When do customers buy?",
+      "description": "Orders by weekday and hour (shop time zone)",
+      "aria": "Heat map of orders by weekday and hour of the day.",
+      "cell": "{day}, {hour}: {count, plural, one {# order} other {# orders}}"
+    },
+    "refunds": {
+      "title": "Refunds and cancellations",
+      "description": "Refunded amount and cancelled tickets over time",
+      "aria": "Line chart of refunded amounts and cancelled tickets {interval}.",
+      "amount": "Refunded",
+      "tickets": "Cancelled tickets"
+    },
+    "newReturning": {
+      "title": "New and returning customers",
+      "description": "Orders by customers buying for the first time and by returning customers",
+      "aria": "Line chart of orders from new and returning customers {interval}.",
+      "new": "New customers",
+      "returning": "Returning customers"
+    },
+    "sections": {
+      "title": "Popular blocks",
+      "description": "Most booked sections of the plans (top 10)",
+      "aria": "Tickets sold per block."
+    },
+    "leadTime": {
+      "title": "Booking lead time",
+      "description": "Tickets by days between purchase and event",
+      "aria": "Column chart of tickets by days between purchase and event.",
+      "bucket": "{bucket} days",
+      "average": "On average {days} days before the event."
+    }
+  },
+  "customers": {
+    "title": "Customers",
+    "total": "Customers who bought",
+    "returning": "Returning (bought before)",
+    "returningShare": "{share} of buyers",
+    "multiEvent": "Bought for 2 or more events",
+    "perOrder": "Tickets per order",
+    "none": "No registered customers in this selection (box-office sales without buyer data are not included)."
+  },
+  "days": {
+    "1": "Mon",
+    "2": "Tue",
+    "3": "Wed",
+    "4": "Thu",
+    "5": "Fri",
+    "6": "Sat",
+    "7": "Sun"
+  },
+  "csv": {
+    "bucket": "Period start",
+    "revenue": "Revenue",
+    "tickets": "Tickets",
+    "orders": "Orders",
+    "refunds": "Refunds",
+    "refundedTickets": "Cancelled tickets",
+    "newOrders": "Orders new customers",
+    "returningOrders": "Orders returning customers"
+  }
+}

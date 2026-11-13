@@ -1,12 +1,14 @@
 import {
-  contentLocale,
+  computeSaleState,
   effectiveCheckoutConfig,
   effectiveQueueConfig,
   getEventWithVenueBySlug,
   getMediaAsset,
+  getPublicSeatMap,
   getSetting,
   localizeEventRow,
   localizeVenueRow,
+  saleOpensAt,
   symbolsByIds,
   type VenueRow,
 } from '@tix/core';
@@ -14,6 +16,7 @@ import {
   INFO_BOX_ICON_PX,
   localized,
   normalizePageLayout,
+  publicPriceRanges,
   type InfoBoxSize,
   type PageBlockRef,
 } from '@tix/shared';
@@ -21,14 +24,18 @@ import { queueAnnouncements } from '@tix/db';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { CalendarDays, DoorOpen, ExternalLink, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { cache, type CSSProperties, type ReactNode } from 'react';
+import { MediaImage } from '@/components/media-image';
 import { EventShop } from '@/components/shop/event-shop';
 import { Badge } from '@/components/ui/badge';
 import { resolveLocale } from '@/i18n/locale';
 import { cn } from '@/lib/utils';
 import { getCore } from '@/server/core';
-import { descriptionToHtml, richTextToPlain } from '@/server/rich-text';
+import { buildEventJsonLd, jsonLdString } from '@/server/event-jsonld';
+import { descriptionToHtml } from '@/server/rich-text';
+import { loadContentLocale, localeUrl, pageSeo, plainSnippet, publicBaseUrl } from '@/server/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,21 +61,36 @@ const loadEvent = cache(async (slug: string) => {
   return found;
 });
 
+const loadCover = cache((id: string) => getMediaAsset(getCore(), id));
+
 export async function generateMetadata({ params }: Params) {
-  const raw = await loadEvent((await params).slug);
+  const { slug, locale } = await params;
+  const raw = await loadEvent(slug);
   if (!raw) return {};
-  const content = await contentLocale(getCore(), (await params).locale);
-  const found = {
-    event: localizeEventRow(raw.event, content.locale, content.defaultLocale),
-    venue: raw.venue,
-  };
-  const description =
-    found.event.subtitle ?? richTextToPlain(found.event.description).slice(0, 160);
+  const [content, general] = await Promise.all([
+    loadContentLocale(locale),
+    getSetting(getCore(), 'general'),
+  ]);
+  const event = localizeEventRow(raw.event, content.locale, content.defaultLocale);
+  const description = event.subtitle || plainSnippet(event.description) || undefined;
+  const cover = event.heroImageAssetId ? await loadCover(event.heroImageAssetId) : null;
   return {
-    title: found.event.title,
-    description: description || undefined,
-    ...(found.event.heroImageAssetId && {
-      openGraph: { images: [`/api/media/${found.event.heroImageAssetId}`] },
+    title: event.title,
+    description,
+    ...pageSeo({
+      path: `/events/${event.slug}`,
+      locale: content.locale,
+      defaultLocale: content.defaultLocale,
+      title: event.title,
+      description,
+      siteName: general.shopName,
+      image: cover
+        ? {
+            url: `${publicBaseUrl()}/api/media/${cover.id}`,
+            width: cover.width,
+            height: cover.height,
+          }
+        : undefined,
     }),
   };
 }
@@ -78,10 +100,21 @@ export default async function EventPage({ params }: Params) {
   const found = await loadEvent((await params).slug);
   if (!found) notFound();
   const core = getCore();
-  const content = await contentLocale(core, locale);
+  const content = await loadContentLocale(locale);
   const event = localizeEventRow(found.event, content.locale, content.defaultLocale);
   const venue = localizeVenueRow(found.venue, content.locale, content.defaultLocale);
-  const [checkout, queue, format, t, announcements, seatDisplay, cover] = await Promise.all([
+  const [
+    checkout,
+    queue,
+    format,
+    t,
+    announcements,
+    seatDisplay,
+    cover,
+    priceRange,
+    organizer,
+    nonce,
+  ] = await Promise.all([
     effectiveCheckoutConfig(core, event),
     effectiveQueueConfig(core, event.id),
     getFormatter(),
@@ -98,8 +131,36 @@ export default async function EventPage({ params }: Params) {
       .orderBy(desc(queueAnnouncements.publishedAt))
       .limit(5),
     getSetting(core, 'seatDisplay'),
-    event.heroImageAssetId ? getMediaAsset(core, event.heroImageAssetId) : null,
+    event.heroImageAssetId ? loadCover(event.heroImageAssetId) : null,
+    event.seatMapId
+      ? getPublicSeatMap(core, found.event)
+          .then((map) => publicPriceRanges(map).overall)
+          // Structured data is auxiliary: never fail the page because of it.
+          .catch(() => null)
+      : null,
+    getSetting(core, 'organizer'),
+    headers().then((h) => h.get('x-nonce') ?? undefined),
   ]);
+  const base = publicBaseUrl();
+  const jsonLd = jsonLdString(
+    buildEventJsonLd({
+      url: localeUrl(content.locale, `/events/${event.slug}`, content.defaultLocale),
+      name: event.title,
+      description: event.subtitle || plainSnippet(event.description, 500) || undefined,
+      status: event.status,
+      saleState: computeSaleState(found.event),
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      doorsOpenAt: event.doorsOpenAt,
+      timeZone: event.timeZone,
+      currency: event.currency,
+      priceRange,
+      saleOpensAt: saleOpensAt(found.event),
+      images: cover ? [`${base}/api/media/${cover.id}`] : [],
+      venue,
+      organizer: { name: organizer.legalName, url: organizer.website },
+    }),
+  );
   const infoBoxes = event.infoBoxes.filter((b) => b.title || b.content);
   const boxSymbols = new Map(
     (
@@ -118,6 +179,11 @@ export default async function EventPage({ params }: Params) {
 
   return (
     <div className="space-y-6">
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{ __html: jsonLd }}
+      />
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{event.title}</h1>
@@ -192,13 +258,16 @@ export default async function EventPage({ params }: Params) {
       if (!cover) return null;
       // Any format: natural aspect ratio (no layout shift), shown in full, height capped;
       // scales down inside a narrow column.
+      // The event cover is the largest image above the fold (LCP): load it eagerly with high priority.
       return (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`/api/media/${cover.id}`}
+        <MediaImage
+          assetId={cover.id}
           alt={cover.altText ?? ''}
-          width={cover.width ?? 1600}
-          height={cover.height ?? 900}
+          width={cover.width}
+          height={cover.height}
+          sizes="(min-width: 1280px) 1280px, 100vw"
+          loading="eager"
+          fetchPriority="high"
           className="mx-auto h-auto max-h-[32rem] w-full rounded-xl border bg-muted/30 object-contain"
         />
       );

@@ -180,3 +180,39 @@ export interface SeatDeltaMessage {
   /** New seat map version (clients reload the plan). */
   version?: number;
 }
+
+export interface PriceRange {
+  min: number;
+  max: number;
+}
+
+/**
+ * Customer price range (gross, minor units) per active category over the general tariffs
+ * offered there (reduced … full; wheelchair / companion tariffs are bound to special seats and
+ * left out), plus the overall range of the event. A category without any matrix price falls back
+ * to its base price. Shared by the category dropdown and the schema.org offer of the event page.
+ */
+export function publicPriceRanges(map: Pick<PublicSeatMap, 'categories' | 'ticketTypes'>): {
+  byCategory: Map<string, PriceRange>;
+  overall: PriceRange | null;
+} {
+  const general = map.ticketTypes.filter((t) => t.requiredSeatFeature === null);
+  const offered = general.length ? general : map.ticketTypes;
+  const byCategory = new Map<string, PriceRange>();
+  for (const c of map.categories) {
+    const prices = offered.map((t) => t.prices[c.id]).filter((p): p is number => p !== undefined);
+    byCategory.set(
+      c.id,
+      prices.length
+        ? { min: Math.min(...prices), max: Math.max(...prices) }
+        : { min: c.basePrice, max: c.basePrice },
+    );
+  }
+  const all = [...byCategory.values()];
+  return {
+    byCategory,
+    overall: all.length
+      ? { min: Math.min(...all.map((r) => r.min)), max: Math.max(...all.map((r) => r.max)) }
+      : null,
+  };
+}

@@ -101,9 +101,10 @@ export default async function MediaPage({
         }
       />
       <div className="space-y-6 p-6">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <Stat label={t('summary.total')} value={String(summary.count)} />
           <Stat label={t('summary.totalSize')} value={formatBytes(summary.bytes)} />
+          <Stat label={t('summary.variantSize')} value={formatBytes(summary.variantBytes)} />
           <Stat label={t('summary.unused')} value={String(summary.unusedCount)} />
           <Stat label={t('summary.unusedSize')} value={formatBytes(summary.unusedBytes)} />
         </div>

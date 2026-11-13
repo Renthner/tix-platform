@@ -3,6 +3,7 @@
 import {
   MAX_SEATS_PER_REQUEST,
   SEAT_FLAG,
+  publicPriceRanges,
   type BestAvailableArrangement,
   type EventAvailability,
   type PublicSeat,
@@ -221,22 +222,7 @@ export function SeatSelection({
       rows: new Map(map.rows.map((r) => [r.id, r])),
       categories: new Map(map.categories.map((c) => [c.id, c])),
       seats: new Map(map.seats.map((s) => [s.i, s])),
-      // Price range per category over the general tariffs offered there (reduced … full);
-      // wheelchair / companion tariffs are bound to special seats and not included.
-      priceRange: new Map(
-        map.categories.map((c) => {
-          const general = map.ticketTypes.filter((t) => t.requiredSeatFeature === null);
-          const prices = (general.length ? general : map.ticketTypes)
-            .map((t) => t.prices[c.id])
-            .filter((p): p is number => p !== undefined);
-          return [
-            c.id,
-            prices.length
-              ? { min: Math.min(...prices), max: Math.max(...prices) }
-              : { min: c.basePrice, max: c.basePrice },
-          ];
-        }),
-      ),
+      priceRange: publicPriceRanges(map).byCategory,
     };
   }, [map]);
 

@@ -22,7 +22,9 @@
     "boxOffice": "Box office",
     "users": "Users",
     "backups": "Backups",
-    "scanners": "Check-in devices"
+    "scanners": "Check-in devices",
+    "statistics": "Statistics",
+    "system": "System"
   },
   "login": {
     "title": "Admin sign-in",
@@ -113,6 +115,10 @@
     "ENDED": "Sale ended"
   },
   "dashboard": {
+    "analytics": {
+      "statistics": "Statistics",
+      "system": "System status"
+    },
     "title": "Dashboard",
     "welcome": "Welcome back, {name}.",
     "denied": "You do not have permission to open that page.",
@@ -316,6 +322,7 @@
         "MEDIA_UNSUPPORTED_TYPE": "An image in the file is not a PNG, JPEG or WebP image.",
         "MEDIA_TOO_LARGE": "An image in the file is too large (max 10 MB).",
         "MEDIA_DIMENSIONS": "An image in the file has unsupported dimensions.",
+        "MEDIA_UNDECODABLE": "An image in the file could not be read (damaged or not a real image).",
         "SVG_INVALID": "A symbol in the file is not a valid SVG.",
         "SVG_EMPTY": "A symbol in the file contains no drawable shapes.",
         "SVG_TOO_LARGE": "A symbol in the file is too large.",
@@ -815,6 +822,7 @@
       "MEDIA_TOO_LARGE": "The image is too large (max. 10 MB).",
       "MEDIA_UNSUPPORTED_TYPE": "Only PNG, JPEG and WebP images are supported.",
       "MEDIA_DIMENSIONS": "The image dimensions are not supported (max. 12,000 px per side).",
+      "MEDIA_UNDECODABLE": "The image could not be read. The file may be damaged.",
       "FILE_REQUIRED": "Choose an image file.",
       "KIND_INVALID": "This image type cannot be uploaded here.",
       "FORBIDDEN": "You are not allowed to upload images."
@@ -1227,6 +1235,7 @@
     "summary": {
       "total": "Images",
       "totalSize": "Storage used",
+      "variantSize": "Modern formats (AVIF/WebP)",
       "unused": "Unused images",
       "unusedSize": "Unused storage"
     },

@@ -8,6 +8,73 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+### Added
+
+- Responsive images: uploaded public images (event covers, venue backgrounds, logos, e-mail images)
+  are converted to AVIF and WebP variants in several widths (320–2560 px, never upscaled). The shop
+  (event cards, event cover, start page, logo) and the admin media library / event list use them
+  through `<picture>`; `/api/media/<id>?w=<width>&f=avif|webp` serves them with strict parameter
+  validation and immutable caching once an asset's variants are complete (briefly cached
+  stand-ins while the worker is still converting). The variants are generated in the background by
+  the worker right after the upload (the upload request itself only normalises the original and
+  queues a job); an asset whose conversion keeps failing is given up on after three attempts and
+  keeps being served as the original. The stored original stays PNG / JPEG (WebP uploads are converted
+  to JPEG / PNG), so ticket PDFs, wallet passes and e-mails keep working. Existing images are converted in the background by the
+  worker (new queue `media`). The media library shows the storage used by the variants.
+- Existing images are cleaned once in the background: the stored originals of all earlier uploads
+  (also ticket backgrounds, wallet images, logos and e-mail images) are auto-oriented, stripped of
+  metadata (EXIF, GPS position, XMP, IPTC) and WebP files are converted to JPEG / PNG, exactly like
+  new uploads. Changed files are written to a new object (the old one is removed afterwards), the
+  image variants are regenerated when the orientation changed, files that are already clean stay
+  byte for byte. The original under `/api/media/<id>` now revalidates (hourly, ETag) instead of
+  being cached for a year. Existing documents (tickets, invoices) are not touched.
+- SEO: `robots.txt` (shop open; admin, API, cart, checkout, account and orders disallowed, also
+  under the language prefixes; event images stay crawlable), a dynamic `sitemap.xml` (home, cookies
+  page and every shop-visible event per language, with hreflang alternates and last-modified) and
+  a web manifest with the shop name, theme colour and the configured favicon/logo. All URLs use
+  the configured public URL (`PUBLIC_URL`); the unprefixed language follows the live default
+  language setting.
+- Shop home and event pages: canonical URL, hreflang links (including `x-default`), Open Graph and
+  Twitter card metadata (translated title and description, event cover with size), `metadataBase`
+  and the browser theme colour from the branding settings. Event pages carry schema.org `Event`
+  structured data (dates with time zone offset, doors, status, venue with address and
+  coordinates, organiser, the real customer price range over categories and tariffs, and
+  availability, an ended sale is marked as discontinued rather than sold out) for search engine rich results.
+- Install guide (English and German): new section "Behind Cloudflare" with the trusted proxy
+  setup for Traefik, nginx and Nginx Proxy Manager and the matching `TRUSTED_PROXIES` line.
+- Admin **Statistics** (`/admin/statistics`, event managers and finance): sales KPIs with
+  comparison to the previous period (revenue gross / net of refunds, tickets, orders, average
+  order value, tickets per order), revenue, tickets and orders over time, presale sales curve per
+  event (cumulative tickets by days before the event), sales by price category, tariff, payment
+  method, channel and block, a weekday x hour heat map, booking lead time, refunds and
+  cancellations over time, new versus returning customers and customers who bought for several
+  events. Filters live in the URL (today, 7 / 30 days, this year, custom range, events, sales
+  channel, payment method), the bucket size follows the range (hour, day, week, month) and uses
+  the shop time zone. Every chart has a data table, an accessible summary and works on a phone;
+  the time series can be exported as CSV. All figures are aggregated in SQL and cached for 45
+  seconds per filter; the definitions are explained in an info popover. Charts are dependency-free
+  SVG and follow the light / dark theme (`--chart-1..8`).
+- Admin **System** page (`/admin/system`, super admins): live status refreshed every 8 seconds with
+  ten minute sparklines: application version, uptime and memory, PostgreSQL connections, size and
+  longest query, Redis memory, clients, operations per second and hit ratio, BullMQ queues with
+  the last failed jobs, waiting room and seat locks per event, connected realtime clients, workers
+  and the loop leader, and backlogs (queued / failed e-mails, open refunds, unmatched bank
+  transactions). The realtime gateway now reports a heartbeat to Redis (sockets per instance), so
+  no network path from the web app to the gateway is needed; older gateway images show "not
+  reporting".
+- Optional Prometheus endpoint `/api/metrics` (text format, bearer token from Settings, Security,
+  Monitoring; no token means 404, wrong tokens are rate limited) with the numbers of the System
+  page. Monitoring section with a scrape configuration in the install guide (English and German).
+
+### Changed
+
+- Image uploads are decoded and validated (new error "image could not be read" for damaged files),
+  auto-oriented by their EXIF orientation and stripped of metadata such as the GPS position when
+  they contain any. Database migration 0033: table `media_asset_variants` and
+  `media_assets.variants_processed_at` / `variants_attempts` / `master_sha256` (hash of the stored
+  original, used to recognise re-imported seat plan images). The web image now ships `sharp` (new dependency of
+  `apps/web`).
+
 ## [1.0.0-alpha.15] - 2026-11-13
 
 ### Added

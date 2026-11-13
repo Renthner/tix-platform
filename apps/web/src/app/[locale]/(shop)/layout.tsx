@@ -20,6 +20,7 @@ import { getCustomerSession } from '@/server/customer-session';
 import { readMaintenance } from '@/server/maintenance-gate';
 import { descriptionToHtml } from '@/server/rich-text';
 import { FOOTER_RICH_TEXT_CLASS } from '@/lib/rich-text-styles';
+import { MediaThumb } from '@/components/media-image';
 import { cn } from '@/lib/utils';
 import { PresenceBeacon } from '@/components/shop/presence-beacon';
 
@@ -93,9 +94,10 @@ export default async function ShopLayout({
                 style={{ color: branding.primaryColor }}
               >
                 {branding.logoAssetId ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={`/api/media/${branding.logoAssetId}`}
+                  <MediaThumb
+                    assetId={branding.logoAssetId}
+                    variantWidth={640}
+                    loading="eager"
                     alt={general.shopName}
                     className="h-9 w-auto max-w-28 object-contain sm:max-w-56"
                   />

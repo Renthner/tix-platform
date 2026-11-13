@@ -13,6 +13,7 @@ import { routing } from '@/i18n/routing';
 import { pickMessages } from '@/i18n/messages';
 import { getCore } from '@/server/core';
 import { getDefaultLocale } from '@/server/default-locale';
+import { publicBaseUrl } from '@/server/seo';
 import '../globals.css';
 
 // Every page depends on admin-managed data (shop name, branding, events) → always render
@@ -27,6 +28,8 @@ export async function generateMetadata(): Promise<Metadata> {
   ]);
   const t = await getTranslations('common');
   return {
+    // Resolves relative URLs (icons, images) in metadata against the public origin.
+    metadataBase: new URL(publicBaseUrl()),
     title: { default: general.shopName, template: `%s · ${general.shopName}` },
     description: t('meta.description'),
     // Shop and admin portal; the asset id in the URL busts caches when the favicon changes.
@@ -36,7 +39,10 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1 };
+export async function generateViewport(): Promise<Viewport> {
+  const branding = await getSetting(getCore(), 'branding');
+  return { width: 'device-width', initialScale: 1, themeColor: branding.primaryColor };
+}
 
 export default async function LocaleLayout({
   children,

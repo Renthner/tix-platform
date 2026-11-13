@@ -232,6 +232,13 @@
       "when": 1794588261499,
       "tag": "0032_orders_cart_session_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794599201748,
+      "tag": "0033_media_variants",
+      "breakpoints": true
     }
   ]
 }

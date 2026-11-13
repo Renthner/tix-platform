@@ -8,6 +8,7 @@ import { bankSyncRegistration } from './bank-sync';
 import { documentsRegistration } from './documents';
 import { DUNNING_INTERVAL_MS, DUNNING_JOBS, createDunningProcessor } from './dunning';
 import { emailRegistration } from './email';
+import { mediaRegistration } from './media';
 import { privacyRegistration } from './privacy';
 import { refundsRegistration } from './refunds';
 import { MAINTENANCE_JOBS, PURGE_INTERVAL_MS, createMaintenanceProcessor } from './maintenance';
@@ -53,6 +54,7 @@ export function processorRegistrations(deps: WorkerDeps): ProcessorRegistration[
     bankSyncRegistration(deps),
     refundsRegistration(deps),
     privacyRegistration(deps),
+    mediaRegistration(deps),
     backupsRegistration(deps.backups),
   ]);
 }

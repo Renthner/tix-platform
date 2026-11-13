@@ -287,6 +287,9 @@ importers:
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
+      sharp:
+        specifier: ^0.35.5
+        version: 0.35.5(@types/node@24.19.2)
       socket.io-client:
         specifier: ^4.8.4
         version: 4.8.4

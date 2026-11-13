@@ -381,6 +381,88 @@ Any proxy works if it does these things:
 If the proxy runs in Docker on the same server, you can also use a shared Docker network like in
 variant B and forward to `proxy:80`.
 
+### Behind Cloudflare
+
+Cloudflare (orange cloud) can sit in front of any of the variants above. The request then travels
+through several hops:
+
+```text
+Visitor -> Cloudflare -> (router port forward) -> Traefik / nginx / other proxy -> bundled Caddy -> TIX
+```
+
+Every hop must trust the one before it, otherwise the app sees a proxy address instead of the
+visitor (all per-IP limits then hit everybody at once, and the audit log shows one IP). Cloudflare
+sends the visitor's address in `X-Forwarded-For`; it is only believed when the connection comes
+from a trusted address. Two steps:
+
+**1. The outer proxy must trust Cloudflare's address ranges.** Otherwise it replaces the
+`X-Forwarded-For` header sent by Cloudflare with Cloudflare's own address.
+
+- **Traefik**, static configuration (`traefik.yml`), on the entrypoint that receives the traffic:
+
+  ```yaml
+  entryPoints:
+    websecure:
+      address: ':443'
+      forwardedHeaders:
+        trustedIPs:
+          - 173.245.48.0/20
+          - 103.21.244.0/22
+          - 103.22.200.0/22
+          - 103.31.4.0/22
+          - 141.101.64.0/18
+          - 108.162.192.0/18
+          - 190.93.240.0/20
+          - 188.114.96.0/20
+          - 197.234.240.0/22
+          - 198.41.128.0/17
+          - 162.158.0.0/15
+          - 104.16.0.0/13
+          - 104.24.0.0/14
+          - 172.64.0.0/13
+          - 131.0.72.0/22
+          - 2400:cb00::/32
+          - 2606:4700::/32
+          - 2803:f800::/32
+          - 2405:b500::/32
+          - 2405:8100::/32
+          - 2a06:98c0::/29
+          - 2c0f:f248::/32
+  ```
+
+  The same as a command-line flag (ranges comma-separated):
+  `--entryPoints.websecure.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,...`
+  Restart Traefik afterwards.
+
+- **nginx**: add one `set_real_ip_from <range>;` line per range (in the `http` or `server` block)
+  plus `real_ip_header X-Forwarded-For;` and `real_ip_recursive on;`. nginx then replaces
+  `$remote_addr` with the visitor's address; keep
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` towards TIX.
+- **Nginx Proxy Manager**: put the same lines (`set_real_ip_from ...;`,
+  `real_ip_header X-Forwarded-For;`, `real_ip_recursive on;`) into the proxy host's **Advanced**
+  tab (custom Nginx configuration); NPM has no checkbox for this.
+
+**2. TIX must trust the outer proxy and Cloudflare.** In `.env` put `private_ranges` (the outer
+proxy on your LAN or Docker network) **and** the Cloudflare ranges, space-separated on **one** line:
+
+```bash
+TRUSTED_PROXIES=private_ranges 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+```
+
+Then `docker compose up -d`. Cloudflare's ranges change rarely; the current list is at
+<https://www.cloudflare.com/ips/> (check it now and then and update both places).
+
+**Check it:** open Settings → Checkout in the admin. "Detected IP of your current request" must
+show your own public address, not a Cloudflare or private address.
+
+Tips:
+
+- In the Cloudflare dashboard set **SSL/TLS → Overview** to **Full (strict)** (the origin must
+  present a valid certificate, for example from Traefik or the bundled Caddy). "Flexible" causes
+  redirect loops.
+- Hardening: once everything works, let your firewall or router accept port 443 only from the
+  Cloudflare ranges, so nobody can reach the server directly and fake the header.
+
 ## Step 5: Start and create the first admin
 
 ```bash
@@ -521,6 +603,44 @@ cd tix
 docker compose down        # stops and removes containers, KEEPS your data
 docker compose down -v     # also DELETES all data (database, files, certificates) - irreversible
 ```
+
+## Monitoring
+
+The admin page **System** (super admins) shows the live status: application version and uptime,
+PostgreSQL connections and size, Redis memory and throughput, the job queues with their failed
+jobs, the waiting room, seat locks held in carts, connected realtime clients, workers and open
+backlogs (e-mails, refunds, bank transactions). It refreshes itself every few seconds and keeps a
+ten minute trend.
+
+For Prometheus (or Grafana Agent, VictoriaMetrics, Zabbix, ...) the same numbers are available as
+text at `/api/metrics`. The endpoint does not exist until you create a token in **Settings,
+Security, Monitoring** (the token is shown once; creating a new one replaces the old one, removing
+it switches the endpoint off again). Wrong tokens are rate limited per client address.
+
+```bash
+curl -H "Authorization: Bearer <token>" https://tickets.example.org/api/metrics
+```
+
+A minimal Prometheus scrape configuration:
+
+```yaml
+scrape_configs:
+  - job_name: tix
+    scrape_interval: 30s
+    scheme: https
+    metrics_path: /api/metrics
+    authorization:
+      type: Bearer
+      credentials: <token> # or credentials_file: /etc/prometheus/tix.token
+    static_configs:
+      - targets: ['tickets.example.org']
+```
+
+Useful alerts: `tix_queue_jobs{state="failed"} > 0`, `tix_workers == 0`,
+`tix_worker_leader_present == 0`, `tix_postgres_connections / tix_postgres_max_connections > 0.85`,
+`tix_redis_used_memory_bytes / tix_redis_max_memory_bytes > 0.9` (when `maxmemory` is set) and
+`tix_collect_error > 0`. The realtime gateway reports itself to Redis every 10 seconds
+(`tix_realtime_instances`); images from before this version do not and show as "not reporting".
 
 ## Troubleshooting
 

@@ -10,6 +10,8 @@ import {
   Landmark,
   Mail,
   LayoutDashboard,
+  ChartLine,
+  Activity,
   ScanLine,
   Percent,
   ReceiptText,
@@ -40,6 +42,7 @@ export const NAV_ITEMS = {
   boxOffice: { href: '/admin/box-office', icon: Store, exact: false },
   events: { href: '/admin/events', icon: CalendarDays, exact: false },
   orders: { href: '/admin/orders', icon: ReceiptText, exact: false },
+  statistics: { href: '/admin/statistics', icon: ChartLine, exact: false },
   customers: { href: '/admin/customers', icon: UserRound, exact: false },
   banking: { href: '/admin/banking', icon: Landmark, exact: false },
   refunds: { href: '/admin/refunds', icon: Undo2, exact: false },
@@ -54,6 +57,7 @@ export const NAV_ITEMS = {
   users: { href: '/admin/users', icon: Users, exact: false },
   scanners: { href: '/admin/scanners', icon: ScanLine, exact: false },
   backups: { href: '/admin/backups', icon: DatabaseBackup, exact: false },
+  system: { href: '/admin/system', icon: Activity, exact: false },
   settings: { href: '/admin/settings', icon: Settings, exact: false },
 } satisfies Record<string, { href: string; icon: LucideIcon; exact: boolean }>;
 

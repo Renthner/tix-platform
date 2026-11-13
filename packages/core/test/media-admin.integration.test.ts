@@ -42,20 +42,11 @@ import {
   type CoreContext,
   type ObjectStorage,
 } from '../src';
+import { solidPng } from './image-fixtures';
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
 const redisUrl = process.env.TEST_REDIS_URL;
-
-function pngBytes(width: number, height: number, salt: number): Uint8Array {
-  const b = new Uint8Array(40 + (salt % 50));
-  b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
-  new DataView(b.buffer).setUint32(16, width);
-  new DataView(b.buffer).setUint32(20, height);
-  b[33] = salt % 250;
-  b[34] = Math.floor(salt / 250);
-  return b;
-}
 
 const objects = new Map<string, { body: Uint8Array; at: Date }>();
 const fakeStorage = {
@@ -90,7 +81,7 @@ describe.skipIf(!adminUrl || !redisUrl)('media administration (integration)', ()
   const upload = async (kind: Parameters<typeof uploadMediaAsset>[1]['kind'], name = 'x.png') =>
     uploadMediaAsset(ctx, {
       kind,
-      bytes: pngBytes(300, 200, (counter += 1)),
+      bytes: await solidPng(300, 200, (counter += 1)),
       fileName: name,
       userId: null,
     });
@@ -357,7 +348,10 @@ describe.skipIf(!adminUrl || !redisUrl)('media administration (integration)', ()
     const small = await upload('EMAIL_IMAGE', `alpha-${tag}.png`);
     const big = await uploadMediaAsset(ctx, {
       kind: 'EMAIL_IMAGE',
-      bytes: new Uint8Array([...pngBytes(300, 200, 9000 + counter), ...new Uint8Array(500)]),
+      bytes: new Uint8Array([
+        ...(await solidPng(300, 200, 9000 + counter)),
+        ...new Uint8Array(500),
+      ]),
       fileName: `beta-${tag}.png`,
       userId: null,
     });

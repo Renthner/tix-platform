@@ -7,7 +7,7 @@ Admin area: **Backups** (SUPER_ADMIN only). Everything is configurable there; no
 One encrypted archive per backup:
 
 - the PostgreSQL database (`pg_dump -Fc`, taken inside one exported snapshot so row counts and dump agree),
-- every object of the **assets** and **documents** buckets (images, invoices, tickets, bank statements).
+- every object of the **assets** and **documents** buckets (images including their AVIF / WebP variants, invoices, tickets, bank statements).
 
 Not part of a backup: the backups bucket itself, Redis (carts, locks and queues are rebuilt), and the
 schema `retained` (the GDPR erasure ledger, see below).
