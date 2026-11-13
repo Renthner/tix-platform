@@ -15,6 +15,7 @@ describe('startPage setting', () => {
       mode: 'BUILDER',
       layout: 'ABOVE',
       galleryAssetIds: [],
+      buttonAlign: 'LEFT',
       texts: {},
     });
   });
