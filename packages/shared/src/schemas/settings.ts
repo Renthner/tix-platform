@@ -297,16 +297,27 @@ const seatDisplaySchema = z.object({
   seatChangeNewColor: hexColorSchema.default('#16A34A'),
 });
 
+/** Maximum event cards per row on the shop home page. */
+export const SHOP_EVENTS_PER_ROW_MAX = 6;
+
 /** Layout of the shop home page event list. */
 const shopLayoutSchema = z.object({
-  /** Event cards per row on wide screens (fewer on narrower screens). */
-  eventsPerRow: z.number().int().min(1).max(10).default(3),
+  /** Event cards per row on wide screens (fewer on narrower screens, always 1 on phones).
+   *  Values above the maximum stored by older versions (up to 10) are clamped on read. */
+  eventsPerRow: z
+    .preprocess(
+      (v) => (typeof v === 'number' && v > SHOP_EVENTS_PER_ROW_MAX ? SHOP_EVENTS_PER_ROW_MAX : v),
+      z.number().int().min(1).max(SHOP_EVENTS_PER_ROW_MAX),
+    )
+    .default(3),
 });
 
 export const START_PAGE_LAYOUTS = ['ABOVE', 'OVERLAY'] as const;
 export type StartPageLayout = (typeof START_PAGE_LAYOUTS)[number];
 export const START_PAGE_MAX_GALLERY = 4;
 export const START_PAGE_MODES = ['BUILDER', 'HTML'] as const;
+export const START_PAGE_BUTTON_ALIGNS = ['LEFT', 'CENTER', 'RIGHT'] as const;
+export type StartPageButtonAlign = (typeof START_PAGE_BUTTON_ALIGNS)[number];
 export type StartPageMode = (typeof START_PAGE_MODES)[number];
 /** Maximum size of the custom start page HTML per locale (characters). */
 export const START_PAGE_HTML_MAX = 200_000;
@@ -349,6 +360,8 @@ const startPageSchema = z.object({
   heroAssetId: z.uuid().optional(),
   galleryAssetIds: z.array(z.uuid()).max(START_PAGE_MAX_GALLERY).default([]),
   buttonUrl: startPageLinkSchema.optional(),
+  /** Horizontal position of the button. */
+  buttonAlign: z.enum(START_PAGE_BUTTON_ALIGNS).default('LEFT'),
   /** Per UI locale; missing fields fall back to the shop default locale. */
   texts: z.partialRecord(z.enum(SUPPORTED_LOCALES), startPageTextSchema).default({}),
 });

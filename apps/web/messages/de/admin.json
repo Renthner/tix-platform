@@ -956,7 +956,7 @@
       "title": "Veranstaltungsliste im Shop",
       "description": "Wie die Veranstaltungen auf der Startseite des Shops angeordnet werden.",
       "eventsPerRow": "Veranstaltungen pro Zeile",
-      "eventsPerRowHint": "Anzahl der Veranstaltungskarten nebeneinander auf breiten Bildschirmen (1–10). Auf schmaleren Bildschirmen werden automatisch weniger angezeigt: 1 auf Smartphones, bis zu 2 auf kleinen Tablets, bis zu 3 auf mittleren Bildschirmen."
+      "eventsPerRowHint": "Anzahl der Veranstaltungskarten nebeneinander auf breiten Bildschirmen (1–6). Auf schmaleren Bildschirmen werden automatisch weniger angezeigt: auf Smartphones immer 1, bis zu 2 auf kleinen Tablets, bis zu 3 auf mittleren und bis zu 4 auf großen Bildschirmen. Bei 1 pro Zeile nutzen die Karten die volle Breite mit dem Bild neben dem Text; bei vielen pro Zeile wechseln sie in eine kompakte Darstellung."
     },
     "startPage": {
       "title": "Startseite ohne Veranstaltungen",
@@ -972,6 +972,8 @@
       "body": "Text",
       "buttonLabel": "Beschriftung der Schaltfläche",
       "buttonUrl": "Link der Schaltfläche",
+      "buttonAlign": "Position der Schaltfläche",
+      "buttonAligns": { "LEFT": "Links", "CENTER": "Mittig", "RIGHT": "Rechts" },
       "buttonUrlHint": "https://-Adresse oder ein Pfad im Shop (z. B. /account). Die Schaltfläche erscheint nur mit Beschriftung und Link.",
       "heroAlt": "Alternativtext des Hauptbilds",
       "hero": "Hauptbild",

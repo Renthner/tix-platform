@@ -956,7 +956,7 @@
       "title": "Event list in the shop",
       "description": "How the events are arranged on the shop home page.",
       "eventsPerRow": "Events per row",
-      "eventsPerRowHint": "Number of event cards side by side on wide screens (1–10). Narrower screens automatically show fewer: 1 on phones, up to 2 on small tablets, up to 3 on medium screens."
+      "eventsPerRowHint": "Number of event cards side by side on wide screens (1–6). Narrower screens automatically show fewer: always 1 on phones, up to 2 on small tablets, up to 3 on medium and up to 4 on large screens. With 1 per row the cards span the full width with the image beside the text; with many per row they switch to a compact layout."
     },
     "startPage": {
       "title": "Home page without events",
@@ -972,6 +972,8 @@
       "body": "Text",
       "buttonLabel": "Button label",
       "buttonUrl": "Button link",
+      "buttonAlign": "Button position",
+      "buttonAligns": { "LEFT": "Left", "CENTER": "Centred", "RIGHT": "Right" },
       "buttonUrlHint": "https:// address or a path in the shop (e.g. /account). The button only appears with a label and a link.",
       "heroAlt": "Alt text of the main image",
       "hero": "Main image",

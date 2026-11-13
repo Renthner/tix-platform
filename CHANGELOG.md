@@ -8,6 +8,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+### Added
+
+- Start page builder: position of the button (left, centred, right).
+
+### Changed
+
+- Shop event list: at most 6 events per row (stored higher values are treated as 6); at most 4
+  columns on large screens below the widest breakpoint. Event cards adapt to their own width:
+  narrow cards use a compact layout (status above the title, shorter date, tighter spacing), and
+  with 1 event per row the card spans the full width with the cover image beside the text. Phones
+  always show 1 card per row.
+
+### Fixed
+
+- Start page builder: the text block now uses the full page width.
+
 ## [1.0.0-alpha.13] - 2026-11-13
 
 ### Added

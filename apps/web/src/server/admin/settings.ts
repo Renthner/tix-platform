@@ -228,6 +228,7 @@ async function readInput(
           heroAssetId,
           galleryAssetIds,
           buttonUrl: text(fd, 'buttonUrl'),
+          buttonAlign: text(fd, 'buttonAlign'),
           texts,
         },
       };

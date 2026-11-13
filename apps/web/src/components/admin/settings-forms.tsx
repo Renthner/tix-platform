@@ -6,10 +6,13 @@ import {
   START_PAGE_HTML_MAX,
   START_PAGE_MAX_GALLERY,
   START_PAGE_MODES,
+  START_PAGE_BUTTON_ALIGNS,
+  SHOP_EVENTS_PER_ROW_MAX,
   SUPPORTED_LOCALES,
   type SeatSelectionStyle,
   type StartPageLayout,
   type StartPageMode,
+  type StartPageButtonAlign,
 } from '@tix/shared';
 import { Clock } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -709,7 +712,7 @@ export function ShopLayoutSettingsForm({
   const t = useTranslations('admin.settings.shopLayout');
   const tc = useTranslations('common.actions');
   const { state, formAction, err } = useSettingsForm(action);
-  const [perRow, setPerRow] = useState(initial.eventsPerRow);
+  const [perRow, setPerRow] = useState(Math.min(initial.eventsPerRow, SHOP_EVENTS_PER_ROW_MAX));
   return (
     <ActionForm action={formAction} className="space-y-6">
       <ActionFeedback state={state} />
@@ -725,7 +728,7 @@ export function ShopLayoutSettingsForm({
             name="eventsPerRow"
             type="range"
             min={1}
-            max={10}
+            max={SHOP_EVENTS_PER_ROW_MAX}
             step={1}
             value={perRow}
             onChange={(e) => setPerRow(Number(e.target.value))}
@@ -734,11 +737,11 @@ export function ShopLayoutSettingsForm({
           <Input
             type="number"
             min={1}
-            max={10}
+            max={SHOP_EVENTS_PER_ROW_MAX}
             value={perRow}
             onChange={(e) => {
               const n = Math.round(Number(e.target.value));
-              if (Number.isFinite(n)) setPerRow(Math.min(10, Math.max(1, n)));
+              if (Number.isFinite(n)) setPerRow(Math.min(SHOP_EVENTS_PER_ROW_MAX, Math.max(1, n)));
             }}
             aria-label={t('eventsPerRow')}
             className="w-20"
@@ -758,6 +761,7 @@ export interface StartPageValues {
   hero: MediaPickerAsset | null;
   gallery: (MediaPickerAsset | null)[];
   buttonUrl?: string;
+  buttonAlign: StartPageButtonAlign;
   /** Shop default language: preselected content language. */
   defaultLocale: string;
   texts: Partial<
@@ -940,6 +944,15 @@ export function StartPageSettingsForm({
               placeholder="https://"
               maxLength={500}
             />
+          </Field>
+          <Field label={t('buttonAlign')} htmlFor="buttonAlign" error={err('buttonAlign')}>
+            <NativeSelect id="buttonAlign" name="buttonAlign" defaultValue={initial.buttonAlign}>
+              {START_PAGE_BUTTON_ALIGNS.map((a) => (
+                <option key={a} value={a}>
+                  {t(`buttonAligns.${a}`)}
+                </option>
+              ))}
+            </NativeSelect>
           </Field>
         </div>
         {localeSwitcher}

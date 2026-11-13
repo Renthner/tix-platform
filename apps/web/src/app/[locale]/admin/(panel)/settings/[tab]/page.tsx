@@ -202,6 +202,7 @@ async function TabContent({
                 hero: await pickerAsset(startPage.heroAssetId),
                 gallery: await Promise.all(startPage.galleryAssetIds.map(pickerAsset)),
                 buttonUrl: startPage.buttonUrl,
+                buttonAlign: startPage.buttonAlign,
                 defaultLocale: general.defaultLocale,
                 texts: startPageTexts,
               }}

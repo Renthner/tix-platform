@@ -104,17 +104,19 @@ export async function StartPage({
       )}
       {bodyHtml && (
         <div
-          className={cn(
-            'max-w-3xl',
-            RICH_TEXT_CLASS,
-            overlay && '[&_a]:text-white [&_a]:underline',
-          )}
+          className={cn(RICH_TEXT_CLASS, overlay && '[&_a]:text-white [&_a]:underline')}
           // Sanitised with the rich-text allowlist (also on save).
           dangerouslySetInnerHTML={{ __html: bodyHtml }}
         />
       )}
       {showButton && (
-        <div className="pt-1">
+        <div
+          className={cn(
+            'flex pt-1',
+            settings.buttonAlign === 'CENTER' && 'justify-center',
+            settings.buttonAlign === 'RIGHT' && 'justify-end',
+          )}
+        >
           <Button asChild size="lg" variant={overlay ? 'secondary' : 'default'}>
             {external ? (
               <a href={settings.buttonUrl} rel="noopener noreferrer">
