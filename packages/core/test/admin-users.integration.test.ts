@@ -108,7 +108,8 @@ describe.skipIf(!adminUrl || !redisUrl)('admin users (integration)', () => {
   }
 
   /** User with 2FA switched on; returns the secret and the recovery codes. */
-  async function makeTwoFactorUser(email: string) {
+  /** Two-factor user; `setupAt` is the (fixed) time of the setup so tests can't straddle a 30 s step. */
+  async function makeTwoFactorUser(email: string, setupAt = Date.now()) {
     const userId = await makeUser(email);
     const actor = { userId };
     const setup = await beginTotpSetup(ctx, actor);
@@ -116,9 +117,11 @@ describe.skipIf(!adminUrl || !redisUrl)('admin users (integration)', () => {
       ctx,
       actor,
       PASSWORD,
-      totpAt(setup.secret, Date.now()),
+      totpAt(setup.secret, setupAt),
+      null,
+      setupAt,
     );
-    return { userId, secret: setup.secret, recoveryCodes };
+    return { userId, secret: setup.secret, recoveryCodes, setupAt };
   }
 
   beforeAll(async () => {
@@ -343,13 +346,15 @@ describe.skipIf(!adminUrl || !redisUrl)('admin users (integration)', () => {
   });
 
   it('accepts a TOTP code once (replay protection) and recovery codes once', async () => {
-    const { userId, secret, recoveryCodes } = await makeTwoFactorUser('second@example.org');
-    // The setup consumed the current step: the same code is a replay.
+    const { userId, secret, recoveryCodes, setupAt } =
+      await makeTwoFactorUser('second@example.org');
+    // The setup consumed the current step: the same code is a replay (same fixed time, so the
+    // check never straddles a 30 s step boundary).
     await expectCode(
-      verifyAdminSecondFactor(ctx, userId, totpAt(secret, Date.now())),
+      verifyAdminSecondFactor(ctx, userId, totpAt(secret, setupAt), setupAt),
       'INVALID_CODE',
     );
-    const future = Date.now() + 30_000;
+    const future = setupAt + 30_000;
     expect(await verifyAdminSecondFactor(ctx, userId, totpAt(secret, future), future)).toBe('totp');
     await expectCode(
       verifyAdminSecondFactor(ctx, userId, totpAt(secret, future), future),
