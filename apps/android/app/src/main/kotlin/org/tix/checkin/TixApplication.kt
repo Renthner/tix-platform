@@ -124,6 +124,17 @@ class AppContainer(private val app: Application) {
             if (dao.deviceConfig() != null) SyncScheduler.schedulePeriodic(app)
             lan // start the status ticker
         }
+        // Slow-network probe: a cheap conditional manifest request (304) with the scan timeout. An error answer
+        // (401, 503 ...) still proves the server answers quickly; maintenance/auth are handled by their own paths.
+        // Started on its own (not behind the init chain above): a failure there must not leave a DEGRADED link
+        // without a probe for the rest of the process.
+        monitor.startProbe(scope) {
+            if (dao.deviceConfig() == null) return@startProbe
+            try {
+                sync.api.manifest(dao.deviceConfig()?.manifestEtag)
+            } catch (_: org.tix.checkin.core.contract.ApiException) {
+            }
+        }
     }
 }
 

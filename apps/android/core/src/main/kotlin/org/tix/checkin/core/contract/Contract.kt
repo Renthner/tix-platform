@@ -277,6 +277,8 @@ data class SyncTicket(
     val lastScanAt: String? = null,
     val additionalPaymentOpen: Boolean = false,
     val syncVersion: Long,
+    /** Order number for the offline search; absent on servers that do not deliver it yet. */
+    val orderNumber: String? = null,
 )
 
 @Serializable

@@ -2,6 +2,8 @@ package org.tix.checkin.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Fts4
+import androidx.room.FtsOptions
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import org.tix.checkin.core.contract.CheckInState
@@ -14,6 +16,7 @@ import org.tix.checkin.core.contract.SeatFeature
 import org.tix.checkin.core.contract.TicketStatus
 import org.tix.checkin.core.scan.DecidedBy
 import org.tix.checkin.core.scan.JournalEntry
+import org.tix.checkin.core.scan.LocalSearch
 import org.tix.checkin.core.scan.LocalTicket
 
 /** Single row (id = 1): pairing data, manifest settings, ETag and the learned server clock offset. */
@@ -116,6 +119,29 @@ data class TicketEntity(
     val localDirty: Boolean,
     @ColumnInfo(defaultValue = "0") val lanDirty: Boolean = false,
     @ColumnInfo(defaultValue = "0") val lanSeq: Long = 0,
+    /** Order number delivered by the sync (null until synced by a server that has it). Added in DB v3. */
+    val orderNumber: String? = null,
+    /**
+     * Folded text of everything searchable (name, code, block, row, seat, order number): the column the full-text index
+     * is built on, computed by [LocalSearch.indexText]. It follows the other fields only when the entity is built
+     * (`LocalTicket.toEntity()`), never through `copy`. Added in DB v3.
+     */
+    @ColumnInfo(defaultValue = "''")
+    val searchText: String = LocalSearch.indexText(attendeeName, ticketCode, sectionLabel, rowLabel, seatLabel, orderNumber),
+)
+
+/**
+ * Full-text index over [TicketEntity.searchText] (manual lookup, 10k+ tickets). Content-backed: Room keeps it in sync
+ * with `tickets` through triggers (insert/update/delete), nothing is stored twice. The text is folded in Kotlin
+ * ([LocalSearch.fold]: case, diacritics, and the letters unicode61 cannot decompose such as ø, æ, ß, ł) so the
+ * database and the exact filter agree; unicode61 then only splits words.
+ * Tickets must be written with an UPSERT, never INSERT OR REPLACE: a REPLACE deletes the old row without firing the
+ * delete trigger (recursive triggers are off) and its rowid could be reused.
+ */
+@Fts4(contentEntity = TicketEntity::class, tokenizer = FtsOptions.TOKENIZER_UNICODE61)
+@Entity(tableName = "tickets_fts")
+data class TicketFtsEntity(
+    val searchText: String,
 )
 
 /**
@@ -169,7 +195,7 @@ fun LocalTicket.toEntity() = TicketEntity(
     id, ticketCode, status.name, eventId, keyId, sectionId, sectionLabel, rowLabel, seatLabel, seatFeature?.name,
     categoryId, categoryName, ticketTypeId, attendeeName, checkInState.name, firstCheckedInAt,
     firstCheckedInDeviceName, checkInCount, lastScanAt, additionalPaymentOpen, syncVersion, provisional, localDirty,
-    lanDirty, lanSeq,
+    lanDirty, lanSeq, orderNumber,
 )
 
 fun TicketEntity.toLocal() = LocalTicket(
@@ -180,7 +206,7 @@ fun TicketEntity.toLocal() = LocalTicket(
     checkInState = enumOr(checkInState, CheckInState.NONE), firstCheckedInAt = firstCheckedInAt,
     firstCheckedInDeviceName = firstCheckedInDeviceName, checkInCount = checkInCount, lastScanAt = lastScanAt,
     additionalPaymentOpen = additionalPaymentOpen, syncVersion = syncVersion, provisional = provisional,
-    localDirty = localDirty, lanDirty = lanDirty, lanSeq = lanSeq,
+    localDirty = localDirty, lanDirty = lanDirty, lanSeq = lanSeq, orderNumber = orderNumber,
 )
 
 fun JournalEntry.toEntity() = JournalEntity(

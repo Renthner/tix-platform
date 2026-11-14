@@ -18,6 +18,7 @@ import { useFormStatus } from 'react-dom';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { useUnsavedFormGuard } from '@/components/admin/unsaved-changes';
 import { Label } from '@/components/ui/label';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
 import { cn } from '@/lib/utils';
@@ -133,11 +134,17 @@ const ActionFormPending = createContext<boolean | null>(null);
 export function ActionForm({
   action,
   resetOnSuccess,
+  unsavedGuard,
   children,
   ...props
 }: Omit<ComponentProps<'form'>, 'action' | 'onSubmit'> & {
   action: (formData: FormData) => void;
   resetOnSuccess?: ActionState;
+  /**
+   * Warn before leaving the page with unsaved edits in this form. Pass the form's action state:
+   * a `success` result marks the current data as saved.
+   */
+  unsavedGuard?: ActionState;
 }) {
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
@@ -159,6 +166,7 @@ export function ActionForm({
     [round],
   );
   const roundValue = useMemo(() => ({ round, claimFocus }), [round, claimFocus]);
+  useUnsavedFormGuard(formRef, unsavedGuard, unsavedGuard !== undefined);
   const lastAt = useRef<number | null>(null);
   useEffect(() => {
     if (!resetOnSuccess || resetOnSuccess.status !== 'success') return;

@@ -45,6 +45,7 @@
     <string name="status_online">Online</string>
     <string name="status_offline">Offline</string>
     <string name="status_maintenance">Server-Wartung</string>
+    <string name="status_degraded">Langsame Verbindung - prüfe lokal</string>
     <string name="status_counts">Eingecheckt: %1$d / %2$d</string>
     <string name="status_pending">Nicht hochgeladen: %1$d</string>
     <string name="status_last_sync">Letzte Synchronisierung: %1$s</string>
@@ -195,6 +196,9 @@
     <string name="lan_hint">Scanner im selben WLAN stimmen sich über ein Master-Gerät ab, damit ein Ticket bei Internetausfall nicht an zwei Eingängen gilt.</string>
     <string name="lan_master_toggle">Dieses Gerät als LAN-Master verwenden</string>
     <string name="lan_master_hint">Gerät im WLAN der Veranstaltung und am Strom lassen. Andere Scanner finden es automatisch.</string>
+    <string name="lan_battery_hint">Für einen zuverlässigen LAN-Abgleich dieser App den uneingeschränkten Hintergrundbetrieb erlauben (keine Akku-Optimierung). Sonst kann das System den Master bei ausgeschaltetem Bildschirm drosseln.</string>
+    <string name="lan_battery_ok">Akku-Optimierung ist für diese App aus - gut für ein Master-Gerät.</string>
+    <string name="lan_battery_button">Hintergrundbetrieb erlauben</string>
     <string name="lan_port">Port (1024-65535)</string>
     <string name="lan_manual">Master-Adresse (optional)</string>
     <string name="lan_manual_hint">host:port, nur nötig wenn die automatische Suche blockiert ist</string>

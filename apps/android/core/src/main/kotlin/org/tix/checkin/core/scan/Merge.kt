@@ -49,7 +49,8 @@ object Merge {
     fun mergeIncoming(existing: LocalTicket?, incoming: SyncTicket): LocalTicket {
         // Pages can repeat rows: never replace a row by an older version of itself.
         if (existing != null && !existing.provisional && existing.syncVersion > incoming.syncVersion) return existing
-        val fresh = LocalTicket.fromSync(incoming)
+        // A server that does not deliver the order number yet must not erase one learned earlier.
+        val fresh = LocalTicket.fromSync(incoming).let { if (it.orderNumber == null) it.copy(orderNumber = existing?.orderNumber) else it }
         if (existing == null) return fresh
         val lanHold = existing.lanDirty && !serverCaughtUp(existing, incoming)
         if (!existing.localDirty && !lanHold) return fresh.copy(lanSeq = existing.lanSeq)

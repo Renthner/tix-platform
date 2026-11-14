@@ -56,7 +56,6 @@ export function TopBar({
   onZoomOut,
   onFit,
   onSave,
-  confirmLeave,
   localeSlot,
 }: {
   title: string;
@@ -74,8 +73,6 @@ export function TopBar({
   onZoomOut: () => void;
   onFit: () => void;
   onSave: () => void;
-  /** Confirmation text when leaving with unsaved changes (null = no prompt). */
-  confirmLeave: string | null;
   /** Content language dropdown. */
   localeSlot?: ReactNode;
 }) {
@@ -83,12 +80,7 @@ export function TopBar({
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-3">
       <Button asChild variant="ghost" size="icon-sm" aria-label={t('back')}>
-        <Link
-          href={backHref}
-          onClick={(e) => {
-            if (confirmLeave && !window.confirm(confirmLeave)) e.preventDefault();
-          }}
-        >
+        <Link href={backHref}>
           <ArrowLeft />
         </Link>
       </Button>

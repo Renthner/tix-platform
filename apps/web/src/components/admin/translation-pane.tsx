@@ -42,7 +42,7 @@ export function TranslationPane({
   const language = names.of(editLocale) ?? editLocale;
 
   return (
-    <ActionForm action={formAction} className="space-y-6">
+    <ActionForm action={formAction} unsavedGuard={state} className="space-y-6">
       <ActionFeedback state={state} />
       <input type="hidden" name="locale" value={editLocale} />
       <Alert>

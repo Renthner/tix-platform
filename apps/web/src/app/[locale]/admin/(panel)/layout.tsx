@@ -6,6 +6,7 @@ import { getSetting } from '@tix/core';
 import { APP_VERSION } from '@tix/shared';
 import { logoutAction } from '@/components/admin/admin-actions';
 import { AdminNav } from '@/components/admin/admin-nav';
+import { UnsavedChangesProvider } from '@/components/admin/unsaved-changes';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ThemeSwitcher } from '@/components/theme-switcher';
 import { AccountContent } from '@/components/admin/account/account-content';
@@ -60,75 +61,84 @@ export default async function AdminPanelLayout({
         'system',
       ])}
     >
-      <div className="flex min-h-dvh">
-        <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r bg-muted/30 p-4 md:flex">
-          <div className="mb-6 shrink-0 px-3">
-            <div className="text-sm font-semibold">{general.shopName}</div>
-            <div className="text-xs text-muted-foreground">{t('panelTitle')}</div>
-            <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">v{APP_VERSION}</div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <AdminNav />
-          </div>
-          <div className="mt-3 shrink-0 space-y-3 px-3 text-xs text-muted-foreground">
-            <Link
-              href="/admin/account"
-              className="block truncate hover:text-foreground hover:underline"
-              title={session.email}
-            >
-              {session.displayName}
-            </Link>
-            <div className="flex items-center gap-2">
-              <LocaleSwitcher />
-              <ThemeSwitcher />
-            </div>
-            <form action={logoutAction}>
-              <Button type="submit" variant="ghost" size="sm" className="w-full justify-start px-0">
-                <LogOut className="size-4" /> {t('logout')}
-              </Button>
-            </form>
-          </div>
-        </aside>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2 border-b px-4 py-2 md:justify-end">
-            <div className="md:hidden">
-              <AdminNav
-                mobile
-                mobileFooter={
-                  <form action={logoutAction}>
-                    <DropdownMenuItem asChild>
-                      <button type="submit" className="w-full">
-                        <LogOut className="size-4" /> {t('logout')}
-                      </button>
-                    </DropdownMenuItem>
-                  </form>
-                }
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="md:hidden">
-                <LocaleSwitcher />
+      <UnsavedChangesProvider>
+        <div className="flex min-h-dvh">
+          <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r bg-muted/30 p-4 md:flex">
+            <div className="mb-6 shrink-0 px-3">
+              <div className="text-sm font-semibold">{general.shopName}</div>
+              <div className="text-xs text-muted-foreground">{t('panelTitle')}</div>
+              <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                v{APP_VERSION}
               </div>
-              <div className="md:hidden">
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <AdminNav />
+            </div>
+            <div className="mt-3 shrink-0 space-y-3 px-3 text-xs text-muted-foreground">
+              <Link
+                href="/admin/account"
+                className="block truncate hover:text-foreground hover:underline"
+                title={session.email}
+              >
+                {session.displayName}
+              </Link>
+              <div className="flex items-center gap-2">
+                <LocaleSwitcher />
                 <ThemeSwitcher />
               </div>
-              <Button asChild variant="outline" size="sm">
-                <Link href="/">
-                  <Store className="size-4" />{' '}
-                  <span className="max-[420px]:sr-only">{t('shopLink')}</span>
-                </Link>
-              </Button>
+              <form action={logoutAction}>
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start px-0"
+                >
+                  <LogOut className="size-4" /> {t('logout')}
+                </Button>
+              </form>
             </div>
+          </aside>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2 border-b px-4 py-2 md:justify-end">
+              <div className="md:hidden">
+                <AdminNav
+                  mobile
+                  mobileFooter={
+                    <form action={logoutAction}>
+                      <DropdownMenuItem asChild>
+                        <button type="submit" className="w-full">
+                          <LogOut className="size-4" /> {t('logout')}
+                        </button>
+                      </DropdownMenuItem>
+                    </form>
+                  }
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="md:hidden">
+                  <LocaleSwitcher />
+                </div>
+                <div className="md:hidden">
+                  <ThemeSwitcher />
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/">
+                    <Store className="size-4" />{' '}
+                    <span className="max-[420px]:sr-only">{t('shopLink')}</span>
+                  </Link>
+                </Button>
+              </div>
+            </div>
+            <main>
+              {session.twoFactorSetupRequired ? (
+                <AccountContent userId={session.userId} setupRequired />
+              ) : (
+                children
+              )}
+            </main>
           </div>
-          <main>
-            {session.twoFactorSetupRequired ? (
-              <AccountContent userId={session.userId} setupRequired />
-            ) : (
-              children
-            )}
-          </main>
         </div>
-      </div>
+      </UnsavedChangesProvider>
     </NextIntlClientProvider>
   );
 }

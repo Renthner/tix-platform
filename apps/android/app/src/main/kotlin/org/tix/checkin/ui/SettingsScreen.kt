@@ -309,6 +309,10 @@ private fun LanSection(vm: MainViewModel) {
     var portText by rememberSaveable(port) { mutableStateOf(port.toString()) }
     var manualText by rememberSaveable { mutableStateOf(manual) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    var batteryExempt by remember { mutableStateOf(org.tix.checkin.lan.MasterLocks.isIgnoringBatteryOptimizations(context)) }
+    val batteryResult = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        batteryExempt = org.tix.checkin.lan.MasterLocks.isIgnoringBatteryOptimizations(context)
+    }
 
     Text(stringResource(R.string.lan_title), style = MaterialTheme.typography.titleMedium)
     if (!lan.available && !master) {
@@ -337,6 +341,26 @@ private fun LanSection(vm: MainViewModel) {
     }
     if (master) {
         Text(stringResource(R.string.lan_master_hint), style = MaterialTheme.typography.bodySmall)
+        if (batteryExempt) {
+            Text(stringResource(R.string.lan_battery_ok), style = MaterialTheme.typography.bodySmall)
+        } else {
+            Text(stringResource(R.string.lan_battery_hint), style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(
+                onClick = {
+                    try {
+                        batteryResult.launch(org.tix.checkin.lan.MasterLocks.requestIgnoreBatteryOptimizationsIntent(context))
+                    } catch (_: RuntimeException) {
+                        // no direct dialog on this device: the list of all apps
+                        try {
+                            batteryResult.launch(org.tix.checkin.lan.MasterLocks.batterySettingsIntent())
+                        } catch (_: RuntimeException) {
+                            // nothing to open
+                        }
+                    }
+                },
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) { Text(stringResource(R.string.lan_battery_button)) }
+        }
         OutlinedTextField(
             value = portText,
             onValueChange = { v ->

@@ -122,7 +122,10 @@ All are `POST` (a GET with a body would be non-standard; `hello` is a POST too).
 
 - `/scan`: the master verifies the signature itself and runs the same `decideScan` table with the
   scanning device's entrance and name (`firstCheckedInDeviceName` = the client). The decision is bound to the
-  authenticated envelope event (see "Security model"). Check-out permission is checked by the client before asking.
+  authenticated envelope event (see "Security model"). Check-out permission is checked by the client before asking
+  AND by the master with its own server-provided flag of that event (`allowCheckOut`): a `CHECK_OUT` the master's event
+  config forbids is answered `REJECTED_CHECK_OUT_NOT_ALLOWED` (RED) and changes nothing, so a client with a stale
+  configuration can never check out where the server forbids it.
   Idempotent per `(deviceId, clientScanId)` (a client that timed out and decided locally with the same id gets the
   same answer on retry; another device using the same id does not). `state` carries the ticket's check-in fields so
   the client mirrors them (also for RED results, e.g. already checked in).
@@ -137,7 +140,10 @@ All are `POST` (a GET with a body would be non-standard; `hello` is a POST too).
   master receives every scan it has not acknowledged, and a clock correction cannot hide a scan. The master applies
   accepted ones with the server's stale rule (`Merge.afterReportedScan`): a scan older than the ticket's last scan
   never changes the state; a stale check-in older than the first entry only moves the first-entry info; duplicates
-  (same device and `clientScanId`) are ignored. A scan counts as done only after its commit succeeded.
+  (same device and `clientScanId`) are ignored. A reported `CHECK_OUT` is applied only when the master's own event
+  flag `allowCheckOut` is set (like `/scan`); otherwise it is answered `applied = false` and changes nothing. The
+  client treats `applied = false` as final (every result of the batch is acknowledged and the watermark moves on, so
+  nothing is retried forever). A scan counts as done only after its commit succeeded.
 
 ## State rules
 
@@ -168,6 +174,21 @@ All are `POST` (a GET with a body would be non-standard; `hello` is a POST too).
   configuration to load before starting the server (it never shuts the master down because the configuration is not
   loaded yet). While master mode is on the service also runs the server sync loop, so the master keeps pulling tickets
   and cancellations with the app in the background (it coalesces with the activity's own loop).
+- While master mode is on the service holds WifiLocks (the WiFi chip would otherwise power-save with the screen off
+  and answer other doors with seconds of delay): `WIFI_MODE_FULL_LOW_LATENCY` on API 29+ (the platform applies it only
+  while the screen is on and the app is in the foreground) plus `FULL_HIGH_PERF` on API 28-33 (works with the screen off;
+  deprecated and a no-op from API 34, where only low latency remains) and a partial wake lock (the foreground service keeps the process alive, not the CPU: with the screen off
+  the CPU may suspend and the server thread would only run when something else wakes it). Both are
+  non-reference-counted (`MasterLocks`), acquired in `onStartCommand` (a sticky restart does not stack them) and
+  released in `onDestroy` in a `finally` (also when the start fails and the service stops itself); the wake lock
+  additionally has a 12 h safety timeout that the service renews hourly (`acquire(timeout)` on a held
+  non-reference-counted lock restarts the timeout), a process death frees all.
+  **Operating advice:** keep the master plugged in and, for the most reliable answers, with the screen on (the scanner
+  screen keeps it on) and the app exempt from battery optimisation; on API 34+ the platform gives no screen-off WiFi
+  guarantee at all. Extra permissions: `WAKE_LOCK`,
+  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Settings -> LAN shows a hint and a one-tap button
+  (`ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, falling back to the battery settings list) while the app is
+  not exempt from battery optimisation; the app is sideloaded, so the Play policy on this permission does not apply.
 - The server socket listens on all interfaces: every request must pass the source filter and the envelope, and a
   changing WiFi address needs no rebinding.
 - Backup: `allowBackup=false`, plus `dataExtractionRules` (API 31+) and `fullBackupContent` (older) that exclude every

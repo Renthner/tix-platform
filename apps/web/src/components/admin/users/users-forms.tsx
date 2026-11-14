@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { ErrorAlert } from '@/components/admin/auth/password-link-forms';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import { ActionForm, Field, SubmitButton } from '@/components/admin/form-controls';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -126,9 +127,17 @@ export function UserOperations({
   const [pending, startTransition] = useTransition();
   useSuccessToast(state);
 
-  const op = (operation: UserOperation, confirmKey?: string) => () => {
-    if (confirmKey && !window.confirm(t(confirmKey as 'confirmDeactivate'))) return;
+  const [asking, setAsking] = useState<{
+    operation: UserOperation;
+    confirmKey: string;
+    labelKey: string;
+  } | null>(null);
+
+  const execute = (operation: UserOperation) =>
     startTransition(async () => setState(await run(userId, operation)));
+  const op = (operation: UserOperation, confirmKey?: string) => () => {
+    if (confirmKey) setAsking({ operation, confirmKey, labelKey: operation });
+    else execute(operation);
   };
 
   return (
@@ -182,6 +191,17 @@ export function UserOperations({
           </Button>
         )}
       </div>
+      <ConfirmDialog
+        open={asking !== null}
+        onOpenChange={(open) => {
+          if (!open) setAsking(null);
+        }}
+        description={asking ? t(asking.confirmKey as 'confirmDeactivate') : null}
+        confirmLabel={asking ? t(asking.labelKey as 'deactivate') : null}
+        onConfirm={() => {
+          if (asking) execute(asking.operation);
+        }}
+      />
     </div>
   );
 }

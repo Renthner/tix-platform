@@ -27,15 +27,13 @@ import org.tix.checkin.core.contract.SeatFeature
 import org.tix.checkin.core.contract.TicketStatus
 import org.tix.checkin.core.scan.DecidedBy
 import org.tix.checkin.core.scan.JournalEntry
-import org.tix.checkin.core.scan.LocalSearch
 import org.tix.checkin.core.scan.LocalTicket
 import org.tix.checkin.core.scan.ScanVerdict
 import org.tix.checkin.core.DownloadUrl
-import org.tix.checkin.core.TicketCode
 import org.tix.checkin.data.DeviceConfigEntity
 import org.tix.checkin.data.EventEntity
+import org.tix.checkin.data.TicketSearch
 import org.tix.checkin.data.toCore
-import org.tix.checkin.data.toLocal
 import org.tix.checkin.sync.Connection
 import org.tix.checkin.sync.PairException
 import org.tix.checkin.sync.SyncScheduler
@@ -295,7 +293,10 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
     private fun refreshKeysSoon() {
         val now = android.os.SystemClock.elapsedRealtime()
         if (lastKeyRefreshAt != 0L && now - lastKeyRefreshAt < KEY_REFRESH_MIN_MS) return
-        if (!c.monitor.isUsable()) return
+        // Also while DEGRADED (slow server, network up): the refresh is one cheap conditional request in the
+        // background and a key rotation is exactly what an operator at a slow door needs; throttled like always.
+        val link = c.monitor.state.value
+        if (link != Connection.ONLINE && link != Connection.DEGRADED) return
         lastKeyRefreshAt = now
         viewModelScope.launch { c.sync.syncOnce() }
     }
@@ -357,12 +358,7 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
     }
 
     private suspend fun localSearch(eventId: String, q: String): LookupResult = withContext(Dispatchers.Default) {
-        val tokens = LocalSearch.tokens(q)
-        if (tokens.isEmpty()) return@withContext LookupResult(emptyList(), false)
-        val first = tokens.maxBy { it.length }
-        val candidates = c.dao.searchTickets(eventId, first, TicketCode.normalize(first)).map { it.toLocal() }
-        val rows = candidates.filter { LocalSearch.matches(it, tokens) }.take(50).map { it.toRow() }
-        LookupResult(rows, false)
+        LookupResult(TicketSearch(c.dao).search(eventId, q, 50).map { it.toRow() }, false)
     }
 
     private fun LocalTicket.toRow() = TicketRow(

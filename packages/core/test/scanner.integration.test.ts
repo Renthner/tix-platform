@@ -742,7 +742,7 @@ describe.skipIf(!adminUrl || !redisUrl)('scanner server side (integration)', () 
 
     it('pages with an opaque cursor and delivers tombstones and check-ins', async () => {
       const d = await pairDevice('Sync device');
-      const { tickets: made, items } = await makeTickets([{}, {}, {}]);
+      const { tickets: made, items, order } = await makeTickets([{}, {}, {}]);
       const first = await syncTickets(ctx, d, { eventId, cursor: '', limit: 2 });
       expect(first.hasMore).toBe(true);
       expect(first.tickets).toHaveLength(2);
@@ -759,6 +759,9 @@ describe.skipIf(!adminUrl || !redisUrl)('scanner server side (integration)', () 
         additionalPaymentOpen: false,
         ticketCode: made[1]!.ticketCode,
       });
+      // the order number is delivered for the offline search
+      expect(order.orderNumber).toBeTruthy();
+      expect(latest(run.tickets, made[1]!.id)?.orderNumber).toBe(order.orderNumber);
 
       // a later run delivers the change as a tombstone
       await handle.db.transaction(async (tx) => {

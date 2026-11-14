@@ -1,8 +1,16 @@
 import { computeSaleState } from '@tix/core';
-import { EVENT_STATUSES, type EventStatus } from '@tix/shared';
+import {
+  DEFAULT_PAGE_SIZE,
+  DEFAULT_PAGE_SIZES,
+  EVENT_STATUSES,
+  parsePage,
+  parsePageSize,
+  type EventStatus,
+} from '@tix/shared';
 import { ArrowUpDown, ImageIcon, Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
+import { AdminPagination } from '@/components/admin/admin-pagination';
 import { EventDuplicateDialog } from '@/components/admin/event-duplicate-dialog';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -23,7 +31,7 @@ import { cn } from '@/lib/utils';
 import { MediaThumb } from '@/components/media-image';
 import { requireAdmin } from '@/server/auth';
 import { duplicateEventAction } from '@/server/admin/events';
-import { listEvents } from '@/server/admin/queries';
+import { countEvents, listEvents } from '@/server/admin/queries';
 
 export async function generateMetadata() {
   const t = await getTranslations('admin.events');
@@ -35,18 +43,21 @@ export default async function EventsPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ status?: string; deleted?: string }>;
+  searchParams: Promise<{ status?: string; deleted?: string; page?: string; pageSize?: string }>;
 }) {
   const locale = await resolveLocale(params);
   await requireAdmin(['EVENT_MANAGER']);
-  const { status, deleted } = await searchParams;
+  const { status, deleted, page: rawPage, pageSize: rawSize } = await searchParams;
+  const page = parsePage(rawPage);
+  const pageSize = parsePageSize(rawSize);
   const filter = (EVENT_STATUSES as readonly string[]).includes(status ?? '')
     ? (status as EventStatus)
     : undefined;
-  const [t, ts, rows] = await Promise.all([
+  const [t, ts, rows, total] = await Promise.all([
     getTranslations('admin.events'),
     getTranslations('admin.eventStatus'),
-    listEvents({ status: filter }),
+    listEvents({ status: filter, page, pageSize }),
+    countEvents(filter),
   ]);
 
   return (
@@ -169,6 +180,16 @@ export default async function EventsPage({
             )}
           </CardContent>
         </Card>
+        <AdminPagination
+          pathname="/admin/events"
+          params={{ status: filter }}
+          page={page}
+          pageSize={pageSize}
+          defaultPageSize={DEFAULT_PAGE_SIZE}
+          pageSizes={DEFAULT_PAGE_SIZES}
+          total={total}
+          summary={t('total', { count: total })}
+        />
       </div>
     </>
   );

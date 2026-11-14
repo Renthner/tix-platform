@@ -399,6 +399,7 @@
     "moveDown": "„{title}“ nach unten"
   },
   "events": {
+    "total": "{count, plural, one {# Veranstaltung} other {# Veranstaltungen}}",
     "shopOrder": "Shop-Reihenfolge",
     "title": "Veranstaltungen",
     "description": "Vorstellungen, Verkaufszeiträume, Preise und Zugang.",
@@ -1439,11 +1440,7 @@
     "sweep": "Speicher bereinigen",
     "sweepTitle": "Speicher bereinigen?",
     "sweepDescription": "Entfernt gespeicherte Bilddateien, die zu keinem Eintrag mehr gehören (Reste fehlgeschlagener Löschungen). Frische Uploads bleiben unberührt.",
-    "sweepConfirm": "Bereinigen",
-    "pagination": "Seiten",
-    "prev": "Zurück",
-    "next": "Weiter",
-    "pageOf": "Seite {page} von {pages}"
+    "sweepConfirm": "Bereinigen"
   },
   "symbols": {
     "title": "Symbolbibliothek",

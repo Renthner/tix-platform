@@ -252,7 +252,14 @@ class ConfigRepository(private val db: TixDatabase) {
         reload()
     }
 
-    /** Pairing/unpair: removes everything (tokens, tickets, journal). */
+    /**
+     * Pairing/unpair: removes everything (tokens, tickets, journal).
+     *
+     * Never run `VACUUM` on this database while ticket rows exist: `tickets` has a TEXT primary key, so its rowid is
+     * implicit and VACUUM may renumber it, which breaks the link to the content-backed full-text index
+     * (`tickets_fts.docid` = `tickets.rowid`) and the manual search would return wrong or no rows. Emptying all tables
+     * first (this method) is safe; a rebuild (`INSERT INTO tickets_fts(tickets_fts) VALUES('rebuild')`) repairs the index.
+     */
     suspend fun wipeAll() {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
         snapshot = ConfigSnapshot.EMPTY

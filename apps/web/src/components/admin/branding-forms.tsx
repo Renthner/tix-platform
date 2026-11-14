@@ -211,7 +211,7 @@ export function BrandingSettingsForm({
   const validDark = /^#[0-9a-f]{6}$/i.test(dark);
   const tokens = brandTokens(validBrand ? brand : '#111827', validDark ? dark : null);
   return (
-    <ActionForm action={formAction} className="space-y-4">
+    <ActionForm action={formAction} unsavedGuard={state} className="space-y-4">
       <ActionFeedback state={state} />
       <div className="grid gap-4 md:grid-cols-2">
         <Field

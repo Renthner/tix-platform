@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ export function MetricsTokenCard({ enabled: initialEnabled }: { enabled: boolean
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const call = async (action: 'generate' | 'clear') => {
     setBusy(true);
@@ -82,14 +84,19 @@ export function MetricsTokenCard({ enabled: initialEnabled }: { enabled: boolean
             type="button"
             variant="outline"
             disabled={busy}
-            onClick={() => {
-              if (window.confirm(t('removeConfirm'))) void call('clear');
-            }}
+            onClick={() => setConfirmRemove(true)}
           >
             {t('remove')}
           </Button>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        description={t('removeConfirm')}
+        confirmLabel={t('remove')}
+        onConfirm={() => void call('clear')}
+      />
     </div>
   );
 }

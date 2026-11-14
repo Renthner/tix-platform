@@ -1,8 +1,9 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useActionState, useEffect, useRef, useTransition } from 'react';
+import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import { ActionForm, Field, NativeSelect, SubmitButton } from '@/components/admin/form-controls';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -200,6 +201,7 @@ export function AccountActions({
     IDLE,
   );
   useFeedback(state);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const run = (op: CustomerAccountOperation) => () => start(() => setState(op));
   if (anonymized) return null;
   return (
@@ -243,13 +245,18 @@ export function AccountActions({
           variant="outline"
           size="sm"
           disabled={pending}
-          onClick={() => {
-            if (window.confirm(t('removeLoginConfirm'))) run('removeLogin')();
-          }}
+          onClick={() => setConfirmRemove(true)}
         >
           {t('removeLogin')}
         </Button>
       )}
+      <ConfirmDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        description={t('removeLoginConfirm')}
+        confirmLabel={t('removeLogin')}
+        onConfirm={run('removeLogin')}
+      />
     </div>
   );
 }

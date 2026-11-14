@@ -48,6 +48,8 @@ data class LocalTicket(
     val lanDirty: Boolean = false,
     /** Master device only: position in the LAN change feed (0 = never changed by a scan on this device). */
     val lanSeq: Long = 0,
+    /** Order number for the offline search (e.g. `TIX-2026-000123`); null until a server that delivers it has synced the row. */
+    val orderNumber: String? = null,
 ) {
     companion object {
         fun fromSync(t: SyncTicket) = LocalTicket(
@@ -57,7 +59,7 @@ data class LocalTicket(
             ticketTypeId = t.ticketTypeId, attendeeName = t.attendeeName, checkInState = t.checkInState,
             firstCheckedInAt = t.firstCheckedInAt, firstCheckedInDeviceName = t.firstCheckedInDeviceName,
             checkInCount = t.checkInCount, lastScanAt = t.lastScanAt,
-            additionalPaymentOpen = t.additionalPaymentOpen, syncVersion = t.syncVersion,
+            additionalPaymentOpen = t.additionalPaymentOpen, syncVersion = t.syncVersion, orderNumber = t.orderNumber,
         )
     }
 

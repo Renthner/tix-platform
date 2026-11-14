@@ -896,7 +896,7 @@ export function StartPageSettingsForm({
     </label>
   );
   return (
-    <ActionForm action={formAction} className="space-y-6">
+    <ActionForm action={formAction} unsavedGuard={state} className="space-y-6">
       <ActionFeedback state={state} />
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">{t('mode')}</legend>
@@ -1143,7 +1143,7 @@ export function SeoSettingsForm({ action, initial }: { action: Action; initial: 
     if (withError && withError !== current) setCurrent(withError);
   }
   return (
-    <ActionForm action={formAction} className="space-y-6">
+    <ActionForm action={formAction} unsavedGuard={state} className="space-y-6">
       <ActionFeedback state={state} />
       <div className="space-y-2">
         <label className="flex items-start gap-3 text-sm">

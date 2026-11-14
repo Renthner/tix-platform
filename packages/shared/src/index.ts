@@ -39,3 +39,4 @@ export * from './color';
 export * from './theme';
 export * from './email-off';
 export * from './statistics';
+export * from './pagination';

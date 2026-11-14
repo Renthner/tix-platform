@@ -37,7 +37,8 @@ export async function listVenuesWithPlanCount() {
     .from(venues)
     .leftJoin(seatMaps, eq(seatMaps.venueId, venues.id))
     .groupBy(venues.id)
-    .orderBy(asc(venues.name));
+    .orderBy(asc(venues.name))
+    .limit(500);
 }
 
 export async function getVenue(venueId: string): Promise<VenueRow | null> {
@@ -83,7 +84,13 @@ export async function listAllTemplates() {
 }
 
 export async function listEvents(
-  filter: { status?: EventRow['status']; upcomingOnly?: boolean } = {},
+  filter: {
+    status?: EventRow['status'];
+    upcomingOnly?: boolean;
+    /** Paging; without it the (capped) full list is returned. */
+    page?: number;
+    pageSize?: number;
+  } = {},
 ) {
   const { db } = getCore();
   const conditions = [];
@@ -94,8 +101,18 @@ export async function listEvents(
     .from(events)
     .innerJoin(venues, eq(venues.id, events.venueId))
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(filter.upcomingOnly ? asc(events.startsAt) : desc(events.startsAt))
-    .limit(500);
+    .orderBy(filter.upcomingOnly ? asc(events.startsAt) : desc(events.startsAt), asc(events.id))
+    .limit(filter.pageSize ?? 500)
+    .offset(filter.pageSize ? ((filter.page ?? 1) - 1) * filter.pageSize : 0);
+}
+
+/** Number of events (optionally of one status) – for paging the event list. */
+export async function countEvents(status?: EventRow['status']): Promise<number> {
+  const [row] = await getCore()
+    .db.select({ n: count() })
+    .from(events)
+    .where(status ? eq(events.status, status) : undefined);
+  return row?.n ?? 0;
 }
 
 /** Events currently listed in the shop, in shop order. */

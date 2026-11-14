@@ -35,6 +35,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { MediaPicker, type MediaPickerAsset } from '@/components/admin/media-picker';
+import { useUnsavedChangesGuard } from '@/components/admin/unsaved-changes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -315,6 +316,7 @@ export function TicketDesigner(props: TicketDesignerProps) {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (target?.closest?.('[role="dialog"], [role="alertdialog"]')) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -352,12 +354,7 @@ export function TicketDesigner(props: TicketDesignerProps) {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  useUnsavedChangesGuard(dirty);
 
   useEffect(() => {
     const el = wrapRef.current;

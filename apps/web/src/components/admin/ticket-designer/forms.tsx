@@ -2,8 +2,9 @@
 
 import { Copy, Pencil, Star, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useActionState, useEffect, useRef } from 'react';
+import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import {
   ActionFeedback,
   ActionForm,
@@ -61,6 +62,8 @@ export function TemplateRowActions({
   useToastOnSuccess(dup, tMsg('created'));
   useToastOnSuccess(del, tMsg('deleted'));
   useToastOnSuccess(def, tMsg('saved'));
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [, startDelete] = useTransition();
   const failed = [dup, del, def].find((s) => s.status === 'error');
   return (
     <div className="flex flex-wrap items-center gap-1">
@@ -85,20 +88,19 @@ export function TemplateRowActions({
         </ActionForm>
       )}
       {!isDefault && (
-        <ActionForm
-          action={delAction}
-          onSubmitCapture={(e) => {
-            if (!window.confirm(t('confirmDelete'))) {
-              e.preventDefault();
-              e.stopPropagation();
-            }
-          }}
-        >
-          <SubmitButton variant="ghost" size="sm" pendingLabel={t('delete')}>
+        <>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
             <Trash2 className="size-4" />
             {t('delete')}
-          </SubmitButton>
-        </ActionForm>
+          </Button>
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            description={t('confirmDelete')}
+            confirmLabel={t('delete')}
+            onConfirm={() => startDelete(() => delAction(new FormData()))}
+          />
+        </>
       )}
       {failed && <ActionFeedback state={failed} />}
     </div>

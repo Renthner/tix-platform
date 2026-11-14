@@ -73,6 +73,7 @@ export interface CustomerListRow {
   hasAccount: boolean;
   emailVerified: boolean;
   anonymizedAt: Date | null;
+  createdAt: Date;
   orderCount: number;
   /** Paid minus refunded, grouped per currency is overkill here: orders share the shop currency. */
   revenue: number;
@@ -81,9 +82,19 @@ export interface CustomerListRow {
 
 const likePattern = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
+export const CUSTOMER_SORT_KEYS = ['name', 'created', 'orders', 'lastOrder'] as const;
+export type CustomerSortKey = (typeof CUSTOMER_SORT_KEYS)[number];
+
 export async function listCustomers(
   ctx: Pick<CoreContext, 'db'>,
-  options: { q?: string; page?: number; pageSize?: number } = {},
+  options: {
+    q?: string;
+    page?: number;
+    pageSize?: number;
+    /** Default: last order, newest first. */
+    sort?: CustomerSortKey;
+    dir?: 'asc' | 'desc';
+  } = {},
 ): Promise<{ rows: CustomerListRow[]; total: number }> {
   const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? 50), 1), PAGE_SIZE_MAX);
   const page = Math.max(Math.trunc(options.page ?? 1), 1);
@@ -114,6 +125,27 @@ export async function listCustomers(
     .groupBy(orders.customerId)
     .as('stats');
 
+  const dir = options.dir === 'asc' ? 'asc' : 'desc';
+  const direction = dir === 'asc' ? asc : desc;
+  const orderBy = (() => {
+    switch (options.sort) {
+      case 'name':
+        return [
+          direction(sql`lower(${customers.lastName})`),
+          direction(sql`lower(${customers.firstName})`),
+        ];
+      case 'created':
+        return [direction(customers.createdAt)];
+      case 'orders':
+        return [direction(sql`coalesce(${stats.orderCount}, 0)`), desc(customers.createdAt)];
+      default:
+        return [
+          sql`${stats.lastOrderAt} ${sql.raw(dir === 'asc' ? 'ASC' : 'DESC')} NULLS LAST`,
+          desc(customers.createdAt),
+        ];
+    }
+  })();
+
   const [rows, [total]] = await Promise.all([
     ctx.db
       .select({
@@ -125,6 +157,7 @@ export async function listCustomers(
         hasAccount: sql<boolean>`${customers.accountCreatedAt} IS NOT NULL`,
         emailVerified: sql<boolean>`${customers.emailVerifiedAt} IS NOT NULL`,
         anonymizedAt: customers.anonymizedAt,
+        createdAt: customers.createdAt,
         orderCount: sql<number>`coalesce(${stats.orderCount}, 0)::int`,
         revenue: sql<number>`coalesce(${stats.revenue}, 0)::int`,
         lastOrderAt: sql<Date | null>`${stats.lastOrderAt}`.mapWith((v) =>
@@ -134,11 +167,7 @@ export async function listCustomers(
       .from(customers)
       .leftJoin(stats, eq(stats.customerId, customers.id))
       .where(where)
-      .orderBy(
-        sql`${stats.lastOrderAt} DESC NULLS LAST`,
-        desc(customers.createdAt),
-        asc(customers.id),
-      )
+      .orderBy(...orderBy, asc(customers.id))
       .limit(pageSize)
       .offset((page - 1) * pageSize),
     ctx.db

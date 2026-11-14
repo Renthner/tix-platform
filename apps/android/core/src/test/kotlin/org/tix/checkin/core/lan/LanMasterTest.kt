@@ -169,6 +169,27 @@ class LanMasterTest {
     }
 
     @Test
+    fun `master refuses a check-out its own event config forbids even when the client allows it`() {
+        val noCheckOutMaster = Device("Master", "master", SECRET, clock, null, allowCheckOut = false)
+        val door = Device("Door A", "a", SECRET, clock, noCheckOutMaster, masterProcessor = { noCheckOutMaster.processor }, allowCheckOut = true)
+        seed(1, noCheckOutMaster.db, door.db)
+        assertEquals(ScanResult.ACCEPTED, door.scan(1).result)
+        val v = door.scan(1, ScanAction.CHECK_OUT)
+        assertEquals(ScanResult.REJECTED_CHECK_OUT_NOT_ALLOWED, v.result)
+        assertEquals(ScanColor.RED, v.color)
+        assertEquals(CheckInState.CHECKED_IN, noCheckOutMaster.db.tickets.getValue(ticketId(1)).checkInState)
+    }
+
+    @Test
+    fun `master allows a check-out its own event config allows`() {
+        val a = client("Door A", "a")
+        seed(1, master.db, a.db)
+        assertEquals(ScanResult.ACCEPTED, a.scan(1).result)
+        assertEquals(ScanResult.ACCEPTED, a.scan(1, ScanAction.CHECK_OUT).result)
+        assertEquals(CheckInState.CHECKED_OUT, master.db.tickets.getValue(ticketId(1)).checkInState)
+    }
+
+    @Test
     fun `check-out permission of the client is respected without asking the master`() {
         val door = client("Door A", "a", allowCheckOut = false)
         seed(1, master.db, door.db)
@@ -445,6 +466,21 @@ class LanMasterTest {
         )
         assertEquals(ScanResult.ACCEPTED, d.result)
         assertNull(d.nextState)
+    }
+
+    @Test
+    fun `a pushed check-out is ignored when the master's event forbids check-out`() {
+        val noCheckOutMaster = Device("Master", "master", SECRET, clock, null, allowCheckOut = false)
+        val door = Device("Door A", "a", SECRET, clock, noCheckOutMaster, masterProcessor = { noCheckOutMaster.processor }, allowCheckOut = true)
+        noCheckOutMaster.db.tickets[ticketId(1)] = localTicket(1)
+        val applied = runBlocking {
+            door.client.push(
+                LanEndpoint("m", 1), EVENT_A,
+                LanPushRequest(door.name, listOf(rep(1, ScanAction.CHECK_IN, t0, "i"), rep(1, ScanAction.CHECK_OUT, t0 + 10 * min, "o"))),
+            ).results.map { it.applied }
+        }
+        assertEquals(listOf(true, false), applied) // a final answer: the client marks the scan as reported
+        assertEquals(CheckInState.CHECKED_IN, noCheckOutMaster.db.tickets.getValue(ticketId(1)).checkInState)
     }
 
     @Test

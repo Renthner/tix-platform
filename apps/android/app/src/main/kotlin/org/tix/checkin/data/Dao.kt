@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -122,19 +123,27 @@ interface TixDao {
     @Query("SELECT * FROM tickets WHERE eventId = :eventId AND ticketCode = :code LIMIT 1")
     suspend fun ticketByCode(eventId: String, code: String): TicketEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // UPSERT (insert, update on conflict), not REPLACE: the full-text index follows `tickets` through update triggers
+    // and a REPLACE would delete the old row without firing the delete trigger (see TicketFtsEntity).
+    @Upsert
     suspend fun putTicket(ticket: TicketEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun putTickets(tickets: List<TicketEntity>)
 
+    /**
+     * Full-text candidates: [match] is an FTS4 query over the folded `searchText` (`mus* b* 7`, all terms must match),
+     * see LocalSearch.ftsQuery / ftsMixedQuery / ftsWholeQuery. Final filtering and ranking happen in LocalSearch.
+     */
     @Query(
-        "SELECT * FROM tickets WHERE eventId = :eventId AND (attendeeName LIKE '%' || :token || '%' " +
-            "OR ticketCode LIKE '%' || :norm || '%' OR sectionLabel LIKE '%' || :token || '%' " +
-            "OR rowLabel LIKE '%' || :token || '%' OR seatLabel LIKE '%' || :token || '%') " +
-            "ORDER BY (status = 'VALID') DESC, attendeeName LIMIT 400",
+        "SELECT t.* FROM tickets t JOIN tickets_fts ON t.rowid = tickets_fts.docid " +
+            "WHERE tickets_fts MATCH :match AND t.eventId = :eventId ORDER BY (t.status = 'VALID') DESC LIMIT :limit",
     )
-    suspend fun searchTickets(eventId: String, token: String, norm: String): List<TicketEntity>
+    suspend fun searchFts(eventId: String, match: String, limit: Int): List<TicketEntity>
+
+    /** Ticket codes from [from] (inclusive) to [to] (exclusive): an index range scan on `ticketCode`. */
+    @Query("SELECT * FROM tickets WHERE eventId = :eventId AND ticketCode >= :from AND ticketCode < :to LIMIT :limit")
+    suspend fun ticketsByCodeRange(eventId: String, from: String, to: String, limit: Int): List<TicketEntity>
 
     @Query("SELECT COUNT(*) FROM tickets WHERE eventId = :eventId AND status = 'VALID'")
     fun validCount(eventId: String): Flow<Int>

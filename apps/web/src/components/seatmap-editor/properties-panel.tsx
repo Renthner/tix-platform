@@ -18,6 +18,7 @@ import {
 import { Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState, type ReactNode } from 'react';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SplitRowDialog } from './dialogs';
@@ -365,8 +366,16 @@ function SectionPanel({
   const set = (patch: Partial<DocSection>, key: string) =>
     apply((d) => patchEntity(d, 'sections', id, patch), `section:${id}:${key}`);
   const seatIds = doc.seats.filter((s) => s.sectionId === id).map((s) => s.id);
+  const [confirmStanding, setConfirmStanding] = useState(false);
   return (
     <>
+      <ConfirmDialog
+        open={confirmStanding}
+        onOpenChange={setConfirmStanding}
+        description={t('confirm.standingRemovesSeats', { count: seatIds.length })}
+        confirmLabel={t('confirm.standingConfirm')}
+        onConfirm={() => apply((d) => setSectionType(d, id, 'STANDING'))}
+      />
       <PanelSection title={t('panel.section')}>
         <Badge variant="secondary">{t(`options.sectionType.${section.type}`)}</Badge>
         <TextField
@@ -391,11 +400,8 @@ function SectionPanel({
           }))}
           onChange={(value) => {
             if (value !== 'SEATED' && value !== 'STANDING') return;
-            if (
-              value === 'STANDING' &&
-              seatIds.length > 0 &&
-              !window.confirm(t('confirm.standingRemovesSeats', { count: seatIds.length }))
-            ) {
+            if (value === 'STANDING' && seatIds.length > 0) {
+              setConfirmStanding(true);
               return;
             }
             apply((d) => setSectionType(d, id, value));

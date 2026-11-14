@@ -36,6 +36,7 @@ import {
   type Tool,
   type View,
 } from './model';
+import { useUnsavedChangesGuard } from '@/components/admin/unsaved-changes';
 import { EditLocaleSwitcher } from '@/components/admin/edit-locale-switcher';
 import { PlanTranslationPanel } from './plan-translations';
 import { PropertiesPanel } from './properties-panel';
@@ -86,6 +87,10 @@ const isTypingTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
+/** Keys pressed inside an open dialog (confirmations) never reach the plan behind it. */
+const inDialog = (target: EventTarget | null) =>
+  target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"]') !== null;
+
 export function SeatMapEditor(props: SeatMapEditorProps) {
   const t = useTranslations('editor');
   const { state, dispatch, apply: applyRaw, select } = useEditorState(props.initialDocument);
@@ -120,16 +125,8 @@ export function SeatMapEditor(props: SeatMapEditorProps) {
   const imagesVersion = useSymbolImagesVersion();
   const modalOpen = pending !== null || issues !== null;
 
-  // ── Unsaved changes guard ─────────────────────────────────────────────────
-  useEffect(() => {
-    if (!dirty) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [dirty]);
+  // ── Unsaved changes guard (browser unload + in-app links, see admin layout) ──
+  useUnsavedChangesGuard(dirty);
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const save = useCallback(async () => {
@@ -263,7 +260,7 @@ export function SeatMapEditor(props: SeatMapEditorProps) {
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (modalOpen || isTypingTarget(e.target)) return;
+      if (modalOpen || isTypingTarget(e.target) || inDialog(e.target)) return;
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
       if (mod && key === 'z') {
@@ -345,7 +342,6 @@ export function SeatMapEditor(props: SeatMapEditorProps) {
         onZoomOut={() => canvasRef.current?.zoomBy(0.8)}
         onFit={() => canvasRef.current?.fit()}
         onSave={() => void save()}
-        confirmLeave={dirty ? t('confirm.leave') : null}
         localeSlot={
           props.translation && props.translation.options.length > 0 ? (
             <EditLocaleSwitcher

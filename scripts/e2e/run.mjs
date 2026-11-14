@@ -220,6 +220,11 @@ ${svc('realtime')}`,
     // Vorkasse needs a default receiving account.
     const sql = `INSERT INTO bank_accounts (name, account_holder, iban, bic, bank_code, bank_name, currency, is_default_for_bank_transfer, is_active)
 VALUES ('E2E account', 'E2E Club', 'DE89370400440532013000', 'COBADEFFXXX', '37040044', 'E2E Bank', 'EUR', true, true)
+ON CONFLICT DO NOTHING;
+-- 30 customers so the admin customer list has more than one page (e2e/admin-cleanup.spec.ts).
+INSERT INTO customers (email, first_name, last_name)
+SELECT 'pager' || n || '@example.org', 'Pager', 'Customer' || lpad(n::text, 2, '0')
+FROM generate_series(1, 30) AS n
 ON CONFLICT DO NOTHING;`;
     compose([
       'exec',

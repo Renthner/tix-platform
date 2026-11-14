@@ -15,6 +15,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- LAN master: partial wake lock keeps the CPU running with the screen off; the operator can exempt the app from
+         battery optimisation with one tap (sideloaded app: the Play policy on this permission does not apply). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Android 11+: the text-to-speech engine ("read result aloud") is only visible with this query. -->
     <queries>

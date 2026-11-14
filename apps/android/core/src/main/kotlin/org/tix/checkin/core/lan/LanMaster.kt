@@ -152,8 +152,10 @@ class LanMasterHandler(
             // A retry of a scan we already decided (the client timed out) gets the same answer.
             val answerKey = "$deviceId/${sr.clientScanId}"
             answers[answerKey]?.let { return@withLock ScannerJson.decodeFromString<LanScanResponse>(it.toString(Charsets.UTF_8)) }
+            // Check-out permission = the master's own server-provided event flag (checkOutAllowed stays null, like a
+            // client checks its own flag before asking): the venue never checks out where the server forbids it.
             // The envelope's event is authenticated (its key opened the message): a ticket of any other event is RED.
-            val d = local.decide(cmd, DecideContext(req.deviceName, sr.entranceId, checkOutAllowed = true, lan = true), expectedEventId = eventId)
+            val d = local.decide(cmd, DecideContext(req.deviceName, sr.entranceId, lan = true), expectedEventId = eventId)
             d.updated?.let { store.commitLan(it) }
             val v = d.verdict
             val cfg = config()
@@ -182,6 +184,9 @@ class LanMasterHandler(
             applied[index] = lock.withLock {
                 val pushKey = "$deviceId/${sr.clientScanId}"
                 if (!r.result.isAccepted || sr.eventId != eventId || pushed[pushKey] != null) return@withLock false
+                // Same rule as a live scan: never apply a check-out the master's server-provided event flag forbids
+                // (applied=false is final for the client: it marks the scan as reported, no endless retry).
+                if (sr.action == ScanAction.CHECK_OUT && !event.allowCheckOut) return@withLock false
                 val at = timeOf(sr.scannedAt)
                 var ticket: LocalTicket? = null
                 var parsed: org.tix.checkin.core.ParsedTicketPayload? = null
@@ -212,7 +217,7 @@ class LanMasterHandler(
                 val tid = ticket.id
                 val exitBetween = sr.action == ScanAction.CHECK_IN && firstAt != null && at < firstAt &&
                     batch.any { o ->
-                        o.scan.action == ScanAction.CHECK_OUT && idOf(o.scan) == tid &&
+                        o.scan.action == ScanAction.CHECK_OUT && event.allowCheckOut && idOf(o.scan) == tid &&
                             timeOf(o.scan.scannedAt).let { it > at && it < firstAt }
                     }
                 val updated = Merge.afterReportedScan(ticket, sr.action, at, req.deviceName, exitBetween) ?: return@withLock false

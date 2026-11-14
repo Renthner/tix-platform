@@ -1,6 +1,8 @@
-import { getSetting, listCustomers } from '@tix/core';
-import { Search } from 'lucide-react';
+import { CUSTOMER_SORT_KEYS, getSetting, listCustomers, type CustomerSortKey } from '@tix/core';
+import { buildQuery, parsePage, parsePageSize } from '@tix/shared';
+import { ArrowDown, ArrowUp, Search } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
+import { AdminPagination } from '@/components/admin/admin-pagination';
 import { PageHeader } from '@/components/admin/form-controls';
 import { PrivacySettingsForm } from '@/components/admin/customers/customer-forms';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +27,8 @@ export async function generateMetadata() {
   return { title: t('title') };
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZES = [10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 25;
 
 export default async function CustomersPage({
   params,
@@ -37,24 +40,53 @@ export default async function CustomersPage({
   await resolveLocale(params);
   const session = await requireAdmin(['FINANCE', 'EVENT_MANAGER']);
   const sp = await searchParams;
-  const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
-  const q = sp.q?.slice(0, 100);
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.pageSize, PAGE_SIZES, DEFAULT_PAGE_SIZE);
+  const q = sp.q?.trim().slice(0, 100) || undefined;
+  const sort = (CUSTOMER_SORT_KEYS as readonly string[]).includes(sp.sort ?? '')
+    ? (sp.sort as CustomerSortKey)
+    : undefined;
+  const dir = sp.dir === 'asc' ? 'asc' : sp.dir === 'desc' ? 'desc' : undefined;
   const core = getCore();
   const [t, format, result, privacy, general] = await Promise.all([
     getTranslations('customers'),
     getFormatter(),
-    listCustomers(core, { q, page, pageSize: PAGE_SIZE }),
+    listCustomers(core, {
+      q,
+      page,
+      pageSize,
+      sort,
+      dir: dir ?? (sort === 'name' ? 'asc' : 'desc'),
+    }),
     getSetting(core, 'privacy'),
     getSetting(core, 'general'),
   ]);
   const currency = general.defaultCurrency;
-  const pages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
-  const href = (p: number) => {
-    const usp = new URLSearchParams();
-    if (q) usp.set('q', q);
-    if (p > 1) usp.set('page', String(p));
-    const s = usp.toString();
-    return s ? `/admin/customers?${s}` : '/admin/customers';
+  const filters = { q, sort, dir, pageSize: pageSize !== DEFAULT_PAGE_SIZE ? pageSize : undefined };
+  // Click a sortable header: first click = natural direction, second click flips it.
+  const sortHref = (key: CustomerSortKey) => {
+    const natural = key === 'name' ? 'asc' : 'desc';
+    const active = sort === key;
+    const current = dir ?? natural;
+    const next = active ? (current === 'asc' ? 'desc' : 'asc') : natural;
+    return buildQuery('/admin/customers', filters, { sort: key, dir: next, page: undefined });
+  };
+  const sortHead = (k: CustomerSortKey, className?: string) => {
+    const active = sort === k;
+    const current = dir ?? (k === 'name' ? 'asc' : 'desc');
+    return (
+      <TableHead
+        key={k}
+        className={className}
+        aria-sort={active ? (current === 'asc' ? 'ascending' : 'descending') : undefined}
+      >
+        <Link href={sortHref(k)} className="inline-flex items-center gap-1 hover:underline">
+          {t(`columns.${k}`)}
+          {active &&
+            (current === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
+        </Link>
+      </TableHead>
+    );
   };
 
   return (
@@ -71,6 +103,11 @@ export default async function CustomersPage({
               className="pl-8"
             />
           </div>
+          {sort && <input type="hidden" name="sort" value={sort} />}
+          {dir && <input type="hidden" name="dir" value={dir} />}
+          {pageSize !== DEFAULT_PAGE_SIZE && (
+            <input type="hidden" name="pageSize" value={pageSize} />
+          )}
           <Button type="submit">{t('search')}</Button>
         </form>
         <Card>
@@ -78,19 +115,20 @@ export default async function CustomersPage({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('columns.name')}</TableHead>
+                  {sortHead('name')}
                   <TableHead>{t('columns.email')}</TableHead>
                   <TableHead>{t('columns.phone')}</TableHead>
                   <TableHead>{t('columns.account')}</TableHead>
-                  <TableHead className="text-right">{t('columns.orders')}</TableHead>
+                  {sortHead('orders', 'text-right')}
                   <TableHead className="text-right">{t('columns.revenue')}</TableHead>
-                  <TableHead>{t('columns.lastOrder')}</TableHead>
+                  {sortHead('lastOrder')}
+                  {sortHead('created')}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {result.rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       {t('empty')}
                     </TableCell>
                   </TableRow>
@@ -127,30 +165,23 @@ export default async function CustomersPage({
                         ? format.dateTime(row.lastOrderAt, { dateStyle: 'medium' })
                         : '–'}
                     </TableCell>
+                    <TableCell>{format.dateTime(row.createdAt, { dateStyle: 'medium' })}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{t('total', { count: result.total })}</span>
-          {pages > 1 && (
-            <div className="flex items-center gap-2">
-              {page > 1 && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={href(page - 1)}>{t('prev')}</Link>
-                </Button>
-              )}
-              <span>{t('pageOf', { page, pages })}</span>
-              {page < pages && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={href(page + 1)}>{t('next')}</Link>
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
+        <AdminPagination
+          pathname="/admin/customers"
+          params={{ q, sort, dir }}
+          page={page}
+          pageSize={pageSize}
+          defaultPageSize={DEFAULT_PAGE_SIZE}
+          pageSizes={PAGE_SIZES}
+          total={result.total}
+          summary={t('total', { count: result.total })}
+        />
         {hasRole(session, ['SUPER_ADMIN']) && (
           <Card>
             <CardHeader>

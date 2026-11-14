@@ -30,6 +30,22 @@
     "remove": "Entfernen",
     "confirm": "Bestätigen"
   },
+  "confirm": {
+    "title": "Bist du sicher?"
+  },
+  "pagination": {
+    "label": "Seitennavigation",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "pageOf": "Seite {page} von {pages}",
+    "perPage": "Pro Seite"
+  },
+  "unsaved": {
+    "title": "Ungespeicherte Änderungen verwerfen?",
+    "description": "Es gibt Änderungen, die noch nicht gespeichert wurden. Wenn du diese Seite verlässt, gehen sie verloren.",
+    "stay": "Weiter bearbeiten",
+    "leave": "Änderungen verwerfen"
+  },
   "states": {
     "loading": "Lädt…",
     "saved": "Gespeichert",

@@ -8,6 +8,54 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.22] - 2026-11-14
+
+### Added
+
+- **Android app, slow network at the door:** after a server timeout or connect failure the link is
+  DEGRADED and scans go straight to the LAN master / local verification (no per-scan wait, decision
+  rules unchanged). A background probe (conditional manifest request, 1.5 s) restores ONLINE; its
+  backoff is 30 s, doubling up to 5 min, reset on success. The scanner status shows "Slow connection -
+  checking locally" (en/de).
+- **Android app, LAN master:** holds WiFi locks (low latency on API 29+, plus high performance on API
+  28-33, which keeps the radio awake with the screen off) and a partial wake lock while master mode
+  runs; the wake lock's 12 h safety timeout is renewed hourly. Released on stop and crash paths;
+  Settings -> LAN offers a one-tap "allow background use" (battery optimisation) button. Keep the
+  master plugged in, screen on recommended (docs).
+- **Android app, attendee search:** the offline lookup uses a Room FTS4 index over a folded text column
+  (case, diacritics and letters without a decomposition such as ø, æ, ß, ł: "soren" finds "Søren")
+  with word-prefix matching and ranking (exact ticket code or order number, code / order number
+  start, name, seat). 1-2 character queries use whole-word and 2-letter-prefix full-text queries, so
+  seat lookups ("b 7", "a 12", "12") and short surnames that are not the first word ("li" for "Wei
+  Li") work. **Order number:** the scanner sync now delivers each ticket's `orderNumber` (additive,
+  optional field; older apps ignore it) and the app searches it ("000123", "2026-000123" or the full
+  number; the leading words alone never match). Database version 3 (migration 2 -> 3 adds the columns,
+  builds the index from the existing tickets and resets the sync cursors so the next sync fills in the
+  order numbers; no data is touched). Substring matches in the middle of a word ("ller" for
+  "Muller") do not match.
+- **Admin lists:** the customer list now has a page-size switcher (10/25/50/100, default 25),
+  sortable columns (name, orders, last order, created) and a "created" column; search covers name
+  (either order), e-mail, phone and company. Migration 0038 adds trigram indexes on e-mail, phone
+  and "last first" name so the search stays fast with many customers. The event list is paged on the
+  server (it was capped at 500 rows). Orders, customers, events, media library and the scan log
+  share one pagination component and query helper.
+- **Unsaved-changes guard** for the e-mail template editor, the rich-text settings forms (start
+  page, branding/footer, SEO, event details, event page designer, translations), the ticket
+  designer and the seat plan editor: reload/close shows the browser prompt, clicking an internal link
+  shows an in-page "Discard unsaved changes?" dialog.
+
+### Changed
+
+- **Android app, LAN master:** enforces the check-out permission itself (the master's own event flag)
+  instead of trusting the client; a forbidden check-out is answered `REJECTED_CHECK_OUT_NOT_ALLOWED`.
+  A check-out reported by another door after an outage (`/scans`) is ignored the same way.
+- **Android app, slow network:** the probe loop starts independently of app initialisation and survives
+  a cancellation raised inside the probe request; the link state is updated atomically; the unknown
+  signing key refresh also runs while the link is DEGRADED.
+- Remaining native `confirm()` prompts in the admin (customer login removal, user operations,
+  ticket template deletion, metrics token removal, block to standing area, editor leave) are
+  in-page confirmation dialogs with translated, destructive-styled buttons.
+
 ## [1.0.0-alpha.21] - 2026-11-14
 
 ### Added

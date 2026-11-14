@@ -4,9 +4,10 @@ import {
   mediaAssetUsagesBatch,
   mediaSummary,
 } from '@tix/core';
-import { MEDIA_ASSET_KINDS, type MediaAssetKind } from '@tix/shared';
+import { MEDIA_ASSET_KINDS, parsePage, type MediaAssetKind } from '@tix/shared';
 import { Shapes } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
+import { AdminPagination } from '@/components/admin/admin-pagination';
 import { NativeSelect, PageHeader } from '@/components/admin/form-controls';
 import {
   BulkDeleteDialog,
@@ -64,7 +65,7 @@ export default async function MediaPage({
   const sort = sp.sort === 'size' ? 'size' : 'date';
   const dir = sp.dir === 'asc' ? 'asc' : 'desc';
   const search = sp.q?.trim().slice(0, 100) || undefined;
-  const pageNo = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
+  const pageNo = parsePage(sp.page);
 
   const core = getCore();
   const [t, list, summary, unused] = await Promise.all([
@@ -77,15 +78,6 @@ export default async function MediaPage({
     core,
     list.items.map((i) => i.id),
   );
-  const pages = Math.max(1, Math.ceil(list.total / list.pageSize));
-
-  const qs = (over: Partial<Search>) => {
-    const next: Record<string, string> = {};
-    const merged = { kind, usage, q: search, sort, dir, ...over };
-    for (const [k, v] of Object.entries(merged)) if (v) next[k] = String(v);
-    const s = new URLSearchParams(next).toString();
-    return `/admin/media${s ? `?${s}` : ''}`;
-  };
 
   return (
     <>
@@ -207,34 +199,14 @@ export default async function MediaPage({
           }))}
         />
 
-        {pages > 1 && (
-          <nav
-            className="flex items-center justify-center gap-3 text-sm"
-            aria-label={t('pagination')}
-          >
-            {list.page > 1 ? (
-              <Link
-                href={qs({ page: String(list.page - 1) })}
-                className="rounded-md border px-3 py-1 hover:bg-accent"
-              >
-                {t('prev')}
-              </Link>
-            ) : (
-              <span className="rounded-md border px-3 py-1 opacity-50">{t('prev')}</span>
-            )}
-            <span>{t('pageOf', { page: list.page, pages })}</span>
-            {list.page < pages ? (
-              <Link
-                href={qs({ page: String(list.page + 1) })}
-                className="rounded-md border px-3 py-1 hover:bg-accent"
-              >
-                {t('next')}
-              </Link>
-            ) : (
-              <span className="rounded-md border px-3 py-1 opacity-50">{t('next')}</span>
-            )}
-          </nav>
-        )}
+        <AdminPagination
+          pathname="/admin/media"
+          params={{ kind, usage, q: search, sort, dir }}
+          page={list.page}
+          pageSize={list.pageSize}
+          total={list.total}
+          className="justify-center"
+        />
       </div>
     </>
   );

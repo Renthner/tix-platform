@@ -179,7 +179,7 @@ export function EventPageEditor({
   };
 
   return (
-    <ActionForm action={formAction} className="space-y-8">
+    <ActionForm action={formAction} unsavedGuard={state} className="space-y-8">
       <ActionFeedback state={state} />
       <input type="hidden" name="layout" value={JSON.stringify(layout)} />
       <input

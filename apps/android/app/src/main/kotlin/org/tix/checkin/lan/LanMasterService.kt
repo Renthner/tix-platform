@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.tix.checkin.MainActivity
 import org.tix.checkin.R
@@ -30,6 +31,8 @@ import org.tix.checkin.TixApplication
 class LanMasterService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var loop: Job? = null
+    private var renewal: Job? = null
+    private var locks: MasterLocks? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -53,8 +56,18 @@ class LanMasterService : Service() {
             .setOngoing(true)
             .build()
         ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        // Held for the whole master mode, released in onDestroy (also when startMaster fails and the service stops itself).
+        (locks ?: MasterLocks(this).also { locks = it }).acquire()
         val container = (application as TixApplication).container
         val lan = container.lan
+        // The wake lock has a safety timeout: renew it hourly so a long event night never loses it.
+        renewal?.cancel()
+        renewal = scope.launch {
+            while (true) {
+                delay(MasterLocks.RENEW_MILLIS)
+                locks?.acquire()
+            }
+        }
         loop?.cancel()
         loop = scope.launch {
             // After a sticky restart the process starts cold: the paired configuration is loaded asynchronously.
@@ -71,10 +84,14 @@ class LanMasterService : Service() {
     }
 
     override fun onDestroy() {
-        loop?.cancel()
-        scope.cancel()
-        (application as TixApplication).container.lan.stopMaster()
-        super.onDestroy()
+        try {
+            loop?.cancel()
+            scope.cancel()
+            (application as TixApplication).container.lan.stopMaster()
+        } finally {
+            locks?.release()
+            super.onDestroy()
+        }
     }
 
     companion object {

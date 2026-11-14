@@ -248,7 +248,7 @@
   },
   "confirm": {
     "standingRemovesSeats": "Wird dieser Block zum Stehplatzbereich, werden seine {count} Plätze entfernt. Fortfahren?",
-    "leave": "Es gibt ungespeicherte Änderungen. Editor trotzdem verlassen?"
+    "standingConfirm": "Plätze entfernen"
   },
   "actions": {
     "applyCategoryToSeats": "Auf alle {count} Plätze anwenden",

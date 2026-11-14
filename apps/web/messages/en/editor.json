@@ -248,7 +248,7 @@
   },
   "confirm": {
     "standingRemovesSeats": "Turning this block into a standing area removes its {count} seats. Continue?",
-    "leave": "You have unsaved changes. Leave the editor anyway?"
+    "standingConfirm": "Remove seats"
   },
   "actions": {
     "applyCategoryToSeats": "Apply to all {count} seats",

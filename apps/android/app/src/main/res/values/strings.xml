@@ -45,6 +45,7 @@
     <string name="status_online">Online</string>
     <string name="status_offline">Offline</string>
     <string name="status_maintenance">Server maintenance</string>
+    <string name="status_degraded">Slow connection - checking locally</string>
     <string name="status_counts">Checked in: %1$d / %2$d</string>
     <string name="status_pending">Not uploaded: %1$d</string>
     <string name="status_last_sync">Last sync: %1$s</string>
@@ -195,6 +196,9 @@
     <string name="lan_hint">Scanners on the same venue WiFi share check-ins through one master device, so a ticket cannot enter at two doors while the internet is down.</string>
     <string name="lan_master_toggle">Use this device as LAN master</string>
     <string name="lan_master_hint">Keep this device on the venue WiFi and plugged in. Other scanners find it automatically.</string>
+    <string name="lan_battery_hint">For reliable LAN sync, allow this app to run unrestricted in the background (no battery optimisation). Otherwise the system may throttle the master while the screen is off.</string>
+    <string name="lan_battery_ok">Battery optimisation is off for this app - good for a master device.</string>
+    <string name="lan_battery_button">Allow background use</string>
     <string name="lan_port">Port (1024-65535)</string>
     <string name="lan_manual">Master address (optional)</string>
     <string name="lan_manual_hint">host:port, only needed when automatic discovery is blocked</string>

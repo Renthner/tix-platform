@@ -30,6 +30,22 @@
     "remove": "Remove",
     "confirm": "Confirm"
   },
+  "confirm": {
+    "title": "Are you sure?"
+  },
+  "pagination": {
+    "label": "Pagination",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {pages}",
+    "perPage": "Per page"
+  },
+  "unsaved": {
+    "title": "Discard unsaved changes?",
+    "description": "You have changes that have not been saved. If you leave this page, they will be lost.",
+    "stay": "Keep editing",
+    "leave": "Discard changes"
+  },
   "states": {
     "loading": "Loading…",
     "saved": "Saved",

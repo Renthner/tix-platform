@@ -7,10 +7,13 @@ import {
   type OrderStatus,
   type PaymentMethod,
   type SalesChannel,
+  parsePage,
+  parsePageSize,
 } from '@tix/shared';
 import { desc } from 'drizzle-orm';
 import { Search } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
+import { AdminPagination } from '@/components/admin/admin-pagination';
 import { OrderStatusBadge } from '@/components/admin/order-badges';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +38,8 @@ export async function generateMetadata() {
   return { title: t('title') };
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZES = [10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 50;
 
 export default async function OrdersPage({
   params,
@@ -59,7 +63,8 @@ export default async function OrdersPage({
   const eventId = /^[0-9a-f-]{36}$/i.test(sp.event ?? '') ? sp.event : undefined;
   const overdueOnly = sp.overdue === '1';
   const tests = sp.tests === 'only' || sp.tests === 'hide' ? sp.tests : undefined;
-  const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.pageSize, PAGE_SIZES, DEFAULT_PAGE_SIZE);
   const q = sp.q?.slice(0, 100);
   const core = getCore();
   const [t, tChannel, tStatus, tMethod, format, result, eventRows] = await Promise.all([
@@ -77,7 +82,7 @@ export default async function OrdersPage({
       overdueOnly,
       tests,
       page,
-      pageSize: PAGE_SIZE,
+      pageSize,
     }),
     core.db
       .select({ id: events.id, title: events.title, startsAt: events.startsAt })
@@ -85,23 +90,14 @@ export default async function OrdersPage({
       .orderBy(desc(events.startsAt))
       .limit(200),
   ]);
-  const pages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
-  const query = (overrides: Record<string, string | undefined>) => {
-    const merged: Record<string, string | undefined> = {
-      q,
-      status,
-      method,
-      channel,
-      event: eventId,
-      overdue: overdueOnly ? '1' : undefined,
-      tests,
-      ...overrides,
-    };
-    const usp = new URLSearchParams(
-      Object.entries(merged).filter((e): e is [string, string] => Boolean(e[1])),
-    );
-    const s = usp.toString();
-    return s ? `/admin/orders?${s}` : '/admin/orders';
+  const filterParams = {
+    q,
+    status,
+    method,
+    channel,
+    event: eventId,
+    overdue: overdueOnly ? '1' : undefined,
+    tests,
   };
 
   return (
@@ -184,6 +180,9 @@ export default async function OrdersPage({
             <input type="checkbox" name="overdue" value="1" defaultChecked={overdueOnly} />
             {t('filters.overdue')}
           </label>
+          {pageSize !== DEFAULT_PAGE_SIZE && (
+            <input type="hidden" name="pageSize" value={pageSize} />
+          )}
           <Button type="submit" variant="secondary">
             {t('filters.apply')}
           </Button>
@@ -272,24 +271,16 @@ export default async function OrdersPage({
             )}
           </CardContent>
         </Card>
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{t('total', { count: result.total })}</span>
-          {pages > 1 && (
-            <div className="flex items-center gap-2">
-              {page > 1 && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={query({ page: String(page - 1) })}>{t('previous')}</Link>
-                </Button>
-              )}
-              <span>{t('page', { page, pages })}</span>
-              {page < pages && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={query({ page: String(page + 1) })}>{t('next')}</Link>
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
+        <AdminPagination
+          pathname="/admin/orders"
+          params={filterParams}
+          page={page}
+          pageSize={pageSize}
+          defaultPageSize={DEFAULT_PAGE_SIZE}
+          pageSizes={PAGE_SIZES}
+          total={result.total}
+          summary={t('total', { count: result.total })}
+        />
       </div>
     </>
   );

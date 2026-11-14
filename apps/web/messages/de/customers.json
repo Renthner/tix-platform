@@ -6,9 +6,6 @@
   "search": "Suchen",
   "empty": "Keine Kunden gefunden.",
   "total": "{count, plural, one {# Kunde} other {# Kunden}}",
-  "pageOf": "Seite {page} von {pages}",
-  "prev": "Zurück",
-  "next": "Weiter",
   "backToList": "Alle Kunden",
   "anonymized": "Anonymisiert",
   "anonymizedName": "Anonymisierter Kunde",
@@ -19,6 +16,7 @@
     "account": "Konto",
     "orders": "Bestellungen",
     "revenue": "Umsatz",
+    "created": "Angelegt",
     "lastOrder": "Letzte Bestellung"
   },
   "profile": {

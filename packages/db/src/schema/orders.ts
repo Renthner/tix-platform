@@ -90,6 +90,13 @@ export const customers = pgTable(
       'gin',
       sql`(${t.firstName} || ' ' || ${t.lastName}) gin_trgm_ops`,
     ),
+    // Admin customer search (ILIKE '%q%') on e-mail, phone and last-first name.
+    index('customers_email_trgm_idx').using('gin', sql`${t.email} gin_trgm_ops`),
+    index('customers_phone_trgm_idx').using('gin', sql`${t.phone} gin_trgm_ops`),
+    index('customers_name_rev_trgm_idx').using(
+      'gin',
+      sql`(${t.lastName} || ' ' || ${t.firstName}) gin_trgm_ops`,
+    ),
     check(
       'customers_account_created',
       sql`${t.passwordHash} IS NULL OR ${t.accountCreatedAt} IS NOT NULL`,

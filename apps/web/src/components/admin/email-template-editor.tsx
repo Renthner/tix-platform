@@ -28,6 +28,7 @@ import type {
 } from '@/server/admin/email-templates';
 import { ConfirmAction } from './confirm-action';
 import { EmailVisualEditor } from './email-visual-editor';
+import { useUnsavedChangesGuard } from './unsaved-changes';
 import { ActionFeedback, ActionForm, Field, SubmitButton, errorOf } from './form-controls';
 
 type Target = 'subject' | 'visual' | 'source' | 'text';
@@ -104,6 +105,7 @@ export function EmailTemplateEditor({
     doc !== initial.bodyHtml ||
     text !== initial.bodyText ||
     active !== initial.isActive;
+  useUnsavedChangesGuard(dirty);
 
   // ─── Insertion of placeholders at the cursor ──────────────────────────────
   const subjectRef = useRef<HTMLInputElement>(null);

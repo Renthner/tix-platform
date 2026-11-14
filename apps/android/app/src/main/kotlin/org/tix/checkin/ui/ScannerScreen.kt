@@ -60,6 +60,8 @@ import org.tix.checkin.sync.Connection
 /** Neutral information screen (ticket not synced yet ...): not an alarm colour. */
 private val InfoBg = Color(0xFF475569)
 private val GreenBg = Color(0xFF1B8E3E)
+/** Slow connection badge: amber text, readable on the light and the dark status panel. */
+private val DegradedFg = Color(0xFFD97706)
 private val YellowBg = Color(0xFFF2B600)
 internal val RedBg = Color(0xFFC62828)
 
@@ -122,10 +124,17 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit, onOpenSettings: 
                                 Connection.ONLINE -> R.string.status_online
                                 Connection.OFFLINE -> R.string.status_offline
                                 Connection.MAINTENANCE -> R.string.status_maintenance
+                                Connection.DEGRADED -> R.string.status_degraded
                             },
                         ),
                         fontWeight = FontWeight.Bold,
-                        color = if (connection == Connection.ONLINE) GreenBg else RedBg,
+                        color = when (connection) {
+                            Connection.ONLINE -> GreenBg
+                            Connection.DEGRADED -> DegradedFg
+                            else -> RedBg
+                        },
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                        modifier = Modifier.padding(start = 8.dp),
                     )
                 }
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {

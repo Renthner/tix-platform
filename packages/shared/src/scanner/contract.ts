@@ -189,6 +189,8 @@ export const syncTicketSchema = z.object({
   categoryName: z.string(),
   ticketTypeId: uuid,
   attendeeName: z.string().nullable(),
+  /** Order number (e.g. `TIX-2026-000123`) for the offline search. Additive: older apps ignore it. */
+  orderNumber: z.string().optional(),
   checkInState: z.enum(CHECK_IN_STATES),
   firstCheckedInAt: isoTime.nullable(),
   firstCheckedInDeviceName: z.string().nullable(),

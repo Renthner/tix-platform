@@ -399,6 +399,7 @@
     "moveDown": "Move \"{title}\" down"
   },
   "events": {
+    "total": "{count, plural, one {# event} other {# events}}",
     "shopOrder": "Shop order",
     "title": "Events",
     "description": "Performances, sales windows, pricing and access.",
@@ -1439,11 +1440,7 @@
     "sweep": "Clean up storage",
     "sweepTitle": "Clean up storage?",
     "sweepDescription": "Removes stored image files that no longer belong to any entry (leftovers of failed deletions). Recent uploads are never touched.",
-    "sweepConfirm": "Clean up",
-    "pagination": "Pages",
-    "prev": "Previous",
-    "next": "Next",
-    "pageOf": "Page {page} of {pages}"
+    "sweepConfirm": "Clean up"
   },
   "symbols": {
     "title": "Symbol library",

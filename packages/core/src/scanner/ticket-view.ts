@@ -210,6 +210,7 @@ export function toSyncTicket(view: TicketView): SyncTicket {
     categoryName: view.categoryName,
     ticketTypeId: view.ticketTypeId,
     attendeeName: view.attendeeName,
+    orderNumber: view.orderNumber,
     checkInState: view.checkInState,
     firstCheckedInAt: view.firstCheckedInAt?.toISOString() ?? null,
     firstCheckedInDeviceName: view.firstCheckedInDeviceName,

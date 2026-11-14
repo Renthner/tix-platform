@@ -16,7 +16,7 @@ deinem eigenen Server, ohne Plattformgebühren.**
   <img src="docs/img/shop-event.webp" alt="Veranstaltungsseite des Ticketshops" width="900">
 </p>
 
-> **Status:** Vorabversion (`1.0.0-alpha.21`). Funktionsumfang vollständig, aber noch nicht als
+> **Status:** Vorabversion (`1.0.0-alpha.22`). Funktionsumfang vollständig, aber noch nicht als
 > stabil freigegeben. Mach vor jedem Update ein Backup (vor Schemaänderungen wird zusätzlich
 > automatisch ein Datenbank-Backup erstellt) und lies das [CHANGELOG](CHANGELOG.md) (auf Englisch).
 > Aktualisiere mit dem Skript `tix-update.sh` des Releases ([Installationsanleitung](docs/INSTALL.de.md#updates-und-backups)).
@@ -109,7 +109,7 @@ Anleitung mit HTTPS-Varianten und Fehlersuche ist [docs/INSTALL.de.md](docs/INST
 
 ```bash
 # 1. Die zwei Dateien des Releases herunterladen
-export TIX_VERSION=1.0.0-alpha.21
+export TIX_VERSION=1.0.0-alpha.22
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example

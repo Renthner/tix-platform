@@ -267,6 +267,13 @@
       "when": 1794663107640,
       "tag": "0037_price_category_best_available",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794681670903,
+      "tag": "0038_customers_search_trgm",
+      "breakpoints": true
     }
   ]
 }

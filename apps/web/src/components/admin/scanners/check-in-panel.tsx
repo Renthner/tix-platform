@@ -6,8 +6,8 @@ import {
   scanResultColor,
 } from '@tix/shared';
 import { getFormatter, getTranslations } from 'next-intl/server';
+import { AdminPagination } from '@/components/admin/admin-pagination';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -17,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Link } from '@/i18n/navigation';
 import { getCore } from '@/server/core';
 import { AutoRefresh } from './auto-refresh';
 import { LogFilterForm } from './log-filter-form';
@@ -59,17 +58,8 @@ export async function CheckInPanel({
     getSetting(core, 'scanner'),
   ]);
   const colors = scannerSettings.resultColors;
-  const pages = Math.max(1, Math.ceil(log.total / pageSize));
   const percent = stats.valid > 0 ? Math.round((stats.checkedIn / stats.valid) * 100) : 0;
   const dateTime = (d: Date) => format.dateTime(d, { dateStyle: 'short', timeStyle: 'medium' });
-  const query = (nextPage: number) => ({
-    ...(result ? { result } : {}),
-    ...(deviceId ? { device: deviceId } : {}),
-    ...(search ? { logQ: search } : {}),
-    ...(pageSize !== DEFAULT_PAGE_SIZE ? { logSize: String(pageSize) } : {}),
-    ...(nextPage > 1 ? { logPage: String(nextPage) } : {}),
-  });
-
   const statCards: {
     key: 'valid' | 'checkedIn' | 'checkedOut' | 'notArrived' | 'voided' | 'duplicates';
     value: number;
@@ -251,27 +241,17 @@ export async function CheckInPanel({
           </Table>
         )}
         {log.total > 0 ? (
-          <div className="flex items-center justify-between text-sm">
-            <span>
-              {t('log.page', { page: log.page, pages })} · {t('log.total', { count: log.total })}
-            </span>
-            <div className="flex gap-2">
-              {log.page > 1 ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={{ pathname: basePath, query: query(log.page - 1) }}>
-                    {t('log.previous')}
-                  </Link>
-                </Button>
-              ) : null}
-              {log.page < pages ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={{ pathname: basePath, query: query(log.page + 1) }}>
-                    {t('log.next')}
-                  </Link>
-                </Button>
-              ) : null}
-            </div>
-          </div>
+          <AdminPagination
+            pathname={basePath}
+            params={{ result, device: deviceId, logQ: search }}
+            page={log.page}
+            total={log.total}
+            pageSize={pageSize}
+            defaultPageSize={DEFAULT_PAGE_SIZE}
+            pageSizeParam="logSize"
+            pageParam="logPage"
+            summary={t('log.total', { count: log.total })}
+          />
         ) : null}
       </section>
     </div>

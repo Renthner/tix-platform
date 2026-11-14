@@ -63,6 +63,12 @@ codes.
 | 503           | `BUSY` + `Retry-After`                   | Transient overload: decide locally, retry after `Retry-After`    |
 | 5xx / network | -                                        | Offline mode; keep the local scan queue                          |
 
+Slow network at the door (client behaviour, no server change): a scan tries the server with a 1.5 s timeout. A timeout
+or connect failure puts the link into DEGRADED; scans then skip the server (LAN master, else local decision, same
+rules as offline) so no scan waits. A background probe (conditional `GET /manifest`, answer within 1.5 s) restores
+ONLINE; its backoff starts at 30 s, doubles per failed probe up to 5 min and resets on success. A slow sync request
+that succeeds does not restore the link. Uploads of local scans continue as usual.
+
 Rate limits (per device, per minute, one bucket per route): scan 600, batch 60, lookup 240, manifest 120,
 sync 120, app/latest 30. Failed authentications are additionally limited per client address: the budget (30 failures per minute) is checked
 before the token lookup and only charged on 401; once exhausted every request of that address is answered 429. `/pair` and `/app/download` are limited per client address (10 and
@@ -189,6 +195,7 @@ or absent for a full sync.
       "categoryName": "Cat 1",
       "ticketTypeId": "<uuid>",
       "attendeeName": "Max Muster", // falls back to the buyer name
+      "orderNumber": "TIX-2026-000123", // optional (additive): offline search by order number
       "checkInState": "NONE|CHECKED_IN|CHECKED_OUT",
       "firstCheckedInAt": "...|null",
       "firstCheckedInDeviceName": "Door A|null",

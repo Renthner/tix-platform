@@ -214,4 +214,97 @@ class LocalSearchTest {
         assertFalse(LocalSearch.matches(t, LocalSearch.tokens("stalls b 3")))
         assertFalse(LocalSearch.matches(t, LocalSearch.tokens("")))
     }
+
+    @Test
+    fun `prefix by word, diacritics and case folded, code typed with dash or aliases`() {
+        val j = localTicket(1, attendee = "Jörg Müller-Lüdenscheidt")
+        assertTrue(LocalSearch.matches(j, LocalSearch.tokens("MULLER")))
+        assertTrue(LocalSearch.matches(j, LocalSearch.tokens("jorg lud")))
+        assertTrue(LocalSearch.matches(j, LocalSearch.tokens("müller-lüd")))
+        assertFalse(LocalSearch.matches(j, LocalSearch.tokens("ller"))) // not in the middle of a word
+        assertTrue(LocalSearch.matches(t, LocalSearch.tokens("ABCDE-FGH07")))
+        assertTrue(LocalSearch.matches(t, LocalSearch.tokens("abcdefgh")))
+    }
+
+    @Test
+    fun `fts query uses prefix terms of every alphanumeric part`() {
+        assertEquals("mus* b* 7*", LocalSearch.ftsQuery(LocalSearch.tokens("Mus b 7")))
+        assertEquals("abcde* fghjk*", LocalSearch.ftsQuery(LocalSearch.tokens("ABCDE-FGHJK")))
+        assertEquals("a* or* not*", LocalSearch.ftsQuery(LocalSearch.tokens("a OR not"))) // never an operator: lower case + prefix
+        assertEquals(null, LocalSearch.ftsQuery(LocalSearch.tokens("\"*-()")))
+    }
+
+    @Test
+    fun `rank - exact code, code start, name, seat only`() {
+        val exact = localTicket(7)
+        val byName = localTicket(8, attendee = "Abcdefgh Muster")
+        val seat = localTicket(9, attendee = "Someone")
+        assertEquals(0, LocalSearch.rank(exact, LocalSearch.tokens("ABCDEFGH07")))
+        assertEquals(1, LocalSearch.rank(exact, LocalSearch.tokens("abcdefg")))
+        assertEquals(2, LocalSearch.rank(byName, LocalSearch.tokens("muster")))
+        assertEquals(3, LocalSearch.rank(seat, LocalSearch.tokens("stalls")))
+        val ordered = LocalSearch.sorted(listOf(seat, byName, exact), LocalSearch.tokens("abcdefgh stalls"))
+        assertEquals(listOf(3, 2, 1).size, ordered.size)
+    }
+
+    @Test
+    fun `fold maps letters without a decomposition like the index text does`() {
+        assertEquals("soren", LocalSearch.fold("Søren"))
+        assertEquals("strauss", LocalSearch.fold("Strauß"))
+        assertEquals("lukasz", LocalSearch.fold("Łukasz"))
+        assertEquals("oz", LocalSearch.fold("Ö" + "z"))
+        assertEquals("soren strauss ab12 gallery c 9", LocalSearch.indexText("Søren Strauß", "AB12", "Gallery", "C", "9", null))
+        assertTrue(LocalSearch.matches(localTicket(1, attendee = "Søren Strauß"), LocalSearch.tokens("soren")))
+        assertTrue(LocalSearch.matches(localTicket(1, attendee = "Wei Li"), LocalSearch.tokens("li")))
+    }
+
+    @Test
+    fun `short fts queries - whole words and short prefixes`() {
+        assertEquals("b 7", LocalSearch.ftsWholeQuery(LocalSearch.tokens("B 7")))
+        assertEquals("a 12", LocalSearch.ftsWholeQuery(LocalSearch.tokens("a 12")))
+        assertEquals("b* 7*", LocalSearch.ftsMixedQuery(LocalSearch.tokens("b 7"), 1)) // prefix from length 1: all prefix
+        assertEquals("b 7", LocalSearch.ftsMixedQuery(LocalSearch.tokens("b 7"), 2)) // one-letter words stay whole
+        assertEquals("li*", LocalSearch.ftsMixedQuery(LocalSearch.tokens("li"), 2))
+        assertEquals("a 12*", LocalSearch.ftsMixedQuery(LocalSearch.tokens("a 12"), 2))
+        assertEquals(null, LocalSearch.ftsWholeQuery(LocalSearch.tokens("-")))
+    }
+
+    @Test
+    fun `order number - trailing words, never the leading words alone, exact ranks first`() {
+        val o = localTicket(7, attendee = "Erika Mustermann").copy(orderNumber = "TIX-2026-000123")
+        for (q in listOf("000123", "2026-000123", "TIX-2026-000123", "tix 2026 000123", "00012", "2026 000123")) {
+            assertTrue(LocalSearch.matches(o, LocalSearch.tokens(q)), q)
+        }
+        for (q in listOf("2026", "tix", "tix-2026", "12", "000124", "026-000123")) {
+            assertFalse(LocalSearch.matches(o, LocalSearch.tokens(q)), q)
+        }
+        assertEquals(0, LocalSearch.rank(o, LocalSearch.tokens("2026-000123")))
+        assertEquals(1, LocalSearch.rank(o, LocalSearch.tokens("00012")))
+        val other = localTicket(8, attendee = "Someone").copy(orderNumber = "TIX-2026-0001234")
+        assertEquals(listOf(o.id, other.id), LocalSearch.sorted(listOf(other, o), LocalSearch.tokens("000123")).map { it.id })
+        // the old row without an order number is simply not found by it
+        assertFalse(LocalSearch.matches(o.copy(orderNumber = null), LocalSearch.tokens("000123")))
+    }
+
+    @Test
+    fun `sync delivers the order number and a server without it never erases a known one`() {
+        val wire = org.tix.checkin.core.contract.ScannerJson.decodeFromString<org.tix.checkin.core.contract.SyncTicket>(
+            """{"id":"x","ticketCode":"ABCDEFGH07","status":"VALID","eventId":"e","syncVersion":3,"orderNumber":"TIX-2026-000123","unknownField":1}""",
+        )
+        assertEquals("TIX-2026-000123", wire.orderNumber)
+        val old = org.tix.checkin.core.contract.ScannerJson.decodeFromString<org.tix.checkin.core.contract.SyncTicket>(
+            """{"id":"x","ticketCode":"ABCDEFGH07","status":"VALID","eventId":"e","syncVersion":4}""",
+        )
+        assertEquals(null, old.orderNumber)
+        val stored = Merge.mergeIncoming(null, wire)
+        assertEquals("TIX-2026-000123", stored.orderNumber)
+        assertEquals("TIX-2026-000123", Merge.mergeIncoming(stored, old).orderNumber)
+        assertEquals("TIX-2026-000999", Merge.mergeIncoming(stored, wire.copy(syncVersion = 5, orderNumber = "TIX-2026-000999")).orderNumber)
+    }
+
+    @Test
+    fun `prefix end is the exclusive upper bound`() {
+        assertEquals("mb", LocalSearch.prefixEnd("ma"))
+        assertEquals("", LocalSearch.prefixEnd(""))
+    }
 }

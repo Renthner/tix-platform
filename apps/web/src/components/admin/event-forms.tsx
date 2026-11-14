@@ -257,7 +257,7 @@ export function EventDetailsForm({
   const [state, formAction] = useActionState(action, IDLE);
   const err = (name: string) => errorOf(state, name);
   return (
-    <ActionForm action={formAction} className="space-y-5">
+    <ActionForm action={formAction} unsavedGuard={state} className="space-y-5">
       <ActionFeedback state={state} />
       <div className="grid gap-4 md:grid-cols-2">
         <Field label={t('fields.title')} htmlFor="title" error={err('title')}>
