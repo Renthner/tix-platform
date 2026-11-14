@@ -252,8 +252,10 @@ export function ScannerDevices({
   devices,
   events,
   canManage,
+  serverVersion,
 }: {
   devices: DeviceRow[];
+  serverVersion: string;
   events: ScannerEventOption[];
   canManage: boolean;
 }) {
@@ -314,7 +316,14 @@ export function ScannerDevices({
               </TableCell>
               <TableCell className="whitespace-nowrap">{when(device.lastSeenAt)}</TableCell>
               <TableCell className="whitespace-nowrap">{when(device.lastSyncAt)}</TableCell>
-              <TableCell>{device.appVersion ?? '–'}</TableCell>
+              <TableCell>
+                {device.appVersion ?? '–'}
+                {device.appVersion && device.appVersion !== serverVersion ? (
+                  <Badge variant="outline" className="ml-2 border-warning-border text-warning">
+                    {t('versionMismatch', { app: device.appVersion, server: serverVersion })}
+                  </Badge>
+                ) : null}
+              </TableCell>
               <TableCell>
                 <Badge variant={device.isActive ? 'secondary' : 'destructive'}>
                   {device.isActive ? t('active') : t('revoked')}

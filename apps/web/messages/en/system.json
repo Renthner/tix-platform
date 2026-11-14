@@ -1,0 +1,157 @@
+{
+  "title": "System",
+  "description": "Live status of the application, database, Redis, job queues and the realtime service.",
+  "updated": "Updated {time}",
+  "refreshing": "Refreshing every {seconds} seconds",
+  "pause": "Pause",
+  "resume": "Resume",
+  "refreshNow": "Refresh now",
+  "loadFailed": "The status could not be loaded. Showing the last values.",
+  "collectErrors": "Could not collect: {blocks}",
+  "blocks": {
+    "postgres": "database",
+    "redis": "Redis",
+    "queues": "job queues",
+    "waitingRoom": "waiting room",
+    "seatLocks": "seat locks",
+    "realtime": "realtime service",
+    "workers": "workers",
+    "backlog": "backlogs"
+  },
+  "unavailable": "Not available",
+  "overview": {
+    "app": "Application",
+    "version": "Version {version}",
+    "uptime": "Up for {duration}",
+    "memory": "Memory {rss} (heap {heap})",
+    "shopCache": "Shop cache: {ratio} hits, {entries} entries ({state})",
+    "database": "Database connections",
+    "databaseDetail": "of {max} allowed, {size}",
+    "redisMemory": "Redis memory",
+    "redisMemoryDetail": "{clients} clients, {ops} operations per second",
+    "redisUnlimited": "no limit set",
+    "sockets": "Realtime connections",
+    "socketsDetail": "{instances, plural, one {# gateway} other {# gateways}}",
+    "shopSessions": "Shoppers right now",
+    "shopSessionsDetail": "active in the last 45 seconds",
+    "seatLocks": "Seats held in carts",
+    "seatLocksDetail": "seats and standing spots",
+    "backlog": "Waiting jobs",
+    "backlogDetail": "waiting, running or delayed"
+  },
+  "postgres": {
+    "title": "PostgreSQL",
+    "version": "Version",
+    "connections": "Connections",
+    "size": "Database size",
+    "longestQuery": "Longest running query",
+    "seconds": "{value} s"
+  },
+  "redis": {
+    "title": "Redis",
+    "version": "Version",
+    "memory": "Memory used",
+    "clients": "Connected clients",
+    "ops": "Operations per second",
+    "hitRatio": "Keyspace hit ratio",
+    "uptime": "Uptime"
+  },
+  "queues": {
+    "title": "Job queues",
+    "description": "Background jobs of the worker (BullMQ).",
+    "queue": "Queue",
+    "waiting": "Waiting",
+    "active": "Running",
+    "delayed": "Delayed",
+    "failed": "Failed",
+    "names": {
+      "maintenance": "Housekeeping",
+      "seat-locks": "Seat locks",
+      "bank-sync": "Bank sync",
+      "dunning": "Payment reminders",
+      "documents": "Documents",
+      "email": "E-mail",
+      "refunds": "Refunds",
+      "backups": "Backups",
+      "privacy": "Data protection",
+      "media": "Image variants"
+    }
+  },
+  "failedJobs": {
+    "title": "Recent failed jobs",
+    "none": "No failed jobs.",
+    "queue": "Queue",
+    "job": "Job",
+    "reason": "Reason",
+    "attempts": "Attempts",
+    "time": "Failed at"
+  },
+  "waitingRoom": {
+    "title": "Waiting room",
+    "none": "No waiting room is active.",
+    "event": "Event",
+    "waiting": "Waiting",
+    "lobby": "Lobby",
+    "active": "Shopping"
+  },
+  "seatLocks": {
+    "title": "Seat locks",
+    "none": "No seats are held in carts right now.",
+    "event": "Event",
+    "seats": "Seats",
+    "standing": "Standing"
+  },
+  "realtime": {
+    "title": "Realtime service",
+    "instances": "Gateways reporting",
+    "sockets": "Connected clients",
+    "notReporting": "No gateway reports its status. The realtime service is down, or it still runs a version without this feature."
+  },
+  "workers": {
+    "title": "Workers",
+    "none": "No worker is running: jobs, e-mails and seat lock clean-up are on hold.",
+    "id": "Worker",
+    "version": "Version",
+    "lastBeat": "Last sign of life",
+    "leader": "Leader",
+    "leaderHint": "The leader runs the seat lock sweeper and the waiting room ticker. Which loop last ran is not tracked.",
+    "noLeader": "No worker holds the leader lease."
+  },
+  "backlog": {
+    "title": "Open items",
+    "emailPending": "E-mails waiting to be sent",
+    "emailFailed": "E-mails that failed",
+    "openRefunds": "Open refunds",
+    "unmatchedBank": "Bank transactions to assign",
+    "refundsLink": "Open refunds",
+    "bankLink": "Bank transactions"
+  },
+  "metrics": {
+    "title": "Prometheus metrics",
+    "enabled": "The metrics endpoint /api/metrics is enabled.",
+    "disabled": "The metrics endpoint /api/metrics is switched off. Create a token under Settings, Security to enable it.",
+    "link": "Settings: Security"
+  },
+  "units": {
+    "days": "{count}d",
+    "hours": "{count}h",
+    "minutes": "{count}m",
+    "seconds": "{count}s"
+  },
+  "security": {
+    "title": "Monitoring",
+    "description": "Optional Prometheus endpoint with the numbers of the System page.",
+    "statusOn": "Enabled",
+    "statusOff": "Disabled",
+    "intro": "Scrape /api/metrics with the header Authorization: Bearer <token>. Without a token the endpoint does not exist.",
+    "generate": "Generate new token",
+    "regenerate": "Replace token",
+    "remove": "Remove token (disable)",
+    "removeConfirm": "Disable the metrics endpoint? Monitoring tools lose access.",
+    "tokenTitle": "Your new token",
+    "tokenHint": "Copy it now. It is shown only once and cannot be read again.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "failed": "The token could not be saved."
+  }
+}

@@ -62,10 +62,13 @@ export function createKeyspace(prefix: string) {
     /** ZSET sessionId → hold expiry (epoch ms). */
     generalAdmissionExpiries: (eventId: string) => `${ev(eventId)}:ga:expiries`,
 
-    /** STRING JSON of the public seat map, keyed by seat map version. */
-    /** Public plan snapshot; `format` = PUBLIC_MAP_FORMAT so a deploy never serves old shapes. */
-    seatMapSnapshot: (eventId: string, version: number, format: number) =>
-      `${ev(eventId)}:seatmap:f${format}:v${version}`,
+    /**
+     * STRING JSON of the public seat map, keyed by seat map version and the event's public map
+     * generation (price / tariff changes) so a stale snapshot is never looked up after a change.
+     * `format` = PUBLIC_MAP_FORMAT so a deploy never serves old shapes.
+     */
+    seatMapSnapshot: (eventId: string, version: number, generation: number, format: number) =>
+      `${ev(eventId)}:seatmap:f${format}:v${version}:g${generation}`,
     /** SET of eventIds that may hold locks / GA holds (iterated by the expiry sweeper). */
     activeLockEvents: () => `${prefix}:locks:events`,
 
@@ -138,6 +141,11 @@ export function createKeyspace(prefix: string) {
     workerHeartbeats: () => `${prefix}:workers:heartbeats`,
     /** STRING JSON heartbeat details, TTL ≈ 3 × interval. */
     workerHeartbeat: (workerId: string) => `${prefix}:workers:hb:${seg(workerId, 'workerId')}`,
+    /** ZSET instanceId → last heartbeat (epoch ms) of the realtime gateway instances. */
+    realtimeHeartbeats: () => `${prefix}:realtime:heartbeats`,
+    /** STRING JSON heartbeat of one realtime instance (connected sockets …), short TTL. */
+    realtimeHeartbeat: (instanceId: string) =>
+      `${prefix}:realtime:hb:${seg(instanceId, 'instanceId')}`,
     /** Key prefix handed to BullMQ (`<prefix>:bull:<queue>:…`). */
     bullPrefix: () => `${prefix}:bull`,
   } as const;
@@ -165,6 +173,8 @@ export function createChannels(prefix: string) {
     },
     /** Settings changed in the Admin Portal → processes drop their config caches. */
     configInvalidation: () => `${prefix}:ch:config`,
+    /** Shop data cache tag invalidations (JSON `{ tags?: string[]; all?: true }`), see core/cache. */
+    shopCacheInvalidation: () => `${prefix}:ch:cache`,
   } as const;
 }
 

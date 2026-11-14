@@ -299,14 +299,14 @@ export function ApkSection({
   canUpload,
   source,
   githubRepository,
-  defaultChannel,
+  serverVersion,
   canEditSettings,
 }: {
   releases: ApkReleaseRow[];
   canUpload: boolean;
   source: 'GITHUB' | 'SERVER';
   githubRepository: string;
-  defaultChannel: 'stable' | 'next';
+  serverVersion: string;
   canEditSettings: boolean;
 }) {
   const t = useTranslations('scanners.apk');
@@ -337,7 +337,7 @@ export function ApkSection({
           <div className="space-y-1 text-sm">
             <div className="font-medium">{t('github.title', { repository: githubRepository })}</div>
             <div className="text-muted-foreground">
-              {t('github.text', { channel: t(`github.channels.${defaultChannel}`) })}
+              {t('github.text', { version: serverVersion })}
             </div>
             {canEditSettings ? (
               <Link href="/admin/settings/scanner" className="text-xs underline">

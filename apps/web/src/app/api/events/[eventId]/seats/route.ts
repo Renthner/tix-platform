@@ -13,8 +13,8 @@ const body = z.object({ seatIds: z.array(z.uuid()).min(1).max(MAX_SEATS_PER_REQU
 /** POST – lock seats into the cart (atomic, all-or-nothing). */
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   return handle(async () => {
-    const { core, event } = await loadShopEvent((await params).eventId);
-    const sid = await authorizeShopMutation(core, event);
+    const { core, event, actor } = await loadShopEvent((await params).eventId);
+    const sid = await authorizeShopMutation(core, event, actor);
     const { seatIds } = await parseBody(request, body);
     const { expiresAt } = await addSeats(core, sid, event, seatIds);
     return NextResponse.json({ seatIds, expiresAt });

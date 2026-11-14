@@ -34,7 +34,10 @@ export async function ticketEmailLinks(
   if (!ctx.appUrl) return [];
   const rows = await loadWalletTicketData(ctx.db, { orderId });
   if (rows.length === 0) return [];
-  const available = await walletAvailability(ctx);
+  // Test orders never get wallet passes.
+  const available = rows.some((row) => row.isTest)
+    ? { apple: false, google: false }
+    : await walletAvailability(ctx);
   const token = orderAccessToken(ctx, orderId);
   const base = ctx.appUrl;
   return rows.map((row) => ({

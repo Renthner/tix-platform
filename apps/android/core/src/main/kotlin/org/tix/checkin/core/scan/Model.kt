@@ -136,6 +136,11 @@ data class ScanVerdict(
     val notice: VerdictNotice? = null,
     /** Admitted on the signature alone: the ticket is not (yet) in the local database. */
     val provisional: Boolean = false,
+    /**
+     * The signature could not be checked because this device does not know the ticket's signing key (rotated after
+     * the last sync). [result] stays REJECTED_INVALID_SIGNATURE (log contract); the UI shows a distinct hint.
+     */
+    val unknownKey: Boolean = false,
 )
 
 /** One scan, before it is decided. */

@@ -71,7 +71,7 @@ import {
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 const uuid = () => randomUUID();
 const ADMIN_PASSWORD = 'admin password 12345';
 

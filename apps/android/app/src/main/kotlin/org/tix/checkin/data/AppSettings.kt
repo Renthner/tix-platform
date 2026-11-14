@@ -14,6 +14,8 @@ data class AppUpdateConfig(
     val githubRepository: String = "",
     val defaultChannel: UpdateChannel = UpdateChannel.STABLE,
     val allowChannelOverride: Boolean = true,
+    /** Version the server reports; null on older servers (channel logic applies). */
+    val serverVersion: String? = null,
 )
 
 /** Local (per device) preferences. No secrets here: the token lives encrypted in the database. */
@@ -24,6 +26,7 @@ class AppSettings(context: Context) {
     private val _alertSeconds = MutableStateFlow(prefs.getInt(KEY_ALERT, 4))
     private val _sound = MutableStateFlow(prefs.getBoolean(KEY_SOUND, true))
     private val _vibrate = MutableStateFlow(prefs.getBoolean(KEY_VIBRATE, true))
+    private val _announce = MutableStateFlow(prefs.getBoolean(KEY_ANNOUNCE, false))
     private val _selectedEvent = MutableStateFlow(prefs.getString(KEY_EVENT, null))
     private val _pairingNotice = MutableStateFlow(prefs.getString(KEY_NOTICE, null))
 
@@ -38,7 +41,7 @@ class AppSettings(context: Context) {
     val appUpdate: StateFlow<AppUpdateConfig> = _appUpdate
 
     /** False until a manifest with (or without, older server) update settings was stored: the manifest is then fetched without ETag. */
-    val appUpdateKnown: Boolean get() = prefs.contains(KEY_UPD_SOURCE)
+    val appUpdateKnown: Boolean get() = prefs.contains(KEY_UPD_SERVER_VERSION)
 
     /** The operator's own channel choice (only used when the server allows it). */
     val channelOverride: StateFlow<UpdateChannel?> = _channelOverride
@@ -55,20 +58,23 @@ class AppSettings(context: Context) {
         githubRepository = prefs.getString(KEY_UPD_REPO, "").orEmpty(),
         defaultChannel = UpdateChannel.fromWire(prefs.getString(KEY_UPD_DEFAULT, null)) ?: UpdateChannel.STABLE,
         allowChannelOverride = prefs.getBoolean(KEY_UPD_ALLOW, true),
+        serverVersion = prefs.getString(KEY_UPD_SERVER_VERSION, null)?.takeIf { it.isNotEmpty() },
     )
 
     /** Stores the manifest's update settings; null (older server) means "updates from the server". */
-    fun setAppUpdate(m: ManifestAppUpdate?) {
-        val cfg = if (m == null) AppUpdateConfig() else AppUpdateConfig(
+    fun setAppUpdate(m: ManifestAppUpdate?, serverVersion: String? = null) {
+        val cfg = if (m == null) AppUpdateConfig(serverVersion = serverVersion) else AppUpdateConfig(
             source = UpdateSource.fromWire(m.source) ?: UpdateSource.SERVER,
             githubRepository = m.githubRepository,
             defaultChannel = UpdateChannel.fromWire(m.defaultChannel) ?: UpdateChannel.STABLE,
             allowChannelOverride = m.allowChannelOverride,
+            serverVersion = serverVersion,
         )
         _appUpdate.value = cfg
         prefs.edit()
             .putString(KEY_UPD_SOURCE, cfg.source.name).putString(KEY_UPD_REPO, cfg.githubRepository)
             .putString(KEY_UPD_DEFAULT, cfg.defaultChannel.wire).putBoolean(KEY_UPD_ALLOW, cfg.allowChannelOverride)
+            .putString(KEY_UPD_SERVER_VERSION, cfg.serverVersion.orEmpty())
             .apply()
     }
 
@@ -79,7 +85,7 @@ class AppSettings(context: Context) {
 
     /** Unpair: the update settings belong to the old server. The channel choice is a device preference and stays. */
     fun clearAppUpdate() {
-        prefs.edit().remove(KEY_UPD_SOURCE).remove(KEY_UPD_REPO).remove(KEY_UPD_DEFAULT).remove(KEY_UPD_ALLOW).apply()
+        prefs.edit().remove(KEY_UPD_SOURCE).remove(KEY_UPD_REPO).remove(KEY_UPD_DEFAULT).remove(KEY_UPD_ALLOW).remove(KEY_UPD_SERVER_VERSION).apply()
         _appUpdate.value = AppUpdateConfig()
     }
 
@@ -97,6 +103,9 @@ class AppSettings(context: Context) {
     val alertSeconds: StateFlow<Int> = _alertSeconds
     val sound: StateFlow<Boolean> = _sound
     val vibrate: StateFlow<Boolean> = _vibrate
+
+    /** Read the scan result aloud with TalkBack (only has an effect while a screen reader is on). */
+    val announceResults: StateFlow<Boolean> = _announce
     val selectedEventId: StateFlow<String?> = _selectedEvent
 
     /** Message for the pairing screen after the server unpaired this device ("revoked"). */
@@ -106,6 +115,7 @@ class AppSettings(context: Context) {
     fun setAlertSeconds(v: Int) { _alertSeconds.value = v.coerceIn(2, 15); prefs.edit().putInt(KEY_ALERT, _alertSeconds.value).apply() }
     fun setSound(v: Boolean) { _sound.value = v; prefs.edit().putBoolean(KEY_SOUND, v).apply() }
     fun setVibrate(v: Boolean) { _vibrate.value = v; prefs.edit().putBoolean(KEY_VIBRATE, v).apply() }
+    fun setAnnounceResults(v: Boolean) { _announce.value = v; prefs.edit().putBoolean(KEY_ANNOUNCE, v).apply() }
     fun setSelectedEvent(id: String?) { _selectedEvent.value = id; prefs.edit().putString(KEY_EVENT, id).apply() }
     fun setPairingNotice(code: String?) { _pairingNotice.value = code; prefs.edit().putString(KEY_NOTICE, code).apply() }
 
@@ -148,6 +158,7 @@ class AppSettings(context: Context) {
         const val KEY_UPD_REPO = "upd_repo"
         const val KEY_UPD_DEFAULT = "upd_default_channel"
         const val KEY_UPD_ALLOW = "upd_allow_override"
+        const val KEY_UPD_SERVER_VERSION = "upd_server_version"
         const val KEY_UPD_CHANNEL = "upd_channel_override"
         const val KEY_LAN_MASTER = "lan_master"
         const val KEY_LAN_PORT = "lan_port"
@@ -156,6 +167,7 @@ class AppSettings(context: Context) {
         const val KEY_ALERT = "alert_seconds"
         const val KEY_SOUND = "sound"
         const val KEY_VIBRATE = "vibrate"
+        const val KEY_ANNOUNCE = "announce_results"
         const val KEY_EVENT = "selected_event"
         const val KEY_NOTICE = "pairing_notice"
     }

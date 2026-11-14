@@ -26,6 +26,8 @@ export interface WalletTicketData {
   attendeeName: string | null;
   orderId: string;
   orderNumber: string;
+  /** Test order (super-admin test purchase): no wallet passes. */
+  isTest: boolean;
   locale: string;
   eventId: string;
   /** Event / venue texts resolved for the order's locale (Apple pass, Google ticket objects). */
@@ -88,6 +90,7 @@ export async function loadWalletTicketData(
       status: tickets.status,
       orderId: orders.id,
       orderNumber: orders.orderNumber,
+      isTest: orders.isTest,
       locale: orders.locale,
       eventId: events.id,
       eventTitle: events.title,
@@ -132,6 +135,7 @@ export async function loadWalletTicketData(
       attendeeName: r.attendeeName,
       orderId: r.orderId,
       orderNumber: r.orderNumber,
+      isTest: r.isTest,
       locale: r.locale,
       eventId: r.eventId,
       eventTitle: localized(
@@ -182,6 +186,25 @@ export async function loadWalletTicketData(
       categoryName: r.categoryName,
       ticketTypeName: r.ticketTypeName,
     }));
+}
+
+/** Wallet passes are never issued for test orders (they would outlive the test data). */
+export function walletTestOrderError(): DomainError {
+  return new DomainError(
+    'WALLET_TEST_ORDER',
+    'Wallet passes are not available for test orders',
+    404,
+  );
+}
+
+/** Throws `WALLET_TEST_ORDER` when the ticket belongs to a test order (checked before any wallet config). */
+export async function assertTicketNotOfTestOrder(db: Executor, ticketId: string): Promise<void> {
+  const [row] = await db
+    .select({ isTest: orders.isTest })
+    .from(tickets)
+    .innerJoin(orders, eq(orders.id, tickets.orderId))
+    .where(eq(tickets.id, ticketId));
+  if (row?.isTest) throw walletTestOrderError();
 }
 
 /** Short place text, e.g. "Block A · Row 3 · Seat 12" / "Standing area" (honours the block flag). */

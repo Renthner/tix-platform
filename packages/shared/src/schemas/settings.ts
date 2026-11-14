@@ -1,7 +1,14 @@
 import { z } from 'zod';
 import { SEAT_SELECTION_STYLES } from '../enums';
+import { SUPPORTED_LOCALES } from '../i18n';
 import { accountingSchema } from './accounting';
 import { GERMAN_STATES } from '../payments/business-days';
+import {
+  DEFAULT_TITLE_TEMPLATE,
+  SEO_DESCRIPTION_MAX,
+  SEO_SITE_TITLE_MAX,
+  isValidTitleTemplate,
+} from '../seo';
 import {
   countryCodeSchema,
   currencyCodeSchema,
@@ -85,6 +92,19 @@ const checkoutSchema = z.object({
   cartLockTtlSeconds: z.number().int().min(60).max(3_600).default(600),
   /** Added once the customer starts payment so seats never expire mid-payment. */
   paymentGraceSeconds: z.number().int().min(0).max(3_600).default(600),
+  /**
+   * Maximum total lifetime of a cart (minutes since its first seat was locked): adding seats
+   * restarts the reservation timer, but never beyond this limit. The one-time payment grace
+   * period comes on top. Null = off (every addition restarts the timer).
+   */
+  maxCartLifetimeMinutes: z.number().int().min(5).max(1_440).nullable().default(null),
+  /**
+   * Safety net per client IP address (the primary limits are per browser session): orders
+   * placed per 10 minutes. Null / 0 = off.
+   */
+  checkoutsPerIpPer10Min: z.number().int().min(0).max(100_000).nullable().default(null),
+  /** Safety net per client IP address: seat selection requests per minute. Null / 0 = off. */
+  seatRequestsPerIpPerMinute: z.number().int().min(0).max(100_000).nullable().default(600),
   /** Tickets per order (cart). Null = unlimited. */
   maxTicketsPerOrder: z.number().int().min(1).max(10_000).nullable().default(10),
   /** Across all orders of the same e-mail address per event. Null = unlimited. */
@@ -93,7 +113,7 @@ const checkoutSchema = z.object({
   bestAvailableEnabled: z.boolean().default(true),
   orphanSeatRuleEnabled: z.boolean().default(true),
   /** Companion seats can only be booked together with their wheelchair space. */
-  companionSeatsRequireWheelchair: z.boolean().default(false),
+  companionSeatsRequireWheelchair: z.boolean().default(true),
   requireTermsAcceptance: z.boolean().default(true),
   /** Phone number is mandatory in the online checkout. */
   requirePhone: z.boolean().default(true),
@@ -296,6 +316,130 @@ const seatDisplaySchema = z.object({
   seatChangeNewColor: hexColorSchema.default('#16A34A'),
 });
 
+/** Maximum event cards per row on the shop home page. */
+export const SHOP_EVENTS_PER_ROW_MAX = 6;
+
+/** Layout of the shop home page event list. */
+const shopLayoutSchema = z.object({
+  /** Event cards per row on wide screens (fewer on narrower screens, always 1 on phones).
+   *  Values above the maximum stored by older versions (up to 10) are clamped on read. */
+  eventsPerRow: z
+    .preprocess(
+      (v) => (typeof v === 'number' && v > SHOP_EVENTS_PER_ROW_MAX ? SHOP_EVENTS_PER_ROW_MAX : v),
+      z.number().int().min(1).max(SHOP_EVENTS_PER_ROW_MAX),
+    )
+    .default(3),
+});
+
+/** Maximum length of a custom cookie notice text (per locale). */
+export const COOKIE_NOTICE_TEXT_MAX = 400;
+
+/**
+ * Information bar about the strictly necessary cookies of the shop (information only, no
+ * consent). The list of cookies itself is a technical fact and lives in code.
+ */
+const cookieNoticeSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** Optional replacement of the default notice text per locale (empty = default text). */
+  texts: z.record(z.string(), z.string().trim().max(COOKIE_NOTICE_TEXT_MAX)).default({}),
+});
+
+export const START_PAGE_LAYOUTS = ['ABOVE', 'OVERLAY'] as const;
+export type StartPageLayout = (typeof START_PAGE_LAYOUTS)[number];
+export const START_PAGE_MAX_GALLERY = 4;
+export const START_PAGE_MODES = ['BUILDER', 'HTML'] as const;
+export const START_PAGE_BUTTON_ALIGNS = ['LEFT', 'CENTER', 'RIGHT'] as const;
+export type StartPageButtonAlign = (typeof START_PAGE_BUTTON_ALIGNS)[number];
+export type StartPageMode = (typeof START_PAGE_MODES)[number];
+/** Maximum size of the custom start page HTML per locale (characters). */
+export const START_PAGE_HTML_MAX = 200_000;
+
+/** Button target: an https URL or a path inside the shop ("/events", not "//host"). */
+export const startPageLinkSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .refine((v) => {
+    if (/\s/.test(v)) return false;
+    if (v.startsWith('/')) return !v.startsWith('//') && !v.includes('\\');
+    try {
+      return new URL(v).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'url');
+
+const startPageTextSchema = z.object({
+  headline: z.string().trim().max(200).optional(),
+  subheadline: z.string().trim().max(400).optional(),
+  /** Sanitised rich-text HTML. */
+  body: z.string().max(20_000).optional(),
+  buttonLabel: z.string().trim().max(80).optional(),
+  heroAlt: z.string().trim().max(200).optional(),
+  /** Alt texts of the gallery images, same order as `galleryAssetIds` (empty = decorative). */
+  galleryAlt: z.array(z.string().trim().max(200)).max(START_PAGE_MAX_GALLERY).optional(),
+  /** Custom HTML (mode HTML), sanitised on save and on render. */
+  html: z.string().max(START_PAGE_HTML_MAX).optional(),
+});
+export type StartPageText = z.output<typeof startPageTextSchema>;
+
+/** Shop home page while no event is published (nothing configured = built-in text). */
+const startPageSchema = z.object({
+  /** BUILDER = structured fields below; HTML = the per-locale custom HTML replaces them. */
+  mode: z.enum(START_PAGE_MODES).default('BUILDER'),
+  layout: z.enum(START_PAGE_LAYOUTS).default('ABOVE'),
+  /** Public media assets (kind EVENT_IMAGE). */
+  heroAssetId: z.uuid().optional(),
+  galleryAssetIds: z.array(z.uuid()).max(START_PAGE_MAX_GALLERY).default([]),
+  buttonUrl: startPageLinkSchema.optional(),
+  /** Horizontal position of the button. */
+  buttonAlign: z.enum(START_PAGE_BUTTON_ALIGNS).default('LEFT'),
+  /** Per UI locale; missing fields fall back to the shop default locale. */
+  texts: z.partialRecord(z.enum(SUPPORTED_LOCALES), startPageTextSchema).default({}),
+});
+export type StartPageSettings = z.output<typeof startPageSchema>;
+
+const seoVerificationToken = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9_-]{8,128}$/);
+
+const seoTextSchema = z.object({
+  /** Replaces the shop name in titles (optional). */
+  siteTitle: z.string().trim().max(SEO_SITE_TITLE_MAX).optional(),
+  /** Default meta / Open Graph description of pages without their own. */
+  description: z.string().trim().max(SEO_DESCRIPTION_MAX).optional(),
+});
+export type SeoText = z.output<typeof seoTextSchema>;
+
+/** Search engine and social sharing behaviour of the shop. */
+const seoSchema = z.object({
+  /** OFF: noindex header + meta tag, robots.txt "Disallow: /", no sitemap, no structured data. */
+  indexing: z.boolean().default(true),
+  /** Document title pattern: `%s` = page title (exactly once), `{siteTitle}` = site title. */
+  titleTemplate: z
+    .string()
+    .trim()
+    .max(SEO_SITE_TITLE_MAX)
+    .refine(isValidTitleTemplate, 'titleTemplate')
+    .default(DEFAULT_TITLE_TEMPLATE),
+  /** Public media asset (kind EVENT_IMAGE): default Open Graph / Twitter image. */
+  shareImageAssetId: z.uuid().optional(),
+  /** Twitter / X account of the organiser, "@name". */
+  twitterHandle: z
+    .string()
+    .trim()
+    .regex(/^@[A-Za-z0-9_]{1,15}$/)
+    .optional(),
+  /** Site verification tokens (the `content` value of the meta tag). */
+  verification: z
+    .object({ google: seoVerificationToken.optional(), bing: seoVerificationToken.optional() })
+    .default({}),
+  /** Per UI locale; missing fields fall back to the shop default locale. */
+  texts: z.partialRecord(z.enum(SUPPORTED_LOCALES), seoTextSchema).default({}),
+});
+export type SeoSettings = z.output<typeof seoSchema>;
+
 /** Optional customer accounts on top of guest checkout. */
 const customerAccountsSchema = z.object({
   /** Customers may register to see their orders and re-download tickets. */
@@ -367,6 +511,11 @@ const privacySchema = z.object({
 const backupCredentialsSchema = z.object({
   accessKeyId: z.string().min(1).max(256),
   secretAccessKey: z.string().min(1).max(1_024),
+});
+
+/** Bearer token of the Prometheus endpoint `/api/metrics` (no token = endpoint disabled). */
+const metricsCredentialsSchema = z.object({
+  token: z.string().min(24).max(200),
 });
 
 /** First-steps checklist on the admin dashboard. */
@@ -465,6 +614,26 @@ export const SETTINGS = {
     secret: false,
     description: 'Colours of seats in other carts, sold and blocked seats',
   }),
+  shopLayout: define({
+    schema: shopLayoutSchema,
+    secret: false,
+    description: 'Event list layout of the shop home page',
+  }),
+  cookieNotice: define({
+    schema: cookieNoticeSchema,
+    secret: false,
+    description: 'Information bar about the strictly necessary cookies of the shop',
+  }),
+  startPage: define({
+    schema: startPageSchema,
+    secret: false,
+    description: 'Shop home page while no event is published',
+  }),
+  seo: define({
+    schema: seoSchema,
+    secret: false,
+    description: 'Search engines and social sharing: indexing, titles, descriptions, share image',
+  }),
   customerAccounts: define({
     schema: customerAccountsSchema,
     secret: false,
@@ -489,6 +658,11 @@ export const SETTINGS = {
     schema: setupChecklistSchema,
     secret: false,
     description: 'Dashboard first-steps checklist state',
+  }),
+  'metrics.credentials': define({
+    schema: metricsCredentialsSchema,
+    secret: true,
+    description: 'Bearer token of the Prometheus metrics endpoint',
   }),
   'backup.external.credentials': define({
     schema: backupCredentialsSchema,

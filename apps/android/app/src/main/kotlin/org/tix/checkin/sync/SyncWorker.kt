@@ -23,7 +23,15 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val update = container.settings.appUpdate.value
         if (result == SyncResult.Ok && update.source == org.tix.checkin.core.UpdateSource.GITHUB) {
             val repository = container.settings.effectiveRepository()
-            if (repository.isNotEmpty()) container.githubUpdates.backgroundCheck(repository, container.settings.effectiveChannel())
+            val target = org.tix.checkin.core.AppVersion.parse(org.tix.checkin.BuildConfig.VERSION_NAME)?.let { org.tix.checkin.core.UpdateTarget.decide(it, update.serverVersion) }
+            when {
+                repository.isEmpty() -> Unit
+                target is org.tix.checkin.core.UpdateTarget.UpdateAvailable ->
+                    container.githubUpdates.backgroundCheck(repository, container.settings.effectiveChannel(), target.target)
+                // Up to date / app newer than the server: nothing to look up.
+                target == org.tix.checkin.core.UpdateTarget.UpToDate || target is org.tix.checkin.core.UpdateTarget.AppNewerThanServer -> Unit
+                else -> container.githubUpdates.backgroundCheck(repository, container.settings.effectiveChannel())
+            }
         }
         return when (result) {
             SyncResult.Ok, SyncResult.NotPaired, SyncResult.Unpaired -> Result.success()

@@ -4,20 +4,23 @@ import {
   type EventInfoBox,
   type Translations,
   normalizeLocale,
+  supportedLocaleOrNull,
 } from '@tix/shared';
 import { getSetting } from './settings';
 import type { CoreContext } from './context';
 
 /**
  * Locale used to resolve content translations: the requested one (a regional tag falls back to
- * its language), or the shop default language when none / the default itself is requested.
+ * its language), or the shop default language when none / an unsupported one is requested.
+ * Always one of SUPPORTED_LOCALES: it is part of cache keys, so a client-controlled value must
+ * never reach them unnormalised (unbounded keys).
  */
 export async function contentLocale(
   ctx: Pick<CoreContext, 'db'>,
   requested?: string | null,
 ): Promise<{ locale: string; defaultLocale: string }> {
   const defaultLocale = normalizeLocale((await getSetting(ctx, 'general')).defaultLocale);
-  return { locale: requested || defaultLocale, defaultLocale };
+  return { locale: supportedLocaleOrNull(requested) ?? defaultLocale, defaultLocale };
 }
 
 type WithTranslations = { translations?: Translations | null };

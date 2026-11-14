@@ -22,6 +22,38 @@ test('orders list shows the shop order with its tickets', async ({ page }) => {
   await expect(row).toContainText('Awaiting transfer');
 });
 
+test('event list shows a cover thumbnail or placeholder per row', async ({ page }) => {
+  await page.goto('/admin/events');
+  const rows = page.locator('table tbody tr');
+  await expect(rows.first()).toBeVisible();
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(0);
+  await expect(page.getByTestId('event-cover-thumb')).toHaveCount(count);
+});
+
+test('event row is clickable as a whole, Duplicate does not navigate', async ({ page }) => {
+  await page.goto('/admin/events');
+  const row = page.getByTestId('event-row').first();
+  await expect(row).toBeVisible();
+  await row.getByRole('button').first().click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/events$/);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  // Click a plain cell (venue column), not the name text. The name link is stretched over the
+  // whole row, so Playwright's actionability check would see the cell as covered: click with the
+  // mouse at the cell's position, as a user does (the stretched link receives it).
+  const box = await row.locator('td').nth(2).boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await expect(page).toHaveURL(/\/admin\/events\/[0-9a-f-]{36}/);
+});
+
+test('appearance settings show the start page card', async ({ page }) => {
+  await page.goto('/admin/settings/appearance');
+  await expect(page.getByText('Home page without events')).toBeVisible();
+});
+
 async function eventId(page: import('@playwright/test').Page): Promise<string> {
   await page.goto('/admin/events');
   const link = page.locator('a[href^="/admin/events/"]', { hasText: 'Demo Concert' }).first();

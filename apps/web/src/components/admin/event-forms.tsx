@@ -3,7 +3,17 @@
 import { EVENT_STATUSES, type EventStatus } from '@tix/shared';
 import { Check, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useEffect, useId, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -283,6 +293,7 @@ export function EventDetailsForm({
           <MediaPicker
             name="heroImageAssetId"
             kind="EVENT_IMAGE"
+            visibility="public"
             initialAsset={initial.cover}
             fit="contain"
             previewClassName="max-w-md"
@@ -368,17 +379,29 @@ export function EventStatusForm({
   action,
   status,
   checklist,
+  testOrders = { orders: 0, seats: 0, withMoney: 0 },
+  canDeleteTestOrders = false,
 }: {
   action: Action;
   status: EventStatus;
   checklist: { seatMap: boolean; category: boolean; tariff: boolean; inventory: boolean };
+  /** Test orders on this (draft) event: publishing asks what to do with them. */
+  testOrders?: { orders: number; seats: number; withMoney: number };
+  canDeleteTestOrders?: boolean;
 }) {
+  const formId = useId();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const t = useTranslations('admin.events.publish');
   const ts = useTranslations('admin.eventStatus');
+  const tTest = useTranslations('admin.events.testOrders');
   const [state, formAction] = useActionState(action, IDLE);
   const [next, setNext] = useState<EventStatus>(status);
+  // The confirmation closes when the action answered (success reloads the page, errors show above).
+  useEffect(() => {
+    if (state.status !== 'idle') setConfirmOpen(false);
+  }, [state]);
   return (
-    <ActionForm action={formAction} className="space-y-4">
+    <ActionForm id={formId} action={formAction} className="space-y-4">
       <ActionFeedback state={state} />
       <ul className="space-y-1.5 text-sm">
         {(Object.keys(checklist) as (keyof typeof checklist)[]).map((key) => (
@@ -386,11 +409,7 @@ export function EventStatusForm({
             key={key}
             className={cn('flex items-center gap-2', !checklist[key] && 'text-destructive')}
           >
-            {checklist[key] ? (
-              <Check className="size-4 text-emerald-600" />
-            ) : (
-              <X className="size-4" />
-            )}
+            {checklist[key] ? <Check className="size-4 text-success" /> : <X className="size-4" />}
             {t(`checklist.${key}`)}
           </li>
         ))}
@@ -414,7 +433,46 @@ export function EventStatusForm({
           <Textarea id="cancellationReason" name="cancellationReason" rows={2} maxLength={1000} />
         </Field>
       )}
-      <SubmitButton>{t('apply')}</SubmitButton>
+      {status !== 'PUBLISHED' &&
+      status !== 'POSTPONED' &&
+      (next === 'PUBLISHED' || next === 'POSTPONED') &&
+      testOrders.orders > 0 ? (
+        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <DialogTrigger asChild>
+            <Button type="button">{t('apply')}</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{tTest('title')}</DialogTitle>
+              <DialogDescription>
+                {testOrders.withMoney > 0
+                  ? tTest('blockedMoney', {
+                      orders: testOrders.orders,
+                      withMoney: testOrders.withMoney,
+                    })
+                  : canDeleteTestOrders
+                    ? tTest('description', {
+                        orders: testOrders.orders,
+                        seats: testOrders.seats,
+                      })
+                    : tTest('blockedRole')}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:flex-wrap">
+              <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
+                {tTest('cancel')}
+              </Button>
+              {canDeleteTestOrders && testOrders.withMoney === 0 && (
+                <Button type="submit" form={formId} name="testOrders" value="delete">
+                  {tTest('delete')}
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <SubmitButton>{t('apply')}</SubmitButton>
+      )}
     </ActionForm>
   );
 }
@@ -444,6 +502,8 @@ export interface EventSalesValues {
   bankTransferDisableDaysBeforeEvent: number | null;
   /** false = no sign-in / registration in the checkout of this event; null = global. */
   customerAccountsEnabled: boolean | null;
+  /** true = hidden from search engines. */
+  seoNoindex: boolean;
 }
 
 export interface GlobalCheckoutDefaults {
@@ -695,6 +755,18 @@ export function EventSalesForm({
             </NativeSelect>
           </Field>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-medium">{t('searchEngines')}</h3>
+        <p className="text-xs text-muted-foreground">{t('searchEnginesHint')}</p>
+        <label className="flex items-start gap-3 rounded-lg border p-4 text-sm">
+          <Switch name="seoNoindex" defaultChecked={initial.seoNoindex} className="mt-0.5" />
+          <span>
+            <span className="font-medium">{t('seoNoindex')}</span>
+            <span className="block text-muted-foreground">{t('seoNoindexHint')}</span>
+          </span>
+        </label>
       </section>
       <SubmitButton>{tc('save')}</SubmitButton>
     </ActionForm>

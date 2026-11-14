@@ -627,7 +627,7 @@ export function TicketDesigner(props: TicketDesignerProps) {
             {saving ? t('saving') : t('save')}
           </Button>
         </div>
-        {dirty && <span className="pb-2 text-xs text-amber-600">{t('unsaved')}</span>}
+        {dirty && <span className="pb-2 text-xs text-warning">{t('unsaved')}</span>}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[13rem_minmax(0,1fr)_19rem]">
@@ -969,6 +969,7 @@ function PageProps({
         <MediaPicker
           name="backgroundAssetId"
           kind="TICKET_BACKGROUND"
+          visibility="private"
           initialAsset={draft.background}
           aspectRatio={draft.pageWidthMm / draft.pageHeightMm}
           previewClassName="max-w-full"
@@ -1139,7 +1140,7 @@ function StaticTextField({ value, onChange }: { value: string; onChange: (text: 
         </div>
       )}
       {unknown.length > 0 && (
-        <p role="alert" className="text-xs text-amber-600 dark:text-amber-500">
+        <p role="alert" className="text-xs text-warning">
           {t('placeholders.unknown', { names: unknown.map((n) => `{{${n}}}`).join(', ') })}
         </p>
       )}

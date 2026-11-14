@@ -194,7 +194,7 @@ export default async function TransactionsPage({
                       {tx.remittanceInformation ?? '–'}
                     </TableCell>
                     <TableCell
-                      className={`text-right whitespace-nowrap tabular-nums ${tx.amount > 0 ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
+                      className={`text-right whitespace-nowrap tabular-nums ${tx.amount > 0 ? 'text-success' : ''}`}
                     >
                       {format.number(tx.amount / 100, {
                         style: 'currency',

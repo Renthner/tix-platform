@@ -109,6 +109,8 @@ export async function listCustomers(
       lastOrderAt: sql<Date | null>`max(${orders.createdAt})`.as('last_order_at'),
     })
     .from(orders)
+    // Test orders (super-admin purchases on draft events) are no customer history.
+    .where(eq(orders.isTest, false))
     .groupBy(orders.customerId)
     .as('stats');
 
@@ -158,6 +160,7 @@ export interface CustomerAdminOrder {
   amountPaid: number;
   amountRefunded: number;
   currency: string;
+  isTest: boolean;
   anonymizedAt: Date | null;
   personalDataRetainedUntil: Date | null;
 }
@@ -175,6 +178,7 @@ export async function getCustomerAdminView(ctx: Pick<CoreContext, 'db'>, custome
       amountPaid: orders.amountPaid,
       amountRefunded: orders.amountRefunded,
       currency: orders.currency,
+      isTest: orders.isTest,
       anonymizedAt: orders.anonymizedAt,
       personalDataRetainedUntil: orders.personalDataRetainedUntil,
     })
@@ -190,7 +194,10 @@ export async function getCustomerAdminView(ctx: Pick<CoreContext, 'db'>, custome
       locked: customer.lockedUntil !== null && customer.lockedUntil > new Date(),
     },
     orders: orderRows,
-    revenue: orderRows.reduce((sum, o) => sum + o.amountPaid - o.amountRefunded, 0),
+    // Test orders are no customer history (same rule as the list).
+    revenue: orderRows
+      .filter((o) => !o.isTest)
+      .reduce((sum, o) => sum + o.amountPaid - o.amountRefunded, 0),
   };
 }
 

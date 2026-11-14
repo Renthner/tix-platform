@@ -53,7 +53,7 @@ import {
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 const PASSWORD = 'correct horse battery';
 
 async function expectCode(promise: Promise<unknown>, code: string) {

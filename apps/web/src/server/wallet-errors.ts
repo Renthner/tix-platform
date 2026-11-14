@@ -32,7 +32,10 @@ export async function withWalletRedirect(
   try {
     return await fn();
   } catch (err) {
-    if (err instanceof DomainError && ['ORDER_NOT_FOUND', 'TICKET_NOT_FOUND'].includes(err.code)) {
+    if (
+      err instanceof DomainError &&
+      ['ORDER_NOT_FOUND', 'TICKET_NOT_FOUND', 'WALLET_TEST_ORDER'].includes(err.code)
+    ) {
       throw err;
     }
     logger.error({ err }, '[wallet] request failed, redirecting to order page');

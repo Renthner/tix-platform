@@ -16,7 +16,7 @@ English | [Deutsch](README.de.md)
   <img src="docs/img/shop-event.webp" alt="Event page of the ticket shop" width="900">
 </p>
 
-> **Status:** pre-release (`1.0.0-alpha.3`). Feature-complete, but not yet declared stable. Take a
+> **Status:** pre-release (`1.0.0-alpha.18`). Feature-complete, but not yet declared stable. Take a
 > backup before every update and read the [CHANGELOG](CHANGELOG.md).
 
 ## What you get
@@ -105,7 +105,7 @@ and troubleshooting is [docs/INSTALL.md](docs/INSTALL.md).
 
 ```bash
 # 1. Download the two files of the release
-export TIX_VERSION=1.0.0-alpha.3
+export TIX_VERSION=1.0.0-alpha.18
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -116,8 +116,6 @@ gen() { openssl rand -hex 24; }
 sed -i \
   -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" \
   -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(gen)|" \
-  -e "s|^MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=$(gen)|" \
-  -e "s|^S3_SECRET_ACCESS_KEY=.*|S3_SECRET_ACCESS_KEY=$(gen)|" \
   -e "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" \
   -e "s|^APP_ENCRYPTION_KEYS=.*|APP_ENCRYPTION_KEYS=k1:$(openssl rand -base64 32)|" \
   .env
@@ -150,8 +148,8 @@ Native Kotlin app (Android 8+): continuous camera scanning, full-screen green / 
 result, offline database with signature verification, manual search and check-out, background
 sync. Download `tix-checkin-<version>.apk` from the [release page](https://github.com/Renthner/tix-platform/releases)
 and install it (allow installing from this source). Pair each phone with the QR code from
-**Admin → Check-in devices**. The app updates itself from GitHub Releases (channel `stable` or
-`next`) or from your own server. Details: [apps/android/README.md](apps/android/README.md),
+**Admin → Check-in devices**. The app always follows the version of your server and updates itself from GitHub Releases
+or from your own server. Details: [apps/android/README.md](apps/android/README.md),
 [docs/SCANNER.md](docs/SCANNER.md).
 
 <table>
@@ -189,14 +187,14 @@ pnpm dev                    # web :3000, realtime gateway :3001, worker
 Full stack from source: `cp .env.example .env`, fill in the secrets, then
 `docker compose up -d --build` (shop on `http://localhost:8080`).
 
-| Command                                 | Description                                                                  |
-| --------------------------------------- | ---------------------------------------------------------------------------- |
-| `pnpm typecheck`                        | TypeScript across all packages                                               |
-| `pnpm test`                             | Unit tests + PostgreSQL integration tests (needs `TEST_DATABASE_URL`)        |
-| `pnpm db:generate`                      | Generate a migration after changing `packages/db/src/schema`                 |
-| `pnpm db:studio`                        | Drizzle Studio                                                               |
-| `node scripts/smoke/shop.mjs <eventId>` | End-to-end check of locking, cart, tariffs, realtime against running servers |
-| `scripts/load/run.ps1 -Vus 1200`        | Load test in an isolated stack, see [docs/LOAD-TEST.md](docs/LOAD-TEST.md)   |
+| Command                                 | Description                                                                                                                            |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`                        | TypeScript across all packages                                                                                                         |
+| `pnpm test`                             | Unit tests + PostgreSQL integration tests (needs `TIX_TEST_THROWAWAY=1` + `TEST_DATABASE_URL`/`TEST_REDIS_URL` of a throw-away server) |
+| `pnpm db:generate`                      | Generate a migration after changing `packages/db/src/schema`                                                                           |
+| `pnpm db:studio`                        | Drizzle Studio                                                                                                                         |
+| `node scripts/smoke/shop.mjs <eventId>` | End-to-end check of locking, cart, tariffs, realtime against running servers                                                           |
+| `scripts/load/run.ps1 -Vus 1200`        | Load test in an isolated stack, see [docs/LOAD-TEST.md](docs/LOAD-TEST.md)                                                             |
 
 Health endpoints: `GET /api/health?probe=live` (liveness), `GET /api/health` (readiness:
 PostgreSQL, Redis, live workers), worker `:8081/healthz`, realtime `:3001/healthz`.

@@ -1,4 +1,11 @@
-import { checkInLogs, orderItems, scannerDevices, seatMapEntrances, tickets } from '@tix/db';
+import {
+  checkInLogs,
+  orderItems,
+  orders,
+  scannerDevices,
+  seatMapEntrances,
+  tickets,
+} from '@tix/db';
 import type { ScanResult, ScanWarning } from '@tix/shared';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { CoreContext } from '../context';
@@ -106,20 +113,45 @@ export async function listScanLog(
     eventId: string;
     result?: ScanResult;
     deviceId?: string;
+    /** Free text: every word must match order number, ticket code, seat label, attendee or buyer name. */
+    search?: string;
     page?: number;
     pageSize?: number;
   },
 ): Promise<{ entries: ScanLogEntry[]; total: number; page: number; pageSize: number }> {
   const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), 200);
-  const page = Math.max(params.page ?? 1, 1);
   const filters: SQL[] = [eq(checkInLogs.eventId, params.eventId)];
   if (params.result) filters.push(eq(checkInLogs.result, params.result));
   if (params.deviceId) filters.push(eq(checkInLogs.deviceId, params.deviceId));
+  const words = (params.search ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 0)
+    .slice(0, 8);
+  for (const word of words) {
+    const like = `%${word.replace(/[\\%_]/g, '\\$&')}%`;
+    filters.push(
+      sql`(${orders.orderNumber} ILIKE ${like}
+        OR ${tickets.ticketCode} ILIKE ${like}
+        OR ${tickets.attendeeName} ILIKE ${like}
+        OR concat_ws(' ', ${orders.firstName}, ${orders.lastName}) ILIKE ${like}
+        OR concat_ws(' ', ${orderItems.sectionLabel}, ${orderItems.rowLabel}, ${orderItems.seatLabel}) ILIKE ${like})`,
+    );
+  }
   const where = and(...filters);
   const [total] = await ctx.db
     .select({ n: sql<number>`count(*)::int` })
     .from(checkInLogs)
+    .leftJoin(tickets, eq(tickets.id, checkInLogs.ticketId))
+    .leftJoin(orders, eq(orders.id, tickets.orderId))
+    .leftJoin(orderItems, eq(orderItems.id, tickets.orderItemId))
     .where(where);
+  const totalCount = total?.n ?? 0;
+  // Clamp to the last page so a stale page number (e.g. after a filter change) still shows rows.
+  const page = Math.min(
+    Math.max(params.page ?? 1, 1),
+    Math.max(1, Math.ceil(totalCount / pageSize)),
+  );
   const rows = await ctx.db
     .select({
       id: checkInLogs.id,
@@ -145,6 +177,7 @@ export async function listScanLog(
     .leftJoin(scannerDevices, eq(scannerDevices.id, checkInLogs.deviceId))
     .leftJoin(seatMapEntrances, eq(seatMapEntrances.id, checkInLogs.entranceId))
     .leftJoin(tickets, eq(tickets.id, checkInLogs.ticketId))
+    .leftJoin(orders, eq(orders.id, tickets.orderId))
     .leftJoin(orderItems, eq(orderItems.id, tickets.orderItemId))
     .where(where)
     .orderBy(desc(checkInLogs.scannedAt), desc(checkInLogs.id))
@@ -171,7 +204,7 @@ export async function listScanLog(
         ? { sectionLabel: r.sectionLabel, rowLabel: r.rowLabel, seatLabel: r.seatLabel }
         : null,
     })),
-    total: total?.n ?? 0,
+    total: totalCount,
     page,
     pageSize,
   };

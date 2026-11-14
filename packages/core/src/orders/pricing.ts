@@ -144,7 +144,7 @@ async function loadPricingContextForCart(
       row.id,
       localizePublicSeatMap(
         channel === 'ONLINE'
-          ? await getPublicSeatMap(ctx, row)
+          ? await getPublicSeatMap(ctx, row, { fresh: true })
           : await getSeatMapForChannel(ctx, row, channel),
         loc,
         defaultLocale,

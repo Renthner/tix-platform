@@ -1,6 +1,7 @@
 import { requestLogger } from '@/server/logger';
 import {
   completePayPalPayment,
+  PayPalCredentialsError,
   verifyOrderAccessToken,
   type CompletePayPalResult,
 } from '@tix/core';
@@ -52,6 +53,10 @@ export async function GET(request: Request) {
     if (result.status === 'RETRY' && result.url) return NextResponse.redirect(result.url, 303);
     outcome = OUTCOME[result.status];
   } catch (err) {
+    if (err instanceof PayPalCredentialsError) {
+      // Configuration problem, already logged by core; the order keeps its seats.
+      return NextResponse.redirect(`${page}&paypal=notavailable`, 303);
+    }
     requestLogger(request).error({ err, orderId }, '[paypal] capture after return failed');
   }
   return NextResponse.redirect(`${page}&paypal=${outcome}`, 303);

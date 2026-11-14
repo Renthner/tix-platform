@@ -4,7 +4,10 @@
     "myAccount": "Mein Konto",
     "dashboard": "Zum Dashboard",
     "dashboardSetup": "Zwei-Faktor-Anmeldung einrichten",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "queueTest": "Warteraum testen",
+    "queueTestOn": "an",
+    "queueTestOff": "aus"
   },
   "fields": {
     "email": "E-Mail-Adresse",

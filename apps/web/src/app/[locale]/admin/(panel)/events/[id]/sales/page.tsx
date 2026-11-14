@@ -81,6 +81,7 @@ export default async function EventSalesPage({
             bankTransferAutoCancel: event.bankTransferAutoCancel,
             bankTransferDisableDaysBeforeEvent: event.bankTransferDisableDaysBeforeEvent,
             customerAccountsEnabled: event.customerAccountsEnabled,
+            seoNoindex: event.seoNoindex,
           }}
         />
       </CardContent>

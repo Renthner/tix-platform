@@ -250,6 +250,8 @@ data class Manifest(
     val events: List<ManifestEvent> = emptyList(),
     /** Changes when the server's ticket numbering restarts (restore): wipe tickets + cursors, resync. */
     val syncEpoch: String? = null,
+    /** Version of the server software; the app is kept on exactly this version (absent on older servers). */
+    val serverVersion: String? = null,
 )
 
 @Serializable

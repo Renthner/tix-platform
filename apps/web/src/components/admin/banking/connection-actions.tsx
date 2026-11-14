@@ -132,7 +132,7 @@ export function TanPrompt({
         <img
           src={image}
           alt={t('challengeImage')}
-          className="max-h-64 rounded-md border bg-white p-2"
+          className="max-h-64 rounded-md border bg-paper p-2"
         />
       ) : null}
       {submitted ? (

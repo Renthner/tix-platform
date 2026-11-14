@@ -160,27 +160,54 @@ export async function revokeEventSigningKey(
   eventId: string,
   keyId: string,
 ): Promise<{ affectedTickets: number }> {
-  return withTransaction(ctx.db, async (tx) => {
-    await tx.execute(lockSql(eventId));
-    const [row] = await tx
-      .select()
-      .from(eventSigningKeys)
-      .where(and(eq(eventSigningKeys.eventId, eventId), eq(eventSigningKeys.keyId, keyId)))
-      .for('update');
-    if (!row) throw new DomainError('SIGNING_KEY_NOT_FOUND', 'Signing key not found', 404);
-    if (row.status !== 'REVOKED') {
-      await tx
-        .update(eventSigningKeys)
-        .set({ status: 'REVOKED', revokedAt: sql`now()`, retiredAt: row.retiredAt ?? sql`now()` })
-        .where(eq(eventSigningKeys.id, row.id));
-      if (row.status === 'ACTIVE') await insertActiveKey(ctx, tx, eventId);
-    }
-    const [counted] = await tx
-      .select({ n: sql<number>`count(*)::int` })
-      .from(tickets)
-      .where(and(eq(tickets.signingKeyId, row.id), eq(tickets.status, 'VALID')));
-    return { affectedTickets: counted?.n ?? 0 };
-  });
+  return withTransaction(ctx.db, (tx) => revokeEventSigningKeyTx(ctx, tx, eventId, keyId));
+}
+
+/** Transaction-scoped variant of `revokeEventSigningKey` (caller owns the transaction). */
+export async function revokeEventSigningKeyTx(
+  ctx: CoreContext,
+  tx: Transaction,
+  eventId: string,
+  keyId: string,
+): Promise<{ affectedTickets: number }> {
+  await tx.execute(lockSql(eventId));
+  const [row] = await tx
+    .select()
+    .from(eventSigningKeys)
+    .where(and(eq(eventSigningKeys.eventId, eventId), eq(eventSigningKeys.keyId, keyId)))
+    .for('update');
+  if (!row) throw new DomainError('SIGNING_KEY_NOT_FOUND', 'Signing key not found', 404);
+  if (row.status !== 'REVOKED') {
+    await tx
+      .update(eventSigningKeys)
+      .set({ status: 'REVOKED', revokedAt: sql`now()`, retiredAt: row.retiredAt ?? sql`now()` })
+      .where(eq(eventSigningKeys.id, row.id));
+    if (row.status === 'ACTIVE') await insertActiveKey(ctx, tx, eventId);
+  }
+  const [counted] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(tickets)
+    .where(and(eq(tickets.signingKeyId, row.id), eq(tickets.status, 'VALID')));
+  return { affectedTickets: counted?.n ?? 0 };
+}
+
+/**
+ * Revokes EVERY non-revoked key of the event (used when a tested event goes live: all QR codes
+ * of test tickets stop verifying) and makes sure a fresh ACTIVE key exists. Returns the number
+ * of keys revoked.
+ */
+export async function revokeAllEventSigningKeysTx(
+  ctx: CoreContext,
+  tx: Transaction,
+  eventId: string,
+): Promise<number> {
+  await tx.execute(lockSql(eventId));
+  const rows = await tx
+    .select({ keyId: eventSigningKeys.keyId })
+    .from(eventSigningKeys)
+    .where(and(eq(eventSigningKeys.eventId, eventId), ne(eventSigningKeys.status, 'REVOKED')));
+  for (const row of rows) await revokeEventSigningKeyTx(ctx, tx, eventId, row.keyId);
+  return rows.length;
 }
 
 /**

@@ -8,6 +8,383 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.18] - 2026-11-14
+
+### Added
+
+- SEO settings in the admin (Settings → SEO, setting `seo`, super admin): a switch **Allow search
+  engines to index the shop** (for test / demo servers: off sends `X-Robots-Tag: noindex, nofollow`
+  and a `robots` meta tag on every page, `robots.txt` becomes `Disallow: /` without a sitemap,
+  `/sitemap.xml` answers 404 and the structured data is omitted), a title pattern (`%s | {siteTitle}`),
+  a site title and a default description per language, a default share image (Open Graph / Twitter),
+  the Twitter / X account and Google / Bing site verification tokens. Events have a switch
+  "Exclude this event from search engines" on the Sales tab (`events.seo_noindex`, migration `0036`):
+  noindex, not in the sitemap, no structured data.
+- Test purchases for super admins: a signed-in SUPER_ADMIN can open the shop page of a **draft**
+  event (`/events/<slug>`, hidden from everybody else: 404, home list, sitemap, structured data,
+  `noindex`) and buy like a customer – cart, seat selection, best available, standing areas,
+  checkout and payment. A banner on the event page, cart and checkout says that the event is a draft
+  and that orders are test orders; the event admin page has a "Test in shop" button. Draft data
+  never enters the public shop cache. On **any** event super admins bypass presale, "not started",
+  paused and ended online sale (until the event itself starts) and the waiting room (no queue slot,
+  not counted as active shopper); the shop header menu has a "Test waiting room" switch to
+  experience the queue like a customer. New staff cookie `tix_admin_queue_test` (listed on `/cookies`).
+- Test orders (orders on draft events, migration `0035`, `orders.is_test`, `orders.test_hidden_at`,
+  `events.had_test_orders`): own number series `TEST-<year>-<seq>`, never invoiced (no number from the
+  gapless invoice series is consumed), ticket PDFs carry a TEST watermark, all e-mails get a `[TEST]`
+  subject prefix and a banner, no Apple / Google Wallet passes, and they are excluded from statistics,
+  the dashboard KPIs and customer history. Mixed carts (draft + published events) are refused. The
+  admin order list shows a TEST badge and has a filter. Bank matching never proposes or auto-fulfils
+  test orders (exact reference → review; manual assignment needs a confirmation).
+  - A test order that never received money can be deleted completely by a super admin (single, or all
+    of an event): items, tickets, payments, e-mail outbox rows, stored ticket PDFs and access-code
+    redemptions are removed, seats are released, scanner devices drop deleted tickets on their next
+    sync. Once real money was captured it cannot be deleted any more (accounting): "Cancel & hide"
+    cancels it through the normal refund flow and hides it from the default order list; its payments
+    and refunds stay in the accounting / DATEV export, marked TEST (CSV column, booking text `TEST …`),
+    never with an invoice or credit-note number.
+  - A draft with active test orders cannot be published (test orders that were cancelled & hidden do
+    not count); the publish dialog offers "Delete test orders & publish" (super admins, only while
+    none held money) or cancel. When an event
+    that had test orders goes live its ticket signing key is rotated, so test QR codes stop verifying.
+- Dark mode in the shop and the admin portal. A theme menu (System / Light / Dark) sits in the shop
+  header and the admin sidebar / top bar, next to the language switcher. The default follows the
+  operating system (`prefers-color-scheme`); an explicit choice is stored in the strictly necessary
+  cookie `tix_theme` (1 year, listed on the cookie page) so the server renders the right theme
+  without a flash. The "System" case is resolved before first paint by a tiny inline script that
+  carries the CSP nonce.
+- Semantic colour tokens (`success`, `warning`, `info`, `danger`, solid destructive, `paper`) with
+  dark variants; hard-coded status colours were replaced by them.
+- Playwright `e2e/theme.spec.ts`: switch, persistence, OS default and an axe-core colour-contrast
+  check (WCAG AA) of the shop and all admin pages in both themes. `scripts/e2e/run.mjs` accepts
+  `E2E_PROJECT` (must start with `tix-e2e`) to run a second isolated stack in parallel.
+
+### Changed
+
+- Releases need only one CI run: the release workflow reuses the successful CI run of the tagged commit on `main` (waits for a running one, runs CI itself only if none exists; `force_ci` input to always re-run).
+- The seating chart and the plan editor keep a light "sheet" in the dark theme (plan colours,
+  symbols and background images are designed on white); the rest of the page is dark. The ticket
+  designer paper, the e-mail editor / preview and QR codes also stay light.
+- The custom HTML start page is rendered on a light sheet and is never themed (hint text updated);
+  author-chosen text colours in rich text fall back to theme colours in the dark theme.
+- Slightly darker light-theme muted and destructive text colours for contrast; the version label in
+  the admin sidebar is no longer dimmed below AA.
+- Standalone error and maintenance pages follow the operating system colour scheme.
+
+## [1.0.0-alpha.17] - 2026-11-14
+
+### Added
+
+- Shop data cache for presale load: event pages, the shop home, queue texts and announcements,
+  the public seat plan and media catalogue rows are served from a per-process cache (single-flight,
+  tag invalidation, 60 s safety TTL) instead of the database. Admin changes (events, sales pause,
+  prices, tariffs, seat plan, venues, symbols, translations, media, waiting room texts, settings,
+  backup restore) are visible on the next page load on **all** web instances, because every change
+  publishes an invalidation over Redis pub/sub; while that subscription is down entries live
+  only 2 s (concurrent misses still share one load). Seat status, carts, the waiting room and sessions are never cached. The seat plan JSON
+  is built once per plan version, price generation and locale and delivered with an ETag
+  (`no-cache` + 304).
+  Cache hit / miss counters on the System page and in `/api/metrics`. See
+  docs/ARCHITECTURE.md ("Shop data cache") and docs/LOAD-TEST.md.
+
+### Changed
+
+- Shop pages are about half the size: the whole admin message catalogue (74 KB) was embedded in
+  every shop page; only the admin menu and form feedback strings are sent now.
+- **MinIO credentials are generated automatically.** The new one-shot service `storage-credentials`
+  creates the MinIO administrator pair and the application's access key pair on the first start
+  and keeps them in the Docker volume `storage-credentials` (existing files are never
+  regenerated; the MinIO administrator pair is readable only by the MinIO containers, the
+  application gets only its own pair, read-only). `web` and `worker` read `S3_ACCESS_KEY_ID_FILE` /
+  `S3_SECRET_ACCESS_KEY_FILE` (a plain `S3_*` variable still wins). `minio-init` always sets the
+  stored secret on the application user. **Existing installations:** keep `MINIO_ROOT_USER`,
+  `MINIO_ROOT_PASSWORD`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` in `.env` for the first start of
+  this version (the values are copied into the volume; afterwards they are optional). If they are
+  removed before that, `storage-credentials` stops instead of inventing a new administrator
+  password for existing MinIO data. The compose file changed: download the new
+  `docker-compose.yml` of this release. A `MINIO_ROOT_*` value in `.env` that differs from the
+  stored pair is refused (MinIO keeps its original root credentials). After changing the
+  application key pair run `docker compose up -d --force-recreate web worker`. Rolling back across
+  this release needs that release's compose file and the credentials in `.env` (INSTALL.md,
+  Updates).
+- **Minimal `.env`:** the release `env.example` lists only `PUBLIC_URL`, the address settings,
+  `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `APP_ENCRYPTION_KEYS`, `SESSION_SECRET` and
+  `TIX_CHANNEL`; everything else is an optional, commented-out block with defaults in the compose
+  file (`TIX_IMAGE_OWNER` is no longer in the file).
+- **Install guide restructured** (`docs/INSTALL.md`, `docs/INSTALL.de.md`, README quick guide):
+  Part 1 is a one-screen quick start (download, one command for the `.env`, start, first admin,
+  setup checklist, updating); Part 2 is the appendix (Docker installation, `.env` details,
+  HTTPS variants incl. own reverse proxy and Cloudflare, first configuration, check-in phones,
+  updates, monitoring, variable reference, troubleshooting incl. storage credentials).
+
+### Fixed
+
+- Prices and tariffs can never be served stale from the seat plan cache: price categories,
+  tariffs, the pricing matrix and the currency carry a generation (database triggers, same
+  transaction as the change) that is part of every plan cache key, and checkout, quotes and the
+  box office read it from the database (migration 0034). A plan snapshot built while an admin saved a price is
+  never looked up again, even if the post-commit invalidation fails.
+- `?locale=` values other than the supported UI languages no longer create cache entries of
+  their own (unknown values use the shop default language).
+- Settings read while an invalidation arrives are no longer cached from the pre-invalidation
+  load; a secret setting changed on another instance is refreshed as well.
+- `pnpm db:demo` publishes a full shop cache invalidation (best effort) when Redis is reachable.
+- Changing a setting on one web instance now reaches the others within a second (the
+  invalidation was published but never consumed; they used to catch up after up to 10 s). The
+  shop default language of the URL rules follows the same way.
+- The seat plan response is no longer cached by browsers for 30 s: after a price change the
+  next load shows the new prices.
+
+## [1.0.0-alpha.16] - 2026-11-13
+
+### Added
+
+- Responsive images: uploaded public images (event covers, venue backgrounds, logos, e-mail images)
+  are converted to AVIF and WebP variants in several widths (320–2560 px, never upscaled). The shop
+  (event cards, event cover, start page, logo) and the admin media library / event list use them
+  through `<picture>`; `/api/media/<id>?w=<width>&f=avif|webp` serves them with strict parameter
+  validation and immutable caching once an asset's variants are complete (briefly cached
+  stand-ins while the worker is still converting). The variants are generated in the background by
+  the worker right after the upload (the upload request itself only normalises the original and
+  queues a job); an asset whose conversion keeps failing is given up on after three attempts and
+  keeps being served as the original. The stored original stays PNG / JPEG (WebP uploads are converted
+  to JPEG / PNG), so ticket PDFs, wallet passes and e-mails keep working. Existing images are converted in the background by the
+  worker (new queue `media`). The media library shows the storage used by the variants.
+- Existing images are cleaned once in the background: the stored originals of all earlier uploads
+  (also ticket backgrounds, wallet images, logos and e-mail images) are auto-oriented, stripped of
+  metadata (EXIF, GPS position, XMP, IPTC) and WebP files are converted to JPEG / PNG, exactly like
+  new uploads. Changed files are written to a new object (the old one is removed afterwards), the
+  image variants are regenerated when the orientation changed, files that are already clean stay
+  byte for byte. The original under `/api/media/<id>` now revalidates (hourly, ETag) instead of
+  being cached for a year. Existing documents (tickets, invoices) are not touched.
+- SEO: `robots.txt` (shop open; admin, API, cart, checkout, account and orders disallowed, also
+  under the language prefixes; event images stay crawlable), a dynamic `sitemap.xml` (home, cookies
+  page and every shop-visible event per language, with hreflang alternates and last-modified) and
+  a web manifest with the shop name, theme colour and the configured favicon/logo. All URLs use
+  the configured public URL (`PUBLIC_URL`); the unprefixed language follows the live default
+  language setting.
+- Shop home and event pages: canonical URL, hreflang links (including `x-default`), Open Graph and
+  Twitter card metadata (translated title and description, event cover with size), `metadataBase`
+  and the browser theme colour from the branding settings. Event pages carry schema.org `Event`
+  structured data (dates with time zone offset, doors, status, venue with address and
+  coordinates, organiser, the real customer price range over categories and tariffs, and
+  availability, an ended sale is marked as discontinued rather than sold out) for search engine rich results.
+- Install guide (English and German): new section "Behind Cloudflare" with the trusted proxy
+  setup for Traefik, nginx and Nginx Proxy Manager and the matching `TRUSTED_PROXIES` line.
+- Admin **Statistics** (`/admin/statistics`, event managers and finance): sales KPIs with
+  comparison to the previous period (revenue gross / net of refunds, tickets, orders, average
+  order value, tickets per order), revenue, tickets and orders over time, presale sales curve per
+  event (cumulative tickets by days before the event), sales by price category, tariff, payment
+  method, channel and block, a weekday x hour heat map, booking lead time, refunds and
+  cancellations over time, new versus returning customers and customers who bought for several
+  events. Filters live in the URL (today, 7 / 30 days, this year, custom range, events, sales
+  channel, payment method), the bucket size follows the range (hour, day, week, month) and uses
+  the shop time zone. Every chart has a data table, an accessible summary and works on a phone;
+  the time series can be exported as CSV. All figures are aggregated in SQL and cached for 45
+  seconds per filter; the definitions are explained in an info popover. Charts are dependency-free
+  SVG and follow the light / dark theme (`--chart-1..8`).
+- Admin **System** page (`/admin/system`, super admins): live status refreshed every 8 seconds with
+  ten minute sparklines: application version, uptime and memory, PostgreSQL connections, size and
+  longest query, Redis memory, clients, operations per second and hit ratio, BullMQ queues with
+  the last failed jobs, waiting room and seat locks per event, connected realtime clients, workers
+  and the loop leader, and backlogs (queued / failed e-mails, open refunds, unmatched bank
+  transactions). The realtime gateway now reports a heartbeat to Redis (sockets per instance), so
+  no network path from the web app to the gateway is needed; older gateway images show "not
+  reporting".
+- Optional Prometheus endpoint `/api/metrics` (text format, bearer token from Settings, Security,
+  Monitoring; no token means 404, wrong tokens are rate limited) with the numbers of the System
+  page. Monitoring section with a scrape configuration in the install guide (English and German).
+
+### Changed
+
+- Image uploads are decoded and validated (new error "image could not be read" for damaged files),
+  auto-oriented by their EXIF orientation and stripped of metadata such as the GPS position when
+  they contain any. Database migration 0033: table `media_asset_variants` and
+  `media_assets.variants_processed_at` / `variants_attempts` / `master_sha256` (hash of the stored
+  original, used to recognise re-imported seat plan images). The web image now ships `sharp` (new dependency of
+  `apps/web`).
+
+## [1.0.0-alpha.15] - 2026-11-13
+
+### Added
+
+- Settings → Checkout: optional maximum cart lifetime (5–1440 minutes since the first reserved
+  seat). Adding seats still restarts the reservation timer, but never beyond this limit; the
+  one-time extra checkout time comes on top and is not re-armed at the limit. Empty = off (as
+  before); box office holds are not affected.
+- Settings → Checkout: configurable per-IP safety nets for orders (default off) and seat
+  selections (default 600 per minute); empty or 0 switches them off. The primary limits stay per
+  browser. The settings page shows the IP address the server detects for the current request and
+  warns when it looks like a proxy address (set `TRUSTED_PROXIES`, see the install guide). The
+  order limit is only charged for requests that passed input validation.
+- Cookie notice in the shop (information only: all cookies are strictly necessary) with a new page
+  "Cookies" listing every cookie with purpose and lifetime plus a note on the short-lived
+  processing of IP addresses for abuse protection. Linked in the shop footer. Settings →
+  Appearance: switch the notice off or replace its text per language.
+
+### Changed
+
+- Database migration 0032: partial index on `orders.cart_session_id` for the checkout re-submit
+  lookup, and a unique partial index on `bank_transaction_allocations.payment_id` (one allocation
+  per payment; allocations are now created with `ON CONFLICT DO NOTHING`).
+- SMTP and IMAP hosts that point at the stack's own services (`postgres`, `redis`, `minio`, `web`,
+  `worker`, `realtime`, `proxy`), at loopback or at link-local / cloud-metadata addresses are now
+  rejected. Private LAN addresses and `host.docker.internal` stay allowed (mail relay on the
+  Docker host). A rejected SMTP host is logged as an error (throttled); the resolved service
+  addresses are cached for about one minute.
+- Bank review: an overpayment case on an already fully allocated transfer is no longer a dead end.
+  The assign form is hidden, the affected orders are linked (refund the excess there) and the case
+  can be closed with "Mark as resolved" (Finance role, audited). Re-running the matching keeps an
+  overpayment case in review, and a transfer allocated for more than its amount is put back into
+  review instead of being marked as matched.
+- Cart: when a maximum cart lifetime is set and less than 30 seconds of it remain, adding seats is
+  refused with a clear message.
+- Checkout: stored phone number and billing address of a registered account are only filled in
+  when empty, never overwritten.
+
+## [1.0.0-alpha.14] - 2026-11-13
+
+### Added
+
+- Start page builder: position of the button (left, centred, right).
+
+### Changed
+
+- Shop event list: at most 6 events per row (stored higher values are treated as 6); at most 4
+  columns on large screens below the widest breakpoint. Event cards adapt to their own width:
+  narrow cards use a compact layout (status above the title, shorter date, tighter spacing), and
+  with 1 event per row the card spans the full width with the cover image beside the text. Phones
+  always show 1 card per row.
+
+### Fixed
+
+- Start page builder: the text block now uses the full page width.
+
+## [1.0.0-alpha.13] - 2026-11-13
+
+### Added
+
+- Settings → Appearance: number of events per row in the shop event list (1–10, default 3; fewer
+  columns on small screens).
+- Media library: "Copy ID" on every image and "Copy URL" for public images.
+- Every image field can reuse an image from the media library ("Choose from library") instead of
+  uploading it again; private images (ticket backgrounds, wallet images) cannot be used in public
+  places.
+- Scan log (device page and event check-in tab): entries per page (5–100, default 25), page
+  navigation and a search by order number, ticket code, seat and name.
+
+### Changed
+
+- Start page card: one language at a time with a content-language dropdown (default: shop
+  default language), in the builder and in custom-HTML mode.
+- Admin event list and dashboard "upcoming events": the whole row opens the event; buttons in the
+  row (e.g. Duplicate) keep working.
+- Wallet pass images must be PNG (Apple Wallet requirement) and show their error at the field.
+
+## [1.0.0-alpha.12] - 2026-11-13
+
+### Added
+
+- Start page: besides the builder, the page can be filled completely with custom HTML and CSS
+  (per language). Scripts, frames, forms and event handlers are removed; images from the media
+  library can be inserted.
+
+### Changed
+
+- Dashboard "first steps": the collapse and hide buttons sit to the right of the title on wider
+  screens and below it on phones.
+- Admin event list: cover thumbnails keep their original aspect ratio instead of being cropped to
+  16:9.
+
+## [1.0.0-alpha.11] - 2026-11-12
+
+### Added
+
+- Customisable shop start page while no event is published (Settings → Appearance): headline,
+  sub-headline, rich text, optional button, a main image and up to four gallery images, per
+  language with fallback to the shop default language.
+- The admin event list shows the event cover as a small thumbnail.
+- The dashboard "first steps" card can be collapsed (remembered per browser).
+
+### Changed
+
+- The "first steps" card's hide button is clearer (outline button with a hint) and can be restored
+  under Settings → General.
+- The shop default language (Settings → General) now also decides which language has no URL prefix;
+  the other languages use `/<code>/`.
+
+## [1.0.0-alpha.10] - 2026-11-12
+
+### Changed
+
+- The rule "companion seats only together with their wheelchair space" is now on by default for
+  new installations (Settings → Checkout; can still be changed globally and per event). The hint
+  explains the exception (wheelchair space already sold to the same e-mail address) and that the
+  rule is checked again before payment.
+
+### Fixed
+
+- An integration test of the FinTS TAN flow could fail by timing.
+
+## [1.0.0-alpha.9] - 2026-11-12
+
+The tag `v1.0.0-alpha.8` was never published (its release run stopped at the tests); this release
+replaces it.
+
+### Added
+
+- PayPal settings: "Test connection" checks the saved client ID and secret (and the webhook ID).
+
+### Fixed
+
+- Rejected PayPal credentials were shown to buyers as "PayPal temporarily unreachable" and logged as
+  an unhandled error. They now log a clear configuration error and buyers get a distinct notice.
+- Restoring a backup that contains tickets failed with `relation "ticket_sync_version_seq" does
+not exist` and was rolled back. Existing backups can be restored again; the ticket sync trigger
+  now references the sequence with its schema (migration 0031).
+- A PayPal payment approved by the buyer is no longer marked failed when the PayPal credentials
+  are rejected at capture; it is captured once the credentials work again. Automatic refunds keep
+  retrying instead of failing permanently.
+- A restore could stop as "incomplete" when the last session-termination round hit the migration
+  connection opened right after the database was replaced.
+
+## [1.0.0-alpha.7] - 2026-11-12
+
+### Added
+
+- Check-in app: a small hint on the scanner screen when the app version differs from the server
+  (update available, or server older than the app).
+
+### Changed
+
+- Ticket designer: the preview uses the same font (Noto Sans) as the PDF, so line breaks match.
+- SMTP test e-mails: delivery errors are explained in the admin language (login, connection,
+  timeout, host name, TLS, recipient) with the technical detail below.
+
+## [1.0.0-alpha.6] - 2026-11-12
+
+### Changed
+
+- Check-in app: updates now install exactly the version of the connected server (from GitHub
+  Releases or from your own server), and a newer app is never downgraded. The admin marks devices
+  whose app version differs from the server. The update channel setting only applies to servers
+  that do not report a version.
+
+### Fixed
+
+- Check-in app: "Read result aloud" did not speak (it relied on TalkBack). The app now reads the
+  result itself with the phone's text-to-speech engine, on the notification volume like the tones;
+  the setting shows a hint when no engine or voice is installed.
+
+## [1.0.0-alpha.5] - 2026-11-12
+
+### Fixed
+
+- Check-in app: the scan result was not announced by TalkBack. The announcement is now an option
+  in the app settings ("Read result aloud (TalkBack)"), off by default.
+
+## [1.0.0-alpha.4] - 2026-11-12
+
 ### Added
 
 - Setup checklist on the admin dashboard for new installations (organiser details, e-mail

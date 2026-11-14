@@ -3,6 +3,7 @@ import { randomInt } from 'node:crypto';
 import {
   accessCodes,
   customers,
+  events,
   isUniqueViolation,
   orderFees,
   orderAdjustments,
@@ -25,11 +26,12 @@ import { clearCartAfterOrder, holdCartUntil, validateSelection } from '../cart';
 import { rebuildInventory } from '../inventory';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
-import { computeSaleState, effectiveCheckoutConfig } from '../events';
+import { effectiveCheckoutConfig } from '../events';
 import { QUEUE_NAMES } from '../job-queues';
 import { nextNumber } from '../numbering';
 import { publishSeatDelta } from '../realtime';
 import { getSetting } from '../settings';
+import { isDraftEvent, shopSaleState, type ShopActorLike } from '../shop-actor';
 import { orderAccessToken } from './access';
 import { mirrorSeats } from './fulfillment';
 import { computeBankTransferTerms } from './payment-terms';
@@ -54,6 +56,8 @@ const ORDER_CREATION_HOLD_MS = 2 * 60 * 1000;
 /** Random digits of the payment reference (PREFIX-YYYY-NNNNNN-C). */
 const REFERENCE_DIGITS = 6;
 const MAX_ATTEMPTS = 3;
+/** Order numbers of test orders (separate counter, never mixes with the invoiced series). */
+export const TEST_ORDER_NUMBER_PATTERN = 'TEST-{YYYY}-{SEQ:4}';
 
 export interface PlaceOrderParams {
   sessionId: string;
@@ -61,6 +65,8 @@ export interface PlaceOrderParams {
   /** Logged-in customer account: its e-mail address is used for the order. */
   account?: { customerId: string; email: string } | null;
   ipAddress?: string | null;
+  /** Signed-in super-admin (role verified by the web layer on this request); omitted for customers. */
+  actor?: ShopActorLike;
 }
 
 export interface PlacedOrder {
@@ -142,7 +148,7 @@ async function placeOrderLocked(ctx: CoreContext, params: PlaceOrderParams): Pro
   // Sale state + presale access per event.
   const codeIds = new Map<string, string>();
   for (const event of eventRows.values()) {
-    const state = computeSaleState(event);
+    const state = shopSaleState(event, params.actor);
     const codeId = await ctx.redis.get(ctx.keys.queueAccessCode(event.id, sessionId));
     if (codeId) codeIds.set(event.id, codeId);
     if (state === 'ON_SALE' || (state === 'PRESALE' && codeId)) continue;
@@ -151,6 +157,18 @@ async function placeOrderLocked(ctx: CoreContext, params: PlaceOrderParams): Pro
       state,
     });
   }
+
+  // Orders on DRAFT events are test orders (super-admin test purchases). They must not be mixed
+  // with real events: a test order is never invoiced and never counted, a real one always is.
+  const draftCount = [...eventRows.values()].filter(isDraftEvent).length;
+  if (draftCount > 0 && draftCount !== eventRows.size) {
+    throw new DomainError(
+      'TEST_ORDER_MIXED_CART',
+      'A cart with events that are not yet published cannot be combined with published events',
+      422,
+    );
+  }
+  const isTest = draftCount > 0;
 
   // Keep the locks alive and make sure the session still holds exactly the quoted items.
   await holdCartUntil(ctx, sessionId, Date.now() + ORDER_CREATION_HOLD_MS);
@@ -233,6 +251,7 @@ async function placeOrderLocked(ctx: CoreContext, params: PlaceOrderParams): Pro
           codeIds,
           ownerChecks,
           settings: { general, invoicing, bank },
+          isTest,
         }),
       );
       // The order is committed: nothing below may turn it into an error. A failed Redis hand-over
@@ -350,6 +369,8 @@ interface CreateContext {
   eventRows: Awaited<ReturnType<typeof quoteForMethod>>['events'];
   configs: Map<string, Awaited<ReturnType<typeof effectiveCheckoutConfig>>>;
   codeIds: Map<string, string>;
+  /** Test order (DRAFT events): own order number series, flagged `is_test`. */
+  isTest: boolean;
   ownerChecks: { eventId: string; companionSeatId: string; partners: string[] }[];
   settings: {
     general: Awaited<ReturnType<typeof getSetting<'general'>>>;
@@ -497,6 +518,25 @@ async function createOrderRows(
   // Standing areas: claim capacity in the DB (authoritative counter).
   const gaByEvent = await claimStandingCapacity(tx, c.quote);
 
+  // A test order may only exist on events that are still drafts. The UPDATE row-locks the event
+  // and so serialises against publishing (which locks it FOR UPDATE and refuses while test orders
+  // exist): a test order created concurrently with the publish either commits first (publish then
+  // refuses / cleans up) or sees the event no longer in DRAFT and aborts.
+  if (c.isTest) {
+    const flagged = await tx
+      .update(events)
+      .set({ hadTestOrders: true })
+      .where(and(inArray(events.id, [...c.eventRows.keys()]), eq(events.status, 'DRAFT')))
+      .returning({ id: events.id });
+    if (flagged.length !== c.eventRows.size) {
+      throw new DomainError(
+        'EVENT_NOT_DRAFT',
+        'The event was published in the meantime – test purchases are no longer possible',
+        409,
+      );
+    }
+  }
+
   // Payment terms.
   const { general, invoicing, bank } = c.settings;
   const timeZone = general.defaultTimeZone;
@@ -533,7 +573,10 @@ async function createOrderRows(
   const itemStatus = free ? 'CONFIRMED' : 'PENDING';
 
   // Gapless order number – allocated last so the counter row lock is held only briefly.
-  const orderNumber = await nextNumber(tx, 'order', invoicing.orderNumberPattern, now, timeZone);
+  // Test orders have their own number series: deleting them must never leave holes in the real one.
+  const orderNumber = c.isTest
+    ? await nextNumber(tx, 'order-test', TEST_ORDER_NUMBER_PATTERN, now, timeZone)
+    : await nextNumber(tx, 'order', invoicing.orderNumberPattern, now, timeZone);
   const [order] = await tx
     .insert(orders)
     .values({
@@ -541,6 +584,7 @@ async function createOrderRows(
       customerId,
       status,
       channel: 'ONLINE',
+      isTest: c.isTest,
       paymentMethod: input.method,
       email: input.email,
       firstName: input.firstName,
@@ -647,8 +691,10 @@ async function createOrderRows(
 
 /**
  * One customer record per e-mail address. Guest data refreshes the record; name and
- * company of a customer account are never overwritten by checkout input. A newly entered
- * phone / address wins (the invoice needs them) but stored values are never blanked out.
+ * company, phone and address of a registered customer account (has a password) are never
+ * overwritten by checkout input – a guest checkout with that e-mail must not change the account;
+ * the order keeps its own billing data (invoices read the order, not the customer). For
+ * guest-only records a newly entered phone / address wins but stored values are never blanked out.
  */
 export async function upsertCustomer(
   tx: Transaction,
@@ -669,8 +715,9 @@ export async function upsertCustomer(
       first_name = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(NULLIF(EXCLUDED.first_name, ''), ${customers.firstName}) ELSE ${customers.firstName} END,
       last_name  = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(NULLIF(EXCLUDED.last_name, ''), ${customers.lastName}) ELSE ${customers.lastName} END,
       company    = CASE WHEN ${customers.passwordHash} IS NULL THEN (CASE WHEN ${keep}::boolean THEN COALESCE(NULLIF(EXCLUDED.company, ''), ${customers.company}) ELSE EXCLUDED.company END) ELSE ${customers.company} END,
-      phone      = COALESCE(EXCLUDED.phone, ${customers.phone}),
-      address    = COALESCE(EXCLUDED.address, ${customers.address}),
+      -- Registered accounts: only fill an empty phone / address, never overwrite stored values.
+      phone      = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(EXCLUDED.phone, ${customers.phone}) ELSE COALESCE(NULLIF(${customers.phone}, ''), EXCLUDED.phone) END,
+      address    = CASE WHEN ${customers.passwordHash} IS NULL THEN COALESCE(EXCLUDED.address, ${customers.address}) ELSE (CASE WHEN ${customers.address} IS NULL OR ${customers.address} = '{}'::jsonb OR ${customers.address} = 'null'::jsonb THEN COALESCE(EXCLUDED.address, ${customers.address}) ELSE ${customers.address} END) END,
       locale     = CASE WHEN ${keep}::boolean THEN COALESCE(${customers.locale}, EXCLUDED.locale) ELSE EXCLUDED.locale END,
       updated_at = now()
     RETURNING id`);

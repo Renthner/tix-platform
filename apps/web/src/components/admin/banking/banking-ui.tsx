@@ -162,7 +162,7 @@ export function Money({
     <span
       className={cn(
         'tabular-nums',
-        signed && cents > 0 && 'text-emerald-700 dark:text-emerald-400',
+        signed && cents > 0 && 'text-success',
         signed && cents < 0 && 'text-destructive',
         className,
       )}

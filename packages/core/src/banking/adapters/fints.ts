@@ -21,6 +21,7 @@ import {
   type SynchronizeResponse,
 } from 'lib-fints';
 import type { CoreContext } from '../../context';
+import { assertBankEndpointAllowed } from '../../network/host-guard';
 import {
   BankSyncError,
   replaceConnectionState,
@@ -215,6 +216,12 @@ export async function syncFinTs(
     parsedState.success && parsedState.data.identity === identity
       ? parsedState.data
       : finTsStateSchema.parse({ identity });
+
+  // SSRF guard right before connecting (also covers DNS changes after the settings were saved):
+  // the configured URL and the URL announced in the bank's parameter data must be public https.
+  await assertBankEndpointAllowed(config.serverUrl);
+  const announcedUrl = (state.bankingInformation as BankingInformation | undefined)?.bpd?.url;
+  if (announcedUrl) await assertBankEndpointAllowed(announcedUrl);
 
   const client = (params.clientFactory ?? createFinTsClient)({
     config,

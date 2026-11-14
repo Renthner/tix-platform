@@ -1,22 +1,35 @@
 'use server';
 
 import {
+  EndpointNotAllowedError,
+  assertMailHostAllowed,
   clearSecretSetting,
   getMediaAsset,
   getSetting,
   hasSecretSetting,
   saveSecretSetting,
+  sanitizeCustomHtml,
   saveSetting,
   sendTestEmail,
+  testPayPalConnection,
+  type MailErrorKind,
 } from '@tix/core';
-import { SCAN_RESULT_COLOR_KEYS } from '@tix/shared';
+import {
+  SCAN_RESULT_COLOR_KEYS,
+  START_PAGE_HTML_MAX,
+  START_PAGE_MAX_GALLERY,
+  SUPPORTED_LOCALES,
+  isPublicMediaKind,
+} from '@tix/shared';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
 import { parseMoneyToCents } from '@/lib/money';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { applyDefaultLocale } from '@/server/default-locale';
 import { sanitizeRichText } from '@/server/rich-text';
+import { applySeoIndexing } from '@/server/seo-indexing';
 import { audit } from './audit';
 import { fieldError, flag, success, text, zodFieldErrors } from './form';
 
@@ -26,6 +39,10 @@ export type EditableSettingKey =
   | 'branding'
   | 'checkout'
   | 'seatDisplay'
+  | 'shopLayout'
+  | 'cookieNotice'
+  | 'startPage'
+  | 'seo'
   | 'organizer'
   | 'invoicing'
   | 'bankTransfer'
@@ -74,7 +91,7 @@ interface SecretChange {
   clear: boolean;
 }
 
-/** Optional LOGO media asset id: empty = none; unknown id / wrong kind is rejected. */
+/** Optional logo / favicon asset id (any public image kind, also from the library): empty = none; unknown id / private kind is rejected. */
 async function logoAssetField(
   fd: FormData,
   name: string,
@@ -83,7 +100,23 @@ async function logoAssetField(
   const id = text(fd, name);
   if (id === undefined) return undefined;
   const asset = z.uuid().safeParse(id).success ? await getMediaAsset(getCore(), id) : null;
-  if (!asset || asset.kind !== 'LOGO') {
+  if (!asset || !isPublicMediaKind(asset.kind)) {
+    errors[name] = 'invalid';
+    return undefined;
+  }
+  return asset.id;
+}
+
+/** Optional media asset id of a public kind (served to anonymous visitors); unknown / private is rejected. */
+async function publicImageField(
+  fd: FormData,
+  name: string,
+  errors: Errors,
+): Promise<string | undefined> {
+  const id = text(fd, name);
+  if (id === undefined) return undefined;
+  const asset = z.uuid().safeParse(id).success ? await getMediaAsset(getCore(), id) : null;
+  if (!asset || !isPublicMediaKind(asset.kind)) {
     errors[name] = 'invalid';
     return undefined;
   }
@@ -134,6 +167,10 @@ async function readInput(
         input: {
           cartLockTtlSeconds: requiredInt(fd, 'cartLockTtlSeconds', errors),
           paymentGraceSeconds: requiredInt(fd, 'paymentGraceSeconds', errors),
+          // Empty = off.
+          maxCartLifetimeMinutes: optionalIntOrNull(fd, 'maxCartLifetimeMinutes', errors),
+          checkoutsPerIpPer10Min: optionalIntOrNull(fd, 'checkoutsPerIpPer10Min', errors),
+          seatRequestsPerIpPerMinute: optionalIntOrNull(fd, 'seatRequestsPerIpPerMinute', errors),
           maxTicketsPerOrder: perOrder === undefined ? null : Number(perOrder),
           maxTicketsPerCustomer: perCustomer === undefined ? null : Number(perCustomer),
           manualSeatSelectionEnabled: flag(fd, 'manualSeatSelectionEnabled'),
@@ -161,6 +198,85 @@ async function readInput(
           seatChangeNewColor: text(fd, 'seatChangeNewColor'),
         },
       };
+    case 'cookieNotice': {
+      // Only locales with a custom text are stored (empty = default text).
+      const texts: Record<string, string> = {};
+      for (const loc of SUPPORTED_LOCALES) {
+        const value = text(fd, `text.${loc}`);
+        if (value !== undefined) texts[loc] = value;
+      }
+      return { input: { enabled: flag(fd, 'enabled'), texts } };
+    }
+    case 'shopLayout': {
+      const perRow = requiredInt(fd, 'eventsPerRow', errors);
+      return { input: { eventsPerRow: perRow } };
+    }
+    case 'startPage': {
+      const heroAssetId = await publicImageField(fd, 'heroAssetId', errors);
+      const galleryAssetIds: string[] = [];
+      const slots: number[] = [];
+      for (let i = 0; i < START_PAGE_MAX_GALLERY; i++) {
+        const id = await publicImageField(fd, `galleryAssetId${i}`, errors);
+        if (id) {
+          galleryAssetIds.push(id);
+          slots.push(i);
+        }
+      }
+      const texts: Record<string, Record<string, unknown>> = {};
+      for (const loc of SUPPORTED_LOCALES) {
+        texts[loc] = {
+          headline: text(fd, `headline.${loc}`),
+          subheadline: text(fd, `subheadline.${loc}`),
+          body: sanitizeRichText(text(fd, `body.${loc}`)) || undefined,
+          buttonLabel: text(fd, `buttonLabel.${loc}`),
+          heroAlt: text(fd, `heroAlt.${loc}`),
+          // Alt texts stay aligned with the images that remain after skipping empty slots.
+          galleryAlt: slots.map((i) => text(fd, `galleryAlt${i}.${loc}`) ?? ''),
+          // Over-long input is passed on unchanged so validation rejects it instead of truncating.
+          html: (() => {
+            const raw = text(fd, `html.${loc}`) ?? '';
+            return raw.length > START_PAGE_HTML_MAX ? raw : sanitizeCustomHtml(raw) || undefined;
+          })(),
+        };
+      }
+      return {
+        input: {
+          mode: text(fd, 'mode'),
+          layout: text(fd, 'layout'),
+          heroAssetId,
+          galleryAssetIds,
+          buttonUrl: text(fd, 'buttonUrl'),
+          buttonAlign: text(fd, 'buttonAlign'),
+          texts,
+        },
+      };
+    }
+    case 'seo': {
+      const shareImageAssetId = await publicImageField(fd, 'shareImageAssetId', errors);
+      const texts: Record<string, Record<string, unknown>> = {};
+      for (const loc of SUPPORTED_LOCALES) {
+        texts[loc] = {
+          siteTitle: text(fd, `siteTitle.${loc}`),
+          description: text(fd, `description.${loc}`),
+        };
+      }
+      // A pasted <meta ... content="TOKEN"> tag is reduced to the token.
+      const token = (name: string) => {
+        const raw = text(fd, name);
+        return raw?.match(/content\s*=\s*["']([^"']*)["']/i)?.[1] ?? raw;
+      };
+      const handle = text(fd, 'twitterHandle');
+      return {
+        input: {
+          indexing: flag(fd, 'indexing'),
+          titleTemplate: text(fd, 'titleTemplate'),
+          shareImageAssetId,
+          twitterHandle: handle && !handle.startsWith('@') ? `@${handle}` : handle,
+          verification: { google: token('verification.google'), bing: token('verification.bing') },
+          texts,
+        },
+      };
+    }
     case 'organizer':
       return {
         input: {
@@ -322,8 +438,22 @@ function mapZodErrors(err: z.ZodError): Errors {
   for (const name of ['supportEmail', 'email', 'fromEmail', 'replyTo', 'bccAddress']) {
     if (fields[name] === 'invalid') fields[name] = 'email';
   }
-  for (const url of ['imprintUrl', 'privacyUrl', 'termsUrl', 'website']) {
+  for (const url of ['imprintUrl', 'privacyUrl', 'termsUrl', 'website', 'buttonUrl']) {
     if (fields[url]) fields[url] = 'url';
+  }
+  // Start page: "texts.<locale>.<field>[.<n>]" → form field "<field>.<locale>" / "galleryAlt<n>.<locale>".
+  for (const [key, code] of Object.entries(fields)) {
+    const m = /^texts\.(\w+)\.(\w+)(?:\.(\d+))?$/.exec(key);
+    if (!m) continue;
+    delete fields[key];
+    fields[m[2] === 'galleryAlt' ? `galleryAlt${m[3] ?? 0}.${m[1]}` : `${m[2]}.${m[1]}`] = code;
+  }
+  // Cookie notice: "texts.<locale>" → form field "text.<locale>".
+  for (const [key, code] of Object.entries(fields)) {
+    const m = /^texts\.(\w+)$/.exec(key);
+    if (!m) continue;
+    delete fields[key];
+    fields[`text.${m[1]}`] = code;
   }
   if (fields.defaultTimeZone) fields.defaultTimeZone = 'timeZone';
   if (fields.country) fields.country = 'country';
@@ -351,6 +481,15 @@ export async function saveSettingsAction(
   const errors: Errors = {};
   const { input, secret } = await readInput(key, fd, errors);
   await checkSecretRequirements(key, input, secret, errors);
+  // SSRF guard: the mail server must not be this machine, a metadata address or an internal service.
+  if (key === 'smtp' && typeof input.host === 'string' && input.host) {
+    try {
+      await assertMailHostAllowed(input.host);
+    } catch (err) {
+      if (!(err instanceof EndpointNotAllowedError)) throw err;
+      errors.host = 'hostNotAllowed';
+    }
+  }
   if (Object.keys(errors).length > 0) return fieldError(errors);
 
   const core = getCore();
@@ -374,8 +513,51 @@ export async function saveSettingsAction(
     value: saved,
     ...(secretChange ? { secret: { key: secret!.key, change: secretChange } } : {}),
   });
+  // The default language decides which locale has no URL prefix: effective immediately here.
+  if (key === 'general') applyDefaultLocale((saved as { defaultLocale: string }).defaultLocale);
+  // The proxy sends X-Robots-Tag from its own cache: effective immediately on this instance.
+  if (key === 'seo') applySeoIndexing((saved as { indexing: boolean }).indexing);
   revalidatePath('/', 'layout');
   return success('saved');
+}
+
+// ─── PayPal connection test ─────────────────────────────────────────────────
+
+export type PayPalTestState =
+  | { status: 'idle' }
+  | { status: 'notConfigured'; at: number }
+  | {
+      status: 'ok';
+      environment: 'sandbox' | 'live';
+      webhook: 'NONE' | 'OK' | 'NOT_FOUND' | 'UNKNOWN';
+      at: number;
+    }
+  | { status: 'rejected'; at: number }
+  | { status: 'failed'; message: string; at: number };
+
+/** Requests an OAuth token with the SAVED PayPal credentials (and checks a saved webhook id). */
+export async function testPayPalConnectionAction(
+  _prev: PayPalTestState,
+  _fd: FormData,
+): Promise<PayPalTestState> {
+  const session = await requireAdmin(['SUPER_ADMIN']);
+  const core = getCore();
+  const result = await testPayPalConnection(core);
+  await audit(core.db, session, 'settings.paypal.test', 'system_setting', 'paypal', {
+    result: result.status,
+    ...(result.status === 'OK' ? { environment: result.environment, webhook: result.webhook } : {}),
+  });
+  const at = Date.now();
+  switch (result.status) {
+    case 'NOT_CONFIGURED':
+      return { status: 'notConfigured', at };
+    case 'OK':
+      return { status: 'ok', environment: result.environment, webhook: result.webhook, at };
+    case 'CREDENTIALS_REJECTED':
+      return { status: 'rejected', at };
+    case 'ERROR':
+      return { status: 'failed', message: result.message.slice(0, 300), at };
+  }
 }
 
 // ─── SMTP test e-mail ───────────────────────────────────────────────────────
@@ -383,7 +565,13 @@ export async function saveSettingsAction(
 export type TestMailState =
   | { status: 'idle' }
   | { status: 'success'; to: string; at: number }
-  | { status: 'error'; code: 'email' | 'failed'; message?: string; at: number };
+  | {
+      status: 'error';
+      code: 'email' | 'failed';
+      message?: string;
+      kind?: MailErrorKind;
+      at: number;
+    };
 
 /** Sends the SMTP_TEST template synchronously with the saved SMTP settings. */
 export async function sendTestEmailAction(
@@ -400,9 +588,9 @@ export async function sendTestEmailAction(
     to,
     ok: result.ok,
     messageId: result.messageId,
-    ...(result.ok ? {} : { error: result.error }),
+    ...(result.ok ? {} : { error: result.error, kind: result.kind }),
   });
   return result.ok
     ? { status: 'success', to, at: Date.now() }
-    : { status: 'error', code: 'failed', message: result.error, at: Date.now() };
+    : { status: 'error', code: 'failed', message: result.error, kind: result.kind, at: Date.now() };
 }

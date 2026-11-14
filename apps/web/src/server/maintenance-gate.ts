@@ -107,7 +107,8 @@ function page(locale: MaintenanceLocale, step: string | undefined): string {
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>${escapeHtml(m.title)}</title>
 <style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#fafafa;color:#18181b}
-main{max-width:30rem;padding:2rem;text-align:center}h1{font-size:1.4rem}p{color:#52525b;line-height:1.5}#s{font-size:.85rem;color:#71717a}</style></head>
+main{max-width:30rem;padding:2rem;text-align:center}h1{font-size:1.4rem}p{color:#52525b;line-height:1.5}#s{font-size:.85rem;color:#71717a}
+@media (prefers-color-scheme:dark){body{background:#18181b;color:#fafafa}p,#s{color:#a1a1aa}}</style></head>
 <body><main><h1>${escapeHtml(m.title)}</h1><p>${escapeHtml(m.text)}</p><p id="s">${escapeHtml(label)}</p></main>
 <script>const L=${JSON.stringify(steps).replaceAll('<', '\u003c')};
 setInterval(async()=>{try{const r=await fetch('/api/maintenance',{cache:'no-store'});const j=await r.json();

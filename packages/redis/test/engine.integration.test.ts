@@ -1,18 +1,14 @@
 /**
  * Integration tests for the Lua locking and waiting-room scripts against a real Redis.
- * Uses REDIS_URL (root .env) and an isolated random key prefix that is deleted afterwards.
+ * Uses TEST_REDIS_URL (throw-away Redis, TIX_TEST_THROWAWAY=1) and an isolated random key prefix that is deleted afterwards.
  */
-import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { QueueEngine, SeatLockEngine, createKeyspace, rateLimit } from '../src';
 
-const rootEnv = resolve(import.meta.dirname, '../../../.env');
-if (!process.env.REDIS_URL && existsSync(rootEnv)) process.loadEnvFile(rootEnv);
-const url = process.env.REDIS_URL;
+const url = process.env.TEST_REDIS_URL;
 
 describe.skipIf(!url)('redis engines (integration)', () => {
   const prefix = `test${randomUUID().slice(0, 8)}`;

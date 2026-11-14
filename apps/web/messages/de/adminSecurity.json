@@ -255,6 +255,7 @@
         },
         "githubRepository": "GitHub-Repository",
         "githubRepositoryHint": "owner/repo der Releases, z. B. ein Fork des Projekts. Leer = das in die App eingebaute Repository.",
+        "legacyChannelTitle": "Nur für Einlass-Apps älter als 1.0.0-alpha.6 und Server ohne Versionsabgleich",
         "defaultUpdateChannel": "Standard-Update-Kanal",
         "defaultUpdateChannelHint": "Stabil = nur finale Releases. Next = auch Vorabversionen (Alpha, Beta, RC).",
         "channels": {
@@ -262,7 +263,8 @@
           "next": "Next (inkl. Alpha / Beta)"
         },
         "allowChannelOverride": "Kanalwechsel in der App erlauben",
-        "allowChannelOverrideHint": "Bediener können in den App-Einstellungen einen anderen Kanal wählen."
+        "allowChannelOverrideHint": "Bediener können in den App-Einstellungen einen anderen Kanal wählen.",
+        "versionRule": "Die App installiert die Version, die zu diesem Server passt (v{version})."
       }
     }
   },

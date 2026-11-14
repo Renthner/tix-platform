@@ -19,6 +19,7 @@
     "lastSeen": "Zuletzt gesehen",
     "lastSync": "Letzter Sync",
     "appVersion": "App",
+    "versionMismatch": "App-Version weicht vom Server ab ({app} statt {server})",
     "status": "Status",
     "active": "Aktiv",
     "revoked": "Gesperrt",
@@ -115,13 +116,9 @@
     "linkTextGithub": "Öffne diesen Link auf dem Smartphone (oder scanne den QR-Code) und lade die App von der GitHub-Release-Seite herunter.",
     "github": {
       "title": "Updates kommen von GitHub-Releases ({repository})",
-      "text": "Standard-Kanal: {channel}. Die Uploads unten werden nur im Modus „Eigener Server“ genutzt und einmalig für ältere Apps, die GitHub noch nicht unterstützen.",
+      "text": "Die App installiert die Version dieses Servers (v{version}). Die Uploads unten werden nur im Modus „Eigener Server“ genutzt und einmalig für ältere Apps, die GitHub noch nicht unterstützen.",
       "uploadsHint": "Hochgeladene Versionen werden nur älteren App-Versionen angeboten, die GitHub noch nicht unterstützen (damit sie einmal umsteigen können).",
       "settings": "Update-Quelle ändern",
-      "channels": {
-        "stable": "Stabil (finale Releases)",
-        "next": "Next (inkl. Alpha / Beta)"
-      },
       "noRepository": "Updates sind auf GitHub gestellt, aber hier ist kein Repository eingetragen. Die Apps nutzen das in ihren Release-Build eingebaute Repository, falls vorhanden. Trage in den Scanner-Einstellungen ein Repository ein oder wechsle zu „Eigener Server“."
     }
   },
@@ -164,6 +161,9 @@
       "checkOut": "Check-out",
       "filterResult": "Ergebnis",
       "filterDevice": "Gerät",
+      "search": "Suche",
+      "searchPlaceholder": "Bestell-Nr., Ticket, Platz, Name",
+      "pageSize": "Einträge pro Seite",
       "all": "Alle",
       "apply": "Filtern",
       "page": "Seite {page} von {pages}",

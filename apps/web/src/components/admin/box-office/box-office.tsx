@@ -1081,7 +1081,7 @@ export function BoxOffice({
                     )}
 
                     {quote?.buyerDataRequired && (
-                      <p className="text-sm text-amber-700">
+                      <p className="text-sm text-warning">
                         {t('buyer.required', {
                           limit: money(quote.smallAmountInvoiceLimit, quote.currency),
                         })}
@@ -1355,7 +1355,7 @@ function SaleSuccess({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base text-green-700">
+        <CardTitle className="flex items-center gap-2 text-base text-success">
           <Check className="size-5" /> {t('title')}
         </CardTitle>
       </CardHeader>
@@ -1370,7 +1370,7 @@ function SaleSuccess({
             <div className="text-muted-foreground">{t('emailQueued', { email: sale.email })}</div>
           )}
         </div>
-        {!sale.ticketsReady && <p className="text-sm text-amber-700">{t('ticketsNotReady')}</p>}
+        {!sale.ticketsReady && <p className="text-sm text-warning">{t('ticketsNotReady')}</p>}
         <Button asChild className="w-full" size="lg">
           <a
             href={`/api/admin/box-office/orders/${sale.orderId}/tickets`}

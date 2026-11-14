@@ -81,6 +81,7 @@ content hash; 304 when unchanged). Fetch on start, after pairing and every sync 
 ```jsonc
 {
   "apiVersion": 1,
+  "serverVersion": "1.0.0",
   "serverTime": "...",
   "etag": "...",
   "syncEpoch": "<opaque string>",
@@ -303,9 +304,20 @@ The app learns its offset to the server from the manifest / sync `serverTime` an
 on this offset-corrected clock. The server's per-batch correction (`serverNow - sentAt`) is then close to zero and
 only catches drift since the last offset measurement (it also stays correct for devices that send raw clocks).
 
-### App updates (source and channel)
+### App updates (version matching, source)
 
-The manifest tells the app where to look for updates (`settings.appUpdate`, additive; an older server omits it,
+**The app version must match the server version.** The manifest carries `serverVersion` (the server's release
+version, e.g. `1.0.0-alpha.5`; additive, an older server omits it). It is part of the etag content, so a server
+upgrade changes the etag and apps re-read it. The app compares it with its own version (SemVer, same parser as the
+release tags):
+
+- equal: up to date;
+- server newer: the target is **exactly** the server's version (never "newest of a channel");
+- app newer than the server: nothing is offered. Android cannot downgrade without an uninstall, which would wipe
+  the offline data, so the app only shows "update the server". Scanning is never blocked by a mismatch;
+- `serverVersion` missing or unparsable (older server): the channel logic below applies unchanged.
+
+The manifest also tells the app where to look for updates (`settings.appUpdate`, additive; an older server omits it,
 which means "own server"; the manifest etag changes with these settings):
 
 ```jsonc
@@ -320,7 +332,9 @@ manifest sends the server value as is (`""` when empty); the app uses `githubRep
 built-in repository, and reports "no repository configured" when both are empty. The repository must be
 `owner/repo` without `.` or `..` segments.
 
-**Source `SERVER`:** `GET /app/latest` and the uploaded APKs below, unchanged.
+**Source `SERVER`:** `GET /app/latest` and the uploaded APKs below. With a `serverVersion` the app only
+offers the uploaded APK when its `versionName` equals `serverVersion`; otherwise it shows "the server has no app
+for version X uploaded". The admin device list flags devices whose reported `appVersion` differs from the server.
 
 **Source `GITHUB`:** the app talks to GitHub directly and never sends the device token there. Apps with GitHub
 support do not call `GET /app/latest` in this mode. For older apps (without GitHub support) the endpoint still
@@ -332,9 +346,14 @@ app, "Publish as current") so old apps can install it via `/app/latest`; from th
 manifest. The APK must be signed with the **same keystore** as the installed app (Android refuses a different
 key), also for the GitHub releases.
 
-- Channels: `stable` = newest release that is neither draft nor pre-release (GitHub flag and SemVer pre-release
-  part); `next` = newest release including pre-releases (alpha/beta/rc). Drafts are never used. The operator may
-  switch the channel in the app settings when `allowChannelOverride` is true, otherwise `defaultChannel` applies.
+- Target: with a `serverVersion` the app selects exactly the release with tag `v<serverVersion>` from the cached
+  release list (drafts skipped, pre-releases allowed; no extra request). If that tag is not in the list (or lacks
+  the assets) the app reports "no app release for server version X". All checks below still apply.
+- Channels (fallback for servers without `serverVersion` only): `stable` = newest release that is neither draft
+  nor pre-release (GitHub flag and SemVer pre-release part); `next` = newest release including pre-releases
+  (alpha/beta/rc). Drafts are never used. The operator may switch the channel in the app settings when
+  `allowChannelOverride` is true, otherwise `defaultChannel` applies. The admin no longer shows these two
+  settings; the stored values stay and are still sent in the manifest for older apps.
 - Release list: `GET https://api.github.com/repos/<owner>/<repo>/releases?per_page=30` with
   `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `User-Agent: tix-checkin/<version>`
   and `If-None-Match`. Unauthenticated requests are limited to 60 per hour **per IP address**, and a 304 does
@@ -356,9 +375,8 @@ key), also for the GitHub releases.
   the same as the installed app's, or (single signer) a forward key rotation where the new APK's certificate
   lineage contains the installed signer (several signers: exact equality). Otherwise a clear error; Android
   enforces it as well.
-- Admin: the staff download link/QR on /admin/scanners points to the public GitHub release page
-  (`https://github.com/<owner>/<repo>/releases/latest` for `stable`, `.../releases` for `next`) when the server
-  has a repository; without one it falls back to the signed link of the uploaded APK, or (no upload either) the
+- Admin: the staff download link/QR on /admin/scanners points to the GitHub release page of the server's version
+  (`https://github.com/<owner>/<repo>/releases/tag/v<serverVersion>`) when the server has a repository; without one it falls back to the signed link of the uploaded APK, or (no upload either) the
   admin sees a hint to set the repository. Uploads are the source in `SERVER` mode and the one-time fallback above.
 
 ### `GET /app/latest` (device auth; source SERVER, or GITHUB for older apps)

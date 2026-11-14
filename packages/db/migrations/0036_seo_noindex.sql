@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "seo_noindex" boolean DEFAULT false NOT NULL;

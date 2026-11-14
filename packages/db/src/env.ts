@@ -6,8 +6,10 @@ import { dirname, join } from 'node:path';
  * The root is found by walking up from the working directory to `pnpm-workspace.yaml`.
  * In containers the environment is injected by docker compose and no file exists.
  * Variables that are already present in the environment always win.
+ * Under vitest the file is never loaded, so tests cannot pick up the credentials of a real stack.
  */
 export function loadRootEnv(): void {
+  if (process.env.VITEST) return;
   let dir = process.cwd();
   for (;;) {
     if (existsSync(join(dir, 'pnpm-workspace.yaml'))) {

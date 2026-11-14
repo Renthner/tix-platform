@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
 /** Waiting-room status poll (fallback when the WebSocket connection is unavailable). */
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   return handle(async () => {
-    const { core, event } = await loadShopEvent((await params).eventId);
-    const decision = await queueStatus(core, event, await ensureSessionId());
+    const { core, event, actor } = await loadShopEvent((await params).eventId);
+    const decision = await queueStatus(core, event, await ensureSessionId(), actor);
     return NextResponse.json(await respondWithDecision(event.id, decision), {
       headers: { 'cache-control': 'no-store' },
     });

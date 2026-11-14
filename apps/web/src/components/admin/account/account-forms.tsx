@@ -258,7 +258,7 @@ export function TwoFactorPanel({
           alt={t('qrAlt')}
           width={200}
           height={200}
-          className="rounded-md border bg-white"
+          className="rounded-md border bg-paper"
         />
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">{t('manualKey')}</p>

@@ -458,7 +458,7 @@ export function EmailTemplateEditor({
                   title={t('preview.title')}
                   sandbox=""
                   srcDoc={previewData.html}
-                  className="h-[34rem] w-full rounded-md border bg-white"
+                  className="h-[34rem] w-full rounded-md border bg-paper"
                 />
               ) : (
                 <pre className="max-h-[34rem] overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
@@ -495,7 +495,12 @@ export function EmailTemplateEditor({
                       ? t('preview.testInvalid')
                       : testResult.code === 'notConfigured'
                         ? t('preview.testNotConfigured')
-                        : t('preview.testFailed', { message: testResult.message ?? '' })}
+                        : t(`preview.testKinds.${testResult.kind ?? 'other'}`)}
+                  {testResult.status === 'error' && testResult.code === 'failed' && (
+                    <span className="mt-1 block font-mono text-xs break-all">
+                      {t('preview.testDetail')} {testResult.message}
+                    </span>
+                  )}
                 </AlertDescription>
               </Alert>
             )}

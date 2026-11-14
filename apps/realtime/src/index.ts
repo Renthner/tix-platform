@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
+import { hostname } from 'node:os';
 import {
   MaintenanceWatcher,
   PresenceTracker,
@@ -6,6 +8,8 @@ import {
   QueueEngine,
   createChannels,
   createKeyspace,
+  removeRealtimeHeartbeat,
+  writeRealtimeHeartbeat,
 } from '@tix/redis';
 import { APP_VERSION, type SeatDeltaMessage, type SeatDeltaStatus } from '@tix/shared';
 import { verifyToken } from '@tix/shared/server';
@@ -251,6 +255,30 @@ const flushTimer = setInterval(() => {
   pending.clear();
 }, env.SEAT_BATCH_MS);
 
+// Heartbeat for the admin system page / metrics (web has no network path to this service): one
+// record per instance with the connected sockets, summed up by the web app.
+const instanceId = `${hostname()}-${process.pid}-${randomUUID().slice(0, 8)}`;
+const startedAt = new Date().toISOString();
+const HEARTBEAT_MS = 10_000;
+const HEARTBEAT_TTL_SECONDS = 30;
+const beat = () =>
+  writeRealtimeHeartbeat(
+    redis.command,
+    keys,
+    {
+      instanceId,
+      hostname: hostname(),
+      pid: process.pid,
+      version: APP_VERSION,
+      startedAt,
+      lastBeatAt: new Date().toISOString(),
+      sockets: io.engine.clientsCount,
+    },
+    HEARTBEAT_TTL_SECONDS,
+  ).catch((err: unknown) => logger.warn({ err }, 'realtime heartbeat failed'));
+const heartbeatTimer = setInterval(() => void beat(), HEARTBEAT_MS);
+heartbeatTimer.unref();
+
 const subscriber = redis.subscriber;
 subscriber.on('pmessage', (pattern: string, channel: string, raw: string) => {
   try {
@@ -276,6 +304,7 @@ async function main(): Promise<void> {
     channels.patterns.sessions,
   );
   maintenanceWatcher.start();
+  void beat();
   http.listen(env.REALTIME_PORT, '0.0.0.0', () => {
     logger.info(
       { version: APP_VERSION, port: env.REALTIME_PORT, origins },
@@ -290,6 +319,8 @@ async function shutdown(signal: string): Promise<void> {
   stopping = true;
   logger.info({ signal }, 'shutting down');
   clearInterval(flushTimer);
+  clearInterval(heartbeatTimer);
+  await removeRealtimeHeartbeat(redis.command, keys, instanceId).catch(() => undefined);
   maintenanceWatcher.stop();
   await new Promise<void>((resolve) => io.close(() => resolve()));
   await redis.close();

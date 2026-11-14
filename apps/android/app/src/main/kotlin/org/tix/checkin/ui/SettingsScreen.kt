@@ -56,10 +56,14 @@ fun SettingsScreen(vm: MainViewModel) {
     val alert by vm.settings.alertSeconds.collectAsState()
     val sound by vm.settings.sound.collectAsState()
     val vibrate by vm.settings.vibrate.collectAsState()
+    val announce by vm.settings.announceResults.collectAsState()
     val update by vm.update.collectAsState()
     val updateConfig by vm.settings.appUpdate.collectAsState()
     val channelOverride by vm.settings.channelOverride.collectAsState()
-    androidx.compose.runtime.LaunchedEffect(Unit) { vm.checkUpdateOnOpen() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        vm.restartSpeechOnOpen()
+        vm.checkUpdateOnOpen()
+    }
     var confirmUnpair by remember { mutableStateOf(false) }
     var confirmResync by remember { mutableStateOf(false) }
     val lanMaster by vm.settings.lanMaster.collectAsState()
@@ -78,14 +82,35 @@ fun SettingsScreen(vm: MainViewModel) {
         Stepper(stringResource(R.string.settings_alert_seconds), alert, { vm.settings.setAlertSeconds(alert - 1) }, { vm.settings.setAlertSeconds(alert + 1) })
         SwitchRow(stringResource(R.string.settings_sound), sound, vm.settings::setSound)
         SwitchRow(stringResource(R.string.settings_vibrate), vibrate, vm.settings::setVibrate)
+        SwitchRow(stringResource(R.string.settings_announce), announce, vm::setAnnounceResults)
+        if (announce) {
+            val speech by vm.speechState().collectAsState()
+            val note = when (speech) {
+                org.tix.checkin.ui.Speech.State.NO_ENGINE -> R.string.settings_announce_no_engine
+                org.tix.checkin.ui.Speech.State.NO_LANGUAGE -> R.string.settings_announce_no_language
+                else -> R.string.settings_announce_hint
+            }
+            Text(stringResource(note), style = MaterialTheme.typography.bodySmall)
+        }
         HorizontalDivider()
         LanSection(vm)
         HorizontalDivider()
 
-        Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
+        val serverVersion = updateConfig.serverVersion?.takeIf { org.tix.checkin.core.AppVersion.parse(it) != null }
+        if (serverVersion != null) {
+            Text(stringResource(R.string.settings_version_match, serverVersion, BuildConfig.VERSION_NAME))
+        } else {
+            Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
+        }
         if (updateConfig.source == org.tix.checkin.core.UpdateSource.GITHUB) {
             Text(stringResource(R.string.settings_update_source_github, vm.settings.effectiveRepository().ifEmpty { "-" }), style = MaterialTheme.typography.bodySmall)
-            if (updateConfig.allowChannelOverride) {
+            // Same decision as MainViewModel.checkUpdate: the picker matters only without a usable server version / own version.
+            val installedVersion = org.tix.checkin.core.AppVersion.parse(BuildConfig.VERSION_NAME)
+            val usesChannel = installedVersion == null ||
+                org.tix.checkin.core.UpdateTarget.decide(installedVersion, updateConfig.serverVersion) is org.tix.checkin.core.UpdateTarget.UnknownServerVersion
+            if (!usesChannel) {
+                // The app follows the server version: no channel to choose.
+            } else if (updateConfig.allowChannelOverride) {
                 val channel = org.tix.checkin.core.UpdateChannel.effective(updateConfig.defaultChannel, true, channelOverride)
                 Text(stringResource(R.string.settings_update_channel))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -112,6 +137,14 @@ fun SettingsScreen(vm: MainViewModel) {
             UpdateUi.Checking -> Text(stringResource(R.string.settings_update_checking))
             UpdateUi.UpToDate -> Text(stringResource(R.string.settings_update_current))
             UpdateUi.NoRelease -> Text(stringResource(R.string.settings_update_none))
+            is UpdateUi.AppNewerThanServer -> Text(stringResource(R.string.settings_update_app_newer, u.serverVersion))
+            is UpdateUi.NoServerRelease -> Text(
+                stringResource(
+                    if (updateConfig.source == org.tix.checkin.core.UpdateSource.GITHUB) R.string.settings_update_no_release_github else R.string.settings_update_no_release_server,
+                    u.version,
+                ),
+                color = MaterialTheme.colorScheme.error,
+            )
             UpdateUi.ServerUrlMissing -> Text(stringResource(R.string.settings_update_server_url_missing), color = MaterialTheme.colorScheme.error)
             UpdateUi.RepositoryMissing -> Text(stringResource(R.string.settings_update_repository_missing), color = MaterialTheme.colorScheme.error)
             is UpdateUi.RateLimited -> Text(

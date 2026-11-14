@@ -211,18 +211,19 @@ export function SubmitButton({
 
 /** Shows a toast on success and an alert for form-level errors of an action state. */
 export function ActionFeedback({ state }: { state: ActionState }) {
-  const t = useTranslations('admin');
+  const tMessages = useTranslations('admin.messages');
+  const tForm = useTranslations('admin.errors.form');
   const lastAt = useRef<number | null>(null);
   useEffect(() => {
     if (state.status === 'idle' || state.at === lastAt.current) return;
     lastAt.current = state.at;
-    if (state.status === 'success') toast.success(t(`messages.${state.message ?? 'saved'}`));
-    else if (!state.formError) toast.error(t('errors.form.validation'));
-  }, [state, t]);
+    if (state.status === 'success') toast.success(tMessages(state.message ?? 'saved'));
+    else if (!state.formError) toast.error(tForm('validation'));
+  }, [state, tMessages, tForm]);
   if (state.status !== 'error' || !state.formError) return null;
   return (
     <Alert variant="destructive">
-      <AlertDescription>{t(`errors.form.${state.formError}`)}</AlertDescription>
+      <AlertDescription>{tForm(state.formError)}</AlertDescription>
     </Alert>
   );
 }

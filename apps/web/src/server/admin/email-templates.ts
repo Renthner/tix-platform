@@ -15,6 +15,7 @@ import {
   sanitizeEmailHtml,
   sendDraftTestEmail,
   type TemplateIssue,
+  type MailErrorKind,
 } from '@tix/core';
 import { withTransaction } from '@tix/db';
 import { revalidatePath } from 'next/cache';
@@ -281,7 +282,12 @@ export async function generateTemplateTextAction(bodyHtml: string): Promise<stri
 
 export type TemplateTestResult =
   | { status: 'success'; to: string }
-  | { status: 'error'; code: 'invalid' | 'notConfigured' | 'failed'; message?: string };
+  | {
+      status: 'error';
+      code: 'invalid' | 'notConfigured' | 'failed';
+      message?: string;
+      kind?: MailErrorKind;
+    };
 
 /** Sends the unsaved draft with sample data to the signed-in admin. */
 export async function sendEmailTemplateTestAction(
@@ -305,7 +311,7 @@ export async function sendEmailTemplateTestAction(
     locale: t.locale,
     to: session.email,
     ok: result.ok,
-    ...(result.ok ? { messageId: result.messageId } : { error: result.error }),
+    ...(result.ok ? { messageId: result.messageId } : { error: result.error, kind: result.kind }),
   });
   return result.ok
     ? { status: 'success', to: session.email }
@@ -313,5 +319,5 @@ export async function sendEmailTemplateTestAction(
       ? { status: 'error', code: 'invalid' }
       : result.reason === 'smtpNotConfigured'
         ? { status: 'error', code: 'notConfigured' }
-        : { status: 'error', code: 'failed', message: result.error };
+        : { status: 'error', code: 'failed', message: result.error, kind: result.kind };
 }

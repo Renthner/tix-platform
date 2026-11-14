@@ -146,7 +146,7 @@ private fun PairedApp(vm: MainViewModel) {
             modifier = Modifier.weight(1f),
         ) {
             composable(Destination.Events.route) { ReadableWidth { EventsScreen(vm, onSelected = { go(Destination.Scanner) }) } }
-            composable(Destination.Scanner.route) { ScannerScreen(vm, onChooseEvent = { go(Destination.Events) }) }
+            composable(Destination.Scanner.route) { ScannerScreen(vm, onChooseEvent = { go(Destination.Events) }, onOpenSettings = { go(Destination.Settings) }) }
             composable(Destination.Lookup.route) { ReadableWidth { LookupScreen(vm, onChooseEvent = { go(Destination.Events) }) } }
             composable(Destination.History.route) { ReadableWidth { HistoryScreen(vm) } }
             composable(Destination.Settings.route) { ReadableWidth { SettingsScreen(vm) } }

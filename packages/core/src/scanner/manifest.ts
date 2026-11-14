@@ -9,7 +9,12 @@ import {
   ticketTypes,
   venues,
 } from '@tix/db';
-import { SCANNER_API_VERSION, SCAN_WARNING_PRIORITY, type Manifest } from '@tix/shared';
+import {
+  APP_VERSION,
+  SCANNER_API_VERSION,
+  SCAN_WARNING_PRIORITY,
+  type Manifest,
+} from '@tix/shared';
 import { generateToken } from '@tix/shared/server';
 import { asc, eq } from 'drizzle-orm';
 import { requireCapability, type CoreContext } from '../context';
@@ -153,6 +158,8 @@ export async function buildManifest(
 
   const content = {
     apiVersion: SCANNER_API_VERSION,
+    // Part of the content, so the etag changes with every server upgrade and apps re-read the target version.
+    serverVersion: APP_VERSION,
     syncEpoch: await getSyncEpoch(ctx.db),
     device: { id: device.id, name: device.name },
     settings: {

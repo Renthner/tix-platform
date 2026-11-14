@@ -218,6 +218,48 @@
       "when": 1794392669222,
       "tag": "0030_refund_reconcile_state",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794400000000,
+      "tag": "0031_ticket_sync_seq_qualified",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794588261499,
+      "tag": "0032_orders_cart_session_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794599201748,
+      "tag": "0033_media_variants",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794606466668,
+      "tag": "0034_public_map_generation",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794614087460,
+      "tag": "0035_test_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794646602835,
+      "tag": "0036_seo_noindex",
+      "breakpoints": true
     }
   ]
 }

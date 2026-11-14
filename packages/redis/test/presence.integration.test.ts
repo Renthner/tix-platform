@@ -2,16 +2,12 @@
  * Shop presence (dashboard "im Shop") against a real Redis: heartbeat window of 45 s, immediate
  * removal, pruning, shop-wide unique count. Isolated random key prefix, deleted afterwards.
  */
-import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { resolve } from 'node:path';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PRESENCE_RETENTION_MS, PRESENCE_WINDOW_MS, PresenceTracker, createKeyspace } from '../src';
 
-const rootEnv = resolve(import.meta.dirname, '../../../.env');
-if (!process.env.REDIS_URL && existsSync(rootEnv)) process.loadEnvFile(rootEnv);
-const url = process.env.REDIS_URL;
+const url = process.env.TEST_REDIS_URL;
 
 describe.skipIf(!url)('shop presence (integration)', () => {
   const prefix = `test${randomUUID().slice(0, 8)}`;

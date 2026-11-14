@@ -56,7 +56,7 @@ import {
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 const ADMIN_PASSWORD = 'admin horse battery';
 const CUSTOMER_PASSWORD = 'customer horse battery';
 const ATTACKER_PASSWORD = 'attacker horse battery';

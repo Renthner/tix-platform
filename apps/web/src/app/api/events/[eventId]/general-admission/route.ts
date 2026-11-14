@@ -12,10 +12,11 @@ const body = z.object({ sectionId: z.uuid(), quantity: z.number().int().min(0).m
 /** PUT – sets the number of standing spots held in a GA section. */
 export async function PUT(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   return handle(async () => {
-    const { core, event } = await loadShopEvent((await params).eventId);
+    const { core, event, actor } = await loadShopEvent((await params).eventId);
     const { sectionId, quantity } = await parseBody(request, body);
     // Reducing is always allowed; increasing requires a valid pass.
-    const sid = quantity > 0 ? await authorizeShopMutation(core, event) : await ensureSessionId();
+    const sid =
+      quantity > 0 ? await authorizeShopMutation(core, event, actor) : await ensureSessionId();
     const result = await setGeneralAdmission(core, sid, event, sectionId, quantity);
     return NextResponse.json(result);
   });

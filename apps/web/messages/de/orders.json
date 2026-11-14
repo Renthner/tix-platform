@@ -77,7 +77,11 @@
       "overdue": "Nur überfällige Überweisungen",
       "apply": "Filtern",
       "channel": "Vertriebskanal",
-      "allChannels": "Alle Kanäle"
+      "allChannels": "Alle Kanäle",
+      "tests": "Testbestellungen",
+      "testsAll": "Mit Testbestellungen",
+      "testsOnly": "Nur Testbestellungen",
+      "testsHide": "Ohne Testbestellungen"
     },
     "empty": "Keine Bestellungen gefunden.",
     "columns": {
@@ -568,6 +572,20 @@
       "confirm": "{amount} an den Kunden erstatten (PayPal automatisch, sonst als offene Überweisung).",
       "submit": "Überzahlung erstatten",
       "reserved": "{amount} der Überzahlung werden von der offenen Tarifänderung verwendet und sind hier nicht enthalten."
+    },
+    "testBadge": "TEST",
+    "testHidden": "storniert & ausgeblendet",
+    "testDelete": {
+      "button": "Testbestellung löschen",
+      "title": "Diese Testbestellung löschen?",
+      "description": "Die Bestellung wird vollständig entfernt (Tickets, Zahlungen, E-Mails, Dokumente) und ihre Plätze werden freigegeben. Das lässt sich nicht rückgängig machen. Nur möglich, solange kein echtes Geld eingegangen ist – sonst „Stornieren & ausblenden“ nutzen.",
+      "confirm": "Testbestellung löschen"
+    },
+    "testCancelHide": {
+      "button": "Testbestellung stornieren & ausblenden",
+      "title": "Diese Testbestellung stornieren und ausblenden?",
+      "description": "Auf dieser Testbestellung ist echtes Geld eingegangen, deshalb kann sie nicht gelöscht werden (Buchhaltung). Sie wird wie eine normale Bestellung storniert – PayPal-Zahlungen werden automatisch erstattet, Überweisungen erscheinen als offene Erstattung – und aus der Bestellliste ausgeblendet. Zahlungen und Erstattungen bleiben im Buchhaltungsexport, als TEST markiert. Ist sie storniert und ausgeblendet, blockiert sie das Veröffentlichen der Veranstaltung nicht mehr.",
+      "confirm": "Stornieren & ausblenden"
     }
   },
   "eventPayments": {

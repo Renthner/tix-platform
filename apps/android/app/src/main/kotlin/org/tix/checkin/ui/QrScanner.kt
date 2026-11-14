@@ -6,10 +6,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
+import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.mlkit.vision.MlKitAnalyzer
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
@@ -48,6 +51,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
+import java.util.concurrent.Executors
 import org.tix.checkin.R
 import org.tix.checkin.core.ScanDebouncer
 
@@ -117,6 +121,12 @@ private fun CameraScanner(onCode: (String) -> Unit, modifier: Modifier, debounce
             cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
             setEnabledUseCases(CameraController.IMAGE_ANALYSIS)
             imageAnalysisBackpressureStrategy = ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
+            // 1280x720 is plenty for QR codes and keeps the per-frame analysis fast.
+            setImageAnalysisResolutionSelector(
+                ResolutionSelector.Builder()
+                    .setResolutionStrategy(ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+                    .build(),
+            )
         }
     }
 
@@ -125,8 +135,10 @@ private fun CameraScanner(onCode: (String) -> Unit, modifier: Modifier, debounce
             BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build(),
         )
         val mainExecutor = ContextCompat.getMainExecutor(context)
+        // Frames are analysed off the main thread; results are delivered to the consumer on the main thread.
+        val analysisExecutor = Executors.newSingleThreadExecutor()
         controller.setImageAnalysisAnalyzer(
-            mainExecutor,
+            analysisExecutor,
             MlKitAnalyzer(
                 listOf(scanner),
                 ImageAnalysis.COORDINATE_SYSTEM_VIEW_REFERENCED,
@@ -144,6 +156,7 @@ private fun CameraScanner(onCode: (String) -> Unit, modifier: Modifier, debounce
             controller.clearImageAnalysisAnalyzer()
             controller.unbind()
             scanner.close()
+            analysisExecutor.shutdown()
         }
     }
 

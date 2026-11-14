@@ -354,7 +354,7 @@ class SyncManager(
                 val epoch = m.manifest.syncEpoch
                 if (epoch != null && cfg.syncEpoch != null && epoch != cfg.syncEpoch) dbLock.withLock { store.resetSyncData(epoch) }
                 dbLock.withLock { config.applyManifest(m.manifest, clock.offsetMillis) }
-                settings.setAppUpdate(m.manifest.settings.appUpdate)
+                settings.setAppUpdate(m.manifest.settings.appUpdate, m.manifest.serverVersion)
                 if (epoch != null) adoptEpochIfUnset(epoch)
             }
         }

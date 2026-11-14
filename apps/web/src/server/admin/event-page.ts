@@ -1,6 +1,6 @@
 'use server';
 
-import { symbolsByIds } from '@tix/core';
+import { symbolsByIds, eventTags } from '@tix/core';
 import { events, withTransaction } from '@tix/db';
 import {
   INFO_BOX_SIZES,
@@ -9,13 +9,13 @@ import {
   type EventInfoBox,
 } from '@tix/shared';
 import { eq } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState } from '@/lib/action-state';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { richTextToPlain, sanitizeRichText } from '@/server/rich-text';
 import { audit } from './audit';
+import { refreshShop } from './shop-refresh';
 import { getEventWithVenue } from './queries';
 import { formError, success, text } from './form';
 
@@ -108,6 +108,6 @@ export async function updateEventPageAction(
     pageLayout,
     infoBoxes: infoBoxes.map((b) => ({ id: b.id, title: b.title, symbolId: b.symbolId })),
   });
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success('saved');
 }

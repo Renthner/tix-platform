@@ -5,6 +5,7 @@ import {
   listScannerEventOptions,
   resolveScannerServerUrl,
 } from '@tix/core';
+import { APP_VERSION } from '@tix/shared';
 import { TriangleAlert } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/admin/form-controls';
@@ -92,6 +93,7 @@ export default async function ScannersPage({ params }: { params: Promise<{ local
 
         <SettingsSection id="devices" title={t('devices.title')}>
           <ScannerDevices
+            serverVersion={APP_VERSION}
             canManage={canManage}
             events={events}
             devices={devices.map((d) => ({
@@ -112,7 +114,7 @@ export default async function ScannersPage({ params }: { params: Promise<{ local
             canUpload={canUploadApk}
             source={scannerSettings.appUpdateSource}
             githubRepository={scannerSettings.githubRepository}
-            defaultChannel={scannerSettings.defaultUpdateChannel}
+            serverVersion={APP_VERSION}
             canEditSettings={hasRole(session, ['SUPER_ADMIN'])}
             releases={releases.map((r) => ({
               id: r.id,

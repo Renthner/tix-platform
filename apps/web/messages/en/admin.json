@@ -1,6 +1,5 @@
 {
   "panelTitle": "Admin portal",
-  "menu": "Menu",
   "logout": "Sign out",
   "shopLink": "Go to ticket shop",
   "nav": {
@@ -22,7 +21,10 @@
     "boxOffice": "Box office",
     "users": "Users",
     "backups": "Backups",
-    "scanners": "Check-in devices"
+    "scanners": "Check-in devices",
+    "statistics": "Statistics",
+    "system": "System",
+    "menu": "Menu"
   },
   "login": {
     "title": "Admin sign-in",
@@ -45,6 +47,8 @@
   },
   "errors": {
     "required": "This field is required.",
+    "pngOnly": "Only PNG images are allowed here (Apple Wallet requirement).",
+    "hostNotAllowed": "This host is not allowed: it must not be this machine, a link-local or cloud-metadata address, or an internal service of this stack. Private network addresses are fine.",
     "invalid": "This value is not valid.",
     "tooLong": "This text is too long.",
     "tooSmall": "This value is too small.",
@@ -72,7 +76,15 @@
       "eventNotArchived": "Only archived events can be deleted. Set the status to “Archived” first.",
       "builtinSymbol": "Built-in symbols cannot be deleted.",
       "venueHasEvents": "Events still exist at this venue, so it cannot be deleted.",
-      "mediaInUse": "This image is still in use. Remove it from the places listed first."
+      "mediaInUse": "This image is still in use. Remove it from the places listed first.",
+      "testOrderBlocked": "This test order received real money and cannot be deleted. Use “Cancel & hide” instead.",
+      "testOrdersPending": "This event has test orders and cannot be published. A super-admin must delete them first.",
+      "testOrdersKept": "Some test orders could not be deleted (real money received or an open payment) – cancel and hide them first (Cancel & hide on the order page). The event cannot be published while they stay active.",
+      "testKeyRealTickets": "This event had test purchases and already has real tickets, so its ticket key cannot be renewed – publishing is refused.",
+      "testOrderPartialPayment": "The test order holds a partial payment. Pay it back (reverse the bank allocation) before cancelling.",
+      "testOrderCancelFailed": "The test order could not be cancelled.",
+      "testOrderPaymentOpen": "A PayPal payment of this test order is still open. Try again in a few minutes or cancel the order.",
+      "testOrderInvoiceExists": "This test order has an invoice and cannot be deleted."
     },
     "email": "Enter a valid e-mail address.",
     "fileRequired": "Please choose a file.",
@@ -84,7 +96,8 @@
     "numberPattern": "The pattern must contain a counter token such as '{SEQ:6}'.",
     "dunningOrder": "Check the order of the deadlines: reminder before cancellation, cancellation not before the payment term.",
     "secretRequired": "Please enter the secret – none is stored yet.",
-    "prefixFormat": "Use 2–6 capital letters (A–Z)."
+    "prefixFormat": "Use 2–6 capital letters (A–Z).",
+    "titleTemplate": "The pattern must contain %s exactly once."
   },
   "common": {
     "inherit": "Inherit global ({value})",
@@ -111,6 +124,10 @@
     "ENDED": "Sale ended"
   },
   "dashboard": {
+    "analytics": {
+      "statistics": "Statistics",
+      "system": "System status"
+    },
     "title": "Dashboard",
     "welcome": "Welcome back, {name}.",
     "denied": "You do not have permission to open that page.",
@@ -211,6 +228,9 @@
       "description": "Finish these steps to get your ticket shop ready for the first sale.",
       "progress": "{done} of {total} steps done",
       "dismiss": "Hide",
+      "dismissHint": "Hides it permanently – show it again under Settings → General.",
+      "collapse": "Collapse",
+      "expand": "Expand",
       "go": "Set up",
       "done": "done",
       "open": "open",
@@ -311,6 +331,7 @@
         "MEDIA_UNSUPPORTED_TYPE": "An image in the file is not a PNG, JPEG or WebP image.",
         "MEDIA_TOO_LARGE": "An image in the file is too large (max 10 MB).",
         "MEDIA_DIMENSIONS": "An image in the file has unsupported dimensions.",
+        "MEDIA_UNDECODABLE": "An image in the file could not be read (damaged or not a real image).",
         "SVG_INVALID": "A symbol in the file is not a valid SVG.",
         "SVG_EMPTY": "A symbol in the file contains no drawable shapes.",
         "SVG_TOO_LARGE": "A symbol in the file is too large.",
@@ -463,7 +484,11 @@
       "customerAccountsEnabled": "Sign-in / registration at the checkout",
       "accountsShown": "shown",
       "accountsHidden": "hidden",
-      "accountsHideForEvent": "Hide for this event (guest orders only)"
+      "accountsHideForEvent": "Hide for this event (guest orders only)",
+      "searchEngines": "Search engines",
+      "searchEnginesHint": "The shop-wide switch is in Settings → SEO.",
+      "seoNoindex": "Exclude this event from search engines",
+      "seoNoindexHint": "The event page is marked noindex, left out of the sitemap and carries no structured data. Anyone with the link can still open it."
     },
     "deletedNotice": "The event was deleted permanently.",
     "duplicate": {
@@ -546,6 +571,22 @@
         "L": "Large",
         "XL": "Extra large"
       }
+    },
+    "testInShop": "Test in shop",
+    "testOrders": {
+      "title": "Test orders exist",
+      "description": "This draft has {orders} test orders ({seats} seats occupied). A draft with test orders cannot be published. Delete them now and publish? The old test tickets stop working: the event gets a new ticket signing key.",
+      "blockedMoney": "{withMoney} of the {orders} test orders received real money and cannot be deleted (accounting). Cancel and hide them on their order page (Cancel & hide), then publish.",
+      "blockedRole": "Only a super-admin can delete test orders. Ask one to delete them before publishing.",
+      "cancel": "Cancel",
+      "delete": "Delete test orders & publish",
+      "cardTitle": "Test orders",
+      "cardDescription": "{orders} test orders occupy {seats} seats of this event ({withMoney} received real money and can only be cancelled).",
+      "deleteAll": "Delete all test orders",
+      "deleteAllTitle": "Delete all test orders of this event?",
+      "deleteAllDescription": "{orders} test orders ({seats} seats) are deleted completely and their seats released. A test order from a cart with several draft events is deleted entirely, including its seats at the other events. Orders that received real money cannot be deleted (“cancel only”): cancel and hide them on the order page.",
+      "deleteAllConfirm": "Delete test orders",
+      "showOrders": "Show test orders"
     }
   },
   "pricing": {
@@ -792,12 +833,25 @@
     "replace": "Replace image",
     "remove": "Remove",
     "uploading": "Uploading…",
+    "library": {
+      "open": "Choose from library",
+      "title": "Choose an image from the library",
+      "descriptionPublic": "Only images that may be shown publicly are offered.",
+      "descriptionPrivate": "All images of the media library are offered.",
+      "search": "Search by file name",
+      "empty": "No matching images found.",
+      "error": "The media library could not be loaded.",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {page} of {total}"
+    },
     "errors": {
       "generic": "The upload failed. Please try again.",
       "MEDIA_EMPTY": "The file is empty.",
       "MEDIA_TOO_LARGE": "The image is too large (max. 10 MB).",
       "MEDIA_UNSUPPORTED_TYPE": "Only PNG, JPEG and WebP images are supported.",
       "MEDIA_DIMENSIONS": "The image dimensions are not supported (max. 12,000 px per side).",
+      "MEDIA_UNDECODABLE": "The image could not be read. The file may be damaged.",
       "FILE_REQUIRED": "Choose an image file.",
       "KIND_INVALID": "This image type cannot be uploaded here.",
       "FORBIDDEN": "You are not allowed to upload images."
@@ -848,14 +902,14 @@
     "description": "Shop-wide configuration. Changes take effect within a few seconds.",
     "general": {
       "setupChecklistHint": "The dashboard's first-steps checklist is hidden.",
-      "setupChecklistShow": "Show setup checklist on the dashboard again",
+      "setupChecklistShow": "Show first steps on the dashboard again",
       "title": "General",
       "description": "Shop name and defaults for new events.",
       "shopName": "Shop name",
       "shopNameHint": "Shown in the browser title and the shop header.",
       "supportEmail": "Support e-mail",
       "defaultLocale": "Default language",
-      "defaultLocaleHint": "Used for e-mails and formatting when no language is known.",
+      "defaultLocaleHint": "Used for e-mails and formatting when no language is known. This language has no URL prefix (https://host/…); the others use /<code>/ (e.g. /de/…).",
       "defaultCurrency": "Default currency",
       "defaultCurrencyHint": "ISO code, e.g. EUR. Pre-filled when creating events.",
       "defaultTimeZone": "Default time zone",
@@ -884,6 +938,14 @@
       "paymentGraceSeconds": "Extra time at the checkout (seconds)",
       "paymentGraceHint": "Added once to the remaining time when the checkout is opened. 0 = no extension.",
       "minutes": "= {value} min",
+      "maxCartLifetimeMinutes": "Maximum cart lifetime (minutes)",
+      "maxCartLifetimeHint": "Adding seats restarts the reservation time, but never beyond this many minutes after the first seat was reserved (the extra checkout time comes on top). Empty = off. Does not apply to box office holds.",
+      "checkoutsPerIpPer10Min": "Orders per IP address per 10 minutes",
+      "seatRequestsPerIpPerMinute": "Seat selections per IP address per minute",
+      "ipLimitHint": "Generous safety net on top of the per-browser limits; many visitors can share one address (e.g. company or mobile networks). Empty or 0 = off (default). Only enable it when the real visitor address reaches the application (see the detected address above).",
+      "seatIpLimitHint": "Protection against scripts that click seats en masse, on top of the per-browser limit. Default 600 – normal buyers do not reach it even when sharing an address. Empty or 0 = off. If the real visitor address does not reach the application (see above), all visitors share this limit.",
+      "detectedIp": "Detected IP of your current request: {ip}",
+      "detectedIpPrivateWarning": "This looks like a private or loopback address, so a reverse proxy in front of the application probably hides the real visitor addresses. All visitors would then share one IP limit. Set TRUSTED_PROXIES in your .env (see docs/INSTALL) before enabling an IP limit.",
       "maxTicketsPerOrder": "Max. tickets per order",
       "maxTicketsPerCustomer": "Max. tickets per customer and event",
       "unlimitedHint": "Empty = unlimited.",
@@ -899,7 +961,7 @@
       "requireBillingAddress": "Require billing address at checkout",
       "requireBillingAddressHint": "Customers must enter their address so the invoice can be issued correctly. When off, the address stays optional.",
       "companionSeatsRequireWheelchair": "Companion seats only together with their wheelchair space",
-      "companionSeatsRequireWheelchairHint": "A companion seat can only be booked when its wheelchair space (adjacent or assigned in the seating editor) is in the same order. Checked on “Continue to cart”.",
+      "companionSeatsRequireWheelchairHint": "A companion seat can only be booked when its wheelchair space (adjacent or assigned in the seating editor) is in the same order – or when that wheelchair space was already sold to the same e-mail address. Checked on “Continue to cart” and again before payment. Can be changed per event on the “Sales” tab.",
       "timeline": {
         "title": "How seats stay reserved",
         "cart": "Cart: every newly selected seat (re)starts the reservation of the whole cart at {minutes} min. The timer in the shop header shows the remaining time; when it runs out, the seats are released.",
@@ -935,6 +997,78 @@
       "seatChangeCurrentColor": "Order seats (unchanged) – seat change",
       "seatChangeReplacedColor": "Seat being replaced – seat change",
       "seatChangeNewColor": "New seat – seat change"
+    },
+    "cookieNotice": {
+      "title": "Cookie notice",
+      "description": "Small information bar in the shop about the cookies it uses. All cookies are technically necessary, so this is information only, not a consent dialog. The list of cookies is generated automatically on the page “Cookies”.",
+      "enabled": "Show the cookie notice",
+      "enabledHint": "Visitors can dismiss it; the page “Cookies” stays linked in the footer either way.",
+      "text": "Custom text ({language})",
+      "textHint": "Empty = standard text."
+    },
+    "seo": {
+      "title": "Search engines & sharing",
+      "description": "Control how search engines and social networks see the shop: indexing, titles, descriptions and the preview image of shared links.",
+      "indexing": "Allow search engines to index the shop",
+      "indexingHint": "Switch off for test and demo servers. Then every page asks search engines not to index it (header and meta tag), robots.txt blocks crawling, there is no sitemap and no structured data. Removal from Google can take days; for an immediate effect use the removal tool in Google Search Console.",
+      "indexingOffNotice": "Indexing is switched off: search engines are asked to ignore this shop. Events that are already listed disappear from search results only after Google has visited the pages again.",
+      "titleTemplate": "Title pattern",
+      "titleTemplateHint": "Browser tab and search result title. %s = the page title (exactly once), '{siteTitle}' = the site title below. Example: %s | '{siteTitle}'",
+      "twitterHandle": "Twitter / X account",
+      "twitterHandleHint": "Optional, for example @club.",
+      "siteTitle": "Site title ({language})",
+      "siteTitleHint": "Empty = the shop name (\"{shopName}\").",
+      "description": "Default description",
+      "descriptionHint": "Shown in search results and link previews of pages without their own description. Up to {max} characters; empty = standard text.",
+      "shareImage": "Default preview image",
+      "shareImageHint": "Shown when a page without its own image is shared (home page, cookie page, events without a cover). Recommended: 1200 × 630 pixels.",
+      "verification": "Site verification",
+      "verificationHint": "Optional tokens from Google Search Console and Bing Webmaster Tools (only the value of the content attribute; a pasted meta tag is accepted too).",
+      "googleVerification": "Google Search Console token",
+      "bingVerification": "Bing Webmaster Tools token"
+    },
+    "shopLayout": {
+      "title": "Event list in the shop",
+      "description": "How the events are arranged on the shop home page.",
+      "eventsPerRow": "Events per row",
+      "eventsPerRowHint": "Number of event cards side by side on wide screens (1–6). Narrower screens automatically show fewer: always 1 on phones, up to 2 on small tablets, up to 3 on medium and up to 4 on large screens. With 1 per row the cards span the full width with the image beside the text; with many per row they switch to a compact layout."
+    },
+    "startPage": {
+      "title": "Home page without events",
+      "description": "Shown on the shop home page while no event is published. Without any content the standard text is shown.",
+      "layout": "Layout",
+      "layoutHint": "Where the headline and text are placed relative to the main image.",
+      "layouts": {
+        "ABOVE": "Main image first, text below",
+        "OVERLAY": "Text on top of the main image (full width)"
+      },
+      "headline": "Headline",
+      "subheadline": "Sub-headline",
+      "body": "Text",
+      "buttonLabel": "Button label",
+      "buttonUrl": "Button link",
+      "buttonAlign": "Button position",
+      "buttonAligns": {
+        "LEFT": "Left",
+        "CENTER": "Centred",
+        "RIGHT": "Right"
+      },
+      "buttonUrlHint": "https:// address or a path in the shop (e.g. /account). The button only appears with a label and a link.",
+      "heroAlt": "Alt text of the main image",
+      "hero": "Main image",
+      "heroHint": "Optional. Shown full width at the top.",
+      "galleryImage": "Gallery image {n}",
+      "galleryHint": "Up to {max} more images, shown as a grid below the text.",
+      "galleryAlt": "Alt text of gallery image {n}",
+      "altHint": "Alt texts describe the images for screen readers; leave them empty for purely decorative images. Missing texts fall back to the shop default language.",
+      "mode": "Structure",
+      "modes": {
+        "BUILDER": "Builder",
+        "HTML": "Custom HTML"
+      },
+      "html": "HTML code",
+      "htmlInsertImage": "Insert image",
+      "htmlHint": "Fill the page with your own HTML and CSS (style elements and style attributes are allowed; scope your CSS with the class .tix-start-custom). The page is always shown on a light background (it is not adapted to the dark theme), so design it for light colours. Scripts, embedded frames, forms and event handlers (onclick etc.) are removed when saving and when the page is shown. Upload images under Media and reference them as /api/media/ID, or use \"Insert image\" below to add an img tag at the cursor. Maximum {max} KB per language; an empty language falls back to the shop default language, and without any HTML the builder content is shown. The builder content is kept while you switch."
     },
     "secret": {
       "stored": "stored",
@@ -1045,6 +1179,18 @@
       "webhookIdHint": "ID of the webhook registered in your PayPal app; used to verify webhook signatures.",
       "approvalTimeoutSeconds": "Approval time limit (seconds)",
       "approvalTimeoutSecondsHint": "Orders not approved at PayPal within this time expire and the seats are released.",
+      "test": {
+        "button": "Test connection",
+        "testing": "Testing …",
+        "hint": "Uses the saved values – save your changes first.",
+        "notConfigured": "Save client ID and client secret first.",
+        "ok": "PayPal accepted the credentials for {environment}.",
+        "rejected": "PayPal rejected the client ID or secret. Check that both come from the same app and the same environment (sandbox or live).",
+        "failed": "PayPal could not be reached:",
+        "webhookOk": "The webhook ID exists.",
+        "webhookNotFound": "Webhook ID not found. Check the webhook ID of this app and environment.",
+        "webhookUnknown": "The webhook ID could not be verified."
+      },
       "webhookUrlHint": "Webhook URL for the PayPal developer dashboard (events: Checkout order approved, Payment capture completed / denied / refunded / reversed):",
       "guide": {
         "title": "Guide: set up PayPal and test with the sandbox",
@@ -1093,7 +1239,17 @@
         "send": "Send test e-mail",
         "sending": "Sending…",
         "success": "The mail server accepted the test e-mail for {to}.",
-        "failed": "The test e-mail could not be sent:"
+        "failed": "The test e-mail could not be sent.",
+        "kinds": {
+          "auth": "The mail server rejected the login. Check the user name and password (many providers require an app password).",
+          "connection": "No connection to the mail server. Check host and port and whether a firewall blocks outgoing SMTP.",
+          "timeout": "The mail server did not respond in time or closed the connection. Check host, port and firewall, then try again.",
+          "dns": "The host name could not be resolved. Check the spelling of the SMTP host.",
+          "tls": "The secure connection failed. Port 465 normally needs SSL/TLS, port 587 uses STARTTLS; also check the server certificate.",
+          "recipientRejected": "The mail server rejected the recipient address. Check the address and the sender permissions.",
+          "other": "The mail could not be sent. See the technical detail below."
+        },
+        "detail": "Technical detail:"
       }
     },
     "customerAccounts": {
@@ -1115,6 +1271,7 @@
       "label": "Settings areas",
       "general": "General",
       "appearance": "Appearance",
+      "seo": "SEO",
       "organizer": "Organiser",
       "checkout": "Checkout",
       "payments": "Payments",
@@ -1133,6 +1290,7 @@
     "summary": {
       "total": "Images",
       "totalSize": "Storage used",
+      "variantSize": "Modern formats (AVIF/WebP)",
       "unused": "Unused images",
       "unusedSize": "Unused storage"
     },
@@ -1186,6 +1344,9 @@
       "SETTING": "Setting",
       "OTHER": "Other reference"
     },
+    "copyId": "Copy ID",
+    "copyUrl": "Copy URL",
+    "copied": "Copied",
     "dimensions": "Size",
     "size": "File size",
     "uploaded": "Uploaded",

@@ -15,7 +15,7 @@ export function MaintenanceNotice() {
   return (
     <div
       role="status"
-      className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+      className="rounded-md border border-warning-border bg-warning-soft p-3 text-sm text-warning"
     >
       <p className="font-medium">{t('maintenanceTitle')}</p>
       <p>{t('maintenanceText')}</p>

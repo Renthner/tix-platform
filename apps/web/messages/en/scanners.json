@@ -19,6 +19,7 @@
     "lastSeen": "Last seen",
     "lastSync": "Last sync",
     "appVersion": "App",
+    "versionMismatch": "App version differs from server ({app} vs {server})",
     "status": "Status",
     "active": "Active",
     "revoked": "Revoked",
@@ -115,13 +116,9 @@
     "linkTextGithub": "Open this link on the phone (or scan the QR code) and download the app from the GitHub release page.",
     "github": {
       "title": "Updates come from GitHub releases ({repository})",
-      "text": "Default channel: {channel}. Uploads below are only used in “own server” mode, and once for older apps that cannot use GitHub yet.",
+      "text": "The app installs the version of this server (v{version}). Uploads below are only used in “own server” mode, and once for older apps that cannot use GitHub yet.",
       "uploadsHint": "Uploaded versions are only offered to older app versions that cannot use GitHub yet (so they can step up once).",
       "settings": "Change the update source",
-      "channels": {
-        "stable": "Stable (final releases)",
-        "next": "Next (including alpha / beta)"
-      },
       "noRepository": "Updates are set to GitHub, but no repository is configured here. Apps use the repository built into their release build, if any. Set a repository in the scanner settings, or switch to “own server”."
     }
   },
@@ -164,6 +161,9 @@
       "checkOut": "check-out",
       "filterResult": "Result",
       "filterDevice": "Device",
+      "search": "Search",
+      "searchPlaceholder": "Order no., ticket, seat, name",
+      "pageSize": "Entries per page",
       "all": "All",
       "apply": "Filter",
       "page": "Page {page} of {pages}",

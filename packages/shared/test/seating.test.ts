@@ -372,6 +372,15 @@ describe('geometry', () => {
     expect(parseSetting('seatDisplay', {}).selectionStyle).toBe('RING');
   });
 
+  it('validates the shop event grid size (default 3, 1..10)', () => {
+    expect(parseSetting('shopLayout', {}).eventsPerRow).toBe(3);
+    expect(parseSetting('shopLayout', { eventsPerRow: 6 }).eventsPerRow).toBe(6);
+    // Older versions allowed up to 10: clamped to the new maximum instead of failing.
+    expect(parseSetting('shopLayout', { eventsPerRow: 10 }).eventsPerRow).toBe(6);
+    expect(() => parseSetting('shopLayout', { eventsPerRow: 0 })).toThrow();
+    expect(() => parseSetting('shopLayout', { eventsPerRow: 2.5 })).toThrow();
+  });
+
   it('places row labels next to a single seat (also on a zero-length row)', () => {
     const seat = { x: 100, y: 50 };
     const point = { type: 'straight' as const, start: seat, end: seat };

@@ -1,6 +1,6 @@
 'use server';
 
-import { getSetting, publishQueueUpdate } from '@tix/core';
+import { getSetting, publishQueueUpdate, SHOP_TAGS } from '@tix/core';
 import { events, queueAnnouncements, queueConfigs } from '@tix/db';
 import {
   ANNOUNCEMENT_SEVERITIES,
@@ -17,6 +17,7 @@ import type { ActionState } from '@/lib/action-state';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { audit } from './audit';
+import { refreshShop } from './shop-refresh';
 import { fieldError, flag, formError, success, text, zodFieldErrors } from './form';
 
 const configSchema = z.object({
@@ -56,7 +57,7 @@ export async function saveQueueConfigAction(
   if (eventId && flag(fd, 'useGlobal')) {
     await db.delete(queueConfigs).where(eq(queueConfigs.eventId, eventId));
     await audit(db, session, 'queue.config.inherit', 'event', eventId);
-    revalidatePath('/', 'layout');
+    await refreshShop([SHOP_TAGS.queue]);
     return success('saved');
   }
 
@@ -105,7 +106,7 @@ export async function saveQueueConfigAction(
       state: values.isPaused ? 'PAUSED' : 'OPEN',
     });
   }
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.queue]);
   return success('saved');
 }
 
@@ -173,7 +174,7 @@ export async function createAnnouncementAction(
     publishedAt: now.toISOString(),
   });
   await audit(core.db, session, 'queue.announcement', 'event', eventId, parsed.data);
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.queue]);
   return success('created');
 }
 
@@ -232,7 +233,7 @@ export async function updateAnnouncementAction(
     }
   }
   await audit(core.db, session, 'queue.announcement.update', 'queue_announcement', announcementId);
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.queue]);
   return success('saved');
 }
 
@@ -250,6 +251,6 @@ export async function expireAnnouncementAction(
     .returning({ eventId: queueAnnouncements.eventId });
   if (updated.length === 0) return formError('notFound');
   await audit(db, session, 'queue.announcement.expire', 'queue_announcement', announcementId);
-  revalidatePath('/', 'layout');
+  await refreshShop([SHOP_TAGS.queue]);
   return success('saved');
 }

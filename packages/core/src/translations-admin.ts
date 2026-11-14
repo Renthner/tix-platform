@@ -24,7 +24,7 @@ import {
 } from '@tix/shared';
 import { and, eq, isNull, or } from 'drizzle-orm';
 import { DomainError, type CoreContext } from './context';
-import { invalidatePublicSeatMap, seatMapVersion } from './seatmaps/public';
+import { SHOP_TAGS, eventTags, invalidateShopCache } from './cache/shop-cache';
 import { getSetting } from './settings';
 
 /**
@@ -417,16 +417,9 @@ export async function saveTranslations(
     }
   });
 
-  // Category / tariff names are part of the cached public plan.
-  if (scope === 'pricing') {
-    const [event] = await ctx.db
-      .select({ seatMapId: events.seatMapId })
-      .from(events)
-      .where(eq(events.id, eventId));
-    if (event?.seatMapId) {
-      await invalidatePublicSeatMap(ctx, eventId, await seatMapVersion(ctx, event.seatMapId));
-    }
-  }
+  // Titles, venue names, info boxes and queue texts are part of cached shop pages. Category and
+  // tariff names in the public plan are covered by the generation trigger (cache keys change).
+  await invalidateShopCache(ctx, [...eventTags(eventId), SHOP_TAGS.venues, SHOP_TAGS.queue]);
 }
 
 // ─── Global (event independent) texts ───────────────────────────────────────
@@ -562,4 +555,6 @@ export async function saveGlobalTranslations(
       }
     }
   });
+  // Global waiting room texts are shown on every event page.
+  await invalidateShopCache(ctx, [SHOP_TAGS.queue]);
 }

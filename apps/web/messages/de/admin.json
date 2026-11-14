@@ -1,6 +1,5 @@
 {
   "panelTitle": "Admin-Portal",
-  "menu": "Menü",
   "logout": "Abmelden",
   "shopLink": "Zum Ticketshop",
   "nav": {
@@ -22,7 +21,10 @@
     "boxOffice": "Abendkasse",
     "users": "Benutzer",
     "backups": "Sicherungen",
-    "scanners": "Einlass-Geräte"
+    "scanners": "Einlass-Geräte",
+    "statistics": "Statistiken",
+    "system": "System",
+    "menu": "Menü"
   },
   "login": {
     "title": "Admin-Anmeldung",
@@ -45,6 +47,8 @@
   },
   "errors": {
     "required": "Dieses Feld ist erforderlich.",
+    "pngOnly": "Hier sind nur PNG-Bilder erlaubt (Vorgabe von Apple Wallet).",
+    "hostNotAllowed": "Dieser Host ist nicht erlaubt: Er darf nicht dieser Rechner, eine Link-Local- oder Cloud-Metadaten-Adresse oder ein interner Dienst dieses Stacks sein. Adressen im privaten Netz sind erlaubt.",
     "invalid": "Dieser Wert ist ungültig.",
     "tooLong": "Dieser Text ist zu lang.",
     "tooSmall": "Dieser Wert ist zu klein.",
@@ -72,7 +76,15 @@
       "eventNotArchived": "Nur archivierte Veranstaltungen können gelöscht werden. Setze den Status zuerst auf „Archiviert“.",
       "builtinSymbol": "Mitgelieferte Symbole können nicht gelöscht werden.",
       "venueHasEvents": "An dieser Spielstätte gibt es noch Veranstaltungen, daher kann sie nicht gelöscht werden.",
-      "mediaInUse": "Dieses Bild wird noch verwendet. Entferne es zuerst von den aufgeführten Stellen."
+      "mediaInUse": "Dieses Bild wird noch verwendet. Entferne es zuerst von den aufgeführten Stellen.",
+      "testOrderBlocked": "Diese Testbestellung hat echtes Geld erhalten und kann nicht gelöscht werden. Nutze stattdessen „Stornieren & ausblenden“.",
+      "testOrdersPending": "Diese Veranstaltung hat Testbestellungen und kann nicht veröffentlicht werden. Ein Super-Admin muss sie zuerst löschen.",
+      "testOrdersKept": "Einige Testbestellungen konnten nicht gelöscht werden (echtes Geld eingegangen oder offene Zahlung) – storniere und blende sie zuerst aus („Stornieren & ausblenden“ auf der Bestellseite). Solange sie aktiv sind, kann die Veranstaltung nicht veröffentlicht werden.",
+      "testKeyRealTickets": "Diese Veranstaltung hatte Testkäufe und hat bereits echte Tickets, daher kann der Ticket-Schlüssel nicht erneuert werden – das Veröffentlichen wird abgelehnt.",
+      "testOrderPartialPayment": "Die Testbestellung hat eine Teilzahlung. Erstatte sie zuerst (Bankzuordnung rückgängig machen), bevor du stornierst.",
+      "testOrderCancelFailed": "Die Testbestellung konnte nicht storniert werden.",
+      "testOrderPaymentOpen": "Eine PayPal-Zahlung dieser Testbestellung ist noch offen. Versuche es in ein paar Minuten erneut oder storniere die Bestellung.",
+      "testOrderInvoiceExists": "Zu dieser Testbestellung existiert eine Rechnung, sie kann nicht gelöscht werden."
     },
     "email": "Bitte eine gültige E-Mail-Adresse eingeben.",
     "fileRequired": "Bitte eine Datei auswählen.",
@@ -84,7 +96,8 @@
     "numberPattern": "Das Muster muss einen Zähler wie '{SEQ:6}' enthalten.",
     "dunningOrder": "Bitte die Reihenfolge der Fristen prüfen: Erinnerung vor der Stornierung, Stornierung nicht vor Ablauf der Zahlungsfrist.",
     "secretRequired": "Bitte das Geheimnis eingeben – es ist noch keines gespeichert.",
-    "prefixFormat": "Bitte 2–6 Großbuchstaben (A–Z) verwenden."
+    "prefixFormat": "Bitte 2–6 Großbuchstaben (A–Z) verwenden.",
+    "titleTemplate": "Das Muster muss %s genau einmal enthalten."
   },
   "common": {
     "inherit": "Global übernehmen ({value})",
@@ -111,6 +124,10 @@
     "ENDED": "Verkauf beendet"
   },
   "dashboard": {
+    "analytics": {
+      "statistics": "Statistiken",
+      "system": "Systemstatus"
+    },
     "title": "Übersicht",
     "welcome": "Willkommen zurück, {name}.",
     "denied": "Du hast keine Berechtigung, diese Seite zu öffnen.",
@@ -211,6 +228,9 @@
       "description": "Erledige diese Schritte, damit dein Ticketshop für den ersten Verkauf bereit ist.",
       "progress": "{done} von {total} Schritten erledigt",
       "dismiss": "Ausblenden",
+      "dismissHint": "Dauerhaft ausblenden – wieder einblenden unter Einstellungen → Allgemein.",
+      "collapse": "Einklappen",
+      "expand": "Ausklappen",
       "go": "Einrichten",
       "done": "erledigt",
       "open": "offen",
@@ -311,6 +331,7 @@
         "MEDIA_UNSUPPORTED_TYPE": "Ein Bild in der Datei ist weder PNG, JPEG noch WebP.",
         "MEDIA_TOO_LARGE": "Ein Bild in der Datei ist zu groß (max. 10 MB).",
         "MEDIA_DIMENSIONS": "Ein Bild in der Datei hat nicht unterstützte Abmessungen.",
+        "MEDIA_UNDECODABLE": "Ein Bild in der Datei konnte nicht gelesen werden (beschädigt oder kein echtes Bild).",
         "SVG_INVALID": "Ein Symbol in der Datei ist kein gültiges SVG.",
         "SVG_EMPTY": "Ein Symbol in der Datei enthält keine zeichenbaren Formen.",
         "SVG_TOO_LARGE": "Ein Symbol in der Datei ist zu groß.",
@@ -463,7 +484,11 @@
       "customerAccountsEnabled": "Anmelden / Registrieren an der Kasse",
       "accountsShown": "angezeigt",
       "accountsHidden": "ausgeblendet",
-      "accountsHideForEvent": "Für diese Veranstaltung ausblenden (nur Gastbestellung)"
+      "accountsHideForEvent": "Für diese Veranstaltung ausblenden (nur Gastbestellung)",
+      "searchEngines": "Suchmaschinen",
+      "searchEnginesHint": "Der Schalter für den gesamten Shop liegt unter Einstellungen → SEO.",
+      "seoNoindex": "Diese Veranstaltung von Suchmaschinen ausschließen",
+      "seoNoindexHint": "Die Veranstaltungsseite wird mit noindex markiert, nicht in die Sitemap aufgenommen und enthält keine strukturierten Daten. Wer den Link kennt, kann sie weiterhin öffnen."
     },
     "deletedNotice": "Die Veranstaltung wurde endgültig gelöscht.",
     "duplicate": {
@@ -546,6 +571,22 @@
         "L": "Groß",
         "XL": "Sehr groß"
       }
+    },
+    "testInShop": "Im Shop testen",
+    "testOrders": {
+      "title": "Es gibt Testbestellungen",
+      "description": "Dieser Entwurf hat {orders} Testbestellungen ({seats} Plätze belegt). Ein Entwurf mit Testbestellungen kann nicht veröffentlicht werden. Jetzt löschen und veröffentlichen? Die alten Test-Tickets werden ungültig: Die Veranstaltung erhält einen neuen Ticket-Signaturschlüssel.",
+      "blockedMoney": "{withMoney} der {orders} Testbestellungen haben echtes Geld erhalten und können nicht gelöscht werden (Buchhaltung). Storniere und blende sie auf ihrer Bestellseite aus („Stornieren & ausblenden“), dann kannst du veröffentlichen.",
+      "blockedRole": "Nur ein Super-Admin kann Testbestellungen löschen. Bitte ihn, sie vor dem Veröffentlichen zu löschen.",
+      "cancel": "Abbrechen",
+      "delete": "Testbestellungen löschen & veröffentlichen",
+      "cardTitle": "Testbestellungen",
+      "cardDescription": "{orders} Testbestellungen belegen {seats} Plätze dieser Veranstaltung ({withMoney} haben echtes Geld erhalten und sind nur stornierbar).",
+      "deleteAll": "Alle Testbestellungen löschen",
+      "deleteAllTitle": "Alle Testbestellungen dieser Veranstaltung löschen?",
+      "deleteAllDescription": "{orders} Testbestellungen ({seats} Plätze) werden vollständig gelöscht und ihre Plätze freigegeben. Eine Testbestellung aus einem Warenkorb mit mehreren Entwurfs-Veranstaltungen wird komplett gelöscht, auch ihre Plätze bei den anderen Veranstaltungen. Bestellungen mit echtem Geldeingang können nicht gelöscht werden („nur stornierbar“): storniere und blende sie auf der Bestellseite aus.",
+      "deleteAllConfirm": "Testbestellungen löschen",
+      "showOrders": "Testbestellungen anzeigen"
     }
   },
   "pricing": {
@@ -792,12 +833,25 @@
     "replace": "Bild ersetzen",
     "remove": "Entfernen",
     "uploading": "Wird hochgeladen…",
+    "library": {
+      "open": "Aus Mediathek wählen",
+      "title": "Bild aus der Mediathek wählen",
+      "descriptionPublic": "Es werden nur Bilder angeboten, die öffentlich angezeigt werden dürfen.",
+      "descriptionPrivate": "Es werden alle Bilder der Mediathek angeboten.",
+      "search": "Nach Dateinamen suchen",
+      "empty": "Keine passenden Bilder gefunden.",
+      "error": "Die Mediathek konnte nicht geladen werden.",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "page": "Seite {page} von {total}"
+    },
     "errors": {
       "generic": "Der Upload ist fehlgeschlagen. Bitte versuche es erneut.",
       "MEDIA_EMPTY": "Die Datei ist leer.",
       "MEDIA_TOO_LARGE": "Das Bild ist zu groß (max. 10 MB).",
       "MEDIA_UNSUPPORTED_TYPE": "Es werden nur PNG-, JPEG- und WebP-Bilder unterstützt.",
       "MEDIA_DIMENSIONS": "Die Bildmaße werden nicht unterstützt (max. 12.000 px pro Seite).",
+      "MEDIA_UNDECODABLE": "Das Bild konnte nicht gelesen werden. Die Datei ist möglicherweise beschädigt.",
       "FILE_REQUIRED": "Wähle eine Bilddatei aus.",
       "KIND_INVALID": "Dieser Bildtyp kann hier nicht hochgeladen werden.",
       "FORBIDDEN": "Du darfst keine Bilder hochladen."
@@ -848,14 +902,14 @@
     "description": "Shopweite Konfiguration. Änderungen wirken nach wenigen Sekunden.",
     "general": {
       "setupChecklistHint": "Die Erste-Schritte-Checkliste im Dashboard ist ausgeblendet.",
-      "setupChecklistShow": "Einrichtungs-Checkliste im Dashboard wieder anzeigen",
+      "setupChecklistShow": "Erste Schritte auf dem Dashboard wieder anzeigen",
       "title": "Allgemein",
       "description": "Shop-Name und Vorgaben für neue Veranstaltungen.",
       "shopName": "Shop-Name",
       "shopNameHint": "Erscheint im Browsertitel und im Kopf des Shops.",
       "supportEmail": "Support-E-Mail",
       "defaultLocale": "Standardsprache",
-      "defaultLocaleHint": "Für E-Mails und Formatierung, wenn keine Sprache bekannt ist.",
+      "defaultLocaleHint": "Für E-Mails und Formatierung, wenn keine Sprache bekannt ist. Diese Sprache hat kein URL-Präfix (https://host/…); die anderen nutzen /<Kürzel>/ (z. B. /en/…).",
       "defaultCurrency": "Standardwährung",
       "defaultCurrencyHint": "ISO-Code, z. B. EUR. Wird beim Anlegen von Veranstaltungen vorbelegt.",
       "defaultTimeZone": "Standard-Zeitzone",
@@ -884,6 +938,14 @@
       "paymentGraceSeconds": "Zusatzzeit an der Kasse (Sekunden)",
       "paymentGraceHint": "Wird beim Öffnen der Kasse einmalig zur Restzeit addiert. 0 = keine Verlängerung.",
       "minutes": "= {value} Min.",
+      "maxCartLifetimeMinutes": "Maximale Lebensdauer des Warenkorbs (Minuten)",
+      "maxCartLifetimeHint": "Neue Plätze starten die Reservierungszeit neu, aber nie über diese Minutenzahl nach dem ersten reservierten Platz hinaus (die Zusatzzeit an der Kasse kommt obendrauf). Leer = aus. Gilt nicht für Abendkassen-Reservierungen.",
+      "checkoutsPerIpPer10Min": "Bestellungen pro IP-Adresse in 10 Minuten",
+      "seatRequestsPerIpPerMinute": "Platzauswahlen pro IP-Adresse pro Minute",
+      "ipLimitHint": "Großzügiges Sicherheitsnetz zusätzlich zu den Limits pro Browser; viele Besucher können sich eine Adresse teilen (z. B. Firmen- oder Mobilfunknetze). Leer oder 0 = aus (Standard). Aktiviere es nur, wenn die echte Besucheradresse die Anwendung erreicht (siehe erkannte Adresse oben).",
+      "seatIpLimitHint": "Schutz vor Skripten, die massenhaft Plätze anklicken; zusätzlich zum Limit pro Browser. Standard 600 – normale Käufer erreichen das auch bei gemeinsamer Adresse nicht. Leer oder 0 = aus. Erreicht nicht die echte Besucheradresse die Anwendung (siehe oben), teilen sich alle Besucher dieses Limit.",
+      "detectedIp": "Erkannte IP deiner aktuellen Anfrage: {ip}",
+      "detectedIpPrivateWarning": "Das sieht nach einer privaten oder Loopback-Adresse aus, vermutlich verbirgt ein vorgeschalteter Reverse-Proxy die echten Besucheradressen. Dann teilen sich alle Besucher ein IP-Limit. Setze TRUSTED_PROXIES in deiner .env (siehe docs/INSTALL), bevor du ein IP-Limit aktivierst.",
       "maxTicketsPerOrder": "Max. Tickets pro Bestellung",
       "maxTicketsPerCustomer": "Max. Tickets pro Kunde und Veranstaltung",
       "unlimitedHint": "Leer = unbegrenzt.",
@@ -899,7 +961,7 @@
       "requireBillingAddress": "Rechnungsadresse an der Kasse verlangen",
       "requireBillingAddressHint": "Kunden müssen ihre Adresse angeben, damit die Rechnung korrekt ausgestellt werden kann. Ist die Option aus, bleibt die Adresse freiwillig.",
       "companionSeatsRequireWheelchair": "Begleitplätze nur zusammen mit dem zugehörigen Rollstuhlplatz",
-      "companionSeatsRequireWheelchairHint": "Ein Begleitplatz ist nur buchbar, wenn sein Rollstuhlplatz (benachbart oder im Saalplan-Editor zugeordnet) in derselben Bestellung ist. Geprüft bei „Weiter zum Warenkorb“.",
+      "companionSeatsRequireWheelchairHint": "Ein Begleitplatz ist nur buchbar, wenn sein Rollstuhlplatz (benachbart oder im Saalplan-Editor zugeordnet) in derselben Bestellung ist – oder wenn dieser Rollstuhlplatz bereits an dieselbe E-Mail-Adresse verkauft wurde. Geprüft bei „Weiter zum Warenkorb“ und vor der Zahlung. Pro Veranstaltung im Tab „Verkauf“ änderbar.",
       "timeline": {
         "title": "So bleiben Plätze reserviert",
         "cart": "Warenkorb: Mit jedem neu gewählten Platz startet die Reservierung des ganzen Warenkorbs (neu) mit {minutes} Min. Der Timer im Kopfbereich des Shops zeigt die Restzeit; läuft sie ab, werden die Plätze freigegeben.",
@@ -935,6 +997,78 @@
       "seatChangeCurrentColor": "Bestellte Plätze (unverändert) – Platzänderung",
       "seatChangeReplacedColor": "Zu ersetzender Platz – Platzänderung",
       "seatChangeNewColor": "Neuer Platz – Platzänderung"
+    },
+    "cookieNotice": {
+      "title": "Cookie-Hinweis",
+      "description": "Kleine Hinweisleiste im Shop zu den verwendeten Cookies. Alle Cookies sind technisch notwendig, daher ist das nur eine Information und kein Einwilligungsdialog. Die Cookie-Liste wird automatisch auf der Seite „Cookies“ erzeugt.",
+      "enabled": "Cookie-Hinweis anzeigen",
+      "enabledHint": "Besucher können ihn schließen; die Seite „Cookies“ bleibt in jedem Fall im Footer verlinkt.",
+      "text": "Eigener Text ({language})",
+      "textHint": "Leer = Standardtext."
+    },
+    "seo": {
+      "title": "Suchmaschinen & Teilen",
+      "description": "Steuert, wie Suchmaschinen und soziale Netzwerke den Shop sehen: Indexierung, Titel, Beschreibungen und das Vorschaubild geteilter Links.",
+      "indexing": "Suchmaschinen dürfen den Shop indexieren",
+      "indexingHint": "Für Test- und Demo-Server ausschalten. Dann bittet jede Seite die Suchmaschinen, sie nicht zu indexieren (Header und Meta-Tag), robots.txt sperrt das Crawlen, es gibt keine Sitemap und keine strukturierten Daten. Die Entfernung aus Google kann Tage dauern; für sofortige Wirkung das Entfernen-Werkzeug der Google Search Console nutzen.",
+      "indexingOffNotice": "Die Indexierung ist ausgeschaltet: Suchmaschinen sollen diesen Shop ignorieren. Bereits gelistete Seiten verschwinden erst aus den Suchergebnissen, nachdem Google sie erneut besucht hat.",
+      "titleTemplate": "Titelmuster",
+      "titleTemplateHint": "Titel im Browser-Tab und in Suchergebnissen. %s = Seitentitel (genau einmal), '{siteTitle}' = der Website-Titel unten. Beispiel: %s | '{siteTitle}'",
+      "twitterHandle": "Twitter-/X-Konto",
+      "twitterHandleHint": "Optional, zum Beispiel @verein.",
+      "siteTitle": "Website-Titel ({language})",
+      "siteTitleHint": "Leer = Shop-Name („{shopName}“).",
+      "description": "Standardbeschreibung",
+      "descriptionHint": "Wird in Suchergebnissen und Link-Vorschauen von Seiten ohne eigene Beschreibung angezeigt. Bis zu {max} Zeichen; leer = Standardtext.",
+      "shareImage": "Standard-Vorschaubild",
+      "shareImageHint": "Wird beim Teilen von Seiten ohne eigenes Bild gezeigt (Startseite, Cookie-Seite, Veranstaltungen ohne Titelbild). Empfohlen: 1200 × 630 Pixel.",
+      "verification": "Website-Bestätigung",
+      "verificationHint": "Optionale Tokens aus der Google Search Console und den Bing Webmaster Tools (nur der Wert des content-Attributs; ein eingefügter Meta-Tag wird ebenfalls akzeptiert).",
+      "googleVerification": "Google-Search-Console-Token",
+      "bingVerification": "Bing-Webmaster-Tools-Token"
+    },
+    "shopLayout": {
+      "title": "Veranstaltungsliste im Shop",
+      "description": "Wie die Veranstaltungen auf der Startseite des Shops angeordnet werden.",
+      "eventsPerRow": "Veranstaltungen pro Zeile",
+      "eventsPerRowHint": "Anzahl der Veranstaltungskarten nebeneinander auf breiten Bildschirmen (1–6). Auf schmaleren Bildschirmen werden automatisch weniger angezeigt: auf Smartphones immer 1, bis zu 2 auf kleinen Tablets, bis zu 3 auf mittleren und bis zu 4 auf großen Bildschirmen. Bei 1 pro Zeile nutzen die Karten die volle Breite mit dem Bild neben dem Text; bei vielen pro Zeile wechseln sie in eine kompakte Darstellung."
+    },
+    "startPage": {
+      "title": "Startseite ohne Veranstaltungen",
+      "description": "Erscheint auf der Startseite des Shops, solange keine Veranstaltung veröffentlicht ist. Ohne Inhalt wird der Standardtext angezeigt.",
+      "layout": "Layout",
+      "layoutHint": "Wo Überschrift und Text im Verhältnis zum Hauptbild stehen.",
+      "layouts": {
+        "ABOVE": "Hauptbild oben, Text darunter",
+        "OVERLAY": "Text über dem Hauptbild (volle Breite)"
+      },
+      "headline": "Überschrift",
+      "subheadline": "Unterüberschrift",
+      "body": "Text",
+      "buttonLabel": "Beschriftung der Schaltfläche",
+      "buttonUrl": "Link der Schaltfläche",
+      "buttonAlign": "Position der Schaltfläche",
+      "buttonAligns": {
+        "LEFT": "Links",
+        "CENTER": "Mittig",
+        "RIGHT": "Rechts"
+      },
+      "buttonUrlHint": "https://-Adresse oder ein Pfad im Shop (z. B. /account). Die Schaltfläche erscheint nur mit Beschriftung und Link.",
+      "heroAlt": "Alternativtext des Hauptbilds",
+      "hero": "Hauptbild",
+      "heroHint": "Optional. Wird oben in voller Breite angezeigt.",
+      "galleryImage": "Galeriebild {n}",
+      "galleryHint": "Bis zu {max} weitere Bilder, als Raster unter dem Text.",
+      "galleryAlt": "Alternativtext von Galeriebild {n}",
+      "altHint": "Alternativtexte beschreiben die Bilder für Screenreader; bei rein dekorativen Bildern leer lassen. Fehlende Texte werden aus der Standardsprache des Shops übernommen.",
+      "mode": "Aufbau",
+      "modes": {
+        "BUILDER": "Baukasten",
+        "HTML": "Eigenes HTML"
+      },
+      "html": "HTML-Code",
+      "htmlInsertImage": "Bild einfügen",
+      "htmlHint": "Fülle die Seite mit eigenem HTML und CSS (style-Elemente und style-Attribute sind erlaubt; begrenze dein CSS mit der Klasse .tix-start-custom). Die Seite wird immer auf hellem Hintergrund angezeigt (sie passt sich dem dunklen Farbschema nicht an), gestalte sie also für helle Farben. Skripte, eingebettete Frames, Formulare und Event-Handler (onclick usw.) werden beim Speichern und bei der Anzeige entfernt. Bilder lädst du unter Medien hoch und verweist mit /api/media/ID darauf, oder du fügst über „Bild einfügen“ ein img-Tag an der Cursorposition ein. Höchstens {max} KB pro Sprache; eine leere Sprache greift auf die Standardsprache des Shops zurück, ganz ohne HTML wird der Baukasten-Inhalt angezeigt. Die Baukasten-Inhalte bleiben beim Umschalten erhalten."
     },
     "secret": {
       "stored": "gespeichert",
@@ -1045,6 +1179,18 @@
       "webhookIdHint": "ID des in Ihrer PayPal-App registrierten Webhooks; dient zur Prüfung der Webhook-Signaturen.",
       "approvalTimeoutSeconds": "Zeitlimit für die Freigabe (Sekunden)",
       "approvalTimeoutSecondsHint": "Bestellungen, die nicht innerhalb dieser Zeit bei PayPal freigegeben werden, verfallen und die Plätze werden freigegeben.",
+      "test": {
+        "button": "Verbindung testen",
+        "testing": "Teste …",
+        "hint": "Verwendet die gespeicherten Werte – speichere deine Änderungen zuerst.",
+        "notConfigured": "Speichere zuerst Client-ID und Client-Secret.",
+        "ok": "PayPal hat die Zugangsdaten für {environment} akzeptiert.",
+        "rejected": "PayPal hat Client-ID oder Secret abgelehnt. Prüfe, ob beide aus derselben App und derselben Umgebung (Sandbox oder Live) stammen.",
+        "failed": "PayPal ist nicht erreichbar:",
+        "webhookOk": "Die Webhook-ID existiert.",
+        "webhookNotFound": "Webhook-ID nicht gefunden. Prüfe die Webhook-ID dieser App und Umgebung.",
+        "webhookUnknown": "Die Webhook-ID konnte nicht überprüft werden."
+      },
       "webhookUrlHint": "Webhook-URL für das PayPal-Entwicklerportal (Ereignisse: Checkout order approved, Payment capture completed / denied / refunded / reversed):",
       "guide": {
         "title": "Anleitung: PayPal einrichten und mit der Sandbox testen",
@@ -1093,7 +1239,17 @@
         "send": "Test-E-Mail senden",
         "sending": "Wird gesendet…",
         "success": "Der Mailserver hat die Test-E-Mail an {to} angenommen.",
-        "failed": "Die Test-E-Mail konnte nicht gesendet werden:"
+        "failed": "Die Test-E-Mail konnte nicht gesendet werden.",
+        "kinds": {
+          "auth": "Der Mailserver hat die Anmeldung abgelehnt. Benutzername und Passwort prüfen (viele Anbieter verlangen ein App-Passwort).",
+          "connection": "Keine Verbindung zum Mailserver. Host und Port prüfen und kontrollieren, ob eine Firewall ausgehendes SMTP blockiert.",
+          "timeout": "Der Mailserver hat nicht rechtzeitig geantwortet oder die Verbindung getrennt. Host, Port und Firewall prüfen und erneut versuchen.",
+          "dns": "Der Host-Name konnte nicht aufgelöst werden. Schreibweise des SMTP-Hosts prüfen.",
+          "tls": "Die sichere Verbindung ist fehlgeschlagen. Port 465 benötigt in der Regel SSL/TLS, Port 587 verwendet STARTTLS; außerdem das Serverzertifikat prüfen.",
+          "recipientRejected": "Der Mailserver hat die Empfängeradresse abgelehnt. Adresse und Absenderberechtigung prüfen.",
+          "other": "Die E-Mail konnte nicht gesendet werden. Technische Details siehe unten."
+        },
+        "detail": "Technische Details:"
       }
     },
     "customerAccounts": {
@@ -1115,6 +1271,7 @@
       "label": "Einstellungsbereiche",
       "general": "Allgemein",
       "appearance": "Erscheinungsbild",
+      "seo": "SEO",
       "organizer": "Veranstalter",
       "checkout": "Kasse",
       "payments": "Zahlungen",
@@ -1133,6 +1290,7 @@
     "summary": {
       "total": "Bilder",
       "totalSize": "Speicherbedarf",
+      "variantSize": "Moderne Formate (AVIF/WebP)",
       "unused": "Unbenutzte Bilder",
       "unusedSize": "Unbenutzter Speicher"
     },
@@ -1186,6 +1344,9 @@
       "SETTING": "Einstellung",
       "OTHER": "Sonstige Verwendung"
     },
+    "copyId": "ID kopieren",
+    "copyUrl": "URL kopieren",
+    "copied": "Kopiert",
     "dimensions": "Größe",
     "size": "Dateigröße",
     "uploaded": "Hochgeladen",

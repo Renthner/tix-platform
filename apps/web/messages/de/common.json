@@ -7,6 +7,12 @@
     "en": "English",
     "de": "Deutsch"
   },
+  "theme": {
+    "label": "Farbschema",
+    "system": "System",
+    "light": "Hell",
+    "dark": "Dunkel"
+  },
   "actions": {
     "save": "Speichern",
     "saving": "Speichert…",
@@ -32,6 +38,7 @@
   },
   "errors": {
     "WALLET_UNAVAILABLE": "Wallet ist gerade nicht verfügbar. Bitte versuche es später erneut oder nutze das PDF-Ticket.",
+    "PRICES_UPDATING": "Die Preise werden gerade aktualisiert. Bitte versuche es gleich noch einmal.",
     "SEAT_UNAVAILABLE": "Dieser Platz ist nicht mehr verfügbar.",
     "SEAT_LOCKED": "Jemand anderes hat diesen Platz gerade ausgewählt.",
     "CART_EXPIRED": "Deine Reservierungszeit ist abgelaufen. Bitte wähle deine Plätze erneut.",
@@ -54,11 +61,13 @@
     "TARIFF_LIMIT": "Der Tarif „{tariff}“ ist auf {max} Tickets pro Bestellung begrenzt.",
     "CART_EMPTY": "Dein Warenkorb ist leer.",
     "CART_OUTDATED": "Dein Warenkorb hat sich geändert. Bitte prüfe ihn.",
+    "CART_LIFETIME_REACHED": "Deine Reservierungszeit ist fast abgelaufen – schließe die Bestellung ab oder leere den Warenkorb.",
     "CART_CHANGED": "Dein Warenkorb hat sich inzwischen geändert. Bitte prüfe ihn vor der Bestellung.",
     "CHECKOUT_IN_PROGRESS": "Deine Bestellung wird bereits verarbeitet. Bitte warte einen Moment.",
     "MIXED_CURRENCIES": "Veranstaltungen mit unterschiedlichen Währungen können nicht in einer Bestellung gekauft werden.",
     "PRICE_CHANGED": "Der Gesamtbetrag deiner Bestellung hat sich geändert. Bitte prüfe die aktualisierten Preise und bestelle erneut.",
     "PAYMENT_METHOD_UNAVAILABLE": "Diese Zahlungsart ist für deine Bestellung nicht verfügbar.",
+    "PAYPAL_UNAVAILABLE": "Die Zahlung mit PayPal ist gerade nicht möglich. Deine Plätze bleiben reserviert – versuche es später erneut.",
     "LOGIN_REQUIRED": "Bitte melde dich an, um deine Bestellung abzuschließen.",
     "TERMS_NOT_ACCEPTED": "Bitte akzeptiere die AGB.",
     "PHONE_REQUIRED": "Bitte gib deine Telefonnummer an.",
@@ -99,7 +108,10 @@
     "ADJUSTMENT_NOT_OPEN": "Diese Nachzahlung ist nicht mehr offen.",
     "ADJUSTMENT_NOT_FOUND": "Nachzahlung nicht gefunden.",
     "ADJUSTMENT_NOT_PAYABLE": "Diese Nachzahlung kann nicht mehr bezahlt werden.",
-    "ADJUSTMENT_OPEN": "Dieses Ticket hat eine offene Nachzahlung. Setze zuerst den Tarif zurück."
+    "ADJUSTMENT_OPEN": "Dieses Ticket hat eine offene Nachzahlung. Setze zuerst den Tarif zurück.",
+    "EVENT_NOT_DRAFT": "Diese Veranstaltung wurde inzwischen veröffentlicht – Testkäufe sind nicht mehr möglich.",
+    "TEST_ORDER_MIXED_CART": "Noch nicht veröffentlichte Veranstaltungen (Testkauf) können nicht mit veröffentlichten Veranstaltungen in einer Bestellung kombiniert werden.",
+    "NOT_A_TEST_ORDER": "Nur Testbestellungen können gelöscht werden."
   },
   "errorPages": {
     "notFound": {

@@ -29,6 +29,7 @@ import {
 } from '@tix/shared';
 import { eq } from 'drizzle-orm';
 import { cloneSeatMap } from '../seatmaps/clone';
+import { flushShopCacheBestEffort } from './flush-shop-cache';
 import { loadSeatMapDocument, saveSeatMapDocument } from '../seatmaps/document';
 
 loadRootEnv();
@@ -403,6 +404,7 @@ async function main(): Promise<void> {
   } finally {
     await handle.close();
   }
+  await flushShopCacheBestEffort();
 }
 
 main().catch((err) => {

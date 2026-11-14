@@ -3,6 +3,7 @@ import type { EmailTemplateKey } from '@tix/shared';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { loadOrderDocumentData } from '../documents/order-data';
+import { mailTranslator } from '../i18n/mail-messages';
 import { getSetting } from '../settings';
 import { htmlToText, renderTemplate, type TemplateVariables } from './template';
 import { adjustmentVariables, customerVariables, orderVariables, shopVariables } from './variables';
@@ -129,14 +130,34 @@ export async function renderEmail(
   const text = template.bodyText
     ? renderTemplate(template.bodyText, variables, 'text')
     : { output: htmlToText(html.output), missing: [] };
+  const plainSubject = subject.output.replace(/[ \t\r\n]+/g, ' ').trim();
+  // Test orders (super-admin purchases on draft events): every e-mail is clearly marked.
+  const marked = data?.order.isTest ? testMarking(template.locale) : null;
   return {
     // One line; non-breaking spaces (e.g. in "32,10 €") are kept.
-    subject: subject.output.replace(/[ \t\r\n]+/g, ' ').trim(),
-    html: html.output,
-    text: text.output.trim(),
+    subject: marked ? `${marked.prefix} ${plainSubject}` : plainSubject,
+    html: marked ? injectTestBanner(html.output, marked.notice) : html.output,
+    text: marked ? `${marked.notice}\n\n${text.output.trim()}` : text.output.trim(),
     locale: template.locale,
     templateId: template.id,
     to,
     missing: [...new Set([...subject.missing, ...html.missing, ...text.missing])],
   };
+}
+
+function testMarking(locale: string): { prefix: string; notice: string } {
+  const t = mailTranslator(locale);
+  return { prefix: t('test.subjectPrefix'), notice: t('test.notice') };
+}
+
+const escapeHtml = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Puts a visible banner at the top of the mail body (inside <body> when the template has one). */
+function injectTestBanner(html: string, notice: string): string {
+  const banner = `<div style="margin:0 0 16px;padding:10px 14px;border:2px solid #d97706;background:#fffbeb;color:#92400e;font:600 14px/1.4 Arial,sans-serif">${escapeHtml(notice)}</div>`;
+  const body = /<body[^>]*>/i.exec(html);
+  if (!body) return banner + html;
+  const at = body.index + body[0].length;
+  return html.slice(0, at) + banner + html.slice(at);
 }

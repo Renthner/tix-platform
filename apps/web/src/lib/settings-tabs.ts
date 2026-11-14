@@ -2,6 +2,7 @@
 export const SETTINGS_TABS = [
   'general',
   'appearance',
+  'seo',
   'organizer',
   'checkout',
   'payments',

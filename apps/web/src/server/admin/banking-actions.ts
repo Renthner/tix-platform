@@ -13,6 +13,7 @@ import {
   refreshFinApiConnection,
   rematchBankTransaction,
   requestBankSync,
+  resolveBankTransaction,
   reverseBankAllocation,
   respondToTanChallenge,
   saveBankAccount,
@@ -26,6 +27,7 @@ import {
   BANK_STATEMENT_FORMATS,
   CSV_COLUMN_KEYS,
   imapConfigSchema,
+  localizedPath,
   type SupportedBankAdapter,
 } from '@tix/shared';
 import { eq } from 'drizzle-orm';
@@ -43,6 +45,7 @@ import {
 import { parseMoneyToCents } from '@/lib/money';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { getDefaultLocale } from '@/server/default-locale';
 import { audit } from './audit';
 import { flag, text } from './form';
 
@@ -97,9 +100,11 @@ const DOMAIN_TO_FORM: Record<string, BankingFormError> = {
   TAN_NOT_PENDING: 'tanNotPending',
   TAN_NOT_FOUND: 'tanNotPending',
   ORDER_NOT_PAYABLE: 'orderNotPayable',
+  TEST_ORDER_CONFIRM_REQUIRED: 'testOrderConfirm',
   ORDER_NOT_FOUND: 'orderNotFound',
   CURRENCY_MISMATCH: 'currencyMismatch',
   TX_RESOLVED: 'resolved',
+  TX_NOT_FULLY_ASSIGNED: 'notFullyAssigned',
   TX_HAS_ALLOCATIONS: 'hasAllocations',
   TX_NOT_CREDIT: 'notCredit',
   NOT_SUPPORTED: 'notSupported',
@@ -134,6 +139,8 @@ function failure(err: unknown): BankingActionState {
         return fieldErrors({ [`secret.${String(err.details?.field ?? '')}`]: 'required' });
       case 'NAME_REQUIRED':
         return fieldErrors({ name: 'required' });
+      case 'HOST_NOT_ALLOWED':
+        return fieldErrors({ [String(err.details?.field ?? 'host')]: 'hostNotAllowed' });
       case 'TAN_INVALID':
         return fieldErrors({ tan: 'tan' });
       case 'AMOUNT_EXCEEDS':
@@ -411,7 +418,7 @@ export async function finApiConnectAction(
       connectionId,
       language: locale,
       returnUrl: core.appUrl
-        ? `${core.appUrl}${locale === 'en' ? '' : `/${locale}`}/admin/banking/connections/${connectionId}`
+        ? `${core.appUrl}${localizedPath(locale, `/admin/banking/connections/${connectionId}`, await getDefaultLocale())}`
         : null,
     });
     await audit(core.db, session, 'bank.finapi.webform', 'bank_connection', connectionId, {
@@ -481,6 +488,7 @@ export async function assignTransactionAction(
       amount,
       userId: session.userId,
       note,
+      confirmTestOrder: text(fd, 'confirmTest') === 'on',
     });
     const [tx] = await core.db
       .select({ currency: bankTransactions.currency })
@@ -531,6 +539,7 @@ export async function assignAdjustmentAction(
       adjustmentId,
       userId: session.userId,
       note,
+      confirmTestOrder: text(fd, 'confirmTest') === 'on',
     });
     await audit(core.db, session, 'bank.tx.assign_adjustment', 'bank_transaction', transactionId, {
       orderId,
@@ -572,6 +581,26 @@ export async function ignoreTransactionAction(
   await audit(core.db, session, 'bank.tx.ignore', 'bank_transaction', transactionId, { note });
   revalidate();
   return ok('ignored');
+}
+
+/** "Mark as resolved": closes a fully allocated Klärfall (e.g. overpayment refunded on the order). */
+export async function resolveTransactionAction(
+  transactionId: string,
+  _prev: BankingActionState,
+  fd: FormData,
+): Promise<BankingActionState> {
+  const session = await requireAdmin(ROLES);
+  const core = getCore();
+  const note = text(fd, 'note')?.slice(0, 1000);
+  if (!note) return fieldErrors({ note: 'required' });
+  try {
+    await resolveBankTransaction(core, { transactionId, userId: session.userId, note });
+  } catch (err) {
+    return failure(err);
+  }
+  await audit(core.db, session, 'bank.tx.resolve', 'bank_transaction', transactionId, { note });
+  revalidate();
+  return ok('resolvedMarked');
 }
 
 export async function rematchTransactionAction(
@@ -646,6 +675,7 @@ export interface AssignableOrder {
   totalGross: number;
   amountPaid: number;
   currency: string;
+  isTest: boolean;
 }
 
 /** Order search for the "assign to another order" box (number, reference, name, e-mail). */
@@ -664,5 +694,6 @@ export async function searchAssignableOrders(query: string): Promise<AssignableO
     totalGross: r.totalGross,
     amountPaid: r.amountPaid,
     currency: r.currency,
+    isTest: r.isTest,
   }));
 }

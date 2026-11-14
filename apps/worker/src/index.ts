@@ -6,6 +6,7 @@ import {
   JobQueues,
   backupBucketsFromEnv,
   createCoreContext,
+  startShopCacheSync,
   getRestoreIncomplete,
   objectStorageFromEnv,
   type BackupRuntime,
@@ -70,6 +71,8 @@ async function main(): Promise<void> {
     jobs,
     logger,
   });
+  // Settings / event caches of this process follow admin changes made on any instance.
+  startShopCacheSync(core, redis.subscriber);
   const loops = startLoops(core, workerId, logger);
 
   // ── Queues & processors ───────────────────────────────────────────────────

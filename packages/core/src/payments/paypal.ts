@@ -7,9 +7,11 @@ import {
   refunds,
   webhookEvents,
   withTransaction,
+  type Database,
 } from '@tix/db';
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
+import { coreLog } from '../log';
 import { orderAccessToken, orderUrl } from '../orders/access';
 import {
   completeAdjustment,
@@ -63,6 +65,29 @@ export class PayPalApiError extends Error {
   }
 }
 
+/**
+ * PayPal rejected the client ID / secret at the OAuth token endpoint – a configuration problem
+ * (wrong pair, Live keys with environment Sandbox, truncated secret), not an outage.
+ */
+export class PayPalCredentialsError extends PayPalApiError {
+  override name = 'PayPalCredentialsError';
+  readonly kind = 'credentials' as const;
+  constructor(
+    readonly environment: 'sandbox' | 'live',
+    status: number,
+    message: string,
+  ) {
+    super(status, 'AUTHENTICATION_FAILURE', null, message);
+  }
+}
+
+/** True for the OAuth token endpoint answers that mean "these credentials are not accepted". */
+export function isCredentialRejection(status: number, body: { error?: string; name?: string }) {
+  return (
+    status === 401 || body.error === 'invalid_client' || body.name === 'AUTHENTICATION_FAILURE'
+  );
+}
+
 async function loadConfig(ctx: CoreContext): Promise<PayPalConfig> {
   const [settings, credentials] = await Promise.all([
     getSetting(ctx, 'paypal'),
@@ -89,12 +114,34 @@ function tokenCacheKey(ctx: CoreContext, config: PayPalConfig): string {
   return ctx.keys.providerToken('paypal', id);
 }
 
-async function accessToken(ctx: CoreContext, config: PayPalConfig, fresh = false): Promise<string> {
-  const cacheKey = tokenCacheKey(ctx, config);
-  if (!fresh) {
-    const cached = await ctx.redis.get(cacheKey);
-    if (cached) return cached;
-  }
+const CREDENTIAL_LOG_INTERVAL_MS = 60_000;
+const credentialLogTimes = new Map<string, number>();
+
+/** In-process throttle: one credential-rejection log per environment + client id per minute. */
+function shouldLogCredentialRejection(
+  config: Pick<PayPalConfig, 'environment' | 'clientId'>,
+  now = Date.now(),
+): boolean {
+  const key = `${config.environment}:${createHash('sha256').update(config.clientId).digest('hex').slice(0, 16)}`;
+  const last = credentialLogTimes.get(key);
+  if (last !== undefined && now - last < CREDENTIAL_LOG_INTERVAL_MS) return false;
+  credentialLogTimes.set(key, now);
+  return true;
+}
+
+/** Test hook: forgets the throttle state. */
+export function resetCredentialLogThrottle(): void {
+  credentialLogTimes.clear();
+}
+
+/**
+ * Requests an OAuth token (no caching). Credential rejection → `PayPalCredentialsError`
+ * (logged once unless `quiet`), other failures → `PayPalApiError`.
+ */
+export async function requestPayPalToken(
+  config: Pick<PayPalConfig, 'environment' | 'baseUrl' | 'clientId' | 'clientSecret'>,
+  quiet = false,
+): Promise<{ token: string; expiresIn: number }> {
   const basic = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
   const res = await fetch(`${config.baseUrl}/v1/oauth2/token`, {
     method: 'POST',
@@ -110,8 +157,24 @@ async function accessToken(ctx: CoreContext, config: PayPalConfig, fresh = false
     access_token?: string;
     expires_in?: number;
     error_description?: string;
+    error?: string;
+    name?: string;
   };
   if (!res.ok || !body.access_token) {
+    // Nothing is cached on failure; a rejected pair must be retried with the next (fixed) save.
+    if (isCredentialRejection(res.status, body)) {
+      if (!quiet && shouldLogCredentialRejection(config)) {
+        coreLog.error(
+          { environment: config.environment, status: res.status },
+          `PayPal rejected the client ID / secret for environment ${config.environment} – check Settings → Payments → PayPal`,
+        );
+      }
+      throw new PayPalCredentialsError(
+        config.environment,
+        res.status,
+        body.error_description ?? `PayPal rejected the credentials (${res.status})`,
+      );
+    }
     throw new PayPalApiError(
       res.status,
       'AUTHENTICATION_FAILURE',
@@ -119,9 +182,74 @@ async function accessToken(ctx: CoreContext, config: PayPalConfig, fresh = false
       body.error_description ?? `PayPal authentication failed (${res.status})`,
     );
   }
-  const ttl = Math.max(60, (body.expires_in ?? 3600) - 120);
-  await ctx.redis.set(cacheKey, body.access_token, 'EX', ttl);
-  return body.access_token;
+  return { token: body.access_token, expiresIn: body.expires_in ?? 3600 };
+}
+
+async function accessToken(ctx: CoreContext, config: PayPalConfig, fresh = false): Promise<string> {
+  const cacheKey = tokenCacheKey(ctx, config);
+  if (!fresh) {
+    const cached = await ctx.redis.get(cacheKey);
+    if (cached) return cached;
+  }
+  // A rejected request throws before anything is cached.
+  const { token, expiresIn } = await requestPayPalToken(config);
+  await ctx.redis.set(cacheKey, token, 'EX', Math.max(60, expiresIn - 120));
+  return token;
+}
+
+export type PayPalConnectionTest =
+  | { status: 'NOT_CONFIGURED' }
+  | {
+      status: 'OK';
+      environment: 'sandbox' | 'live';
+      webhook: 'NONE' | 'OK' | 'NOT_FOUND' | 'UNKNOWN';
+    }
+  | { status: 'CREDENTIALS_REJECTED'; environment: 'sandbox' | 'live' }
+  | { status: 'ERROR'; environment: 'sandbox' | 'live'; message: string };
+
+/** Admin "Test connection": OAuth token with the SAVED credentials (+ webhook id lookup). */
+export async function testPayPalConnection(ctx: CoreContext): Promise<PayPalConnectionTest> {
+  let config: PayPalConfig;
+  try {
+    config = await loadConfig(ctx);
+  } catch (err) {
+    if (err instanceof DomainError) return { status: 'NOT_CONFIGURED' };
+    throw err;
+  }
+  const { environment } = config;
+  try {
+    const { token, expiresIn } = await requestPayPalToken(config, true);
+    await ctx.redis.set(tokenCacheKey(ctx, config), token, 'EX', Math.max(60, expiresIn - 120));
+  } catch (err) {
+    if (err instanceof PayPalCredentialsError)
+      return { status: 'CREDENTIALS_REJECTED', environment };
+    return {
+      status: 'ERROR',
+      environment,
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+  let webhook: 'NONE' | 'OK' | 'NOT_FOUND' | 'UNKNOWN' = 'NONE';
+  if (config.webhookId) {
+    try {
+      await api(
+        ctx,
+        config,
+        'GET',
+        `/v1/notifications/webhooks/${encodeURIComponent(config.webhookId)}`,
+      );
+      webhook = 'OK';
+    } catch (err) {
+      webhook =
+        err instanceof PayPalApiError &&
+        (err.status === 404 ||
+          err.issue === 'INVALID_RESOURCE_ID' ||
+          err.issue === 'INVALID_WEBHOOK_ID')
+          ? 'NOT_FOUND'
+          : 'UNKNOWN';
+    }
+  }
+  return { status: 'OK', environment, webhook };
 }
 
 async function api<T>(
@@ -395,7 +523,9 @@ async function capturePayPalOrder(
       { requestId: `tix-capture-${paypalOrderId}`, body: {} },
     );
   } catch (err) {
-    if (!(err instanceof PayPalApiError)) throw err;
+    // Misconfigured credentials are not a capture failure: the attempt stays open so that
+    // reconcile / dunning capture it once the credentials work again.
+    if (!(err instanceof PayPalApiError) || err instanceof PayPalCredentialsError) throw err;
     if (err.issue === 'ORDER_ALREADY_CAPTURED') {
       remote = await api<PayPalOrder>(
         ctx,
@@ -951,6 +1081,9 @@ export async function listPayPalOrderRefunds(
 
 /** Errors a retry can fix (network, timeout, rate limit, PayPal outage) – everything else is final. */
 export function isTransientPayPalError(err: unknown): boolean {
+  // Fixable by the admin (correct the credentials): the refund job keeps retrying (bounded
+  // back-off, then the sweeper) instead of failing for good.
+  if (err instanceof PayPalCredentialsError) return true;
   if (err instanceof PayPalApiError) {
     // 409 / PREVIOUS_REQUEST_IN_PROGRESS: the same request id is still being processed.
     return (
@@ -1026,6 +1159,16 @@ interface PayPalWebhookEvent {
   };
 }
 
+/** Deletes webhook inbox rows that never passed signature verification and are older than `days`. */
+export async function purgeUnverifiedWebhookEvents(db: Database, days: number): Promise<number> {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const deleted = await db
+    .delete(webhookEvents)
+    .where(and(eq(webhookEvents.signatureValid, false), lt(webhookEvents.receivedAt, cutoff)))
+    .returning({ id: webhookEvents.id });
+  return deleted.length;
+}
+
 export type WebhookOutcome = 'PROCESSED' | 'DUPLICATE' | 'IGNORED' | 'INVALID_SIGNATURE';
 
 /**
@@ -1066,10 +1209,30 @@ export async function handlePayPalWebhook(
   let inboxId = inserted?.id;
   if (!inboxId) {
     const [existing] = await ctx.db
-      .select({ id: webhookEvents.id, status: webhookEvents.status })
+      .select({
+        id: webhookEvents.id,
+        status: webhookEvents.status,
+        signatureValid: webhookEvents.signatureValid,
+      })
       .from(webhookEvents)
       .where(and(eq(webhookEvents.provider, 'paypal'), eq(webhookEvents.externalId, event.id)));
-    if (!existing || existing.status === 'PROCESSED' || existing.status === 'IGNORED') {
+    if (!existing) return 'DUPLICATE';
+    if (!existing.signatureValid) {
+      // An earlier delivery of this event id failed verification (stored as IGNORED for audit).
+      // A verified delivery supersedes it – claim the row atomically and process the event.
+      const [claimed] = await ctx.db
+        .update(webhookEvents)
+        .set({
+          eventType: event.event_type,
+          payload: event,
+          signatureValid: true,
+          status: 'RECEIVED',
+          lastError: null,
+        })
+        .where(and(eq(webhookEvents.id, existing.id), eq(webhookEvents.signatureValid, false)))
+        .returning({ id: webhookEvents.id });
+      if (!claimed) return 'DUPLICATE';
+    } else if (existing.status === 'PROCESSED' || existing.status === 'IGNORED') {
       return 'DUPLICATE';
     }
     inboxId = existing.id;

@@ -5,8 +5,12 @@ import {
   applyTemplateCategoriesToEvent,
   cloneSeatMap,
   deleteArchivedEvent,
+  changeEventStatus,
+  deleteTestOrdersOfEvent,
+  summarizeTestOrders,
   duplicateEvent,
   getSetting,
+  eventTags,
 } from '@tix/core';
 import {
   events,
@@ -18,19 +22,19 @@ import {
   venues,
   withTransaction,
 } from '@tix/db';
-import { EVENT_STATUSES } from '@tix/shared';
+import { EVENT_STATUSES, isMediaKindAllowed, type EventStatus } from '@tix/shared';
 import { and, eq } from 'drizzle-orm';
 import { getLocale, getTranslations } from 'next-intl/server';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { redirect } from '@/i18n/navigation';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
 import { isValidTimeZone, zonedWallTimeToUtc } from '@/lib/datetime';
 import { SLUG_PATTERN } from '@/lib/slug';
-import { requireAdmin } from '@/server/auth';
+import { hasRole, requireAdmin } from '@/server/auth';
 import { richTextToPlain, sanitizeRichText } from '@/server/rich-text';
 import { getCore } from '@/server/core';
 import { audit } from './audit';
+import { refreshShop } from './shop-refresh';
 import { fieldError, flag, formError, success, text, triState, zodFieldErrors } from './form';
 import { checklistComplete, getEventWithVenue, publishChecklist } from './queries';
 
@@ -183,7 +187,7 @@ export async function createEventAction(_prev: ActionState, fd: FormData): Promi
     if (isUniqueViolation(err, 'events_slug_uq')) return fieldError({ slug: 'slugTaken' });
     throw err;
   }
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   redirect({ href: `/admin/events/${eventId}`, locale: await getLocale() });
   return success('created');
 }
@@ -224,7 +228,8 @@ export async function updateEventDetailsAction(
     endsAt: dates.endsAt,
     doorsOpenAt: dates.doorsOpenAt,
   };
-  // Cover image: the picker submits the asset id (empty = no cover). Only event images count.
+  // Cover image: the picker submits the asset id (empty = no cover). The cover is shown in the
+  // shop, so any public image kind (also picked from the library) is accepted, nothing private.
   const coverRaw = text(fd, 'heroImageAssetId');
   let heroImageAssetId: string | null = null;
   if (coverRaw) {
@@ -235,7 +240,7 @@ export async function updateEventDetailsAction(
           .from(mediaAssets)
           .where(eq(mediaAssets.id, id.data))
       : [];
-    if (!id.success || asset?.kind !== 'EVENT_IMAGE')
+    if (!id.success || !asset || !isMediaKindAllowed(asset.kind, 'public'))
       return fieldError({ heroImageAssetId: 'invalid' });
     heroImageAssetId = id.data;
   }
@@ -252,7 +257,7 @@ export async function updateEventDetailsAction(
     throw err;
   }
   await audit(db, session, 'event.update', 'event', eventId, { ...values, heroImageAssetId });
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success('saved');
 }
 
@@ -269,23 +274,40 @@ export async function setEventStatusAction(
   const { event } = row;
   if (status.data === 'PUBLISHED' || status.data === 'POSTPONED') {
     if (!checklistComplete(await publishChecklist(event))) return formError('publishIncomplete');
+    // Test orders of super-admin test purchases (also cancelled / hidden ones) block going live:
+    // the only way forward is deleting them (SUPER_ADMIN), which is impossible once a test order
+    // held real money. The core re-checks all of it inside the status transaction.
+    const goingLive = event.status !== 'PUBLISHED' && event.status !== 'POSTPONED';
+    const tests = goingLive ? await summarizeTestOrders(getCore(), eventId) : null;
+    if (tests && tests.orders > 0) {
+      if (text(fd, 'testOrders') !== 'delete' || !hasRole(session, ['SUPER_ADMIN'])) {
+        return formError('testOrdersPending');
+      }
+      const result = await deleteTestOrdersOfEvent(getCore(), { eventId, userId: session.userId });
+      // Nothing is published half-cleaned: the admin sees which orders hold money.
+      if (result.kept.length > 0) return formError('testOrdersKept');
+    }
   }
-  const now = new Date();
-  await getCore()
-    .db.update(events)
-    .set({
+  let change: { from: EventStatus; rotatedKeys: number };
+  try {
+    change = await changeEventStatus(getCore(), {
+      eventId,
       status: status.data,
-      publishedAt: status.data === 'PUBLISHED' && !event.publishedAt ? now : event.publishedAt,
-      cancelledAt: status.data === 'CANCELLED' ? (event.cancelledAt ?? now) : null,
-      cancellationReason:
-        status.data === 'CANCELLED' ? (text(fd, 'cancellationReason') ?? null) : null,
-    })
-    .where(eq(events.id, eventId));
+      cancellationReason: text(fd, 'cancellationReason') ?? null,
+    });
+  } catch (err) {
+    if (err instanceof DomainError) {
+      if (err.code === 'TEST_ORDERS_PRESENT') return formError('testOrdersKept');
+      if (err.code === 'TEST_KEY_ROTATION_REAL_TICKETS') return formError('testKeyRealTickets');
+    }
+    throw err;
+  }
   await audit(getCore().db, session, 'event.status', 'event', eventId, {
     from: event.status,
     to: status.data,
+    ...(change.rotatedKeys > 0 ? { signingKeysRotated: change.rotatedKeys } : {}),
   });
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success(status.data === 'PUBLISHED' ? 'published' : 'saved');
 }
 
@@ -395,11 +417,12 @@ export async function updateEventSalesAction(
     bankTransferEnabled: triState(fd, 'bankTransferEnabled'),
     // Accounts can only be hidden per event (they cannot be forced on when disabled globally).
     customerAccountsEnabled: triState(fd, 'customerAccountsEnabled') === false ? false : null,
+    seoNoindex: flag(fd, 'seoNoindex'),
   };
   const { db } = getCore();
   await db.update(events).set(values).where(eq(events.id, eventId));
   await audit(db, session, 'event.sales', 'event', eventId, values);
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   return success('saved');
 }
 
@@ -434,7 +457,7 @@ export async function deleteEventAction(
     }
     throw err;
   }
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(eventId));
   redirect({ href: '/admin/events?deleted=1', locale: await getLocale() });
   return success('deleted');
 }
@@ -486,7 +509,7 @@ export async function duplicateEventAction(
     }
     throw err;
   }
-  revalidatePath('/', 'layout');
+  await refreshShop(eventTags(newId));
   redirect({ href: `/admin/events/${newId}?duplicated=1`, locale: await getLocale() });
   return success('created');
 }

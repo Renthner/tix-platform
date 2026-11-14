@@ -100,7 +100,7 @@ export function EmailVisualEditor({
   }, [editor, registerInsert]);
 
   return (
-    <div className="rounded-md border border-input bg-white text-zinc-900 shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+    <div className="tix-email-surface tix-light-scope rounded-md border border-input bg-background text-foreground shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
       {editor ? <Toolbar editor={editor} /> : <div className="h-10 border-b" />}
       <EditorContent editor={editor} />
     </div>

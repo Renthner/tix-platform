@@ -1,6 +1,7 @@
 'use client';
 
-import { ChevronDown, LayoutDashboard, LogOut, ShieldCheck } from 'lucide-react';
+import { ChevronDown, LayoutDashboard, LogOut, ShieldCheck, Users } from 'lucide-react';
+import { useState } from 'react';
 import { signOutAdminAction } from './admin-menu-actions';
 import { NAV_ITEMS, type NavKey } from '@/components/admin/admin-nav-links';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ThemeMenuItems } from '@/components/theme-switcher';
 import { Link } from '@/i18n/navigation';
 
 /**
@@ -24,12 +26,31 @@ export function AdminMenu({
   entries,
   setupRequired,
   signOutLabel,
+  queueTest,
 }: {
   label: string;
   entries: { key: NavKey; label: string }[];
   setupRequired: boolean;
   signOutLabel: string;
+  /** Super-admins only: switch to experience the waiting room like a customer. */
+  queueTest?: { enabled: boolean; label: string; stateLabel: string };
 }) {
+  const [queueBusy, setQueueBusy] = useState(false);
+  const toggleQueueTest = async () => {
+    if (!queueTest || queueBusy) return;
+    setQueueBusy(true);
+    try {
+      const res = await fetch('/api/admin/queue-test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: !queueTest.enabled }),
+      });
+      // Reload: the shop page re-evaluates access (pass / queue) with the new setting.
+      if (res.ok) window.location.reload();
+    } finally {
+      setQueueBusy(false);
+    }
+  };
   const home = setupRequired ? '/admin/account' : '/admin';
   return (
     <div className="flex items-center">
@@ -63,6 +84,22 @@ export function AdminMenu({
                 </DropdownMenuItem>
               );
             })}
+            {queueTest && (
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  void toggleQueueTest();
+                }}
+                disabled={queueBusy}
+              >
+                <Users className="size-4" />
+                <span className="flex-1">{queueTest.label}</span>
+                <span className="text-xs text-muted-foreground">{queueTest.stateLabel}</span>
+              </DropdownMenuItem>
+            )}
+            {/* Narrow screens: the header has no room for its own theme button. */}
+            <DropdownMenuSeparator className="min-[480px]:hidden" />
+            <ThemeMenuItems className="min-[480px]:hidden" />
             <DropdownMenuSeparator />
             <form action={signOutAdminAction}>
               <DropdownMenuItem asChild>

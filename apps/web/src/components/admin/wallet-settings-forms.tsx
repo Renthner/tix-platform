@@ -320,7 +320,7 @@ export function WalletCheck({
             </ul>
           )}
           {state.warnings.length > 0 && (
-            <ul className="list-disc pl-5 text-amber-600">
+            <ul className="list-disc pl-5 text-warning">
               {state.warnings.map((e, i) => (
                 <li key={i}>{issueText(e)}</li>
               ))}
@@ -456,7 +456,7 @@ export function WalletDesignForm({
             </div>
             <div className="text-base font-semibold">{t('previewValue')}</div>
           </div>
-          <div className="size-12 rounded bg-white/90" />
+          <div className="size-12 rounded bg-paper/90" />
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <TextInput
@@ -485,17 +485,22 @@ export function WalletDesignForm({
               ['stripAssetId', 'strip', initial.strip, 375 / 98],
             ] as const
           ).map(([name, key, asset, ratio]) => (
-            <div key={name} className="space-y-1">
-              <div className="text-sm font-medium">{t(`images.${key}`)}</div>
+            <Field
+              key={name}
+              label={t(`images.${key}`)}
+              htmlFor={name}
+              error={err(name)}
+              hint={t(`images.${key}Hint`)}
+            >
               <MediaPicker
                 name={name}
                 kind="WALLET_IMAGE"
+                visibility="private"
                 initialAsset={asset}
                 aspectRatio={ratio}
                 previewClassName="max-w-[12rem]"
               />
-              <p className="text-xs text-muted-foreground">{t(`images.${key}Hint`)}</p>
-            </div>
+            </Field>
           ))}
         </div>
         <SubmitButton>{tc('save')}</SubmitButton>

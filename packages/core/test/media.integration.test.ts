@@ -32,10 +32,11 @@ import {
   uploadMediaAsset,
   type CoreContext,
 } from '../src';
+import { solidPng } from './image-fixtures';
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 // The root `.env` targets the running stack: storage tests only run on explicit opt-in.
 const s3Endpoint = process.env.TEST_S3_OPT_IN === '1' ? process.env.S3_ENDPOINT : undefined;
 
@@ -92,7 +93,7 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('media pipeline (integrat
   });
 
   it('stores an image, reads it back and de-duplicates by hash and kind', async () => {
-    const bytes = pngBytes(1600, 900, salt);
+    const bytes = await solidPng(1600, 900, salt);
     const asset = await uploadMediaAsset(ctx, {
       kind: 'EVENT_IMAGE',
       bytes,
@@ -155,12 +156,13 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('media pipeline (integrat
     await reject(new Uint8Array(10 * 1024 * 1024 + 1), 'MEDIA_TOO_LARGE');
     await reject(pngBytes(13_000, 10, salt), 'MEDIA_DIMENSIONS');
     await reject(pngBytes(0, 10, salt), 'MEDIA_DIMENSIONS');
+    await reject((await solidPng(600, 600, salt)).subarray(0, 60), 'MEDIA_UNDECODABLE');
   });
 
   it('refuses to delete a referenced asset and deletes unreferenced ones', async () => {
     const used = await uploadMediaAsset(ctx, {
       kind: 'EVENT_IMAGE',
-      bytes: pngBytes(800, 450, salt + 1),
+      bytes: await solidPng(800, 450, salt + 1),
       fileName: 'used.png',
       userId: null,
     });
@@ -202,7 +204,7 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('media pipeline (integrat
     const upload = async (n: number) => {
       const a = await uploadMediaAsset(ctx, {
         kind: 'TICKET_BACKGROUND',
-        bytes: pngBytes(300, 300, salt + n),
+        bytes: await solidPng(300, 300, salt + n),
         fileName: 'x.png',
         userId: null,
       });

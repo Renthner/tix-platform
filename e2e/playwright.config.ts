@@ -30,19 +30,30 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'shop',
-      testMatch: /(shop|not-found)\.spec\.ts/,
+      testMatch: /(shop|not-found|fonts|cookies|seo|theme)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
       dependencies: ['setup'],
     },
     {
       name: 'admin',
-      testMatch: /(admin|csp)\.spec\.ts/,
+      testMatch: /(admin|admin-test-purchase|csp|media|statistics|live-data|theme)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },
         storageState: AUTH_FILE,
       },
       dependencies: ['shop'],
+    },
+    {
+      // Changes the global default language: must run after everything else.
+      name: 'default-locale',
+      testMatch: /default-locale\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        storageState: AUTH_FILE,
+      },
+      dependencies: ['admin'],
     },
   ],
 });

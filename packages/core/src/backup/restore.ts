@@ -3,7 +3,9 @@ import { adminUsers, auditLogs, PgClient } from '@tix/db';
 import { runMigrations } from '@tix/db/migrate';
 import { QUEUE_NAMES, type Keyspace, type Redis } from '@tix/redis';
 import { eq } from 'drizzle-orm';
+import { invalidateShopCache } from '../cache/shop-cache';
 import type { JobQueues } from '../job-queues';
+import { invalidateSettings } from '../settings';
 import { replayErasureLedger } from '../customers/privacy';
 import { runPrivacyRetention } from '../customers/privacy';
 import { enqueueRefundReconcile, markRefundsForReconciliation } from '../orders/refund-reconcile';
@@ -304,7 +306,11 @@ export async function restoreBackup(
     // database is replaced (Redis flag; harmless when the restore rolls back - the pass finds nothing).
     const reconcileToken = await markRefundsForReconciliation(rt.ctx, 'restore', undefined, 'pre');
     await at('DATABASE_RESTORE');
-    const kill = () => terminateOtherSessions(killer!, RESTORE_APPLICATIONS).catch(() => 0);
+    // The last termination round is remembered: one already sent when the timer is cleared would
+    // otherwise still run and could kill the migration connection opened right afterwards.
+    let pendingKill: Promise<number> = Promise.resolve(0);
+    const kill = () =>
+      (pendingKill = terminateOtherSessions(killer!, RESTORE_APPLICATIONS).catch(() => 0));
     await kill();
     killTimer = setInterval(() => void kill(), SESSION_KILL_INTERVAL_MS);
     // GoBD: read the live counters only after the other sessions are gone.
@@ -338,6 +344,7 @@ export async function restoreBackup(
     } finally {
       clearInterval(killTimer);
       killTimer = undefined;
+      await pendingKill;
     }
 
     await at('MIGRATIONS');
@@ -365,6 +372,15 @@ export async function restoreBackup(
 
     await at('REDIS_CLEANUP');
     await cleanupRedisAfterRestore(rt.ctx);
+    // Every cached shop page / setting of every web instance describes the replaced database.
+    invalidateSettings();
+    // Best effort: the restore itself is complete; other instances fall back to the safety TTLs.
+    try {
+      await rt.ctx.publisher.publish(rt.ctx.channels.configInvalidation(), '{}');
+    } catch (err) {
+      rt.logger.warn({ err: describeError(err) }, 'settings cache flush could not be published');
+    }
+    await invalidateShopCache(rt.ctx, 'all');
     await enqueueRefundReconcile(rt.ctx);
 
     await retry(() =>

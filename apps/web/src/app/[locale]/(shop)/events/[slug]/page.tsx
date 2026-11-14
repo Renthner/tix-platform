@@ -1,34 +1,48 @@
 import {
-  contentLocale,
+  computeSaleState,
   effectiveCheckoutConfig,
-  effectiveQueueConfig,
-  getEventWithVenueBySlug,
-  getMediaAsset,
+  getDraftEventBySlug,
+  getPublicSeatMap,
   getSetting,
+  getShopAnnouncements,
+  getShopEventBySlug,
+  getShopQueueConfig,
   localizeEventRow,
   localizeVenueRow,
-  symbolsByIds,
+  saleOpensAt,
   type VenueRow,
 } from '@tix/core';
 import {
   INFO_BOX_ICON_PX,
   localized,
   normalizePageLayout,
+  publicPriceRanges,
   type InfoBoxSize,
   type PageBlockRef,
 } from '@tix/shared';
-import { queueAnnouncements } from '@tix/db';
-import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { CalendarDays, DoorOpen, ExternalLink, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { cache, type CSSProperties, type ReactNode } from 'react';
+import { MediaImage } from '@/components/media-image';
+import { DraftBanner } from '@/components/shop/draft-banner';
 import { EventShop } from '@/components/shop/event-shop';
 import { Badge } from '@/components/ui/badge';
 import { resolveLocale } from '@/i18n/locale';
 import { cn } from '@/lib/utils';
 import { getCore } from '@/server/core';
-import { descriptionToHtml, richTextToPlain } from '@/server/rich-text';
+import { getShopActor } from '@/server/shop-actor';
+import { buildEventJsonLd, jsonLdString } from '@/server/event-jsonld';
+import { descriptionToHtml } from '@/server/rich-text';
+import {
+  loadContentLocale,
+  loadSeoContext,
+  localeUrl,
+  pageSeo,
+  plainSnippet,
+  publicBaseUrl,
+} from '@/server/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,29 +60,56 @@ function mapsUrl(venue: VenueRow): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
+/**
+ * Event, venue, cover and info box symbols of a slug from the shop data cache (tag invalidated
+ * by every admin change, see docs/ARCHITECTURE.md); memoised per request on top.
+ */
 const loadEvent = cache(async (slug: string) => {
-  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) return null;
-  const found = await getEventWithVenueBySlug(getCore(), slug);
-  if (!found || (found.event.status !== 'PUBLISHED' && found.event.status !== 'POSTPONED'))
-    return null;
-  return found;
+  const published = await getShopEventBySlug(getCore(), slug);
+  if (published) return published;
+  // Draft events: signed-in super-admins only (role checked per request), loaded WITHOUT the
+  // public shop cache so draft data never enters keys any visitor can reach.
+  return (await getShopActor()) ? getDraftEventBySlug(getCore(), slug) : null;
 });
 
 export async function generateMetadata({ params }: Params) {
-  const raw = await loadEvent((await params).slug);
+  const { slug, locale } = await params;
+  const raw = await loadEvent(slug);
   if (!raw) return {};
-  const content = await contentLocale(getCore(), (await params).locale);
-  const found = {
-    event: localizeEventRow(raw.event, content.locale, content.defaultLocale),
-    venue: raw.venue,
-  };
+  // Drafts are never indexed (and never get canonical / alternate links).
+  if (raw.event.status === 'DRAFT')
+    return { title: raw.event.title, robots: { index: false, follow: false } };
+  // Excluded from search engines (event tab "Sales"): same as a draft, no canonical / alternates.
+  const ctx = await loadSeoContext(locale);
+  const { content } = ctx;
+  if (raw.event.seoNoindex)
+    return {
+      title: localizeEventRow(raw.event, content.locale, content.defaultLocale).title,
+      robots: { index: false, follow: false },
+    };
+  const event = localizeEventRow(raw.event, content.locale, content.defaultLocale);
   const description =
-    found.event.subtitle ?? richTextToPlain(found.event.description).slice(0, 160);
+    event.subtitle || plainSnippet(event.description) || ctx.description || undefined;
+  const cover = raw.cover;
   return {
-    title: found.event.title,
-    description: description || undefined,
-    ...(found.event.heroImageAssetId && {
-      openGraph: { images: [`/api/media/${found.event.heroImageAssetId}`] },
+    title: event.title,
+    description,
+    ...pageSeo({
+      path: `/events/${event.slug}`,
+      locale: content.locale,
+      defaultLocale: content.defaultLocale,
+      title: event.title,
+      description,
+      siteName: ctx.siteTitle,
+      // Event cover first, else the configured share image.
+      image: cover
+        ? {
+            url: `${publicBaseUrl()}/api/media/${cover.id}`,
+            width: cover.width,
+            height: cover.height,
+          }
+        : ctx.shareImage,
+      twitterSite: ctx.seo.twitterHandle,
     }),
   };
 }
@@ -78,37 +119,56 @@ export default async function EventPage({ params }: Params) {
   const found = await loadEvent((await params).slug);
   if (!found) notFound();
   const core = getCore();
-  const content = await contentLocale(core, locale);
+  const content = await loadContentLocale(locale);
   const event = localizeEventRow(found.event, content.locale, content.defaultLocale);
   const venue = localizeVenueRow(found.venue, content.locale, content.defaultLocale);
-  const [checkout, queue, format, t, announcements, seatDisplay, cover] = await Promise.all([
-    effectiveCheckoutConfig(core, event),
-    effectiveQueueConfig(core, event.id),
-    getFormatter(),
-    getTranslations('shop.event'),
-    core.db
-      .select()
-      .from(queueAnnouncements)
-      .where(
-        and(
-          or(eq(queueAnnouncements.eventId, event.id), isNull(queueAnnouncements.eventId)),
-          or(isNull(queueAnnouncements.expiresAt), gt(queueAnnouncements.expiresAt, new Date())),
-        ),
-      )
-      .orderBy(desc(queueAnnouncements.publishedAt))
-      .limit(5),
-    getSetting(core, 'seatDisplay'),
-    event.heroImageAssetId ? getMediaAsset(core, event.heroImageAssetId) : null,
-  ]);
+  const [checkout, queue, format, t, announcements, seatDisplay, priceRange, organizer, nonce] =
+    await Promise.all([
+      effectiveCheckoutConfig(core, event),
+      getShopQueueConfig(core, event.id),
+      getFormatter(),
+      getTranslations('shop.event'),
+      getShopAnnouncements(core, event.id),
+      getSetting(core, 'seatDisplay'),
+      // Only needed for structured data, which drafts do not get.
+      event.seatMapId && found.event.status !== 'DRAFT'
+        ? getPublicSeatMap(core, found.event)
+            .then((map) => publicPriceRanges(map).overall)
+            // Structured data is auxiliary: never fail the page because of it.
+            .catch(() => null)
+        : null,
+      getSetting(core, 'organizer'),
+      headers().then((h) => h.get('x-nonce') ?? undefined),
+    ]);
+  const cover = found.cover;
+  const base = publicBaseUrl();
+  const isDraft = found.event.status === 'DRAFT';
+  // No structured data for drafts, events excluded from search engines or while indexing is off.
+  const seoIndexing = (await getSetting(core, 'seo')).indexing;
+  const jsonLd =
+    isDraft || found.event.seoNoindex || !seoIndexing
+      ? null
+      : jsonLdString(
+          buildEventJsonLd({
+            url: localeUrl(content.locale, `/events/${event.slug}`, content.defaultLocale),
+            name: event.title,
+            description: event.subtitle || plainSnippet(event.description, 500) || undefined,
+            status: event.status,
+            saleState: computeSaleState(found.event),
+            startsAt: event.startsAt,
+            endsAt: event.endsAt,
+            doorsOpenAt: event.doorsOpenAt,
+            timeZone: event.timeZone,
+            currency: event.currency,
+            priceRange,
+            saleOpensAt: saleOpensAt(found.event),
+            images: cover ? [`${base}/api/media/${cover.id}`] : [],
+            venue,
+            organizer: { name: organizer.legalName, url: organizer.website },
+          }),
+        );
   const infoBoxes = event.infoBoxes.filter((b) => b.title || b.content);
-  const boxSymbols = new Map(
-    (
-      await symbolsByIds(
-        core.db,
-        infoBoxes.flatMap((b) => (b.symbolId ? [b.symbolId] : [])),
-      )
-    ).map((sym) => [sym.id, sym]),
-  );
+  const boxSymbols = new Map(Object.entries(found.symbols));
   const descriptionHtml = descriptionToHtml(event.description);
   const boxById = new Map(infoBoxes.map((b) => [b.id, b]));
   const layoutRows = normalizePageLayout(
@@ -118,6 +178,14 @@ export default async function EventPage({ params }: Params) {
 
   return (
     <div className="space-y-6">
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
+      )}
+      {isDraft && <DraftBanner />}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{event.title}</h1>
@@ -192,13 +260,16 @@ export default async function EventPage({ params }: Params) {
       if (!cover) return null;
       // Any format: natural aspect ratio (no layout shift), shown in full, height capped;
       // scales down inside a narrow column.
+      // The event cover is the largest image above the fold (LCP): load it eagerly with high priority.
       return (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`/api/media/${cover.id}`}
+        <MediaImage
+          assetId={cover.id}
           alt={cover.altText ?? ''}
-          width={cover.width ?? 1600}
-          height={cover.height ?? 900}
+          width={cover.width}
+          height={cover.height}
+          sizes="(min-width: 1280px) 1280px, 100vw"
+          loading="eager"
+          fetchPriority="high"
           className="mx-auto h-auto max-h-[32rem] w-full rounded-xl border bg-muted/30 object-contain"
         />
       );

@@ -15,9 +15,28 @@ import type { CoreContext } from './context';
  */
 
 const TTL_MS = 10_000;
-const cache = new Map<string, { value: unknown; expires: number }>();
+/**
+ * Process-wide on `globalThis`: Next.js bundles this module into several layers (RSC, SSR, route
+ * handlers), and the pub/sub invalidation must reach every copy's data.
+ */
+const g = globalThis as typeof globalThis & {
+  __tixSettingsCache?: Map<string, { value: unknown; expires: number }>;
+  __tixSettingsInflight?: Map<string, Promise<unknown>>;
+  __tixSettingsGuard?: { seq: number; floor: number; byKey: Map<string, number> };
+};
+const cache = (g.__tixSettingsCache ??= new Map<string, { value: unknown; expires: number }>());
 /** Single-flight: concurrent readers of an expired entry share one DB query. */
-const inflight = new Map<string, Promise<unknown>>();
+const inflight = (g.__tixSettingsInflight ??= new Map<string, Promise<unknown>>());
+/**
+ * Invalidation sequence (same idea as TagCache): a load that started before an invalidation of
+ * its key must not be stored, otherwise a stale value could outlive the invalidation by a TTL.
+ */
+const guard = (g.__tixSettingsGuard ??= { seq: 0, floor: 0, byKey: new Map<string, number>() });
+
+function storeIfCurrent(cacheKey: string, startSeq: number, value: unknown): void {
+  if (startSeq < guard.floor || (guard.byKey.get(cacheKey) ?? 0) > startSeq) return;
+  cache.set(cacheKey, { value, expires: Date.now() + TTL_MS });
+}
 
 export async function getSetting<K extends SettingKey>(
   ctx: Pick<CoreContext, 'db'>,
@@ -34,7 +53,7 @@ export async function getSetting<K extends SettingKey>(
   try {
     return await load;
   } finally {
-    inflight.delete(key);
+    if (inflight.get(key) === load) inflight.delete(key);
   }
 }
 
@@ -42,6 +61,7 @@ async function loadSetting<K extends SettingKey>(
   ctx: Pick<CoreContext, 'db'>,
   key: K,
 ): Promise<SettingValue<K>> {
+  const startSeq = guard.seq;
   const [row] = await ctx.db
     .select({ value: systemSettings.value })
     .from(systemSettings)
@@ -57,7 +77,7 @@ async function loadSetting<K extends SettingKey>(
     // taking the shop down; the admin UI shows the validation error when editing.
     value = defaultSetting(key);
   }
-  cache.set(key, { value, expires: Date.now() + TTL_MS });
+  storeIfCurrent(key, startSeq, value);
   return value;
 }
 
@@ -83,8 +103,20 @@ export async function saveSetting<K extends SettingKey>(
 }
 
 export function invalidateSettings(key?: string): void {
-  if (key) cache.delete(key);
-  else cache.clear();
+  guard.seq += 1;
+  if (key) {
+    // A change message names the setting; secret settings are cached under `secret:<key>`.
+    for (const cacheKey of [key, `secret:${key}`]) {
+      guard.byKey.set(cacheKey, guard.seq);
+      cache.delete(cacheKey);
+      inflight.delete(cacheKey);
+    }
+  } else {
+    guard.floor = guard.seq;
+    guard.byKey.clear();
+    cache.clear();
+    inflight.clear();
+  }
 }
 
 /* ---------------------------------------------------------------------------------------
@@ -107,6 +139,7 @@ export async function getSecretSetting<K extends SettingKey>(
   const cacheKey = `secret:${key}`;
   const hit = cache.get(cacheKey);
   if (hit && hit.expires > Date.now()) return hit.value as SettingValue<K> | null;
+  const startSeq = guard.seq;
   const [row] = await ctx.db
     .select({ encryptedValue: systemSettings.encryptedValue })
     .from(systemSettings)
@@ -116,7 +149,7 @@ export async function getSecretSetting<K extends SettingKey>(
     if (!ctx.secrets) throw new Error('Core context capability "secrets" is not configured');
     value = parseSetting(key, ctx.secrets.decryptJson(row.encryptedValue, secretContext(key)));
   }
-  cache.set(cacheKey, { value, expires: Date.now() + TTL_MS });
+  storeIfCurrent(cacheKey, startSeq, value);
   return value;
 }
 

@@ -1,0 +1,184 @@
+{
+  "title": "Statistiken",
+  "description": "Verkäufe, Kunden und Kaufverhalten auf Basis bezahlter Bestellungen.",
+  "chart": {
+    "showTable": "Datentabelle anzeigen",
+    "hideTable": "Datentabelle ausblenden",
+    "info": "Über dieses Diagramm",
+    "empty": "Keine Daten für diese Auswahl."
+  },
+  "filters": {
+    "title": "Filter",
+    "range": "Zeitraum",
+    "presets": {
+      "today": "Heute",
+      "7d": "7 Tage",
+      "30d": "30 Tage",
+      "year": "Dieses Jahr",
+      "custom": "Eigener"
+    },
+    "from": "Von",
+    "to": "Bis",
+    "events": "Veranstaltungen",
+    "eventsAll": "Alle Veranstaltungen",
+    "eventsSelected": "{count} ausgewählt",
+    "eventsLimit": "Es können höchstens {max} Veranstaltungen gewählt werden.",
+    "channels": "Verkaufskanal",
+    "channelsAll": "Alle Kanäle",
+    "methods": "Zahlungsart",
+    "methodsAll": "Alle Zahlungsarten",
+    "apply": "Anwenden",
+    "reset": "Zurücksetzen",
+    "exportCsv": "CSV exportieren"
+  },
+  "channel": {
+    "ONLINE": "Online-Shop",
+    "BOX_OFFICE": "Abendkasse",
+    "ADMIN": "Admin-Bestellung"
+  },
+  "method": {
+    "PAYPAL": "PayPal",
+    "BANK_TRANSFER": "Vorkasse (Überweisung)",
+    "CASH": "Bar",
+    "CARD": "Karte",
+    "COMPLIMENTARY": "Freikarte"
+  },
+  "summary": {
+    "period": "{from} – {to} ({days, plural, one {# Tag} other {# Tage}}), Zeitzone {zone}",
+    "previous": "Vergleich mit {from} – {to}",
+    "interval": {
+      "hour": "pro Stunde",
+      "day": "pro Tag",
+      "week": "pro Woche",
+      "month": "pro Monat"
+    },
+    "otherCurrency": "{count, plural, one {# Bestellung} other {# Bestellungen}} in einer anderen Währung als {currency} nicht enthalten.",
+    "definitionsTitle": "So werden die Zahlen berechnet",
+    "definitions": {
+      "sale": "Ein Verkauf ist eine Bestellung mit Zahlungsdatum. Sie zählt an dem Tag, an dem sie bezahlt wurde (in der Zeitzone des Shops), nicht wann sie angelegt wurde.",
+      "tickets": "Tickets sind die verkauften Positionen, auch solche, die später erstattet wurden. Durch einen Platzwechsel ersetzte Tickets werden einmal gezählt.",
+      "revenue": "Umsatz ist der Bruttopreis der Tickets plus Servicegebühren. Mit Veranstaltungsfilter zählen nur Tickets und Gebühren der gewählten Veranstaltungen; Gebühren je Bestellung lassen sich keiner Veranstaltung zuordnen und fehlen dann. Ein Tarif-Upgrade bleibt beim Datum der ursprünglichen Zahlung.",
+      "refunds": "Erstattungen sind erfolgreiche Erstattungen an dem Tag, an dem sie ausgeführt wurden (ohne reine Überzahlungen). Netto-Umsatz ist Umsatz minus Erstattungen.",
+      "currency": "Es werden nur Bestellungen in der Shop-Währung addiert."
+    }
+  },
+  "kpi": {
+    "revenue": "Umsatz (brutto)",
+    "net": "Nach Erstattungen",
+    "refunds": "Erstattungen",
+    "tickets": "Verkaufte Tickets",
+    "orders": "Bestellungen",
+    "aov": "Ø Bestellwert",
+    "ticketsPerOrder": "Tickets pro Bestellung",
+    "previous": "Vorher: {value}",
+    "noChange": "unverändert",
+    "newBaseline": "neu"
+  },
+  "sections": {
+    "timeline": "Zeitverlauf",
+    "preferences": "Kundenvorlieben"
+  },
+  "charts": {
+    "revenue": {
+      "title": "Umsatz im Zeitverlauf",
+      "description": "Bruttoumsatz nach Zahlungsdatum",
+      "aria": "Liniendiagramm des Bruttoumsatzes {interval}, insgesamt {total}.",
+      "series": "Umsatz"
+    },
+    "tickets": {
+      "title": "Tickets und Bestellungen im Zeitverlauf",
+      "description": "Verkaufte Tickets und aufgegebene Bestellungen",
+      "aria": "Liniendiagramm der verkauften Tickets und Bestellungen {interval}, insgesamt {tickets} Tickets.",
+      "tickets": "Tickets",
+      "orders": "Bestellungen"
+    },
+    "curve": {
+      "title": "Vorverkaufsverlauf",
+      "description": "Kumulierte verkaufte Tickets nach Tagen vor der Veranstaltung, über den gesamten Vorverkauf",
+      "aria": "Liniendiagramm der kumulierten verkauften Tickets nach Tagen vor der Veranstaltung für {count, plural, one {# Veranstaltung} other {# Veranstaltungen}}.",
+      "daysBefore": "{days, plural, one {# Tag vorher} other {# Tage vorher}}",
+      "eventDay": "Veranstaltungstag",
+      "empty": "Keine Verkäufe in diesem Zeitraum."
+    },
+    "category": {
+      "title": "Verkäufe nach Preiskategorie",
+      "description": "Tickets, mit Umsatz",
+      "aria": "Verkaufte Tickets pro Preiskategorie."
+    },
+    "tariff": {
+      "title": "Verkäufe nach Tarif",
+      "description": "Tickets, mit Umsatz",
+      "aria": "Verkaufte Tickets pro Tarif."
+    },
+    "method": {
+      "title": "Zahlungsarten",
+      "description": "Umsatz und Bestellungen je Zahlungsart",
+      "aria": "Umsatz pro Zahlungsart."
+    },
+    "channel": {
+      "title": "Verkaufskanäle",
+      "description": "Umsatz und Bestellungen je Kanal",
+      "aria": "Umsatz pro Verkaufskanal."
+    },
+    "heatmap": {
+      "title": "Wann kaufen Kunden?",
+      "description": "Bestellungen nach Wochentag und Uhrzeit (Zeitzone des Shops)",
+      "aria": "Heatmap der Bestellungen nach Wochentag und Uhrzeit.",
+      "cell": "{day}, {hour}: {count, plural, one {# Bestellung} other {# Bestellungen}}"
+    },
+    "refunds": {
+      "title": "Erstattungen und Stornos",
+      "description": "Erstatteter Betrag und stornierte Tickets im Zeitverlauf",
+      "aria": "Liniendiagramm der erstatteten Beträge und stornierten Tickets {interval}.",
+      "amount": "Erstattet",
+      "tickets": "Stornierte Tickets"
+    },
+    "newReturning": {
+      "title": "Neue und wiederkehrende Kunden",
+      "description": "Bestellungen von Erstkäufern und von wiederkehrenden Kunden",
+      "aria": "Liniendiagramm der Bestellungen neuer und wiederkehrender Kunden {interval}.",
+      "new": "Neue Kunden",
+      "returning": "Wiederkehrende Kunden"
+    },
+    "sections": {
+      "title": "Beliebte Blöcke",
+      "description": "Am häufigsten gebuchte Bereiche der Pläne (Top 10)",
+      "aria": "Verkaufte Tickets pro Block."
+    },
+    "leadTime": {
+      "title": "Buchungsvorlauf",
+      "description": "Tickets nach Tagen zwischen Kauf und Veranstaltung",
+      "aria": "Säulendiagramm der Tickets nach Tagen zwischen Kauf und Veranstaltung.",
+      "bucket": "{bucket} Tage",
+      "average": "Im Schnitt {days} Tage vor der Veranstaltung."
+    }
+  },
+  "customers": {
+    "title": "Kunden",
+    "total": "Käufer",
+    "returning": "Wiederkehrend (haben schon früher gekauft)",
+    "returningShare": "{share} der Käufer",
+    "multiEvent": "Haben für 2 oder mehr Veranstaltungen gekauft",
+    "perOrder": "Tickets pro Bestellung",
+    "none": "Keine registrierten Kunden in dieser Auswahl (Abendkassen-Verkäufe ohne Käuferdaten sind nicht enthalten)."
+  },
+  "days": {
+    "1": "Mo",
+    "2": "Di",
+    "3": "Mi",
+    "4": "Do",
+    "5": "Fr",
+    "6": "Sa",
+    "7": "So"
+  },
+  "csv": {
+    "bucket": "Beginn des Zeitraums",
+    "revenue": "Umsatz",
+    "tickets": "Tickets",
+    "orders": "Bestellungen",
+    "refunds": "Erstattungen",
+    "refundedTickets": "Stornierte Tickets",
+    "newOrders": "Bestellungen Neukunden",
+    "returningOrders": "Bestellungen wiederkehrende Kunden"
+  }
+}

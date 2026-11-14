@@ -8,7 +8,15 @@ import {
   getBackupFailure,
   getSetupChecklist,
 } from '@tix/core';
-import { Building2, CalendarPlus, DatabaseBackup, Hourglass, Undo2 } from 'lucide-react';
+import {
+  Activity,
+  Building2,
+  CalendarPlus,
+  ChartLine,
+  DatabaseBackup,
+  Hourglass,
+  Undo2,
+} from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { PageHeader } from '@/components/admin/form-controls';
@@ -89,12 +97,34 @@ export default async function AdminDashboardPage({
     <>
       <PageHeader title={t('title')} description={t('welcome', { name: session.displayName })} />
       <div className="space-y-6 p-6">
+        {(hasRole(session, ['EVENT_MANAGER', 'FINANCE']) || hasRole(session, ['SUPER_ADMIN'])) && (
+          <div className="flex flex-wrap gap-2">
+            {hasRole(session, ['EVENT_MANAGER', 'FINANCE']) && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/admin/statistics">
+                  <ChartLine className="size-4" />
+                  {t('analytics.statistics')}
+                </Link>
+              </Button>
+            )}
+            {hasRole(session, ['SUPER_ADMIN']) && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/admin/system">
+                  <Activity className="size-4" />
+                  {t('analytics.system')}
+                </Link>
+              </Button>
+            )}
+          </div>
+        )}
         {denied && (
           <Alert variant="destructive">
             <AlertDescription>{t('denied')}</AlertDescription>
           </Alert>
         )}
-        {setup && !setup.allDone && <SetupChecklistCard checklist={setup} />}
+        {setup && !setup.allDone && (
+          <SetupChecklistCard checklist={setup} canDismiss={hasRole(session, ['SUPER_ADMIN'])} />
+        )}
         {backupFailure && (
           <Alert variant="destructive">
             <DatabaseBackup className="size-4" />
@@ -203,9 +233,15 @@ export default async function AdminDashboardPage({
                 </TableHeader>
                 <TableBody>
                   {upcoming.slice(0, 20).map(({ event, venueName }) => (
-                    <TableRow key={event.id}>
+                    <TableRow
+                      key={event.id}
+                      className="relative cursor-pointer focus-within:bg-muted/50"
+                    >
                       <TableCell className="font-medium">
-                        <Link href={`/admin/events/${event.id}`} className="hover:underline">
+                        <Link
+                          href={`/admin/events/${event.id}`}
+                          className="outline-none after:absolute after:inset-0 hover:underline focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
+                        >
                           {event.title}
                         </Link>
                       </TableCell>

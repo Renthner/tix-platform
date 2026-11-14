@@ -10,6 +10,8 @@ import {
   Landmark,
   Mail,
   LayoutDashboard,
+  ChartLine,
+  Activity,
   ScanLine,
   Percent,
   ReceiptText,
@@ -40,6 +42,7 @@ export const NAV_ITEMS = {
   boxOffice: { href: '/admin/box-office', icon: Store, exact: false },
   events: { href: '/admin/events', icon: CalendarDays, exact: false },
   orders: { href: '/admin/orders', icon: ReceiptText, exact: false },
+  statistics: { href: '/admin/statistics', icon: ChartLine, exact: false },
   customers: { href: '/admin/customers', icon: UserRound, exact: false },
   banking: { href: '/admin/banking', icon: Landmark, exact: false },
   refunds: { href: '/admin/refunds', icon: Undo2, exact: false },
@@ -54,6 +57,7 @@ export const NAV_ITEMS = {
   users: { href: '/admin/users', icon: Users, exact: false },
   scanners: { href: '/admin/scanners', icon: ScanLine, exact: false },
   backups: { href: '/admin/backups', icon: DatabaseBackup, exact: false },
+  system: { href: '/admin/system', icon: Activity, exact: false },
   settings: { href: '/admin/settings', icon: Settings, exact: false },
 } satisfies Record<string, { href: string; icon: LucideIcon; exact: boolean }>;
 
@@ -86,7 +90,7 @@ export function AdminNavLinks({
             <Icon className="size-4" />
             {t(key)}
             {(badges[key] ?? 0) > 0 && (
-              <span className="ml-auto rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+              <span className="ml-auto rounded-full bg-destructive-solid px-1.5 text-xs font-medium text-destructive-foreground">
                 {badges[key]}
               </span>
             )}
@@ -109,13 +113,12 @@ export function AdminMobileMenu({
   children?: ReactNode;
 }) {
   const t = useTranslations('admin.nav');
-  const tAdmin = useTranslations('admin');
   const pathname = usePathname();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" aria-label={tAdmin('menu')}>
-          <Menu className="size-4" /> <span>{tAdmin('menu')}</span>
+        <Button variant="outline" size="sm" aria-label={t('menu')}>
+          <Menu className="size-4" /> <span>{t('menu')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" collisionPadding={8} className="min-w-56">
@@ -128,7 +131,7 @@ export function AdminMobileMenu({
                 <Icon className="size-4" />
                 {t(key)}
                 {(badges[key] ?? 0) > 0 && (
-                  <span className="ml-auto rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+                  <span className="ml-auto rounded-full bg-destructive-solid px-1.5 text-xs font-medium text-destructive-foreground">
                     {badges[key]}
                   </span>
                 )}

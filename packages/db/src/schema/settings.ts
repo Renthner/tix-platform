@@ -52,23 +52,73 @@ export const mediaAssets = pgTable(
     fileName: text('file_name').notNull(),
     mimeType: text('mime_type').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    /**
+     * sha256 of the bytes the admin uploaded (the de-duplication key; for legacy rows, whose
+     * original was stored unchanged, also the hash of the stored file). Together with
+     * `master_sha256` it lets a re-upload of the same picture find the existing asset.
+     */
     sha256: text('sha256').notNull(),
+    /**
+     * sha256 of the stored master bytes (after orientation / metadata normalisation and WebP
+     * conversion). NULL for assets created before it existed. Equals `sha256` when the upload
+     * was stored unchanged. Seat-plan exports carry the master, so a re-import matches on it.
+     */
+    masterSha256: text('master_sha256'),
     width: integer('width'),
     height: integer('height'),
     altText: text('alt_text'),
     uploadedByUserId: uuid('uploaded_by_user_id').references(() => adminUsers.id, {
       onDelete: 'set null',
     }),
+    /** Set once the AVIF / WebP variants were generated (also when none were possible). */
+    variantsProcessedAt: tstz('variants_processed_at'),
+    /** Processing attempts of the variant generation (a permanently failing asset is given up on). */
+    variantsAttempts: integer('variants_attempts').notNull().default(0),
+    /**
+     * Set once the stored master is known to be normalised (auto-oriented, metadata stripped,
+     * WebP converted). New uploads set it on insert; the worker cleans legacy rows once.
+     */
+    masterNormalisedAt: tstz('master_normalised_at'),
     createdAt: createdAt(),
   },
   (t) => [
     unique('media_assets_object_uq').on(t.bucket, t.objectKey),
     index('media_assets_kind_idx').on(t.kind, t.createdAt),
     index('media_assets_sha256_idx').on(t.sha256),
+    index('media_assets_master_sha256_idx').on(t.masterSha256),
     check('media_assets_size_nonneg', sql`${t.sizeBytes} >= 0`),
     check(
       'media_assets_dimensions_positive',
       sql`(${t.width} IS NULL OR ${t.width} > 0) AND (${t.height} IS NULL OR ${t.height} > 0)`,
+    ),
+  ],
+);
+
+/**
+ * Modern-format copies (AVIF / WebP) of a media asset at several widths, stored next to the
+ * original in the assets bucket. Derived data: they can be regenerated from the original.
+ */
+export const mediaAssetVariants = pgTable(
+  'media_asset_variants',
+  {
+    id: id(),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => mediaAssets.id, { onDelete: 'cascade' }),
+    format: text('format').notNull(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    storageKey: text('storage_key').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('media_asset_variants_uq').on(t.assetId, t.format, t.width),
+    unique('media_asset_variants_key_uq').on(t.storageKey),
+    check('media_asset_variants_format', sql`${t.format} IN ('avif', 'webp')`),
+    check(
+      'media_asset_variants_size',
+      sql`${t.width} > 0 AND ${t.height} > 0 AND ${t.sizeBytes} >= 0`,
     ),
   ],
 );

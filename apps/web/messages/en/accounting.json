@@ -59,7 +59,8 @@
     "creditNote": "Credit note",
     "kind": "Kind",
     "status": "Status",
-    "note": "Note"
+    "note": "Note",
+    "test": "Test order"
   },
   "datev": {
     "invoice": "Invoice",

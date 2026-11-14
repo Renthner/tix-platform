@@ -102,7 +102,7 @@ export function BackupStatusPanel() {
       {status?.state === 'FAILED' && status.detail && (
         <p className="break-words text-xs text-destructive">{status.detail}</p>
       )}
-      {status?.stale && <p className="text-xs text-amber-600">{t('stale')}</p>}
+      {status?.stale && <p className="text-xs text-warning">{t('stale')}</p>}
       {(data?.maintenance || (unreachable && status?.operation === 'RESTORE')) && (
         <Alert>
           <AlertDescription>{t('restoreRunning')}</AlertDescription>

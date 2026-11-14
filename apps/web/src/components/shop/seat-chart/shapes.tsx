@@ -143,7 +143,7 @@ export const SectionLayer = memo(function SectionLayer({
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fontSize={fontSize}
-                className={`pointer-events-none select-none font-medium ${standing ? 'fill-foreground/70' : 'fill-foreground/45'}`}
+                className={`pointer-events-none select-none font-medium ${standing ? 'fill-paper-foreground/70' : 'fill-paper-foreground/55'}`}
               >
                 {showName && section.name}
                 {standing && (
@@ -316,7 +316,7 @@ export const RowLabelLayer = memo(function RowLabelLayer({
   radius: number;
 }) {
   return (
-    <g className="pointer-events-none select-none fill-muted-foreground" fontSize={radius * 1.3}>
+    <g className="pointer-events-none select-none fill-paper-foreground/60" fontSize={radius * 1.3}>
       {rows.map((row) => {
         const seats = seatsByRow.get(row.id);
         if (!seats || seats.length === 0 || row.geometry.labelPlacement === 'NONE') return null;

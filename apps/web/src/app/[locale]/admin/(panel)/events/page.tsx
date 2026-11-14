@@ -1,6 +1,6 @@
 import { computeSaleState } from '@tix/core';
 import { EVENT_STATUSES, type EventStatus } from '@tix/shared';
-import { ArrowUpDown, Plus } from 'lucide-react';
+import { ArrowUpDown, ImageIcon, Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { EventDuplicateDialog } from '@/components/admin/event-duplicate-dialog';
@@ -20,6 +20,7 @@ import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { formatInZone, utcToZonedWallTime } from '@/lib/datetime';
 import { cn } from '@/lib/utils';
+import { MediaThumb } from '@/components/media-image';
 import { requireAdmin } from '@/server/auth';
 import { duplicateEventAction } from '@/server/admin/events';
 import { listEvents } from '@/server/admin/queries';
@@ -108,11 +109,38 @@ export default async function EventsPage({
                 </TableHeader>
                 <TableBody>
                   {rows.map(({ event, venueName }) => (
-                    <TableRow key={event.id}>
+                    <TableRow
+                      key={event.id}
+                      data-testid="event-row"
+                      className="relative cursor-pointer focus-within:bg-muted/50"
+                    >
                       <TableCell className="font-medium">
-                        <Link href={`/admin/events/${event.id}`} className="hover:underline">
-                          {event.title}
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <div
+                            data-testid="event-cover-thumb"
+                            className="flex h-10 w-16 shrink-0 items-center justify-center"
+                          >
+                            {event.heroImageAssetId ? (
+                              // Original aspect ratio, scaled into the fixed slot (names stay aligned).
+                              <MediaThumb
+                                assetId={event.heroImageAssetId}
+                                variantWidth={320}
+                                alt=""
+                                className="h-auto max-h-10 w-auto max-w-16 rounded"
+                              />
+                            ) : (
+                              <span className="flex size-full items-center justify-center rounded bg-muted text-muted-foreground">
+                                <ImageIcon className="size-4" aria-hidden />
+                              </span>
+                            )}
+                          </div>
+                          <Link
+                            href={`/admin/events/${event.id}`}
+                            className="outline-none after:absolute after:inset-0 hover:underline focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
+                          >
+                            {event.title}
+                          </Link>
+                        </div>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {formatInZone(event.startsAt, event.timeZone, locale)}
@@ -125,12 +153,14 @@ export default async function EventsPage({
                         <SaleStateBadge state={computeSaleState(event)} />
                       </TableCell>
                       <TableCell>
-                        <EventDuplicateDialog
-                          size="sm"
-                          action={duplicateEventAction.bind(null, event.id)}
-                          title={event.title}
-                          startsAt={utcToZonedWallTime(event.startsAt, event.timeZone)}
-                        />
+                        <div className="relative z-10">
+                          <EventDuplicateDialog
+                            size="sm"
+                            action={duplicateEventAction.bind(null, event.id)}
+                            title={event.title}
+                            startsAt={utcToZonedWallTime(event.startsAt, event.timeZone)}
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

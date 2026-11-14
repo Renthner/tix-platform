@@ -19,7 +19,9 @@ import {
 } from '@tix/shared';
 import { and, count, eq, ne } from 'drizzle-orm';
 import { z } from 'zod';
+import { EndpointNotAllowedError } from '../backup/endpoint-guard';
 import { DomainError, type CoreContext } from '../context';
+import { assertBankEndpointAllowed, assertMailHostAllowed } from '../network/host-guard';
 import { disconnectFinApi, type FinApiDeps } from './adapters/finapi';
 import { finTsIdentity } from './adapters/fints';
 import {
@@ -152,6 +154,18 @@ export async function saveBankConnection(
     throw new DomainError('NOT_SUPPORTED', 'This adapter is no longer supported', 422);
   }
   const adapter = config.adapter;
+  // SSRF guard for admin-configured hosts (re-checked right before every connection).
+  try {
+    if (config.adapter === 'FINTS') await assertBankEndpointAllowed(config.serverUrl);
+    if (config.adapter === 'IMAP') await assertMailHostAllowed(config.host);
+  } catch (err) {
+    if (err instanceof EndpointNotAllowedError) {
+      throw new DomainError('HOST_NOT_ALLOWED', err.message, 422, {
+        field: config.adapter === 'FINTS' ? 'serverUrl' : 'host',
+      });
+    }
+    throw err;
+  }
   const interval = input.pollIntervalSeconds;
   if (interval !== null && adapter !== 'FILE_IMPORT') {
     const min =

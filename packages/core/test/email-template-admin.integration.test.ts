@@ -41,7 +41,7 @@ import {
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.TEST_REDIS_URL;
 const uuid = () => randomUUID();
 
 describe.skipIf(!adminUrl || !redisUrl)('e-mail template admin (integration)', () => {
@@ -293,6 +293,11 @@ describe.skipIf(!adminUrl || !redisUrl)('e-mail template admin (integration)', (
       draft: { subject: 'S', bodyHtml: '<p>x</p>', bodyText: null },
       sender: failing,
     });
-    expect(failed).toEqual({ ok: false, error: 'connection refused', reason: 'delivery' });
+    expect(failed).toEqual({
+      ok: false,
+      error: 'connection refused',
+      reason: 'delivery',
+      kind: 'other',
+    });
   });
 });

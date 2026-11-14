@@ -109,6 +109,18 @@ class LocalScanAuthorityTest {
     }
 
     @Test
+    fun `key rotated after the last sync keeps the invalid-signature result but flags the unknown key`() {
+        db.tickets[ticketId(9)] = localTicket(9)
+        val rotated = scan(9, payload = TestKeys.payload(ticketId(9), keyId = "k2"))
+        assertEquals(ScanResult.REJECTED_INVALID_SIGNATURE, rotated.result)
+        assertTrue(rotated.unknownKey)
+        // a forged signature under a known key is plainly invalid: no key hint
+        val forged = scan(9, payload = TestKeys.payload(ticketId(9), signWith = TestKeys.otherSeed))
+        assertEquals(ScanResult.REJECTED_INVALID_SIGNATURE, forged.result)
+        assertFalse(forged.unknownKey)
+    }
+
+    @Test
     fun `key missing in the manifest is an invalid signature, never an unknown ticket`() {
         // first ticket of an event created after the last manifest: the key is not known yet
         assertEquals(ScanResult.REJECTED_INVALID_SIGNATURE, scan(9, payload = TestKeys.payload(ticketId(9), keyId = "k2")).result)

@@ -17,6 +17,8 @@
       "passThroughEnv": [
         "DATABASE_URL",
         "TEST_DATABASE_URL",
+        "TEST_REDIS_URL",
+        "TIX_TEST_THROWAWAY",
         "REDIS_URL",
         "TEST_S3_OPT_IN",
         "BACKUP_TEST_DATABASE_URL"

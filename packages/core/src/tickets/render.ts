@@ -18,7 +18,7 @@ import {
   localizeTicketLayout,
 } from '@tix/shared';
 import { and, eq, inArray } from 'drizzle-orm';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees, rgb, type PDFPage } from 'pdf-lib';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { loadOrderDocumentData } from '../documents/order-data';
 import { yearIn } from '../format';
@@ -145,6 +145,8 @@ interface OrderPlan {
   orderNumber: string;
   orderYear: string;
   locale: string;
+  /** Test order: label of the watermark every page carries (null for real orders). */
+  testLabel: string | null;
   tickets: PlannedTicket[];
 }
 
@@ -255,22 +257,65 @@ async function planOrderTickets(
     orderNumber: order.orderNumber,
     orderYear: yearIn(order.createdAt, 'UTC'),
     locale,
+    testLabel: order.isTest ? mailTranslator(locale)('test.watermark') : null,
     tickets: planned,
   };
 }
 
-async function renderPlanned(ctx: CoreContext, planned: PlannedTicket[]): Promise<Uint8Array> {
+/** Diagonal "TEST" over the whole ticket page plus a label strip: a test ticket must never pass as real. */
+async function drawTestWatermark(doc: PDFDocument, page: PDFPage, label: string): Promise<void> {
+  const font = await doc.embedFont(StandardFonts.HelveticaBold);
+  const { width, height } = page.getSize();
+  const size = Math.min(width, height) * 0.55;
+  const text = 'TEST';
+  const textWidth = font.widthOfTextAtSize(text, size);
+  const angle = 25;
+  const rad = (angle * Math.PI) / 180;
+  // Centre the rotated text on the page.
+  page.drawText(text, {
+    x: width / 2 - (textWidth / 2) * Math.cos(rad) + size * 0.35 * Math.sin(rad),
+    y: height / 2 - (textWidth / 2) * Math.sin(rad) - size * 0.35 * Math.cos(rad),
+    size,
+    font,
+    rotate: degrees(angle),
+    color: rgb(0.85, 0.1, 0.1),
+    opacity: 0.22,
+  });
+  const labelSize = Math.max(6, Math.min(width, height) * 0.045);
+  page.drawRectangle({
+    x: 0,
+    y: height - labelSize * 1.9,
+    width,
+    height: labelSize * 1.9,
+    color: rgb(0.85, 0.1, 0.1),
+    opacity: 0.85,
+  });
+  page.drawText(label, {
+    x: labelSize,
+    y: height - labelSize * 1.35,
+    size: labelSize,
+    font,
+    color: rgb(1, 1, 1),
+  });
+}
+
+async function renderPlanned(
+  ctx: CoreContext,
+  planned: PlannedTicket[],
+  testLabel: string | null = null,
+): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setCreator('tix-platform');
   doc.setProducer('tix-platform');
   const res = new TicketPdfResources(doc);
   for (const entry of planned) {
-    await renderTicketPage(
+    const page = await renderTicketPage(
       res,
       entry.template,
       entry.data,
       pageOptions(ctx, entry.template, entry.coverAssetId),
     );
+    if (testLabel) await drawTestWatermark(doc, page, testLabel);
   }
   return doc.save();
 }
@@ -302,22 +347,37 @@ export async function renderOrderTicketsPdf(
   if (plan.tickets.length === 0) {
     throw new DomainError('NO_TICKETS', 'The order has no valid tickets', 404);
   }
-  const bytes = await renderPlanned(ctx, plan.tickets);
+  const bytes = await renderPlanned(ctx, plan.tickets, plan.testLabel);
   const t = mailTranslator(plan.locale);
   const fileName = safeName(t('ticket.fileName', { number: plan.orderNumber }));
   let objectKey: string | null = null;
   if (options.store ?? true) {
     objectKey = orderTicketsObjectKey(plan.orderYear, plan.orderNumber);
-    await requireCapability(ctx, 'storage').put('documents', objectKey, bytes, 'application/pdf');
-    await ctx.db
+    const storage = requireCapability(ctx, 'storage');
+    const ticketIds = plan.tickets.map((p) => p.ticketId);
+    // The order may be deleted while the PDF renders (test orders can be deleted completely):
+    // never write an object nobody references any more.
+    const stillThere = async () => {
+      const rows = await ctx.db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(inArray(tickets.id, ticketIds))
+        .limit(1);
+      return rows.length > 0;
+    };
+    if (!(await stillThere()))
+      throw new DomainError('NO_TICKETS', 'The order has no valid tickets', 404);
+    await storage.put('documents', objectKey, bytes, 'application/pdf');
+    const updated = await ctx.db
       .update(tickets)
       .set({ pdfObjectKey: objectKey })
-      .where(
-        inArray(
-          tickets.id,
-          plan.tickets.map((p) => p.ticketId),
-        ),
-      );
+      .where(inArray(tickets.id, ticketIds))
+      .returning({ id: tickets.id });
+    if (updated.length === 0) {
+      // Deleted between the check and the write: remove the orphan again.
+      await storage.delete('documents', objectKey).catch(() => undefined);
+      throw new DomainError('NO_TICKETS', 'The order has no valid tickets', 404);
+    }
   }
   return { bytes, fileName, ticketCount: plan.tickets.length, objectKey };
 }
@@ -338,7 +398,7 @@ export async function renderSingleTicketPdf(
   }
   const plan = await planOrderTickets(ctx, row.orderId, ticketId);
   if (plan.tickets.length === 0) throw new DomainError('TICKET_NOT_FOUND', 'Ticket not found', 404);
-  const bytes = await renderPlanned(ctx, plan.tickets);
+  const bytes = await renderPlanned(ctx, plan.tickets, plan.testLabel);
   const t = mailTranslator(plan.locale);
   return {
     bytes,

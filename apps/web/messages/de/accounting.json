@@ -59,7 +59,8 @@
     "creditNote": "Gutschrift",
     "kind": "Variante",
     "status": "Status",
-    "note": "Hinweis"
+    "note": "Hinweis",
+    "test": "Testbestellung"
   },
   "datev": {
     "invoice": "Rechnung",

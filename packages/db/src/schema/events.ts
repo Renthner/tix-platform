@@ -75,6 +75,13 @@ export const events = pgTable(
     translations: translationsColumn(),
     status: eventStatusEnum('status').notNull().default('DRAFT'),
     /**
+     * A super-admin test order was ever created for this event. Publishing such an event rotates
+     * its ticket signing key (old test QR codes stop verifying). Never reset.
+     */
+    hadTestOrders: boolean('had_test_orders').notNull().default(false),
+    /** TRUE = hidden from search engines (noindex, not in the sitemap, no structured data). */
+    seoNoindex: boolean('seo_noindex').notNull().default(false),
+    /**
      * Event page layout: rows of blocks side by side (drag & drop in the admin). Read through
      * `normalizePageLayout` (also converts the earlier flat format).
      */
@@ -107,6 +114,12 @@ export const events = pgTable(
 
     // ── Money ──────────────────────────────────────────────────────────────
     currency: currency().notNull(),
+    /**
+     * Bumped by database triggers in the transaction of every change to what the public seat map
+     * shows besides the plan itself (categories, tariffs, pricing matrix, currency). Part of the
+     * public map cache keys, so a snapshot built before a committed change can never be served.
+     */
+    publicMapGeneration: integer('public_map_generation').notNull().default(1),
     taxRateId: uuid('tax_rate_id')
       .notNull()
       .references((): AnyPgColumn => taxRates.id, { onDelete: 'restrict' }),

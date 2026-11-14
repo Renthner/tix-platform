@@ -7,6 +7,7 @@ import { formatDateTime } from '../format';
 import { getSetting } from '../settings';
 import { deliverEmailMessage, EmailDeliveryError } from './deliver';
 import { createEmailMessage, dispatchEmailMessage } from './request';
+import { classifyMailError, type MailErrorKind } from './error-kind';
 
 /** BullMQ job states in which a message's job will still run. */
 const LIVE_JOB_STATES = new Set([
@@ -72,7 +73,7 @@ export async function retryEmailMessage(ctx: CoreContext, messageId: string): Pr
 
 export type TestEmailResult =
   | { ok: true; messageId: string; providerMessageId: string | null }
-  | { ok: false; messageId: string | null; error: string };
+  | { ok: false; messageId: string | null; error: string; kind: MailErrorKind };
 
 /**
  * Sends the SMTP_TEST template synchronously with the saved SMTP settings and reports the
@@ -103,6 +104,6 @@ export async function sendTestEmail(
       err instanceof EmailDeliveryError || err instanceof DomainError || err instanceof Error
         ? err.message
         : String(err);
-    return { ok: false, messageId, error };
+    return { ok: false, messageId, error, kind: classifyMailError(err) };
   }
 }

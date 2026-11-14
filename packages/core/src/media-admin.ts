@@ -1,5 +1,13 @@
+import { SHOP_TAGS, invalidateShopCache } from './cache/shop-cache';
 import { coreLog } from './log';
-import { mediaAssets, adminUsers, withTransaction, type Executor, type Transaction } from '@tix/db';
+import {
+  mediaAssets,
+  mediaAssetVariants,
+  adminUsers,
+  withTransaction,
+  type Executor,
+  type Transaction,
+} from '@tix/db';
 import type { MediaAssetKind } from '@tix/shared';
 import { and, asc, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from './context';
@@ -55,6 +63,7 @@ async function referencingColumns(db: Executor): Promise<{ table: string; column
     WHERE con.contype = 'f'
       AND con.confrelid = 'media_assets'::regclass
       AND ns.nspname = current_schema()
+      AND cl.relname <> 'media_asset_variants'
   `);
   return result.rows;
 }
@@ -99,7 +108,7 @@ const HANDLED_COLUMNS = new Set([
 ]);
 
 function settingsHref(key: string): string {
-  if (key === 'branding') return '/admin/settings/appearance';
+  if (key === 'branding' || key === 'startPage') return '/admin/settings/appearance';
   if (key.startsWith('wallet.')) return '/admin/settings/wallet';
   return '/admin/settings';
 }
@@ -283,6 +292,8 @@ export type MediaListItem = MediaAssetRow & { uploadedByName: string | null };
 
 export interface MediaListQuery {
   kind?: MediaAssetKind;
+  /** Restrict to these kinds (e.g. the kinds a picker context allows). */
+  kinds?: readonly MediaAssetKind[];
   usage?: 'used' | 'unused';
   search?: string;
   sort?: 'date' | 'size';
@@ -294,11 +305,16 @@ export interface MediaListQuery {
 export interface MediaSummary {
   count: number;
   bytes: number;
+  /** Size of the generated AVIF / WebP variants (not included in `bytes`). */
+  variantBytes: number;
   unusedCount: number;
   unusedBytes: number;
 }
 
-async function filters(db: Executor, q: Pick<MediaListQuery, 'kind' | 'usage' | 'search'>) {
+async function filters(
+  db: Executor,
+  q: Pick<MediaListQuery, 'kind' | 'kinds' | 'usage' | 'search'>,
+) {
   const conds: SQL[] = [
     sql`${mediaAssets.kind} NOT IN (${sql.join(
       PROTECTED_KINDS.map((k) => sql`${k}`),
@@ -306,6 +322,9 @@ async function filters(db: Executor, q: Pick<MediaListQuery, 'kind' | 'usage' | 
     )})`,
   ];
   if (q.kind) conds.push(eq(mediaAssets.kind, q.kind));
+  if (q.kinds) {
+    conds.push(q.kinds.length > 0 ? inArray(mediaAssets.kind, [...q.kinds]) : sql`false`);
+  }
   const term = q.search?.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
   if (term) conds.push(ilike(mediaAssets.fileName, `%${term}%`));
   if (q.usage) {
@@ -354,11 +373,14 @@ export async function mediaSummary(ctx: CoreContext): Promise<MediaSummary> {
   const res = await ctx.db.execute<{
     count: number;
     bytes: string | null;
+    variant_bytes: string | null;
     unused_count: number;
     unused_bytes: string | null;
   }>(sql`
     SELECT count(*)::int AS count,
            coalesce(sum(size_bytes), 0)::text AS bytes,
+           (SELECT coalesce(sum(v.size_bytes), 0)::text FROM media_asset_variants v
+              JOIN media_assets a ON a.id = v.asset_id WHERE a.kind <> 'DOCUMENT') AS variant_bytes,
            (count(*) FILTER (WHERE id::text NOT IN (${used})))::int AS unused_count,
            coalesce(sum(size_bytes) FILTER (WHERE id::text NOT IN (${used})), 0)::text AS unused_bytes
     FROM media_assets WHERE kind <> 'DOCUMENT'
@@ -367,6 +389,7 @@ export async function mediaSummary(ctx: CoreContext): Promise<MediaSummary> {
   return {
     count: r?.count ?? 0,
     bytes: Number(r?.bytes ?? 0),
+    variantBytes: Number(r?.variant_bytes ?? 0),
     unusedCount: r?.unused_count ?? 0,
     unusedBytes: Number(r?.unused_bytes ?? 0),
   };
@@ -402,7 +425,7 @@ export async function renameMediaAsset(
 ): Promise<MediaAssetRow> {
   const trimmed = name.trim();
   if (!trimmed) throw new DomainError('MEDIA_NAME_REQUIRED', 'A name is required', 422);
-  return withTransaction(ctx.db, async (tx) => {
+  const renamed = await withTransaction(ctx.db, async (tx) => {
     const [current] = await tx.select().from(mediaAssets).where(eq(mediaAssets.id, id));
     if (!current || PROTECTED_KINDS.includes(current.kind)) {
       throw new DomainError('MEDIA_NOT_FOUND', 'Media asset not found', 404);
@@ -416,10 +439,13 @@ export async function renameMediaAsset(
     await audit?.(tx, row!);
     return row!;
   });
+  await invalidateShopCache(ctx, [SHOP_TAGS.media]);
+  return renamed;
 }
 
 export type MediaDeleteResult =
-  { deleted: true; asset: MediaAssetRow } | { deleted: false; usages: MediaUsage[] };
+  | { deleted: true; asset: MediaAssetRow; variantKeys: string[] }
+  | { deleted: false; usages: MediaUsage[] };
 
 /**
  * Deletes an unused asset. The row is locked `FOR UPDATE` first: a concurrent transaction that
@@ -450,12 +476,28 @@ export async function tryDeleteMediaAsset(
       const usages = (await usagesBatch(tx, [id])).get(id) ?? [];
       return { deleted: false, usages };
     }
+    const variants = await tx
+      .select({ storageKey: mediaAssetVariants.storageKey })
+      .from(mediaAssetVariants)
+      .where(eq(mediaAssetVariants.assetId, id));
+    // The variant rows go with the asset (ON DELETE CASCADE).
     await tx.delete(mediaAssets).where(eq(mediaAssets.id, id));
     await audit?.(tx, asset);
-    return { deleted: true, asset };
+    return { deleted: true, asset, variantKeys: variants.map((v) => v.storageKey) };
   });
   if (result.deleted) {
-    const { asset } = result;
+    await invalidateShopCache(ctx, [SHOP_TAGS.media, SHOP_TAGS.events]);
+    const { asset, variantKeys } = result;
+    for (const key of variantKeys) {
+      await storage
+        .delete('assets', key)
+        .catch((err: unknown) =>
+          coreLog.error(
+            { err, key },
+            'Media variant could not be removed (left for the orphan sweep)',
+          ),
+        );
+    }
     try {
       // Object keys are unique per row, but stay defensive: never remove an object another row owns.
       const shared = await ctx.db
@@ -542,6 +584,11 @@ export async function sweepOrphanMediaObjects(
         ),
       );
     for (const r of found) known.add(r.key);
+    const variants = await ctx.db
+      .select({ key: mediaAssetVariants.storageKey })
+      .from(mediaAssetVariants)
+      .where(inArray(mediaAssetVariants.storageKey, keys.slice(i, i + 1000)));
+    for (const r of variants) known.add(r.key);
   }
   let deleted = 0;
   for (const o of objects) {

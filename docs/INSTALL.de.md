@@ -2,43 +2,139 @@
 
 [English](INSTALL.md) | Deutsch
 
-Diese Anleitung führt dich von einem leeren Linux-Server bis zum laufenden Ticketshop. Du musst
-dich per SSH anmelden und Befehle kopieren und einfügen können. Du musst **kein** Docker-Experte
-sein.
-
-Zeitbedarf: etwa 30 Minuten, plus Wartezeit auf DNS, wenn du die Domain gerade erst bestellt hast.
+Diese Anleitung hat zwei Teile. **Teil 1** bringt einen Ticketshop in etwa 15 Minuten zum Laufen:
+Du kopierst ein paar Befehle und musst **kein** Docker-Experte sein. **Teil 2** ist der Anhang für
+Sonderfälle (anderer Reverse-Proxy, Cloudflare), die vollständige Variablenübersicht, Monitoring
+und Fehlersuche.
 
 > TIX ist derzeit eine Vorabversion (Version siehe unten). Wo diese Anleitung „das neueste Release"
 > sagt, nimm die Version von der [Release-Seite](https://github.com/Renthner/tix-platform/releases).
 
-## Inhalt
+## Teil 1: Schnellstart
 
-1. [Was du brauchst](#was-du-brauchst)
-2. [Schritt 1: Docker installieren](#schritt-1-docker-installieren)
-3. [Schritt 2: Die zwei Dateien herunterladen](#schritt-2-die-zwei-dateien-herunterladen)
-4. [Schritt 3: Die `.env`-Datei ausfüllen](#schritt-3-die-env-datei-ausfüllen)
-5. [Schritt 4: HTTPS-Variante wählen](#schritt-4-https-variante-wählen)
-6. [Schritt 5: Starten und ersten Admin anlegen](#schritt-5-starten-und-ersten-admin-anlegen)
-7. [Schritt 6: Erste Einrichtung im Admin-Bereich](#schritt-6-erste-einrichtung-im-admin-bereich)
-8. [Check-in-Handys](#check-in-handys)
-9. [Updates, Backups, Deinstallation](#updates-backups-deinstallation)
-10. [Fehlersuche](#fehlersuche)
+### Was du brauchst
 
-## Was du brauchst
+| Was              | Details                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Ein Linux-Server | Debian oder Ubuntu, `linux/amd64` oder `linux/arm64`, root oder `sudo`. 2 vCPU, 4 GB RAM und 20 GB Platte reichen für einen Verein.   |
+| Docker           | Docker Engine **und** Docker Compose **ab 2.23.1** (`docker compose version`). Fehlt es: [Docker installieren](#docker-installieren). |
+| Ein Domainname   | Zum Beispiel `tickets.example.org`, mit einem **A**-Eintrag (und **AAAA** für IPv6) auf den Server, **bevor** du startest.            |
+| Offene Ports     | **80** und **443** aus dem Internet erreichbar (auch in der Firewall deines Hosters).                                                 |
+| Ein SMTP-Konto   | Für Bestell-E-Mails und Tickets (Host, Port, Benutzer, Passwort). Du trägst es später im Admin-Bereich ein.                           |
 
-| Was                | Details                                                                                                                                                         |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ein Linux-Server   | Debian oder Ubuntu (andere Distributionen gehen, die Docker-Befehle unterscheiden sich). `linux/amd64` oder `linux/arm64`. Root oder `sudo`.                    |
-| Größe (Empfehlung) | 2 vCPU, 4 GB RAM, 20 GB Platte reichen für einen Vereinsshop. Plane mehr Platte für viele Bilder, PDFs und Backups ein, mehr RAM und CPU für große Vorverkäufe. |
-| Ein Domainname     | Zum Beispiel `tickets.example.org`, mit einem **A**-Eintrag (und **AAAA** für IPv6) auf die öffentliche IP-Adresse des Servers.                                 |
-| Offene Ports       | **80** und **443** aus dem Internet erreichbar (auch in der Firewall deines Hosters).                                                                           |
-| Ein SMTP-Konto     | Zum Versand der E-Mails (Bestellbestätigung, Tickets). Host, Port, Benutzername und Passwort von deinem Mail-Anbieter.                                          |
-| Docker             | Docker Engine **und** Docker Compose **ab 2.23.1**. Schritt 1 installiert beides.                                                                               |
+Alles Fachliche (Preise, Gebühren, Bank, SMTP, PayPal, Gestaltung) trägst du im Admin-Bereich ein.
+Die `.env`-Datei enthält nur die wenigen technischen Einstellungen.
 
-Alles Fachliche (Preise, Gebühren, Bank, SMTP, PayPal, Gestaltung) trägst du später im
-Admin-Bereich ein. Die `.env`-Datei enthält nur die technischen Einstellungen.
+### 1. Die zwei Dateien herunterladen
 
-## Schritt 1: Docker installieren
+```bash
+export TIX_VERSION=1.0.0-alpha.18
+mkdir tix && cd tix
+curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
+curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
+mv env.example .env
+```
+
+Arbeite für alle `docker compose`-Befehle immer in diesem Ordner (`cd tix`). Sobald es ein
+stabiles `1.0.0` gibt, kannst du stattdessen
+`https://github.com/Renthner/tix-platform/releases/latest/download/<Datei>` verwenden; bis dahin
+gibt es diese Adresse nicht (Fehler 404).
+
+### 2. Die `.env`-Datei ausfüllen
+
+Ersetze in der ersten Zeile die Domain und füge den ganzen Block ein (er braucht `openssl`, das bei
+Debian und Ubuntu dabei ist; [ohne openssl](#die-env-datei-im-detail)). Er trägt deine Adresse ein
+und erzeugt die vier Geheimnisse:
+
+```bash
+DOMAIN=tickets.example.org   # <- deine Domain
+gen() { openssl rand -hex 24; }
+sed -i \
+  -e "s|^PUBLIC_URL=.*|PUBLIC_URL=https://$DOMAIN|" \
+  -e "s|^SITE_ADDRESS=.*|SITE_ADDRESS=$DOMAIN|" \
+  -e "s|^HTTP_PORT=.*|HTTP_PORT=80|" \
+  -e "s|^HTTPS_PORT=.*|HTTPS_PORT=443|" \
+  -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" \
+  -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(gen)|" \
+  -e "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" \
+  -e "s|^APP_ENCRYPTION_KEYS=.*|APP_ENCRYPTION_KEYS=k1:$(openssl rand -base64 32)|" \
+  .env
+grep -E '^(PUBLIC_URL|SITE_ADDRESS|POSTGRES_PASSWORD|REDIS_PASSWORD|SESSION_SECRET|APP_ENCRYPTION_KEYS)=' .env
+```
+
+Kein Wert darf noch `change-me` oder `REPLACE_WITH` enthalten. Mehr ist nicht nötig: Die Passwörter
+des mitgelieferten Dateispeichers (MinIO) werden beim ersten Start erzeugt und in einem
+Docker-Volume abgelegt; du trägst sie nirgends ein.
+
+**Sichere jetzt die Zeile `APP_ENCRYPTION_KEYS`:** Kopiere sie in deinen Passwortmanager, außerhalb
+des Servers. Sie verschlüsselt gespeicherte Geheimnisse (Bank-PINs, API-Schlüssel,
+Ticket-Signaturschlüssel) und deine Backups; ohne sie lässt sich beides nicht wiederherstellen.
+Ändere oder lösche nie einen Schlüssel, der in Benutzung ist.
+
+### 3. Starten
+
+```bash
+docker compose up -d
+```
+
+Beim ersten Start werden die Images geladen (einige hundert MB); das dauert ein bis drei Minuten,
+und `docker compose up -d` kann dabei nichts anzeigen. Prüfe mit `docker compose ps`: Alle Dienste
+sollten `running` oder `healthy` sein; `storage-credentials`, `minio-init` und `migrate` zeigen
+`exited (0)`, weil es Einmal-Jobs sind. Bekommt Caddy kein HTTPS-Zertifikat, ist meist das DNS
+falsch: siehe [Fehlersuche](#fehlersuche).
+
+Lege den ersten Administrator an (deine eigene E-Mail-Adresse und dein Name):
+
+```bash
+docker compose run --rm migrate node dist/create-admin.mjs --email du@example.org --name "Dein Name"
+```
+
+Der Befehl zeigt **einmalig ein Passwort** an. Kopiere es.
+
+### 4. Den Admin-Bereich öffnen
+
+Öffne `https://tickets.example.org/admin`, melde dich an und ändere das Passwort. Schalte die
+Zwei-Faktor-Authentifizierung ein (klicke unten links im Admin-Menü auf deinen Namen; unter
+**Einstellungen → Sicherheit** kannst du sie für alle verpflichtend machen). Das Dashboard zeigt
+danach eine **Einrichtungs-Checkliste**, die dich durch die ersten Schritte führt: Veranstalterdaten,
+SMTP (mit Test-E-Mail), Zahlarten, Steuern und Gebühren, Spielstätte und Veranstaltung,
+Scanner-URL und Backups. Dieselbe Liste mit Erklärungen steht unter
+[Erste Einrichtung im Admin-Bereich](#erste-einrichtung-im-admin-bereich).
+
+### Updates und Backups
+
+```bash
+cd tix
+# Admin -> Sicherungen: erst ein Backup machen, dann die neue docker-compose.yml des Releases laden
+# (nur wenn im CHANGELOG steht, dass sich die Compose-Datei geändert hat), dann:
+docker compose pull
+docker compose up -d
+```
+
+Datenbank-Migrationen laufen automatisch. Einzelheiten, Versionswahl und Zurückrollen:
+[Updates, Backups, Deinstallation](#updates-backups-deinstallation). Backups (Datenbank und Dateien,
+zeitgesteuert, optional auf ein externes S3-Ziel) findest du im Admin unter **Sicherungen**:
+[BACKUP.md](BACKUP.md) (Englisch). **Bewahre `APP_ENCRYPTION_KEYS` und ein externes Backup-Ziel
+außerhalb des Servers auf.**
+
+Du willst statt des mitgelieferten HTTPS hinter Traefik, nginx, Nginx Proxy Manager, einem Tunnel
+oder Cloudflare laufen? Siehe [HTTPS-Varianten](#https-varianten) in Teil 2.
+
+---
+
+## Teil 2: Fortgeschritten (Anhang)
+
+1. [Docker installieren](#docker-installieren)
+2. [Die `.env`-Datei im Detail](#die-env-datei-im-detail)
+3. [HTTPS-Varianten](#https-varianten): eigener Reverse-Proxy (Traefik, nginx, Nginx Proxy Manager, Tunnel), Cloudflare
+4. [Erste Einrichtung im Admin-Bereich](#erste-einrichtung-im-admin-bereich)
+5. [Check-in-Handys](#check-in-handys)
+6. [Updates, Backups, Deinstallation](#updates-backups-deinstallation)
+7. [Monitoring](#monitoring)
+8. [Alle Variablen](#alle-variablen)
+9. [Fehlersuche](#fehlersuche)
+
+## Docker installieren
 
 Pakete aus der Distribution (`apt install docker.io`, `docker-compose`) sind oft zu alt. Installiere
 Docker stattdessen aus dem offiziellen Docker-Repository. Melde dich per SSH am Server an und führe
@@ -87,65 +183,16 @@ Optional: Damit du nicht bei jedem Docker-Befehl `sudo` brauchst, nimm dich in d
 auf und melde dich neu an: `sudo usermod -aG docker $USER`. Diese Anleitung geht davon aus, dass du
 `docker` ohne `sudo` starten kannst; sonst setze `sudo` davor.
 
-## Schritt 2: Die zwei Dateien herunterladen
+## Die `.env`-Datei im Detail
 
-TIX braucht genau zwei Dateien von der Release-Seite: `docker-compose.yml` und `env.example`.
-
-```bash
-export TIX_VERSION=1.0.0-alpha.3
-mkdir tix && cd tix
-curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
-curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
-mv env.example .env
-ls -la
-```
-
-Im Ordner `tix` müssen jetzt `docker-compose.yml` und `.env` liegen. Arbeite für alle
-`docker compose`-Befehle immer in diesem Ordner (`cd tix`).
-
-`curl -f` bricht mit einem Fehler ab, statt eine Fehlerseite zu speichern; eine falsche
-Versionsnummer fällt also sofort auf. Sobald es ein stabiles `1.0.0` gibt, kannst du stattdessen
-`https://github.com/Renthner/tix-platform/releases/latest/download/<Datei>` verwenden. Bis dahin
-gibt es diese Adresse nicht (Fehler 404).
-
-**Optional: Download prüfen.** Auf der Release-Seite liegt auch `SHA256SUMS.txt`:
-
-```bash
-curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/SHA256SUMS.txt
-sha256sum -c SHA256SUMS.txt --ignore-missing
-```
-
-Mach das _vor_ `mv env.example .env`, sonst passt der Dateiname nicht. Stärkere Prüfungen
-(Signaturen, Attestierungen) stehen in [RELEASES.md](RELEASES.md#verifying-releases) (Englisch).
-
-## Schritt 3: Die `.env`-Datei ausfüllen
-
-Die `.env`-Datei enthält die Passwörter und die Web-Adresse. Regeln:
+Der Schnellstart füllt die `.env`-Datei mit einem Befehl aus. Dieser Abschnitt erklärt die Regeln
+und die Alternativen. Maßgeblich ist die heruntergeladene Datei: Ihre Kommentare erklären jeden
+Eintrag, und alle Variablen stehen unter [Alle Variablen](#alle-variablen). Regeln:
 
 - Pro Zeile ein `SCHLÜSSEL=Wert`. **Keine Anführungszeichen**, keine Leerzeichen um das `=`.
 - Passwörter werden in Verbindungs-URLs eingebaut. Nimm **nur Buchstaben und Ziffern** (Hex-Text
   ist ideal). Zeichen wie `@ : / # ? %` zerstören die Verbindung und führen zu verwirrenden Fehlern.
 - Nimm für jeden Eintrag ein **anderes** Passwort.
-
-### Schnell: alle Geheimnisse mit einem Befehl erzeugen
-
-Kopiere diesen ganzen Block und füge ihn ein (funktioniert, wenn `openssl` installiert ist – bei
-Debian und Ubuntu der Fall):
-
-```bash
-gen() { openssl rand -hex 24; }
-sed -i \
-  -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" \
-  -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(gen)|" \
-  -e "s|^MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=$(gen)|" \
-  -e "s|^S3_SECRET_ACCESS_KEY=.*|S3_SECRET_ACCESS_KEY=$(gen)|" \
-  -e "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" \
-  -e "s|^APP_ENCRYPTION_KEYS=.*|APP_ENCRYPTION_KEYS=k1:$(openssl rand -base64 32)|" \
-  .env
-```
-
-Prüfe das Ergebnis mit `grep -E 'PASSWORD|SECRET|ENCRYPTION' .env`. Kein Wert darf noch
-`change-me` oder `REPLACE_WITH` enthalten.
 
 ### Ohne `openssl`
 
@@ -153,7 +200,7 @@ Führe jeden Befehl einmal pro Geheimnis aus und trage die Ausgabe mit einem Edi
 in die `.env` ein:
 
 ```bash
-# ein Passwort (hex): einmal pro Passwort-Eintrag ausführen
+# ein Passwort (hex): einmal für POSTGRES_PASSWORD und einmal für REDIS_PASSWORD ausführen
 docker run --rm alpine sh -c "head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'; echo"
 # SESSION_SECRET (mindestens 32 Zeichen)
 docker run --rm alpine sh -c "head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'; echo"
@@ -169,44 +216,50 @@ Passwortmanager, außerhalb des Servers.** Fällt der Server aus und du hast den
 lassen sich Backups und gespeicherte Geheimnisse nicht wiederherstellen. Ändere oder lösche nie
 einen Schlüssel, der in Benutzung ist.
 
-### Alle Variablen
+### Zugangsdaten des Dateispeichers (MinIO): nichts einzutragen
 
-„Pflicht" heißt: Du musst sie vor dem ersten Start setzen (oder den Wert aus der Datei behalten).
+Der mitgelieferte Dateispeicher (MinIO) braucht keine Einträge in der `.env`. Beim ersten Start
+erzeugt der Einmal-Dienst `storage-credentials` den Administrator-Namen und das Passwort von MinIO
+sowie Zugriffsschlüssel und Geheimnis, die die Anwendung nutzt, und legt sie als vier Dateien im
+Docker-Volume `storage-credentials` ab (`tix_storage-credentials` beim Standard-Projektnamen).
+Vorhandene Dateien werden nie neu erzeugt; Neustarts und Updates behalten sie. Das
+Administrator-Paar können nur die MinIO-eigenen Container lesen; die Anwendungs-Container
+bekommen nur ihr Zugriffsschlüssel-Paar, schreibgeschützt.
 
-| Variable                                                                        | Pflicht                   | Bedeutung                                                                                                                                                         | Beispiel                      |
-| ------------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `TIX_CHANNEL`                                                                   | vorbelegt                 | Welche Image-Version läuft: `next`, `stable`, `1`, `1.0` oder eine genaue Version. Siehe [Updates](#updates-backups-deinstallation).                              | `next`                        |
-| `TIX_IMAGE_OWNER`                                                               | vorbelegt                 | GitHub-Besitzer der Images (`ghcr.io/<owner>/tix-web`). Nicht ändern.                                                                                             | `renthner`                    |
-| `COMPOSE_PROJECT_NAME`                                                          | optional                  | Namenspräfix der Container und Volumes. Nach dem ersten Start nicht ändern (du bekämst leere neue Volumes).                                                       | `tix`                         |
-| `LOG_LEVEL`                                                                     | optional                  | Log-Detailgrad: `info`, `debug`, `warn`, `error`.                                                                                                                 | `info`                        |
-| `PUBLIC_URL`                                                                    | **ja**                    | Die Adresse, die Besucher eintippen, mit `https://` und ohne Schrägstrich am Ende.                                                                                | `https://tickets.example.org` |
-| `SITE_ADDRESS`                                                                  | **ja**                    | Nur der Domainname: Caddy holt dann selbst Zertifikate. `:80` bedeutet reines HTTP (hinter einem anderen Proxy oder für Tests).                                   | `tickets.example.org`         |
-| `HTTP_PORT`                                                                     | **ja**                    | Host-Port für HTTP. `80`, wenn Caddy der öffentliche Eingang ist.                                                                                                 | `80`                          |
-| `HTTPS_PORT`                                                                    | **ja**                    | Host-Port für HTTPS. `443`, wenn Caddy der öffentliche Eingang ist.                                                                                               | `443`                         |
-| `TRUSTED_PROXIES`                                                               | optional                  | Nur wenn ein weiterer Reverse-Proxy davorsteht: dessen Adresse(n) oder `private_ranges`. Leer lassen, wenn Caddy der öffentliche Eingang ist.                     | `private_ranges`              |
-| `POSTGRES_USER`                                                                 | vorbelegt                 | Datenbank-Benutzer.                                                                                                                                               | `tix`                         |
-| `POSTGRES_PASSWORD`                                                             | **ja**                    | Datenbank-Passwort (nur Buchstaben und Ziffern).                                                                                                                  | `3f9a…` (48 Hex-Zeichen)      |
-| `POSTGRES_DB`                                                                   | vorbelegt                 | Datenbankname.                                                                                                                                                    | `tix`                         |
-| `POSTGRES_MAX_CONNECTIONS`, `WEB_DATABASE_POOL_MAX`, `WORKER_DATABASE_POOL_MAX` | optional (auskommentiert) | Verbindungs-Tuning für große Vorverkäufe. Die Standardwerte passen für Vereine.                                                                                   | `200`, `40`, `10`             |
-| `REDIS_PASSWORD`                                                                | **ja**                    | Redis-Passwort (nur Buchstaben und Ziffern).                                                                                                                      | `b71c…`                       |
-| `REDIS_MAXMEMORY`                                                               | vorbelegt                 | Speicherlimit von Redis. Sitzsperren werden nie verdrängt.                                                                                                        | `1gb`                         |
-| `REDIS_KEY_PREFIX`                                                              | vorbelegt                 | Präfix aller Redis-Schlüssel.                                                                                                                                     | `tix`                         |
-| `MINIO_ROOT_USER`                                                               | vorbelegt                 | Admin-Benutzer des mitgelieferten Dateispeichers (MinIO).                                                                                                         | `minio-admin`                 |
-| `MINIO_ROOT_PASSWORD`                                                           | **ja**                    | Dessen Passwort (nur Buchstaben und Ziffern).                                                                                                                     | `9d2e…`                       |
-| `S3_REGION`                                                                     | vorbelegt                 | Name der Speicher-Region; beim mitgelieferten MinIO nicht ändern.                                                                                                 | `us-east-1`                   |
-| `S3_ACCESS_KEY_ID`                                                              | vorbelegt                 | Zugriffsschlüssel, den die Anwendung für den Speicher nutzt.                                                                                                      | `tix-app`                     |
-| `S3_SECRET_ACCESS_KEY`                                                          | **ja**                    | Dessen Geheimnis (nur Buchstaben und Ziffern).                                                                                                                    | `a05f…`                       |
-| `S3_BUCKET_ASSETS`, `S3_BUCKET_DOCUMENTS`, `S3_BUCKET_BACKUPS`                  | vorbelegt                 | Namen der drei Buckets (Bilder, Dokumente/PDFs, Backups).                                                                                                         | `tix-assets` …                |
-| `APP_ENCRYPTION_KEYS`                                                           | **ja**                    | Schlüsselring: `id:base64key`, 32 Zufallsbytes in Base64 (44 Zeichen, endet auf `=`). Mehrere Schlüssel mit Komma getrennt; der erste verschlüsselt. **Sichern!** | `k1:Zm9v…YmFy=`               |
-| `SESSION_SECRET`                                                                | **ja**                    | Zufallstext mit mindestens 32 Zeichen für signierte Cookies.                                                                                                      | `e4b8…` (64 Hex-Zeichen)      |
-| `WORKER_CONCURRENCY`                                                            | vorbelegt                 | Parallele Hintergrundjobs (Mail, PDFs).                                                                                                                           | `8`                           |
+- **Ansehen** (zum Beispiel für die Anmeldung an der MinIO-Konsole, die standardmäßig nicht
+  veröffentlicht ist):
+  `docker compose exec minio cat /run/tix-storage/minio-root-user` und
+  `docker compose exec minio cat /run/tix-storage/minio-root-password`.
+- **Installationen aus der Zeit, bevor die Zugangsdaten erzeugt wurden,** haben womöglich noch
+  `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `S3_ACCESS_KEY_ID` und `S3_SECRET_ACCESS_KEY` in der
+  `.env`. Lass sie für den nächsten Start dort stehen: Die Werte werden in das Volume kopiert,
+  und MinIO arbeitet mit seinen vorhandenen Daten weiter. Danach sind die Einträge in der `.env`
+  optional (das Volume hält die Werte). Ein `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` in der
+  `.env`, der sich vom gespeicherten Paar _unterscheidet_, wird **abgelehnt**: `storage-credentials`
+  bricht mit einer Erklärung ab, denn MinIO behält die Administrator-Zugangsdaten, mit denen es
+  zuerst gestartet wurde (Überschreiben würde den Stack aus seinem eigenen Speicher aussperren).
+  Entferne die beiden Einträge aus der `.env`; um das Paar bewusst zu wechseln, folge der
+  MinIO-Dokumentation zum Ändern der Root-Zugangsdaten und ersetze danach die Dateien
+  `minio-root-user` und `minio-root-password` im Volume. Löschst du sie _vor_ dem ersten Start mit der neuen Version, bricht
+  `storage-credentials` mit einer Erklärung ab, statt für vorhandene Daten ein neues
+  Administrator-Passwort zu erfinden; trage dann die alten `MINIO_ROOT_USER` und
+  `MINIO_ROOT_PASSWORD` einmal wieder ein.
+- **Das Zugriffsschlüssel-Paar der Anwendung ändern** (`S3_ACCESS_KEY_ID` /
+  `S3_SECRET_ACCESS_KEY` in der `.env`) ist erlaubt. Ändere die `.env`, führe `docker compose up -d` aus (das startet
+  `storage-credentials` und `minio-init` erneut, das Geheimnis des Benutzers wird auf den neuen Wert
+  gesetzt) und danach `docker compose up -d --force-recreate web worker`: Die laufenden Container
+  lesen die Dateien nur beim Start und würden sonst das alte Geheimnis weiter benutzen.
+- **MinIO läuft als root:** Die mitgelieferten Images von MinIO und `mc` müssen als root laufen,
+  weil das Administrator-Paar nur für root lesbar ist. Ein eigenes `MINIO_IMAGE` / `MC_IMAGE`,
+  das auf einen anderen Benutzer wechselt, wird nicht unterstützt.
+- **Umzug auf einen anderen Server oder Backup einspielen:** Das Volume gehört _nicht_ zu den
+  TIX-Backups und wird _nicht_ gebraucht. Backups sind mit `APP_ENCRYPTION_KEYS` verschlüsselt und
+  enthalten Daten und Dateien selbst, nicht die Speicher-Passwörter; eine neue Installation erzeugt
+  neue, und die Wiederherstellung nutzt diese.
 
-Maßgeblich ist die heruntergeladene `.env`: Ihre Kommentare erklären noch mehr. Absichtlich nicht
-aufgeführt sind Extras für Spezialfälle (`MINIO_IMAGE`, `MC_IMAGE`).
+## HTTPS-Varianten
 
-## Schritt 4: HTTPS-Variante wählen
-
-Besucher müssen HTTPS benutzen. Wähle **eine** Variante.
+Besucher müssen HTTPS benutzen. Der Schnellstart nutzte Variante A. Wähle eine andere nur, wenn du sie nicht verwenden kannst.
 
 | Variante | Nimm sie, wenn …                                                                                 |
 | -------- | ------------------------------------------------------------------------------------------------ |
@@ -225,7 +278,7 @@ selbständig.
    IP-Adresse des Servers.
 2. Stelle sicher, dass die Ports 80 und 443 von keinem anderen Programm belegt und in jeder
    Firewall offen sind.
-3. Trage in der `.env` ein (Domain ersetzen):
+3. Trage in der `.env` ein (der Schnellstart hat das schon getan; Domain ersetzen):
 
 ```bash
 sed -i \
@@ -371,7 +424,12 @@ Jeder Proxy funktioniert, wenn er Folgendes tut:
 1. `.env`: `PUBLIC_URL=https://tickets.example.org`, `SITE_ADDRESS=:80`, `HTTP_PORT=8080`
    (oder `127.0.0.1:8080`, wenn der Proxy auf demselben Server läuft), `TRUSTED_PROXIES=` die
    Adresse des Proxys (zum Beispiel `192.168.1.10`, ein Netz wie `192.168.1.0/24` oder
-   `private_ranges`).
+   `private_ranges`). Die IP-basierten Limits (Einstellungen → Kasse: Bestellungen bzw.
+   Platzauswahlen pro IP-Adresse) hängen davon ab: Ohne diese Angabe erscheinen alle Besucher mit
+   der Adresse des Proxys und teilen sich ein Limit. Das Bestell-Limit pro IP-Adresse ist
+   standardmäßig aus, das Limit für Platzauswahlen (600 pro Minute) standardmäßig an. Aktiviere
+   das Bestell-Limit nur, wenn Einstellungen → Kasse unter „Erkannte IP deiner aktuellen Anfrage“
+   deine echte Adresse zeigt.
 2. `https://tickets.example.org` weiterleiten an `http://<Server-IP>:8080`, Schema **http**.
 3. **WebSockets müssen aktiviert sein.** Im Nginx Proxy Manager setze am Proxy-Host den Haken bei
    **Websockets Support**. Ohne ihn aktualisiert sich der Sitzplan nicht live.
@@ -383,45 +441,101 @@ Jeder Proxy funktioniert, wenn er Folgendes tut:
 Läuft der Proxy in Docker auf demselben Server, kannst du auch wie in Variante B ein gemeinsames
 Docker-Netzwerk nutzen und an `proxy:80` weiterleiten.
 
-## Schritt 5: Starten und ersten Admin anlegen
+### Hinter Cloudflare
 
-```bash
-docker compose up -d
+Cloudflare (orange Wolke) kann vor jeder der obigen Varianten stehen. Die Anfrage läuft dann über
+mehrere Stationen:
+
+```text
+Besucher -> Cloudflare -> (Port-Weiterleitung im Router) -> Traefik / nginx / anderer Proxy -> mitgelieferter Caddy -> TIX
 ```
 
-Beim ersten Start werden die Images geladen (einige hundert MB); das dauert ein bis drei Minuten.
-`docker compose up -d` kann dabei mehrere Minuten lang nichts anzeigen: Warte ab oder führe vorher
-`docker compose pull` aus, um den Download-Fortschritt zu sehen. Fortschritt prüfen:
+Jede Station muss der davor vertrauen, sonst sieht die App die Adresse eines Proxys statt die des
+Besuchers (alle IP-Limits treffen dann alle auf einmal, das Audit-Log zeigt eine einzige IP).
+Cloudflare schickt die Adresse des Besuchers in `X-Forwarded-For`; sie wird nur geglaubt, wenn die
+Verbindung von einer vertrauenswürdigen Adresse kommt. Zwei Schritte:
+
+**1. Der äußere Proxy muss Cloudflares Adressbereiche als vertrauenswürdig kennen.** Sonst ersetzt
+er den von Cloudflare gesendeten `X-Forwarded-For`-Header durch Cloudflares eigene Adresse.
+
+- **Traefik**, statische Konfiguration (`traefik.yml`), am Entrypoint, der den Verkehr annimmt:
+
+  ```yaml
+  entryPoints:
+    websecure:
+      address: ':443'
+      forwardedHeaders:
+        trustedIPs:
+          - 173.245.48.0/20
+          - 103.21.244.0/22
+          - 103.22.200.0/22
+          - 103.31.4.0/22
+          - 141.101.64.0/18
+          - 108.162.192.0/18
+          - 190.93.240.0/20
+          - 188.114.96.0/20
+          - 197.234.240.0/22
+          - 198.41.128.0/17
+          - 162.158.0.0/15
+          - 104.16.0.0/13
+          - 104.24.0.0/14
+          - 172.64.0.0/13
+          - 131.0.72.0/22
+          - 2400:cb00::/32
+          - 2606:4700::/32
+          - 2803:f800::/32
+          - 2405:b500::/32
+          - 2405:8100::/32
+          - 2a06:98c0::/29
+          - 2c0f:f248::/32
+  ```
+
+  Dasselbe als Kommandozeilen-Flag (Bereiche kommagetrennt):
+  `--entryPoints.websecure.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,...`
+  Starte Traefik danach neu.
+
+- **nginx**: eine Zeile `set_real_ip_from <Bereich>;` pro Bereich (im `http`- oder `server`-Block)
+  plus `real_ip_header X-Forwarded-For;` und `real_ip_recursive on;`. nginx ersetzt dann
+  `$remote_addr` durch die Adresse des Besuchers; zu TIX hin bleibt
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` bestehen.
+- **Nginx Proxy Manager**: dieselben Zeilen (`set_real_ip_from ...;`,
+  `real_ip_header X-Forwarded-For;`, `real_ip_recursive on;`) im Reiter **Advanced** des
+  Proxy-Hosts (eigene Nginx-Konfiguration) eintragen; NPM hat dafür kein Kästchen.
+
+**2. TIX muss dem äußeren Proxy und Cloudflare vertrauen.** Trage in der `.env` `private_ranges`
+(der äußere Proxy in deinem LAN oder Docker-Netz) **und** die Cloudflare-Bereiche ein, durch
+Leerzeichen getrennt in **einer** Zeile:
 
 ```bash
-docker compose ps
+TRUSTED_PROXIES=private_ranges 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
 ```
 
-Alle Dienste sollten `running` oder `healthy` sein. `minio-init` und `migrate` zeigen
-`exited (0)`: Das ist richtig, es sind Einmal-Jobs. Bleibt etwas `unhealthy`, siehe
-[Fehlersuche](#fehlersuche).
+Danach `docker compose up -d`. Cloudflares Bereiche ändern sich selten; die aktuelle Liste steht auf
+<https://www.cloudflare.com/ips/> (ab und zu prüfen und an beiden Stellen nachziehen).
 
-Lege den ersten Administrator an (nimm deine eigene E-Mail-Adresse und deinen Namen):
+**Prüfen:** Öffne im Admin Einstellungen → Kasse. „Erkannte IP deiner aktuellen Anfrage“ muss
+deine eigene öffentliche Adresse zeigen, nicht eine Cloudflare- oder private Adresse.
 
-```bash
-docker compose run --rm migrate node dist/create-admin.mjs --email du@example.org --name "Dein Name"
-```
+Tipps:
 
-Der Befehl zeigt **einmalig ein Passwort** an. Kopiere es. Öffne dann
-`https://tickets.example.org/admin`, melde dich an und ändere das Passwort.
+- Stelle im Cloudflare-Dashboard unter **SSL/TLS → Übersicht** den Modus **Vollständig (streng)**
+  ein („Full (strict)“; der Ursprungsserver muss ein gültiges Zertifikat liefern, z. B. von
+  Traefik oder dem mitgelieferten Caddy). „Flexibel“ führt zu Weiterleitungsschleifen.
+- Härtung: Wenn alles läuft, lass Firewall oder Router Port 443 nur noch von den
+  Cloudflare-Bereichen annehmen, damit niemand den Server direkt erreicht und den Header fälschen
+  kann.
 
-**Schalte jetzt die Zwei-Faktor-Authentifizierung ein:** Klicke im Admin unten links auf deinen Namen (dein Konto) und
-richte dort die Authenticator-App (TOTP) ein. Unter **Einstellungen → Sicherheit** kannst
-du sie für alle Admins verpflichtend machen.
+## Erste Einrichtung im Admin-Bereich
 
-Schneller Gesundheitscheck vom Server aus: `curl -fsS https://tickets.example.org/api/health`.
-
-## Schritt 6: Erste Einrichtung im Admin-Bereich
-
-Arbeite diese Liste im Admin-Bereich ab. Alles findest du in den Menüpunkten links.
+Das Dashboard zeigt dieselben Schritte als Einrichtungs-Checkliste. Arbeite diese Liste im Admin-Bereich ab. Alles findest du in den Menüpunkten links.
 
 1. **Einstellungen → Veranstalter:** Name, Adresse, Impressums- und Datenschutz-Links, Kontakt.
    Sie erscheinen im Shop und auf Rechnungen.
+   - _Test- oder Demo-Server?_ Öffne **Einstellungen → SEO** und schalte **Suchmaschinen dürfen den
+     Shop indexieren** gleich aus: Jede Seite bittet Google und andere dann, die Seite zu ignorieren,
+     `robots.txt` sperrt das Crawlen und es gibt keine Sitemap. Bereits gelistete Seiten verschwinden
+     erst nach Tagen (das Entfernen-Werkzeug der Google Search Console geht schneller). Im echten Shop
+     stellst du dort außerdem Seitentitel, Beschreibung, Vorschaubild und Verifizierungs-Tokens ein.
 2. **Einstellungen → E-Mail:** SMTP-Host, Port, Benutzer und Passwort eintragen. Klicke auf
    **Test-E-Mail senden**. Mach erst weiter, wenn sie ankommt.
 3. **Einstellungen → Zahlungen:** Aktiviere die gewünschten Zahlarten.
@@ -465,8 +579,8 @@ Stolpersteine:
 - Reines `http://` wird nur für private Adressen wie `http://192.168.1.20:8080` akzeptiert. Jede
   öffentliche Adresse braucht `https://`.
 - Einstellungen → Scanner → Server-URL muss die Adresse sein, die die **Handys** erreichen.
-- Die App aktualisiert sich über GitHub Releases (Kanal `stable` oder `next`). Im Admin kannst du auf
-  Updates von deinem eigenen Server umstellen.
+- Die App aktualisiert sich immer genau auf die Version, die dein Server gerade betreibt (über GitHub
+  Releases). Im Admin kannst du auf Updates von deinem eigenen Server umstellen.
 
 Mehr dazu: [SCANNER.md](SCANNER.md) und [apps/android/README.md](../apps/android/README.md)
 (Englisch).
@@ -503,6 +617,21 @@ unter `/api/health`.
 Zum Zurückrollen setzt du eine genaue frühere Version und führst die Update-Befehle aus. Das geht
 nur, wenn das Datenbankschema unverändert ist; sonst spiele das Backup von vor dem Update ein.
 
+**Zurückrollen über das Release hinweg, das die erzeugten Speicher-Zugangsdaten eingeführt hat,**
+braucht die `docker-compose.yml` des älteren Releases (die neue Datei liest die Zugangsdaten aus
+Dateien, die ältere aus der `.env`), und die Zugangsdaten müssen wieder in der `.env` stehen. Lies
+sie vor dem Zurückrollen aus dem laufenden Stack und trage sie in die `.env` ein:
+
+```bash
+docker compose exec web cat /run/tix-storage/s3-access-key-id; echo
+docker compose exec web cat /run/tix-storage/s3-secret-access-key; echo
+docker compose exec minio cat /run/tix-storage/minio-root-user; echo
+docker compose exec minio cat /run/tix-storage/minio-root-password; echo
+```
+
+Sie werden zu `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `MINIO_ROOT_USER` und
+`MINIO_ROOT_PASSWORD` in der `.env`.
+
 Nutze keine automatischen Updater (Watchtower u. ä.): Updates sollen bewusst passieren.
 
 ### Backups und Wiederherstellung
@@ -515,7 +644,8 @@ Die Wiederherstellung findest du am selben Ort (nur SUPER_ADMIN). Details: [BACK
 - das externe Backup-Ziel.
 
 Die Daten liegen in Docker-Volumes des Projekts `tix`: `tix_postgres-data`, `tix_redis-data`,
-`tix_minio-data`, `tix_caddy-data`. Mit `docker volume ls` siehst du sie.
+`tix_minio-data`, `tix_caddy-data` und `tix_storage-credentials` (die erzeugten Speicher-Passwörter, siehe
+[Zugangsdaten des Dateispeichers](#zugangsdaten-des-dateispeichers-minio-nichts-einzutragen); für die Wiederherstellung eines Backups nicht nötig). Mit `docker volume ls` siehst du sie.
 
 ### Deinstallation
 
@@ -524,6 +654,76 @@ cd tix
 docker compose down        # stoppt und entfernt die Container, BEHÄLT deine Daten
 docker compose down -v     # LÖSCHT zusätzlich alle Daten (Datenbank, Dateien, Zertifikate) - unwiderruflich
 ```
+
+## Monitoring
+
+Die Admin-Seite **System** (Super-Admins) zeigt den Live-Status: Version und Laufzeit der
+Anwendung, PostgreSQL-Verbindungen und -Größe, Redis-Speicher und -Durchsatz, die Job-Warteschlangen
+mit ihren fehlgeschlagenen Jobs, den Warteraum, in Warenkörben gehaltene Plätze, verbundene
+Echtzeit-Clients, Worker und offene Rückstände (E-Mails, Erstattungen, Bankumsätze). Sie
+aktualisiert sich alle paar Sekunden und zeigt einen Verlauf der letzten zehn Minuten.
+
+Für Prometheus (oder Grafana Agent, VictoriaMetrics, Zabbix, ...) stehen dieselben Zahlen als Text
+unter `/api/metrics` bereit. Den Endpunkt gibt es erst, wenn du unter **Einstellungen, Sicherheit,
+Monitoring** ein Token anlegst (es wird nur einmal angezeigt; ein neues Token ersetzt das alte,
+Entfernen schaltet den Endpunkt wieder ab). Falsche Tokens werden pro Client-Adresse begrenzt.
+
+```bash
+curl -H "Authorization: Bearer <Token>" https://tickets.example.org/api/metrics
+```
+
+Eine minimale Prometheus-Scrape-Konfiguration:
+
+```yaml
+scrape_configs:
+  - job_name: tix
+    scrape_interval: 30s
+    scheme: https
+    metrics_path: /api/metrics
+    authorization:
+      type: Bearer
+      credentials: <Token> # oder credentials_file: /etc/prometheus/tix.token
+    static_configs:
+      - targets: ['tickets.example.org']
+```
+
+Sinnvolle Alarme: `tix_queue_jobs{state="failed"} > 0`, `tix_workers == 0`,
+`tix_worker_leader_present == 0`, `tix_postgres_connections / tix_postgres_max_connections > 0.85`,
+`tix_redis_used_memory_bytes / tix_redis_max_memory_bytes > 0.9` (wenn `maxmemory` gesetzt ist)
+und `tix_collect_error > 0`. Das Echtzeit-Gateway meldet sich alle 10 Sekunden bei Redis
+(`tix_realtime_instances`); Images aus Versionen davor tun das nicht und erscheinen als „meldet
+nicht“.
+
+## Alle Variablen
+
+Nur der erste Block ist Pflicht. Alles andere hat einen Standardwert in `docker-compose.yml`; die
+Zeilen mit „optional“ sind in der heruntergeladenen `.env` auskommentiert (zum Verwenden das
+`#` entfernen).
+
+| Variable                                                                             | Pflicht   | Bedeutung                                                                                                                                                                                                                                                                                                                        | Beispiel                      |
+| ------------------------------------------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `PUBLIC_URL`                                                                         | **ja**    | Die Adresse, die Besucher eintippen, mit `https://` und ohne Schrägstrich am Ende.                                                                                                                                                                                                                                               | `https://tickets.example.org` |
+| `POSTGRES_PASSWORD`                                                                  | **ja**    | Datenbank-Passwort (nur Buchstaben und Ziffern).                                                                                                                                                                                                                                                                                 | `3f9a…` (48 Hex-Zeichen)      |
+| `REDIS_PASSWORD`                                                                     | **ja**    | Redis-Passwort (nur Buchstaben und Ziffern).                                                                                                                                                                                                                                                                                     | `b71c…`                       |
+| `APP_ENCRYPTION_KEYS`                                                                | **ja**    | Schlüsselring: `id:base64key`, 32 Zufallsbytes in Base64 (44 Zeichen, endet auf `=`). Mehrere Schlüssel mit Komma getrennt; der erste verschlüsselt. **Sichern!**                                                                                                                                                                | `k1:Zm9v…YmFy=`               |
+| `SESSION_SECRET`                                                                     | **ja**    | Zufallstext mit mindestens 32 Zeichen für signierte Cookies.                                                                                                                                                                                                                                                                     | `e4b8…` (64 Hex-Zeichen)      |
+| `SITE_ADDRESS`                                                                       | vorbelegt | Nur der Domainname: Caddy holt dann selbst Zertifikate (der Schnellstart setzt ihn). `:80` bedeutet reines HTTP (hinter einem anderen Proxy oder für Tests).                                                                                                                                                                     | `tickets.example.org`         |
+| `HTTP_PORT`                                                                          | vorbelegt | Host-Port für HTTP. `80`, wenn Caddy der öffentliche Eingang ist.                                                                                                                                                                                                                                                                | `80`                          |
+| `HTTPS_PORT`                                                                         | vorbelegt | Host-Port für HTTPS. `443`, wenn Caddy der öffentliche Eingang ist.                                                                                                                                                                                                                                                              | `443`                         |
+| `TIX_CHANNEL`                                                                        | vorbelegt | Welche Image-Version läuft: `next`, `stable`, `1`, `1.0` oder eine genaue Version. Siehe [Updates](#updates-backups-deinstallation).                                                                                                                                                                                             | `next`                        |
+| `TRUSTED_PROXIES`                                                                    | optional  | Nur wenn ein weiterer Reverse-Proxy davorsteht: dessen Adresse(n) oder `private_ranges`. Leer lassen, wenn Caddy der öffentliche Eingang ist.                                                                                                                                                                                    | `private_ranges`              |
+| `COMPOSE_PROJECT_NAME`                                                               | optional  | Namenspräfix der Container und Volumes. Nach dem ersten Start nicht ändern (du bekämst leere neue Volumes).                                                                                                                                                                                                                      | `tix`                         |
+| `LOG_LEVEL`                                                                          | optional  | Log-Detailgrad: `info`, `debug`, `warn`, `error`.                                                                                                                                                                                                                                                                                | `info`                        |
+| `POSTGRES_USER`, `POSTGRES_DB`                                                       | optional  | Datenbank-Benutzer und -Name.                                                                                                                                                                                                                                                                                                    | `tix`                         |
+| `POSTGRES_MAX_CONNECTIONS`, `WEB_DATABASE_POOL_MAX`, `WORKER_DATABASE_POOL_MAX`      | optional  | Verbindungs-Tuning für große Vorverkäufe. Die Standardwerte passen für Vereine.                                                                                                                                                                                                                                                  | `200`, `40`, `10`             |
+| `REDIS_MAXMEMORY`, `REDIS_KEY_PREFIX`                                                | optional  | Speicherlimit von Redis (Sitzsperren werden nie verdrängt) und Präfix aller Redis-Schlüssel.                                                                                                                                                                                                                                     | `1gb`, `tix`                  |
+| `WORKER_CONCURRENCY`                                                                 | optional  | Parallele Hintergrundjobs (Mail, PDFs).                                                                                                                                                                                                                                                                                          | `8`                           |
+| `S3_REGION`                                                                          | optional  | Name der Speicher-Region; beim mitgelieferten MinIO nicht ändern.                                                                                                                                                                                                                                                                | `us-east-1`                   |
+| `S3_BUCKET_ASSETS`, `S3_BUCKET_DOCUMENTS`, `S3_BUCKET_BACKUPS`                       | optional  | Namen der drei Buckets (Bilder, Dokumente/PDFs, Backups).                                                                                                                                                                                                                                                                        | `tix-assets` …                |
+| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | veraltet  | **Werden nicht mehr gebraucht:** Sie werden beim ersten Start erzeugt und im Volume `storage-credentials` gehalten. Nur für früher angelegte Installationen: die alten Werte behalten (werden einmal in das Volume kopiert). Siehe [Zugangsdaten des Dateispeichers](#zugangsdaten-des-dateispeichers-minio-nichts-einzutragen). |                               |
+| `TIX_IMAGE_OWNER`                                                                    | optional  | GitHub-Besitzer der Images (`ghcr.io/<owner>/tix-web`). In `docker-compose.yml` vorbelegt; nicht ändern.                                                                                                                                                                                                                         | `renthner`                    |
+
+Absichtlich nicht aufgeführt sind Extras für Spezialfälle (`MINIO_IMAGE`, `MC_IMAGE`).
 
 ## Fehlersuche
 
@@ -544,30 +744,32 @@ in der `.env` (`error`, `warn`, `info`, `debug`; Standard `info`) lässt sich di
 gesetzten `X-Request-Id` entspricht.
 
 Dienstnamen: `web`, `worker`, `realtime`, `proxy`, `postgres`, `redis`, `minio`, `minio-init`,
-`migrate`.
+`storage-credentials`, `migrate`.
 
-| Symptom                                                                               | Ursache                                                                                                              | Lösung                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fehler mit `configs.content`, „unknown key" oder „additional property"                | Docker Compose ist älter als 2.23.1                                                                                  | Docker aus dem offiziellen Repository installieren (Schritt 1). `docker compose version` muss 2.23.1 oder neuer zeigen.                                                                                                                                                                                     |
-| `manifest unknown` / `not found` beim Laden von `...:stable`                          | Es gibt noch kein stabiles Release, das Image-Tag `stable` existiert nicht                                           | In der `.env` `TIX_CHANNEL=next` (oder eine genaue Version wie `1.0.0-alpha.3`) setzen, dann `docker compose pull && docker compose up -d`.                                                                                                                                                                 |
-| `required variable ... is missing a value` / `set POSTGRES_PASSWORD in .env`          | Die Variable ist leer oder fehlt, oder die `.env` liegt nicht im aktuellen Ordner                                    | Den Befehl im Ordner `tix` ausführen, prüfen, dass die Datei `.env` heißt (nicht `env.example`) und die genannte Variable ausfüllen.                                                                                                                                                                        |
-| Fehler wie `password authentication failed`, `invalid URL`, Redis `WRONGPASS`         | Ein Passwort enthält Sonderzeichen (`@ : / # ? %`) oder Anführungszeichen, oder wurde nach dem ersten Start geändert | Nur Buchstaben und Ziffern, keine Anführungszeichen. Das Datenbankpasswort wird beim Anlegen des Daten-Volumes festgelegt: Eine spätere Änderung von `POSTGRES_PASSWORD` braucht bei einer frischen Installation `docker compose down -v` (löscht Daten) oder eine manuelle Passwortänderung in PostgreSQL. |
-| Browser zeigt eine Zertifikatswarnung oder kein HTTPS                                 | Caddy bekam kein Zertifikat: DNS falsch, Ports 80/443 gesperrt oder Let's-Encrypt-Limit                              | `docker compose logs proxy`. Prüfen: Domain zeigt auf diesen Server, Ports 80 und 443 offen (auch Hoster-Firewall), `SITE_ADDRESS` ist nur die Domain (ohne `https://`). Bei Rate-Limit-Meldung eine Stunde warten.                                                                                         |
-| `port is already allocated` / `address already in use` auf Port 80 oder 443           | Ein anderer Webserver (apache2, nginx) belegt den Port                                                               | Ihn stoppen (`sudo systemctl disable --now apache2`) oder Variante B/C/D nutzen. `sudo ss -ltnp \| grep -E ':80 \|:443 '` zeigt, wer den Port belegt.                                                                                                                                                       |
-| Firewall (ufw) ist an, aber ein Port ist trotzdem erreichbar                          | Docker veröffentlicht Ports direkt und umgeht ufw-Regeln                                                             | Nur der Proxy veröffentlicht Ports (80/443 oder dein `HTTP_PORT`). Soll ein Port privat bleiben, binde ihn an `127.0.0.1` (`HTTP_PORT=127.0.0.1:8080`). Verlasse dich bei Docker-Ports nicht allein auf ufw.                                                                                                |
-| Plätze aktualisieren sich nicht live; die Browser-Konsole zeigt WebSocket-Fehler      | Dein Reverse-Proxy leitet WebSockets für `/socket.io` nicht weiter                                                   | Variante C: den `/socket.io/`-Block oben verwenden. NPM: Websockets Support aktivieren. Cloudflare: WebSockets müssen an sein.                                                                                                                                                                              |
-| Alle bekommen „zu viele Anfragen", oder das Audit-Log zeigt für alle Besucher eine IP | Ein anderer Proxy steht davor, aber `TRUSTED_PROXIES` ist leer                                                       | `TRUSTED_PROXIES` auf die Adresse des Proxys oder `private_ranges` setzen, dann `docker compose up -d`. Leer lassen, wenn Caddy der öffentliche Eingang ist.                                                                                                                                                |
-| Handy lässt sich nicht koppeln, meldet „Serveradresse nicht erlaubt"                  | `http://` mit öffentlicher Adresse oder falsche Server-URL                                                           | `https://` verwenden. `http://` geht nur für private IPs. Einstellungen → Scanner → Server-URL prüfen.                                                                                                                                                                                                      |
-| Handy lässt sich nicht koppeln, keine Verbindung oder Zeitüberschreitung              | Das Handy erreicht `PUBLIC_URL` nicht (Hairpin NAT, VPN, falsche URL)                                                | `PUBLIC_URL` im Browser des Handys im selben WLAN öffnen. Klappt das nicht: mobile Daten nutzen oder den Router beheben (NAT-Loopback / lokales DNS).                                                                                                                                                       |
-| Der Kopplungs-QR-Code enthält `localhost`                                             | Die Scanner-Server-URL ist nicht gesetzt                                                                             | Einstellungen → Scanner → Server-URL auf `PUBLIC_URL` setzen.                                                                                                                                                                                                                                               |
-| Es kommen keine E-Mails an                                                            | Falsche SMTP-Daten, gesperrter Port, Spam-Ordner                                                                     | Einstellungen → E-Mail → **Test-E-Mail senden** zeigt den Fehler. Port 587 (STARTTLS) oder 465 (TLS) probieren; `docker compose logs worker`.                                                                                                                                                               |
-| Backups oder gespeicherte Geheimnisse lassen sich auf einem neuen Server nicht lesen  | `APP_ENCRYPTION_KEYS` weicht vom alten Server ab                                                                     | Die ursprüngliche Schlüsselzeile aus deinem Passwortmanager verwenden. Ohne sie sind die verschlüsselten Daten nicht zu retten; deshalb sicherst du sie.                                                                                                                                                    |
-| `minio-init` endete mit Fehlercode, `web` startet nie                                 | MinIO-Zugangsdaten in der `.env` passen nicht zu den gespeicherten, oder MinIO ist nicht gesund                      | `docker compose logs minio minio-init`. `MINIO_ROOT_PASSWORD` und `S3_SECRET_ACCESS_KEY` nach dem ersten Start nicht ändern (frische Installation: `docker compose down -v`, `.env` korrigieren, neu starten).                                                                                              |
-| Ein Dienst ist `unhealthy`                                                            | Start läuft noch, oder ein Konfigurationsfehler                                                                      | Zwei Minuten warten. Dann `docker compose logs --tail 100 <Dienst>`. Der Web-Check ist `GET /api/health` (meldet PostgreSQL, Redis und Worker).                                                                                                                                                             |
-| Checkout zeigt Vorkasse oder PayPal als „Derzeit nicht verfügbar"                     | Es gibt kein Standard-Empfangskonto (Vorkasse) oder PayPal ist nicht konfiguriert/aktiviert                          | Bank & Zahlungen → Konten & Verbindungen: Konto anlegen und als Standard markieren. PayPal: Einstellungen → Zahlungen.                                                                                                                                                                                      |
-| Admin-Login meldet „Zu viele Versuche"                                                | Mehr als 10 Fehlversuche pro E-Mail-Adresse oder 20 pro IP-Adresse in 15 Minuten (auch durch Skripte/Tests)          | Bis zu 15 Minuten warten; die Sperre läuft von selbst ab. Passwort vergessen: `docker compose run --rm migrate node dist/create-admin.mjs --email du@example.org --reset` gibt ein neues Passwort aus (Rollen bleiben).                                                                                     |
-| `docker compose up` / `pull` zeigt minutenlang nichts                                 | Die Images werden noch geladen                                                                                       | Warten oder `docker compose pull` separat ausführen, um den Fortschritt zu sehen.                                                                                                                                                                                                                           |
-| Die Seite zeigt lange „Wartung"                                                       | Eine Backup-Wiederherstellung läuft                                                                                  | Abwarten; `docker compose logs web worker` ansehen.                                                                                                                                                                                                                                                         |
+| Symptom                                                                                               | Ursache                                                                                                                                                      | Lösung                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fehler mit `configs.content`, „unknown key" oder „additional property"                                | Docker Compose ist älter als 2.23.1                                                                                                                          | Docker aus dem offiziellen Repository installieren ([Docker installieren](#docker-installieren)). `docker compose version` muss 2.23.1 oder neuer zeigen.                                                                                                                                                                                                         |
+| `manifest unknown` / `not found` beim Laden von `...:stable`                                          | Es gibt noch kein stabiles Release, das Image-Tag `stable` existiert nicht                                                                                   | In der `.env` `TIX_CHANNEL=next` (oder eine genaue Version wie `1.0.0-alpha.3`) setzen, dann `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                       |
+| `required variable ... is missing a value` / `set POSTGRES_PASSWORD in .env`                          | Die Variable ist leer oder fehlt, oder die `.env` liegt nicht im aktuellen Ordner                                                                            | Den Befehl im Ordner `tix` ausführen, prüfen, dass die Datei `.env` heißt (nicht `env.example`) und die genannte Variable ausfüllen.                                                                                                                                                                                                                              |
+| Fehler wie `password authentication failed`, `invalid URL`, Redis `WRONGPASS`                         | Ein Passwort enthält Sonderzeichen (`@ : / # ? %`) oder Anführungszeichen, oder wurde nach dem ersten Start geändert                                         | Nur Buchstaben und Ziffern, keine Anführungszeichen. Das Datenbankpasswort wird beim Anlegen des Daten-Volumes festgelegt: Eine spätere Änderung von `POSTGRES_PASSWORD` braucht bei einer frischen Installation `docker compose down -v` (löscht Daten) oder eine manuelle Passwortänderung in PostgreSQL.                                                       |
+| Browser zeigt eine Zertifikatswarnung oder kein HTTPS                                                 | Caddy bekam kein Zertifikat: DNS falsch, Ports 80/443 gesperrt oder Let's-Encrypt-Limit                                                                      | `docker compose logs proxy`. Prüfen: Domain zeigt auf diesen Server, Ports 80 und 443 offen (auch Hoster-Firewall), `SITE_ADDRESS` ist nur die Domain (ohne `https://`). Bei Rate-Limit-Meldung eine Stunde warten.                                                                                                                                               |
+| `port is already allocated` / `address already in use` auf Port 80 oder 443                           | Ein anderer Webserver (apache2, nginx) belegt den Port                                                                                                       | Ihn stoppen (`sudo systemctl disable --now apache2`) oder Variante B/C/D nutzen. `sudo ss -ltnp \| grep -E ':80 \|:443 '` zeigt, wer den Port belegt.                                                                                                                                                                                                             |
+| Firewall (ufw) ist an, aber ein Port ist trotzdem erreichbar                                          | Docker veröffentlicht Ports direkt und umgeht ufw-Regeln                                                                                                     | Nur der Proxy veröffentlicht Ports (80/443 oder dein `HTTP_PORT`). Soll ein Port privat bleiben, binde ihn an `127.0.0.1` (`HTTP_PORT=127.0.0.1:8080`). Verlasse dich bei Docker-Ports nicht allein auf ufw.                                                                                                                                                      |
+| Plätze aktualisieren sich nicht live; die Browser-Konsole zeigt WebSocket-Fehler                      | Dein Reverse-Proxy leitet WebSockets für `/socket.io` nicht weiter                                                                                           | Variante C: den `/socket.io/`-Block oben verwenden. NPM: Websockets Support aktivieren. Cloudflare: WebSockets müssen an sein.                                                                                                                                                                                                                                    |
+| Alle bekommen „zu viele Anfragen", oder das Audit-Log zeigt für alle Besucher eine IP                 | Ein anderer Proxy steht davor, aber `TRUSTED_PROXIES` ist leer                                                                                               | `TRUSTED_PROXIES` auf die Adresse des Proxys oder `private_ranges` setzen, dann `docker compose up -d`. Leer lassen, wenn Caddy der öffentliche Eingang ist.                                                                                                                                                                                                      |
+| Handy lässt sich nicht koppeln, meldet „Serveradresse nicht erlaubt"                                  | `http://` mit öffentlicher Adresse oder falsche Server-URL                                                                                                   | `https://` verwenden. `http://` geht nur für private IPs. Einstellungen → Scanner → Server-URL prüfen.                                                                                                                                                                                                                                                            |
+| Handy lässt sich nicht koppeln, keine Verbindung oder Zeitüberschreitung                              | Das Handy erreicht `PUBLIC_URL` nicht (Hairpin NAT, VPN, falsche URL)                                                                                        | `PUBLIC_URL` im Browser des Handys im selben WLAN öffnen. Klappt das nicht: mobile Daten nutzen oder den Router beheben (NAT-Loopback / lokales DNS).                                                                                                                                                                                                             |
+| Der Kopplungs-QR-Code enthält `localhost`                                                             | Die Scanner-Server-URL ist nicht gesetzt                                                                                                                     | Einstellungen → Scanner → Server-URL auf `PUBLIC_URL` setzen.                                                                                                                                                                                                                                                                                                     |
+| Es kommen keine E-Mails an                                                                            | Falsche SMTP-Daten, gesperrter Port, Spam-Ordner                                                                                                             | Einstellungen → E-Mail → **Test-E-Mail senden** zeigt den Fehler. Port 587 (STARTTLS) oder 465 (TLS) probieren; `docker compose logs worker`.                                                                                                                                                                                                                     |
+| Backups oder gespeicherte Geheimnisse lassen sich auf einem neuen Server nicht lesen                  | `APP_ENCRYPTION_KEYS` weicht vom alten Server ab                                                                                                             | Die ursprüngliche Schlüsselzeile aus deinem Passwortmanager verwenden. Ohne sie sind die verschlüsselten Daten nicht zu retten; deshalb sicherst du sie.                                                                                                                                                                                                          |
+| `minio-init` endete mit Fehlercode, `web` startet nie                                                 | MinIO ist nicht gesund, oder die gespeicherten Speicher-Zugangsdaten passen nicht zu den MinIO-Daten                                                         | `docker compose logs storage-credentials minio minio-init`. Das Volume `storage-credentials` nicht löschen, solange `minio-data` existiert (frische Installation: `docker compose down -v`, neu starten).                                                                                                                                                         |
+| `storage-credentials` endet mit „MinIO already holds data but no stored root credential exists“       | Eine bestehende Installation, bei der die alten `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` vor dem ersten Start dieser Version aus der `.env` entfernt wurden | Die alten Werte einmal wieder in die `.env` eintragen (`MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`), `docker compose up -d` ausführen; danach liegen sie im Volume.                                                                                                                                                                                                  |
+| Wo sind die MinIO- bzw. Speicher-Zugangsdaten? Was passiert beim Einspielen auf einem anderen Server? | Sie werden beim ersten Start erzeugt und liegen im Docker-Volume `storage-credentials`                                                                       | `docker compose exec minio cat /run/tix-storage/minio-root-password` (auch `minio-root-user`). Das Volume gehört nicht zu den TIX-Backups und wird für die Wiederherstellung nicht gebraucht: Backups sind mit `APP_ENCRYPTION_KEYS` verschlüsselt und enthalten Daten und Dateien, und die neue Installation nutzt ihre eigenen erzeugten Speicher-Zugangsdaten. |
+| Ein Dienst ist `unhealthy`                                                                            | Start läuft noch, oder ein Konfigurationsfehler                                                                                                              | Zwei Minuten warten. Dann `docker compose logs --tail 100 <Dienst>`. Der Web-Check ist `GET /api/health` (meldet PostgreSQL, Redis und Worker).                                                                                                                                                                                                                   |
+| Checkout zeigt Vorkasse oder PayPal als „Derzeit nicht verfügbar"                                     | Es gibt kein Standard-Empfangskonto (Vorkasse) oder PayPal ist nicht konfiguriert/aktiviert                                                                  | Bank & Zahlungen → Konten & Verbindungen: Konto anlegen und als Standard markieren. PayPal: Einstellungen → Zahlungen.                                                                                                                                                                                                                                            |
+| Admin-Login meldet „Zu viele Versuche"                                                                | Mehr als 10 Fehlversuche pro E-Mail-Adresse oder 20 pro IP-Adresse in 15 Minuten (auch durch Skripte/Tests)                                                  | Bis zu 15 Minuten warten; die Sperre läuft von selbst ab. Passwort vergessen: `docker compose run --rm migrate node dist/create-admin.mjs --email du@example.org --reset` gibt ein neues Passwort aus (Rollen bleiben).                                                                                                                                           |
+| `docker compose up` / `pull` zeigt minutenlang nichts                                                 | Die Images werden noch geladen                                                                                                                               | Warten oder `docker compose pull` separat ausführen, um den Fortschritt zu sehen.                                                                                                                                                                                                                                                                                 |
+| Die Seite zeigt lange „Wartung"                                                                       | Eine Backup-Wiederherstellung läuft                                                                                                                          | Abwarten; `docker compose logs web worker` ansehen.                                                                                                                                                                                                                                                                                                               |
 
 Kommst du nicht weiter, eröffne ein [Issue](https://github.com/Renthner/tix-platform/issues/new/choose)
 mit der Ausgabe von `docker compose ps` und den relevanten Logzeilen. **Entferne Passwörter und

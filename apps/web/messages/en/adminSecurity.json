@@ -255,6 +255,7 @@
         },
         "githubRepository": "GitHub repository",
         "githubRepositoryHint": "owner/repo of the releases, e.g. a fork of the project. Empty = the repository built into the app.",
+        "legacyChannelTitle": "Only for check-in apps older than 1.0.0-alpha.6 and servers without version matching",
         "defaultUpdateChannel": "Default update channel",
         "defaultUpdateChannelHint": "Stable = final releases only. Next = also pre-releases (alpha, beta, rc).",
         "channels": {
@@ -262,7 +263,8 @@
           "next": "Next (incl. alpha / beta)"
         },
         "allowChannelOverride": "Allow changing the channel in the app",
-        "allowChannelOverrideHint": "Operators may pick another channel in the app settings."
+        "allowChannelOverrideHint": "Operators may pick another channel in the app settings.",
+        "versionRule": "The app installs the version that matches this server (v{version})."
       }
     }
   },

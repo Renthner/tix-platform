@@ -289,7 +289,7 @@ export function BackupSettingsForm({
             {testing ? t('external.testing') : t('external.test')}
           </Button>
           {testResult?.status === 'success' && (
-            <span className="text-sm text-emerald-600">{tf('connectionOk')}</span>
+            <span className="text-sm text-success">{tf('connectionOk')}</span>
           )}
         </div>
         {testResult?.status === 'error' && (

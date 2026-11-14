@@ -7,6 +7,12 @@
     "en": "English",
     "de": "Deutsch"
   },
+  "theme": {
+    "label": "Colour theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
   "actions": {
     "save": "Save",
     "saving": "Saving…",
@@ -32,6 +38,7 @@
   },
   "errors": {
     "WALLET_UNAVAILABLE": "Wallet is currently unavailable. Please try again later or use the PDF ticket.",
+    "PRICES_UPDATING": "Prices are being updated. Please try again in a moment.",
     "SEAT_UNAVAILABLE": "This seat is no longer available.",
     "SEAT_LOCKED": "Someone else just selected this seat.",
     "CART_EXPIRED": "Your reservation time expired. Please select your seats again.",
@@ -54,11 +61,13 @@
     "TARIFF_LIMIT": "The tariff “{tariff}” is limited to {max} tickets per order.",
     "CART_EMPTY": "Your cart is empty.",
     "CART_OUTDATED": "Your cart changed. Please review it.",
+    "CART_LIFETIME_REACHED": "Your reservation time is almost over – complete your order or empty your cart.",
     "CART_CHANGED": "Your cart changed in the meantime. Please review it before ordering.",
     "CHECKOUT_IN_PROGRESS": "Your order is already being processed. Please wait a moment.",
     "MIXED_CURRENCIES": "Events with different currencies cannot be bought in one order.",
     "PRICE_CHANGED": "The total of your order changed. Please check the updated prices and order again.",
     "PAYMENT_METHOD_UNAVAILABLE": "This payment method is not available for your order.",
+    "PAYPAL_UNAVAILABLE": "PayPal payment is currently not available. Your seats stay reserved – please try again later.",
     "LOGIN_REQUIRED": "Please sign in to complete your order.",
     "TERMS_NOT_ACCEPTED": "Please accept the terms and conditions.",
     "PHONE_REQUIRED": "Please enter your phone number.",
@@ -99,7 +108,10 @@
     "ADJUSTMENT_NOT_OPEN": "This additional payment is not open any more.",
     "ADJUSTMENT_NOT_FOUND": "Additional payment not found.",
     "ADJUSTMENT_NOT_PAYABLE": "This additional payment cannot be paid any more.",
-    "ADJUSTMENT_OPEN": "This ticket has an open additional payment. Reset the tariff first."
+    "ADJUSTMENT_OPEN": "This ticket has an open additional payment. Reset the tariff first.",
+    "EVENT_NOT_DRAFT": "This event was published in the meantime – test purchases are no longer possible.",
+    "TEST_ORDER_MIXED_CART": "Events that are not published yet (test purchase) cannot be combined with published events in one order.",
+    "NOT_A_TEST_ORDER": "Only test orders can be deleted."
   },
   "errorPages": {
     "notFound": {

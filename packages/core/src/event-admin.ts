@@ -1,6 +1,7 @@
 import { events, orderItems, orders, seatMaps } from '@tix/db';
 import { eq, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from './context';
+import { eventTags, invalidateShopCache } from './cache/shop-cache';
 import { forgetSeatMapVersion } from './seatmaps/public';
 
 /**
@@ -48,6 +49,7 @@ export async function deleteArchivedEvent(
   });
 
   if (result.seat_map_id) forgetSeatMapVersion(result.seat_map_id);
+  await invalidateShopCache(ctx, eventTags(eventId));
   await purgeEventRedisState(ctx, eventId);
   return { slug: result.slug, title: result.title };
 }

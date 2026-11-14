@@ -58,6 +58,7 @@ export default async function OrdersPage({
     : undefined;
   const eventId = /^[0-9a-f-]{36}$/i.test(sp.event ?? '') ? sp.event : undefined;
   const overdueOnly = sp.overdue === '1';
+  const tests = sp.tests === 'only' || sp.tests === 'hide' ? sp.tests : undefined;
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const q = sp.q?.slice(0, 100);
   const core = getCore();
@@ -74,6 +75,7 @@ export default async function OrdersPage({
       channel,
       eventId,
       overdueOnly,
+      tests,
       page,
       pageSize: PAGE_SIZE,
     }),
@@ -92,6 +94,7 @@ export default async function OrdersPage({
       channel,
       event: eventId,
       overdue: overdueOnly ? '1' : undefined,
+      tests,
       ...overrides,
     };
     const usp = new URLSearchParams(
@@ -167,6 +170,16 @@ export default async function OrdersPage({
               </option>
             ))}
           </select>
+          <select
+            name="tests"
+            defaultValue={tests ?? ''}
+            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+            aria-label={t('filters.tests')}
+          >
+            <option value="">{t('filters.testsAll')}</option>
+            <option value="only">{t('filters.testsOnly')}</option>
+            <option value="hide">{t('filters.testsHide')}</option>
+          </select>
           <label className="flex h-9 items-center gap-2 text-sm">
             <input type="checkbox" name="overdue" value="1" defaultChecked={overdueOnly} />
             {t('filters.overdue')}
@@ -214,6 +227,19 @@ export default async function OrdersPage({
                           {row.firstName} {row.lastName}
                         </div>
                         <div className="text-xs text-muted-foreground">{row.email}</div>
+                        {row.isTest && (
+                          <Badge
+                            variant="outline"
+                            className="mt-1 mr-1 border-warning-border text-warning"
+                          >
+                            {t('testBadge')}
+                          </Badge>
+                        )}
+                        {row.testHidden && (
+                          <Badge variant="outline" className="mt-1 mr-1">
+                            {t('testHidden')}
+                          </Badge>
+                        )}
                         {row.channel !== 'ONLINE' && (
                           <Badge variant="outline" className="mt-1">
                             {tChannel(row.channel)}

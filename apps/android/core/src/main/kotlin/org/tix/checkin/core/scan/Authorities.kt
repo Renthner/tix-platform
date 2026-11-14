@@ -139,7 +139,10 @@ class LocalScanAuthority(
                     TicketInvalidReason.WRONG_EVENT -> ScanResult.REJECTED_WRONG_EVENT
                     TicketInvalidReason.UNKNOWN_KEY, TicketInvalidReason.BAD_SIGNATURE -> ScanResult.REJECTED_INVALID_SIGNATURE
                 }
-                return rejected(cfg, command, result, eventId, ticketId, ctx)
+                return rejected(
+                    cfg, command, result, eventId, ticketId, ctx,
+                    unknownKey = verdict.reason == TicketInvalidReason.UNKNOWN_KEY,
+                )
             }
             val row = store.ticket(parsed.ticketId)
             // The same ticket id under another event is a conflict, never an unknown ticket: a provisional stub
@@ -254,6 +257,7 @@ class LocalScanAuthority(
         eventId: String = command.eventId,
         ticketId: String? = command.ticketId,
         ctx: DecideContext?,
+        unknownKey: Boolean = false,
     ): Decided {
         val decidedBy = if (ctx?.lan == true) DecidedBy.LAN else DecidedBy.LOCAL
         // Only scans of an assigned event are journaled (the server does not record the others either).
@@ -261,7 +265,7 @@ class LocalScanAuthority(
         val entry = event?.let {
             journal(command, eventId, ticketId, result, emptyList(), emptyMap(), null, if (ctx != null) ctx.entranceId else it.entranceId, decidedBy)
         }
-        return Decided(ScanVerdict(command.clientScanId, command.action, result, result.color, decidedBy = decidedBy), entry, null, null)
+        return Decided(ScanVerdict(command.clientScanId, command.action, result, result.color, decidedBy = decidedBy, unknownKey = unknownKey), entry, null, null)
     }
 
     private fun info(command: ScanCommand, notice: VerdictNotice, decidedBy: DecidedBy) = Decided(

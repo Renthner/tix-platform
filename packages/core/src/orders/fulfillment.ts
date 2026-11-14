@@ -1,5 +1,6 @@
 import { coreLog } from '../log';
 import {
+  bankTransactionAllocations,
   orderHistory,
   orderItems,
   orders,
@@ -7,10 +8,11 @@ import {
   seatMapSections,
   seats,
   withTransaction,
+  type Executor,
   type Transaction,
 } from '@tix/db';
 import type { TakenCode } from '@tix/redis';
-import type { ActorType, OrderStatus, PaymentMethod } from '@tix/shared';
+import type { ActorType, AllocationMethod, OrderStatus, PaymentMethod } from '@tix/shared';
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
@@ -53,6 +55,50 @@ export interface PaymentReceipt {
    * matching tolerance): the order becomes PAID and the written-off shortfall is logged.
    */
   settleShortfallUpTo?: number;
+  /**
+   * Bank payments: write the bank allocation row in the same transaction as the payment, so a
+   * crash can never leave a captured payment without allocation (requires `bankTransactionId`).
+   */
+  bankAllocation?: { method: AllocationMethod; userId?: string | null; note?: string | null };
+}
+
+/**
+ * Inserts the allocation row of a bank payment unless one exists for the payment already
+ * (reversed ones included – a reversed allocation is never recreated). Idempotent.
+ */
+export async function ensureBankAllocation(
+  tx: Executor,
+  paymentId: string,
+  allocation: { method: AllocationMethod; userId?: string | null; note?: string | null },
+): Promise<boolean> {
+  const [payment] = await tx
+    .select({
+      orderId: payments.orderId,
+      amount: payments.amount,
+      bankTransactionId: payments.bankTransactionId,
+    })
+    .from(payments)
+    .where(eq(payments.id, paymentId));
+  if (!payment?.bankTransactionId) return false;
+  // The partial unique index on payment_id makes concurrent callers race-free: the loser inserts
+  // nothing (a reversed allocation also blocks re-creation).
+  const inserted = await tx
+    .insert(bankTransactionAllocations)
+    .values({
+      bankTransactionId: payment.bankTransactionId,
+      orderId: payment.orderId,
+      paymentId,
+      amount: payment.amount,
+      method: allocation.method,
+      allocatedByUserId: allocation.userId ?? null,
+      note: allocation.note ?? null,
+    })
+    .onConflictDoNothing({
+      target: bankTransactionAllocations.paymentId,
+      where: sql`${bankTransactionAllocations.paymentId} IS NOT NULL`,
+    })
+    .returning({ id: bankTransactionAllocations.id });
+  return inserted.length > 0;
 }
 
 export type RecordPaymentResult =
@@ -84,6 +130,8 @@ export async function recordPayment(
   const outcome = await withTransaction(ctx.db, async (tx) => {
     const duplicate = await findDuplicatePayment(tx, receipt);
     if (duplicate) {
+      // Heals a payment committed by an interrupted earlier attempt.
+      if (receipt.bankAllocation) await ensureBankAllocation(tx, duplicate, receipt.bankAllocation);
       return {
         result: { status: 'DUPLICATE', orderId: receipt.orderId, paymentId: duplicate } as const,
         seats: [],
@@ -151,6 +199,7 @@ export async function recordPayment(
             ...captured,
           })
           .returning({ id: payments.id });
+    if (receipt.bankAllocation) await ensureBankAllocation(tx, payment!.id, receipt.bankAllocation);
     const amountPaid = order.amountPaid + receipt.amount;
     const history = (type: string, data: Record<string, unknown>, to?: OrderStatus) =>
       tx.insert(orderHistory).values({
@@ -227,17 +276,35 @@ export async function recordPayment(
   });
 
   if (outcome.result.status === 'PAID') {
-    await mirrorSeats(ctx, outcome.seats, 'S');
-    // Invoice + payment confirmation (+ tickets from phase 4) – retried by the worker.
-    await ctx.jobs?.add(
-      QUEUE_NAMES.documents,
-      'order-paid',
-      {
-        orderId: outcome.result.orderId,
-        paidCycle: await currentPaidCycle(ctx.db, outcome.result.orderId),
-      },
-      { jobId: await orderPaidJobId(ctx.db, outcome.result.orderId) },
-    );
+    // The payment is committed: a failure here must never surface to the caller (it would look
+    // like a failed payment). The worker's `ensure-missing-tickets` backfill (every 10 min)
+    // re-enqueues `order-paid` for PAID orders without tickets/invoice; the database unique
+    // index on active seats keeps the seats safe even if the Redis mirror misses an update.
+    try {
+      await mirrorSeats(ctx, outcome.seats, 'S');
+    } catch (err) {
+      coreLog.error(
+        { err, orderId: outcome.result.orderId },
+        '[orders] seat mirror after payment failed',
+      );
+    }
+    try {
+      // Invoice + payment confirmation (+ tickets from phase 4) – retried by the worker.
+      await ctx.jobs?.add(
+        QUEUE_NAMES.documents,
+        'order-paid',
+        {
+          orderId: outcome.result.orderId,
+          paidCycle: await currentPaidCycle(ctx.db, outcome.result.orderId),
+        },
+        { jobId: await orderPaidJobId(ctx.db, outcome.result.orderId) },
+      );
+    } catch (err) {
+      coreLog.error(
+        { err, orderId: outcome.result.orderId },
+        '[orders] order-paid job not queued after payment (backfill retries)',
+      );
+    }
   }
   return outcome.result;
 }
@@ -285,6 +352,11 @@ export interface CancelOrderParams {
   actor: OrderActor;
   /** Send the ORDER_CANCELLED e-mail (dunning / admin cancellation of a bank transfer). */
   notifyCustomer?: boolean;
+  /**
+   * Dunning guard, evaluated on the locked row: only cancel if the order is still unprotected
+   * (no keep-reserved lock, nothing paid) and its auto-cancel deadline has passed.
+   */
+  onlyIfUnpaidAndDue?: { now: Date };
 }
 
 /**
@@ -295,12 +367,27 @@ export interface CancelOrderParams {
 export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): Promise<boolean> {
   const outcome = await withTransaction(ctx.db, async (tx) => {
     const [order] = await tx
-      .select({ id: orders.id, status: orders.status })
+      .select({
+        id: orders.id,
+        status: orders.status,
+        keepReserved: orders.keepReserved,
+        amountPaid: orders.amountPaid,
+        autoCancelAt: orders.autoCancelAt,
+      })
       .from(orders)
       .where(eq(orders.id, params.orderId))
       .for('update');
     if (!order) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
     if (order.status !== 'PENDING' && order.status !== 'AWAITING_PAYMENT') return null;
+    const guard = params.onlyIfUnpaidAndDue;
+    if (
+      guard &&
+      (order.keepReserved ||
+        order.amountPaid !== 0 ||
+        !order.autoCancelAt ||
+        order.autoCancelAt.getTime() > guard.now.getTime())
+    )
+      return null;
     const now = new Date();
     await tx
       .update(orders)

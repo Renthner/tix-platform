@@ -5,7 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useId, useRef, useState, type DragEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { MediaAssetKind } from '@tix/shared';
+import { isPublicMediaKind, type MediaAssetKind, type MediaVisibility } from '@tix/shared';
+import { MediaLibraryDialog } from './media-library-dialog';
 
 /** Subset of the upload response / stored asset the picker needs for its preview. */
 export interface MediaPickerAsset {
@@ -22,6 +23,7 @@ const ERROR_CODES = [
   'MEDIA_TOO_LARGE',
   'MEDIA_UNSUPPORTED_TYPE',
   'MEDIA_DIMENSIONS',
+  'MEDIA_UNDECODABLE',
   'FILE_REQUIRED',
   'KIND_INVALID',
   'FORBIDDEN',
@@ -32,6 +34,12 @@ export interface MediaPickerProps {
   name: string;
   /** Media kind the upload is stored as (decides public / private delivery). */
   kind: MediaAssetKind;
+  /**
+   * Where the picked image ends up: `public` (shown in the shop - only public library assets are
+   * offered) or `private` (admin / generators only - any library image). Defaults to the
+   * visibility of `kind`.
+   */
+  visibility?: MediaVisibility;
   /** Currently stored asset (id + meta for the preview) or null. */
   initialAsset?: MediaPickerAsset | null;
   /** Fixed preview frame aspect ratio, width / height. Omit to show the image at its natural ratio (max. 18rem high) inside a neutral frame; the empty drop zone is 16 / 9. */
@@ -55,6 +63,7 @@ export interface MediaPickerProps {
 export function MediaPicker({
   name,
   kind,
+  visibility = isPublicMediaKind(kind) ? 'public' : 'private',
   initialAsset = null,
   aspectRatio,
   previewClassName = 'max-w-sm',
@@ -176,6 +185,15 @@ export function MediaPicker({
           <Upload className="size-4" aria-hidden />
           {busy ? t('uploading') : asset ? t('replace') : t('upload')}
         </Button>
+        <MediaLibraryDialog
+          visibility={visibility}
+          disabled={disabled || busy}
+          onSelect={(picked) => {
+            setAsset(picked);
+            setError(null);
+            onChange?.(picked);
+          }}
+        />
         {asset && (
           <Button
             type="button"

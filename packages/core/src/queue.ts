@@ -3,9 +3,9 @@ import { accessCodeRedemptions, accessCodes } from '@tix/db';
 import { signToken, verifyToken } from '@tix/shared/server';
 import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from './context';
+import { bypassesQueue, shopSaleState, type ShopActorLike } from './shop-actor';
 import {
   ACTIVE_WINDOW_MS,
-  computeSaleState,
   effectiveQueueConfig,
   saleOpensAt,
   type EffectiveQueueConfig,
@@ -126,8 +126,10 @@ export async function enterShop(
   ctx: CoreContext,
   event: EventRow,
   sessionId: string,
+  /** Signed-in super-admin (resolved by the web layer); omitted for customers. */
+  actor?: ShopActorLike,
 ): Promise<AccessDecision> {
-  const state = computeSaleState(event);
+  const state = shopSaleState(event, actor);
   if (
     state === 'NOT_PUBLISHED' ||
     state === 'CANCELLED' ||
@@ -137,6 +139,12 @@ export async function enterShop(
     return { status: 'CLOSED', reason: state };
   }
   const config = await effectiveQueueConfig(ctx, event.id);
+  if (bypassesQueue(actor)) {
+    // Super-admin: signed pass whose id is never stored in Redis. `requireShopAccess` waives the
+    // pass for this actor, so no queue slot / active-shopper entry is used and the pass is worthless
+    // for anybody else (and once the admin switches to "test the waiting room" it simply never validates).
+    return issuePass(ctx, event, sessionId, config, randomUUID());
+  }
   const opensAt = saleOpensAt(event);
   const code = await sessionCode(ctx, event.id, sessionId);
   const timing = { activeWindowMs: ACTIVE_WINDOW_MS, claimWindowMs: claimWindowMs(config) };
@@ -238,7 +246,9 @@ export async function queueStatus(
   ctx: CoreContext,
   event: EventRow,
   sessionId: string,
+  actor?: ShopActorLike,
 ): Promise<AccessDecision> {
+  if (bypassesQueue(actor)) return enterShop(ctx, event, sessionId, actor);
   const config = await effectiveQueueConfig(ctx, event.id);
   const position = await ctx.queue.position(event.id, sessionId);
   if (position.admittedAt !== null) {
@@ -247,7 +257,7 @@ export async function queueStatus(
   if (position.inLobby)
     return { status: 'LOBBY', saleOpensAt: (saleOpensAt(event) ?? new Date()).toISOString() };
   if (position.number !== null) return queuedDecision(ctx, event.id, position.number, config);
-  return enterShop(ctx, event, sessionId);
+  return enterShop(ctx, event, sessionId, actor);
 }
 
 /** Converts an admission into a QueuePassToken. */
@@ -352,11 +362,14 @@ export async function requireShopAccess(
   event: EventRow,
   sessionId: string,
   passToken: string | undefined,
+  actor?: ShopActorLike,
 ): Promise<void> {
-  const state = computeSaleState(event);
+  const state = shopSaleState(event, actor);
   if (state !== 'ON_SALE' && state !== 'PRESALE') {
     throw new DomainError('SALE_CLOSED', 'Tickets for this event are not on sale', 403, { state });
   }
+  // Super-admins (role checked by the caller on this very request) need no pass.
+  if (bypassesQueue(actor)) return;
   if (await verifyPass(ctx, event.id, sessionId, passToken)) return;
   throw new DomainError('PASS_REQUIRED', 'Please enter the shop through the waiting room', 403);
 }

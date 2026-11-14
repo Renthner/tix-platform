@@ -49,7 +49,17 @@ function parseCursor(cursor: string, epoch: string): ParsedCursor {
   return { kind: 'full' };
 }
 
-/** Current epoch of the sync state; rotated by backup restores. */
+/**
+ * Starts a new sync epoch: every device drops its synced tickets and syncs from scratch on its
+ * next run (unsent scans stay). Used when tickets are DELETED (the xid-horizon feed cannot
+ * express deletions): backup restores and the deletion of test orders that already had tickets.
+ */
+export async function rotateSyncEpoch(db: Executor): Promise<void> {
+  await getSyncEpoch(db); // makes sure the state row exists
+  await db.update(scannerSyncState).set({ syncEpoch: randomUUID() });
+}
+
+/** Current epoch of the sync state; rotated by backup restores and ticket deletions. */
 export async function getSyncEpoch(db: Executor): Promise<string> {
   const [row] = await db.select({ epoch: scannerSyncState.syncEpoch }).from(scannerSyncState);
   if (row) return row.epoch;

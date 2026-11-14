@@ -61,6 +61,15 @@ data class TicketRow(
     val firstCheckedInAt: String? = null,
 )
 
+/** Non-blocking hint on the scanner screen when the app version differs from the server's. */
+sealed interface VersionHint {
+    /** The server runs a newer version than this app: update the app (opens Settings). */
+    data class UpdateAvailable(val version: String) : VersionHint
+
+    /** The app is newer than the server: the server should be updated (the app is never downgraded). */
+    data class ServerOlder(val version: String) : VersionHint
+}
+
 sealed interface PairUi {
     data object Idle : PairUi
     data object Working : PairUi
@@ -73,6 +82,12 @@ sealed interface UpdateUi {
     data object Checking : UpdateUi
     data object UpToDate : UpdateUi
     data object NoRelease : UpdateUi
+
+    /** The app is newer than the server (no downgrade is ever offered): the server should be updated. */
+    data class AppNewerThanServer(val serverVersion: String) : UpdateUi
+
+    /** The server runs [version] but no installable app release of exactly that version exists (GitHub or the server upload). */
+    data class NoServerRelease(val version: String) : UpdateUi
     data class Available(val info: AppLatest) : UpdateUi
     data object Failed : UpdateUi
     data object ServerUrlMissing : UpdateUi
@@ -116,6 +131,33 @@ class LookupResult(val rows: List<TicketRow>, val fromServer: Boolean)
 class MainViewModel(private val app: Application, private val c: AppContainer) : ViewModel() {
     val settings = c.settings
     val feedback = c.feedback
+
+    init {
+        // The speech engine starts asynchronously: warm it up now so the first scan is already read aloud.
+        if (settings.announceResults.value) c.speech()
+    }
+
+    /** Engine state for the settings screen (starts the engine). */
+    fun speechState(): StateFlow<Speech.State> = speechStateFlow
+
+    private val speechStateFlow: StateFlow<Speech.State> = c.currentSpeech
+        .flatMapLatest { it?.state ?: flowOf(Speech.State.STARTING) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Speech.State.STARTING)
+
+    fun setAnnounceResults(on: Boolean) {
+        settings.setAnnounceResults(on)
+        if (on) {
+            c.speech()
+            c.restartSpeechIfNotReady()
+        } else {
+            c.speechIfStarted()?.stop()
+        }
+    }
+
+    /** Settings screen opened: a speech engine that failed earlier (voice installed since) is started again. */
+    fun restartSpeechOnOpen() {
+        if (settings.announceResults.value) c.restartSpeechIfNotReady()
+    }
 
     /** null = still loading the database. */
     val config: StateFlow<DeviceConfigEntity?> = c.dao.deviceConfigFlow().stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -194,6 +236,18 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
         .map { org.tix.checkin.core.scan.ResultPalette.fromJson(it?.resultStyleJson) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, org.tix.checkin.core.scan.ResultPalette.DEFAULT)
 
+    /** Version mismatch hint for the scanner screen, derived from the same decision as the update logic. */
+    val versionHint: StateFlow<VersionHint?> = settings.appUpdate
+        .map { cfg ->
+            val installed = org.tix.checkin.core.AppVersion.parse(org.tix.checkin.BuildConfig.VERSION_NAME) ?: return@map null
+            when (val d = org.tix.checkin.core.UpdateTarget.decide(installed, cfg.serverVersion)) {
+                is org.tix.checkin.core.UpdateTarget.UpdateAvailable -> VersionHint.UpdateAvailable(d.target.name)
+                is org.tix.checkin.core.UpdateTarget.AppNewerThanServer -> VersionHint.ServerOlder(d.server.name)
+                else -> null
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     val mode = MutableStateFlow(ScanAction.CHECK_IN)
     private val _verdict = MutableStateFlow<VerdictUi?>(null)
     val verdict: StateFlow<VerdictUi?> = _verdict
@@ -235,7 +289,19 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
         }
     }
 
+    private var lastKeyRefreshAt = 0L
+
+    /** Unknown signing key (rotated after the last sync): pull the manifest, at most once per [KEY_REFRESH_MIN_MS]. */
+    private fun refreshKeysSoon() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastKeyRefreshAt != 0L && now - lastKeyRefreshAt < KEY_REFRESH_MIN_MS) return
+        if (!c.monitor.isUsable()) return
+        lastKeyRefreshAt = now
+        viewModelScope.launch { c.sync.syncOnce() }
+    }
+
     private fun show(v: ScanVerdict) {
+        if (v.unknownKey) refreshKeysSoon()
         _verdict.value = VerdictUi(++verdictSeq, v)
         if (v.notice?.isInfo == true) {
             c.feedback.playInfo(settings.sound.value, settings.vibrate.value)
@@ -245,9 +311,21 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
         }
         // An offline decision is journaled: make sure it is uploaded as soon as a network exists.
         if (v.decidedBy != DecidedBy.SERVER && v.notice == null) SyncScheduler.uploadSoon(app)
+        if (settings.announceResults.value) c.speech().speak(spokenResult(v))
+    }
+
+    /** The spoken form of the result screen (same text as its screen-reader description, without "tap to close"). */
+    private fun spokenResult(v: ScanVerdict): String {
+        val style = if (v.notice?.isInfo == true) {
+            org.tix.checkin.core.scan.ResultStyle(0, false, null, emptyList())
+        } else {
+            resultPalette.value.style(v.result, v.warnings)
+        }
+        return resultAnnouncement(app, v, style, app.getString(verdictHeadline(v)), null)
     }
 
     fun dismissVerdict(seq: Long) {
+        // Speech is not cut off here: the green screen closes after ~2 s, before a sentence ends. A new scan flushes it.
         if (_verdict.value?.seq == seq) _verdict.value = null
     }
 
@@ -387,6 +465,21 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
         _update.value = UpdateUi.Checking
         viewModelScope.launch {
             val source = settings.appUpdate.value
+            // The app follows the server: with a known server version only exactly that version is a target.
+            val installedVersion = org.tix.checkin.core.AppVersion.parse(org.tix.checkin.BuildConfig.VERSION_NAME)
+            val target = installedVersion?.let { org.tix.checkin.core.UpdateTarget.decide(it, source.serverVersion) }
+            val exact = (target as? org.tix.checkin.core.UpdateTarget.UpdateAvailable)?.target
+            when (target) {
+                org.tix.checkin.core.UpdateTarget.UpToDate -> {
+                    _update.value = UpdateUi.UpToDate
+                    return@launch
+                }
+                is org.tix.checkin.core.UpdateTarget.AppNewerThanServer -> {
+                    _update.value = UpdateUi.AppNewerThanServer(target.server.name)
+                    return@launch
+                }
+                else -> Unit
+            }
             if (source.source == org.tix.checkin.core.UpdateSource.GITHUB) {
                 val repository = settings.effectiveRepository()
                 if (repository.isEmpty()) {
@@ -394,8 +487,15 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
                     return@launch
                 }
                 _update.value = try {
-                    val latest = withTimeout(40_000) { c.githubUpdates.check(repository, settings.effectiveChannel(), force) }
-                    if (latest == null) UpdateUi.UpToDate else UpdateUi.Available(latest)
+                    val latest = withTimeout(40_000) {
+                        if (exact != null) c.githubUpdates.checkExact(repository, exact, force)
+                        else c.githubUpdates.check(repository, settings.effectiveChannel(), force)
+                    }
+                    when {
+                        latest != null -> UpdateUi.Available(latest)
+                        exact != null -> UpdateUi.NoServerRelease(exact.name)
+                        else -> UpdateUi.UpToDate
+                    }
                 } catch (e: org.tix.checkin.update.GithubUpdateException) {
                     if (e.kind == org.tix.checkin.update.GithubUpdateException.Kind.RATE_LIMITED) UpdateUi.RateLimited(e.retryAtMillis) else UpdateUi.Failed
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -408,6 +508,7 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
             _update.value = try {
                 val latest = withTimeout(10_000) { c.sync.latestApp() }
                 when {
+                    exact != null && latest?.versionName != exact.name -> UpdateUi.NoServerRelease(exact.name)
                     latest == null -> UpdateUi.NoRelease
                     latest.versionCode > org.tix.checkin.BuildConfig.VERSION_CODE -> UpdateUi.Available(latest)
                     else -> UpdateUi.UpToDate
@@ -500,7 +601,7 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
                 val file = downloader.download(url, info.sha256, info.sizeBytes, info.viaGithub) { read, total ->
                     _install.value = InstallUi.Downloading(read, total)
                 }
-                val problem = validateUpdate(file, if (info.viaGithub) info.versionCode else null)
+                val problem = validateUpdate(file, if (info.viaGithub) info.versionCode else null, exactTargetVersionCode())
                 if (problem != null) {
                     downloader.clean()
                     _install.value = InstallUi.Failed(problem)
@@ -536,13 +637,22 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
      * The downloaded file must be an APK of this app with a higher version code and the same signing certificate
      * as the installed app (Android enforces the latter too; checking first gives a clear message). Null = fine.
      */
-    private suspend fun validateUpdate(file: java.io.File, expectedVersionCode: Int?): UpdateFailure? = withContext(Dispatchers.IO) {
+    /** Version code of the server's version when this app follows it (the update must be exactly that), else null. */
+    private fun exactTargetVersionCode(): Int? {
+        val installed = org.tix.checkin.core.AppVersion.parse(org.tix.checkin.BuildConfig.VERSION_NAME) ?: return null
+        val target = org.tix.checkin.core.UpdateTarget.decide(installed, settings.appUpdate.value.serverVersion)
+        return (target as? org.tix.checkin.core.UpdateTarget.UpdateAvailable)?.target?.versionCode
+    }
+
+    private suspend fun validateUpdate(file: java.io.File, expectedVersionCode: Int?, exactVersionCode: Int?): UpdateFailure? = withContext(Dispatchers.IO) {
         val info = app.packageManager.getPackageArchiveInfo(file.absolutePath, 0) ?: return@withContext UpdateFailure.NOT_A_VALID_UPDATE
         val valid = info.packageName == app.packageName &&
             androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(info) > org.tix.checkin.BuildConfig.VERSION_CODE
         // GitHub: the APK must be the version its tag announced (the versionCode is derived from the tag).
         val code = androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(info)
-        if (!valid || (expectedVersionCode != null && code != expectedVersionCode.toLong())) return@withContext UpdateFailure.NOT_A_VALID_UPDATE
+        if (!valid || (expectedVersionCode != null && code != expectedVersionCode.toLong()) ||
+            (exactVersionCode != null && code != exactVersionCode.toLong())
+        ) return@withContext UpdateFailure.NOT_A_VALID_UPDATE
         val installed = org.tix.checkin.update.ApkSigners.installed(app.packageManager, app.packageName)
         val archive = org.tix.checkin.update.ApkSigners.archive(app.packageManager, file.absolutePath)
         if (org.tix.checkin.core.ApkUpdate.signersMatch(installed, archive)) null else UpdateFailure.SIGNER_MISMATCH
@@ -582,6 +692,9 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
     }
 
     companion object {
+        /** Minimum gap between two manifest refreshes triggered by an unknown signing key. */
+        private const val KEY_REFRESH_MIN_MS = 30_000L
+
         fun factory(app: Application) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =

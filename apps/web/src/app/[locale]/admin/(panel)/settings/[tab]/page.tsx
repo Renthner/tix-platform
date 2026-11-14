@@ -1,4 +1,11 @@
-import { getMediaAsset, getSecretSetting, getSetting, hasSecretSetting } from '@tix/core';
+import {
+  getMediaAsset,
+  getSecretSetting,
+  getSetting,
+  hasSecretSetting,
+  isMetricsEnabled,
+  isNonPublicAddress,
+} from '@tix/core';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import {
@@ -7,6 +14,7 @@ import {
   InvoicingSettingsForm,
   OrganizerSettingsForm,
   PaypalSettingsForm,
+  PaypalTestForm,
   SmtpSettingsForm,
   SmtpTestForm,
 } from '@/components/admin/commerce-settings-forms';
@@ -15,8 +23,12 @@ import { Button } from '@/components/ui/button';
 import {
   BrandingSettingsForm,
   CheckoutSettingsForm,
+  CookieNoticeSettingsForm,
   GeneralSettingsForm,
   SeatDisplaySettingsForm,
+  SeoSettingsForm,
+  ShopLayoutSettingsForm,
+  StartPageSettingsForm,
   SettingsSection,
 } from '@/components/admin/settings-forms';
 import {
@@ -24,6 +36,7 @@ import {
   SecuritySettingsForm,
 } from '@/components/admin/security-settings-forms';
 import { SettingsTabs } from '@/components/admin/settings-tabs';
+import { MetricsTokenCard } from '@/components/admin/system/metrics-token-card';
 import {
   AppleWalletForm,
   GoogleWalletForm,
@@ -33,7 +46,11 @@ import {
 import { resolveLocale } from '@/i18n/locale';
 import { SETTINGS_TABS, type SettingsTab } from '@/lib/settings-tabs';
 import { requireAdmin } from '@/server/auth';
-import { saveSettingsAction, sendTestEmailAction } from '@/server/admin/settings';
+import {
+  saveSettingsAction,
+  sendTestEmailAction,
+  testPayPalConnectionAction,
+} from '@/server/admin/settings';
 import { restoreSetupChecklistAction } from '@/server/admin/setup-checklist';
 import {
   checkAppleWalletAction,
@@ -45,6 +62,7 @@ import {
 import { loadWalletDesignValues } from '@/server/admin/wallet-design';
 import { getCore } from '@/server/core';
 import { getEnv } from '@/server/env';
+import { clientIp } from '@/server/http';
 import { descriptionToHtml } from '@/server/rich-text';
 
 export async function generateMetadata({ params }: { params: Promise<{ tab: string }> }) {
@@ -97,7 +115,17 @@ async function TabContent({
   const t = await getTranslations('admin.settings');
   const ts = await getTranslations('adminSecurity');
   const section = (
-    id: 'general' | 'branding' | 'organizer' | 'checkout' | 'seatDisplay' | 'bankTransfer',
+    id:
+      | 'general'
+      | 'branding'
+      | 'organizer'
+      | 'checkout'
+      | 'seatDisplay'
+      | 'shopLayout'
+      | 'startPage'
+      | 'seo'
+      | 'cookieNotice'
+      | 'bankTransfer',
     children: React.ReactNode,
   ) => (
     <SettingsSection id={id} title={t(`${id}.title`)} description={t(`${id}.description`)}>
@@ -132,10 +160,21 @@ async function TabContent({
       );
     }
     case 'appearance': {
-      const [branding, seatDisplay] = await Promise.all([
-        getSetting(core, 'branding'),
-        getSetting(core, 'seatDisplay'),
-      ]);
+      const [branding, seatDisplay, shopLayout, startPage, general, cookieNotice] =
+        await Promise.all([
+          getSetting(core, 'branding'),
+          getSetting(core, 'seatDisplay'),
+          getSetting(core, 'shopLayout'),
+          getSetting(core, 'startPage'),
+          getSetting(core, 'general'),
+          getSetting(core, 'cookieNotice'),
+        ]);
+      const startPageTexts = Object.fromEntries(
+        Object.entries(startPage.texts).map(([loc, v]) => [
+          loc,
+          { ...v, body: descriptionToHtml(v?.body) },
+        ]),
+      );
       return (
         <>
           {section(
@@ -161,7 +200,60 @@ async function TabContent({
               initial={seatDisplay}
             />,
           )}
+          {section(
+            'cookieNotice',
+            <CookieNoticeSettingsForm
+              action={saveSettingsAction.bind(null, 'cookieNotice')}
+              initial={cookieNotice}
+            />,
+          )}
+          {section(
+            'shopLayout',
+            <ShopLayoutSettingsForm
+              action={saveSettingsAction.bind(null, 'shopLayout')}
+              initial={shopLayout}
+            />,
+          )}
+          {section(
+            'startPage',
+            <StartPageSettingsForm
+              action={saveSettingsAction.bind(null, 'startPage')}
+              initial={{
+                mode: startPage.mode,
+                layout: startPage.layout,
+                hero: await pickerAsset(startPage.heroAssetId),
+                gallery: await Promise.all(startPage.galleryAssetIds.map(pickerAsset)),
+                buttonUrl: startPage.buttonUrl,
+                buttonAlign: startPage.buttonAlign,
+                defaultLocale: general.defaultLocale,
+                texts: startPageTexts,
+              }}
+            />,
+          )}
         </>
+      );
+    }
+    case 'seo': {
+      const [seo, general] = await Promise.all([
+        getSetting(core, 'seo'),
+        getSetting(core, 'general'),
+      ]);
+      return section(
+        'seo',
+        <SeoSettingsForm
+          action={saveSettingsAction.bind(null, 'seo')}
+          initial={{
+            indexing: seo.indexing,
+            titleTemplate: seo.titleTemplate,
+            shareImage: await pickerAsset(seo.shareImageAssetId),
+            twitterHandle: seo.twitterHandle,
+            googleVerification: seo.verification.google,
+            bingVerification: seo.verification.bing,
+            defaultLocale: general.defaultLocale,
+            texts: seo.texts,
+            shopName: general.shopName,
+          }}
+        />,
       );
     }
     case 'organizer':
@@ -172,14 +264,18 @@ async function TabContent({
           initial={await getSetting(core, 'organizer')}
         />,
       );
-    case 'checkout':
+    case 'checkout': {
+      const detectedIp = await clientIp();
       return section(
         'checkout',
         <CheckoutSettingsForm
           action={saveSettingsAction.bind(null, 'checkout')}
           initial={await getSetting(core, 'checkout')}
+          detectedIp={detectedIp}
+          detectedIpPrivate={detectedIp === '0.0.0.0' || isNonPublicAddress(detectedIp)}
         />,
       );
+    }
     case 'payments': {
       const [bankTransfer, paypal, secretStored] = await Promise.all([
         getSetting(core, 'bankTransfer'),
@@ -235,6 +331,7 @@ async function TabContent({
               initial={paypal}
               secretStored={secretStored}
             />
+            <PaypalTestForm action={testPayPalConnectionAction} />
           </SettingsSection>
         </>
       );
@@ -369,19 +466,26 @@ async function TabContent({
         </>
       );
     }
-    case 'security':
+    case 'security': {
+      const tm = await getTranslations('system.security');
       return (
-        <SettingsSection
-          id="security"
-          title={ts('settings.security.title')}
-          description={ts('settings.security.description')}
-        >
-          <SecuritySettingsForm
-            action={saveSettingsAction.bind(null, 'security')}
-            initial={await getSetting(core, 'security')}
-          />
-        </SettingsSection>
+        <>
+          <SettingsSection
+            id="security"
+            title={ts('settings.security.title')}
+            description={ts('settings.security.description')}
+          >
+            <SecuritySettingsForm
+              action={saveSettingsAction.bind(null, 'security')}
+              initial={await getSetting(core, 'security')}
+            />
+          </SettingsSection>
+          <SettingsSection id="monitoring" title={tm('title')} description={tm('description')}>
+            <MetricsTokenCard enabled={await isMetricsEnabled(core)} />
+          </SettingsSection>
+        </>
       );
+    }
     case 'scanner':
       return (
         <SettingsSection

@@ -15,8 +15,8 @@ const body = z.object({
 /** POST – finds and atomically locks the best adjacent seats of a category. */
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   return handle(async () => {
-    const { core, event } = await loadShopEvent((await params).eventId);
-    const sid = await authorizeShopMutation(core, event);
+    const { core, event, actor } = await loadShopEvent((await params).eventId);
+    const sid = await authorizeShopMutation(core, event, actor);
     const { categoryId, quantity } = await parseBody(request, body);
     return NextResponse.json(await bestAvailable(core, sid, event, categoryId, quantity));
   });

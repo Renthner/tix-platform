@@ -250,7 +250,11 @@ export async function pgRestoreFromStream(
     if (psql.exitCode !== null) await psqlDone; // psql died on its own: its error is the cause
     // Handshake: psql runs statements in order and stops at the first error (ON_ERROR_STOP), so
     // the marker below appears only when the whole dump and the carry-forward SQL succeeded.
-    psql.stdin!.write(`\n${options.carryForward ?? ''}\n\\echo TIX_READY\n`);
+    // pg_restore's script ends with an empty search_path; the carry-forward fires trigger functions
+    // (ticket sync version) that may reference unqualified objects, so restore a sane path first.
+    psql.stdin!.write(
+      `\nSELECT pg_catalog.set_config('search_path', 'public', false);\n${options.carryForward ?? ''}\n\\echo TIX_READY\n`,
+    );
     const endedEarly = psqlDone.then(() => {
       throw new Error('psql ended before the dump was fully applied');
     });

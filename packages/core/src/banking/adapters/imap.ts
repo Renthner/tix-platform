@@ -2,6 +2,8 @@ import { imapConfigSchema, type BankStatementFormat, type ImapConfig } from '@ti
 import { ImapFlow } from 'imapflow';
 import { simpleParser, type AddressObject } from 'mailparser';
 import type { CoreContext } from '../../context';
+import { EndpointNotAllowedError } from '../../backup/endpoint-guard';
+import { assertMailHostAllowed } from '../../network/host-guard';
 import {
   BankSyncError,
   patchConnectionState,
@@ -45,6 +47,18 @@ function fromAddress(from: AddressObject | AddressObject[] | undefined): string 
   return first?.value?.[0]?.address ?? null;
 }
 
+/** SSRF guard right before connecting (DNS may have changed since the settings were saved). */
+async function assertImapHostAllowed(host: string): Promise<void> {
+  try {
+    await assertMailHostAllowed(host);
+  } catch (err) {
+    if (err instanceof EndpointNotAllowedError) {
+      throw new BankSyncError('IMAP_CONNECT', `IMAP host not allowed: ${err.message}`);
+    }
+    throw err;
+  }
+}
+
 export function createImapClient(config: ImapConfig, password: string): ImapFlow {
   return new ImapFlow({
     host: config.host,
@@ -66,6 +80,7 @@ export async function syncImap(
   },
 ): Promise<ImapSyncResult> {
   const config = imapConfigSchema.parse(params.connection.config);
+  await assertImapHostAllowed(config.host);
   const client = createImapClient(config, params.password);
   try {
     await client.connect();
@@ -161,6 +176,7 @@ export async function testImapConnection(
   config: ImapConfig,
   password: string,
 ): Promise<{ messages: number }> {
+  await assertImapHostAllowed(config.host);
   const client = createImapClient(config, password);
   try {
     await client.connect();

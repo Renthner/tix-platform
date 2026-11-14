@@ -22,6 +22,8 @@ export const QUEUE_NAMES = {
   backups: 'backups',
   /** GDPR retention: e-mail log purge, erasure of expired order data (Phase 5). */
   privacy: 'privacy',
+  /** AVIF / WebP variants of uploaded images (backfill of existing assets). */
+  media: 'media',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

@@ -16,7 +16,7 @@ deinem eigenen Server, ohne Plattformgebühren.**
   <img src="docs/img/shop-event.webp" alt="Veranstaltungsseite des Ticketshops" width="900">
 </p>
 
-> **Status:** Vorabversion (`1.0.0-alpha.3`). Funktionsumfang vollständig, aber noch nicht als
+> **Status:** Vorabversion (`1.0.0-alpha.18`). Funktionsumfang vollständig, aber noch nicht als
 > stabil freigegeben. Mach vor jedem Update ein Backup und lies das [CHANGELOG](CHANGELOG.md)
 > (auf Englisch).
 
@@ -108,7 +108,7 @@ Anleitung mit HTTPS-Varianten und Fehlersuche ist [docs/INSTALL.de.md](docs/INST
 
 ```bash
 # 1. Die zwei Dateien des Releases herunterladen
-export TIX_VERSION=1.0.0-alpha.3
+export TIX_VERSION=1.0.0-alpha.18
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -119,8 +119,6 @@ gen() { openssl rand -hex 24; }
 sed -i \
   -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" \
   -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(gen)|" \
-  -e "s|^MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=$(gen)|" \
-  -e "s|^S3_SECRET_ACCESS_KEY=.*|S3_SECRET_ACCESS_KEY=$(gen)|" \
   -e "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" \
   -e "s|^APP_ENCRYPTION_KEYS=.*|APP_ENCRYPTION_KEYS=k1:$(openssl rand -base64 32)|" \
   .env
@@ -154,8 +152,8 @@ Native Kotlin-App (Android 8+): fortlaufendes Kamera-Scannen, Vollbild-Ergebnis 
 rot, Offline-Datenbank mit Signaturprüfung, manuelle Suche und Check-out, Abgleich im Hintergrund.
 Lade `tix-checkin-<Version>.apk` von der [Release-Seite](https://github.com/Renthner/tix-platform/releases)
 und installiere sie (Installation aus dieser Quelle erlauben). Koppel jedes Handy mit dem QR-Code
-unter **Admin → Einlass-Geräte**. Die App aktualisiert sich selbst über GitHub Releases (Kanal
-`stable` oder `next`) oder von deinem eigenen Server. Details:
+unter **Admin → Einlass-Geräte**. Die App folgt immer der Version deines Servers und aktualisiert sich selbst über GitHub Releases
+oder von deinem eigenen Server. Details:
 [apps/android/README.md](apps/android/README.md), [docs/SCANNER.md](docs/SCANNER.md) (Englisch).
 
 <table>
@@ -193,14 +191,14 @@ pnpm dev                    # web :3000, Realtime-Gateway :3001, Worker
 Gesamter Stack aus dem Quellcode: `cp .env.example .env`, Geheimnisse eintragen, dann
 `docker compose up -d --build` (Shop unter `http://localhost:8080`).
 
-| Befehl                                  | Beschreibung                                                                      |
-| --------------------------------------- | --------------------------------------------------------------------------------- |
-| `pnpm typecheck`                        | TypeScript über alle Pakete                                                       |
-| `pnpm test`                             | Unit- und PostgreSQL-Integrationstests (braucht `TEST_DATABASE_URL`)              |
-| `pnpm db:generate`                      | Migration erzeugen, nachdem `packages/db/src/schema` geändert wurde               |
-| `pnpm db:studio`                        | Drizzle Studio                                                                    |
-| `node scripts/smoke/shop.mjs <eventId>` | Ende-zu-Ende-Test von Sperren, Warenkorb, Tarifen, Realtime gegen laufende Server |
-| `scripts/load/run.ps1 -Vus 1200`        | Lasttest in einem isolierten Stack, siehe [docs/LOAD-TEST.md](docs/LOAD-TEST.md)  |
+| Befehl                                  | Beschreibung                                                                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm typecheck`                        | TypeScript über alle Pakete                                                                                                          |
+| `pnpm test`                             | Unit- und PostgreSQL-Integrationstests (braucht `TIX_TEST_THROWAWAY=1` + `TEST_DATABASE_URL`/`TEST_REDIS_URL` eines Wegwerf-Servers) |
+| `pnpm db:generate`                      | Migration erzeugen, nachdem `packages/db/src/schema` geändert wurde                                                                  |
+| `pnpm db:studio`                        | Drizzle Studio                                                                                                                       |
+| `node scripts/smoke/shop.mjs <eventId>` | Ende-zu-Ende-Test von Sperren, Warenkorb, Tarifen, Realtime gegen laufende Server                                                    |
+| `scripts/load/run.ps1 -Vus 1200`        | Lasttest in einem isolierten Stack, siehe [docs/LOAD-TEST.md](docs/LOAD-TEST.md)                                                     |
 
 Health-Endpunkte: `GET /api/health?probe=live` (Liveness), `GET /api/health` (Bereitschaft:
 PostgreSQL, Redis, laufende Worker), Worker `:8081/healthz`, Realtime `:3001/healthz`.

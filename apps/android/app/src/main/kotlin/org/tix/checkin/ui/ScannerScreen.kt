@@ -39,10 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +72,7 @@ fun resultBackground(c: ScanColor): Color = when (c) {
 fun resultForeground(c: ScanColor): Color = if (c == ScanColor.YELLOW) Color(0xFF1A1400) else Color.White
 
 @Composable
-fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
+fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit, onOpenSettings: () -> Unit) {
     val event by vm.selectedEvent.collectAsState()
     val mode by vm.mode.collectAsState()
     val connection by vm.connection.collectAsState()
@@ -83,6 +81,7 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
     val checkedIn by vm.checkedInCount.collectAsState()
     val status by vm.syncStatus.collectAsState()
     val lan by vm.lanState.collectAsState()
+    val versionHint by vm.versionHint.collectAsState()
     val context = LocalContext.current
 
     // Keep the screen on while scanning.
@@ -142,6 +141,7 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 LanStatusLine(lan)
+                versionHint?.let { VersionHintStrip(it, onOpenSettings) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = mode == ScanAction.CHECK_IN,
@@ -174,6 +174,27 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit) {
                 QrScanner(onCode = vm::onCode, modifier = Modifier.fillMaxSize(), debounceMillis = 2_500)
             }
         }
+    }
+}
+
+/**
+ * One compact line in the status panel (never over the viewfinder, below the full-screen result, does not
+ * block scanning). The update hint opens Settings; the "server is older" hint is information only.
+ */
+@Composable
+private fun VersionHintStrip(hint: VersionHint, onOpenSettings: () -> Unit) {
+    val text = when (hint) {
+        is VersionHint.UpdateAvailable -> stringResource(R.string.scanner_hint_update_available, hint.version)
+        is VersionHint.ServerOlder -> stringResource(R.string.scanner_hint_server_older, hint.version)
+    }
+    val tappable = hint is VersionHint.UpdateAvailable
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth().then(if (tappable) Modifier.clickable(onClick = onOpenSettings) else Modifier),
+    ) {
+        Text(text, style = MaterialTheme.typography.bodySmall, maxLines = 2, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
     }
 }
 
@@ -218,18 +239,16 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
     val announcement = remember(v, style, headline, tapDismiss) {
         resultAnnouncement(context, v, style, headline, tapDismiss)
     }
+    // Reading the result aloud (opt-in setting) is done by MainViewModel.show with text-to-speech.
     val fontScale = LocalDensity.current.fontScale
     Box(
         Modifier.fillMaxSize().background(bg).clickable { vm.dismissVerdict(ui.seq) },
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            // One assertive live region: TalkBack reads the verdict as soon as it appears, instead of the pieces.
+            // One node with the whole verdict, so exploring by touch reads it in one piece instead of the parts.
             Modifier.widthIn(max = 600.dp).fillMaxWidth().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp)
-                .clearAndSetSemantics {
-                    liveRegion = LiveRegionMode.Assertive
-                    contentDescription = announcement
-                },
+                .clearAndSetSemantics { contentDescription = announcement },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -258,7 +277,7 @@ fun ResultOverlay(vm: MainViewModel, ui: VerdictUi) {
 }
 
 /** Spoken form of the full-screen result: headline, ticket data, warnings, first scan. */
-private fun resultAnnouncement(context: android.content.Context, v: ScanVerdict, style: ResultStyle, headline: String, tapDismiss: String): String {
+internal fun resultAnnouncement(context: android.content.Context, v: ScanVerdict, style: ResultStyle, headline: String, tapDismiss: String?): String {
     val parts = mutableListOf(headline)
     v.ticket?.let { t ->
         t.attendeeName?.takeIf { it.isNotBlank() }?.let { parts += it }
@@ -272,7 +291,8 @@ private fun resultAnnouncement(context: android.content.Context, v: ScanVerdict,
     if (v.result == org.tix.checkin.core.contract.ScanResult.REJECTED_ALREADY_CHECKED_IN) {
         v.firstScan?.let { parts += context.getString(R.string.result_first_scan, formatTime(context, it.at), it.deviceName ?: "-") }
     }
-    parts += tapDismiss
+    if (v.unknownKey) parts += context.getString(R.string.result_unknown_key)
+    tapDismiss?.let { parts += it }
     return parts.joinToString(". ")
 }
 
@@ -312,6 +332,9 @@ private fun ResultDetails(v: ScanVerdict, style: ResultStyle, fg: Color) {
                 style = MaterialTheme.typography.titleMedium, color = fg, textAlign = TextAlign.Center,
             )
         }
+    }
+    if (v.unknownKey) {
+        Text(stringResource(R.string.result_unknown_key), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = fg, textAlign = TextAlign.Center)
     }
     if (v.provisional) {
         Text(stringResource(R.string.result_provisional), style = MaterialTheme.typography.bodyLarge, color = fg, textAlign = TextAlign.Center)

@@ -13,13 +13,12 @@ import {
   Text,
   Transformer,
 } from 'react-konva';
+import { usePreviewFontFamily } from './preview-font';
 
 /** Konva stage of the ticket designer. All coordinates are millimetres (stage scale = px/mm). */
 
 export const QR_ID = 'qr';
 const PT_TO_MM = 25.4 / 72;
-/** Every family prints in the bundled Noto Sans; the preview uses the closest available sans. */
-const PREVIEW_FONT = '"Noto Sans", "Segoe UI", Helvetica, Arial, sans-serif';
 
 export type ElementPatch = Record<string, unknown>;
 
@@ -140,6 +139,8 @@ function AssetImage({
 }
 
 export function DesignerCanvas(props: DesignerCanvasProps) {
+  // Every family prints in the bundled Noto Sans; the preview loads the same font files.
+  const previewFont = usePreviewFontFamily();
   const { pageWidthMm, pageHeightMm, layout, scale, selectedId, onSelect, onChange } = props;
   const background = useImage(props.backgroundUrl);
   const cover = useImage(props.coverUrl);
@@ -334,7 +335,7 @@ export function DesignerCanvas(props: DesignerCanvasProps) {
                     width={element.width}
                     height={element.height}
                     fontSize={element.fontSize * PT_TO_MM}
-                    fontFamily={PREVIEW_FONT}
+                    fontFamily={previewFont}
                     fontStyle={element.fontWeight === 'bold' ? 'bold' : 'normal'}
                     fill={element.color}
                     align={element.align}
