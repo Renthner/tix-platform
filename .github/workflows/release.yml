@@ -193,6 +193,8 @@ jobs:
   attest-apk:
     name: Attest APK
     needs: [verify, android]
+    # Explicit condition: the CI job may be skipped (reused CI run), which would otherwise skip this job.
+    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.android.result == 'success' }}
     runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
     permissions:
       contents: read
@@ -525,6 +527,7 @@ jobs:
   promote:
     name: Moving tags
     needs: [verify, merge, release]
+    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.merge.result == 'success' && needs.release.result == 'success' }}
     runs-on: ${{ (vars.CI_RUNS_ON != '' && github.actor != 'dependabot[bot]') && fromJSON(vars.CI_RUNS_ON) || 'ubuntu-latest' }}
     permissions:
       contents: read
