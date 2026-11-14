@@ -20,8 +20,8 @@ import {
 } from '@/components/admin/commerce-settings-forms';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Button } from '@/components/ui/button';
+import { BrandingSettingsForm, SponsorsSettingsForm } from '@/components/admin/branding-forms';
 import {
-  BrandingSettingsForm,
   CheckoutSettingsForm,
   CookieNoticeSettingsForm,
   GeneralSettingsForm,
@@ -118,6 +118,7 @@ async function TabContent({
     id:
       | 'general'
       | 'branding'
+      | 'sponsors'
       | 'organizer'
       | 'checkout'
       | 'seatDisplay'
@@ -160,7 +161,7 @@ async function TabContent({
       );
     }
     case 'appearance': {
-      const [branding, seatDisplay, shopLayout, startPage, general, cookieNotice] =
+      const [branding, seatDisplay, shopLayout, startPage, general, cookieNotice, sponsors] =
         await Promise.all([
           getSetting(core, 'branding'),
           getSetting(core, 'seatDisplay'),
@@ -168,6 +169,7 @@ async function TabContent({
           getSetting(core, 'startPage'),
           getSetting(core, 'general'),
           getSetting(core, 'cookieNotice'),
+          getSetting(core, 'sponsors'),
         ]);
       const startPageTexts = Object.fromEntries(
         Object.entries(startPage.texts).map(([loc, v]) => [
@@ -181,15 +183,40 @@ async function TabContent({
             'branding',
             <BrandingSettingsForm
               action={saveSettingsAction.bind(null, 'branding')}
+              shopName={general.shopName}
               initial={{
                 logo: await pickerAsset(branding.logoAssetId),
                 favicon: await pickerAsset(branding.faviconAssetId),
-                primaryColor: branding.primaryColor,
-                accentColor: branding.accentColor,
+                logoHeight: branding.logoHeight,
+                brandColor: branding.brandColor,
+                brandColorDark: branding.brandColorDark,
+                themeMode: branding.themeMode,
+                defaultTheme: branding.defaultTheme,
                 imprintUrl: branding.imprintUrl,
                 privacyUrl: branding.privacyUrl,
                 termsUrl: branding.termsUrl,
                 footerText: descriptionToHtml(branding.footerText),
+              }}
+            />,
+          )}
+          {section(
+            'sponsors',
+            <SponsorsSettingsForm
+              action={saveSettingsAction.bind(null, 'sponsors')}
+              initial={{
+                enabled: sponsors.enabled,
+                height: sponsors.height,
+                label: sponsors.label as Record<string, string>,
+                defaultLocale: general.defaultLocale,
+                items: await Promise.all(
+                  sponsors.items.map(async (s) => ({
+                    key: s.id,
+                    asset: await pickerAsset(s.assetId),
+                    durationSeconds: String(s.durationSeconds),
+                    url: s.url ?? '',
+                    alt: s.alt as Record<string, string>,
+                  })),
+                ),
               }}
             />,
           )}

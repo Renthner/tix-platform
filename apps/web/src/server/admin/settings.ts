@@ -17,6 +17,7 @@ import {
 import {
   SCAN_RESULT_COLOR_KEYS,
   START_PAGE_HTML_MAX,
+  SPONSOR_MAX_ITEMS,
   START_PAGE_MAX_GALLERY,
   SUPPORTED_LOCALES,
   isPublicMediaKind,
@@ -37,6 +38,7 @@ import { fieldError, flag, success, text, zodFieldErrors } from './form';
 export type EditableSettingKey =
   | 'general'
   | 'branding'
+  | 'sponsors'
   | 'checkout'
   | 'seatDisplay'
   | 'shopLayout'
@@ -146,12 +148,65 @@ async function readInput(
         input: {
           logoAssetId,
           faviconAssetId,
-          primaryColor: text(fd, 'primaryColor'),
-          accentColor: text(fd, 'accentColor'),
+          logoHeight: requiredInt(fd, 'logoHeight', errors),
+          brandColor: text(fd, 'brandColor'),
+          // Empty = computed from the brand colour.
+          brandColorDark: text(fd, 'brandColorDark'),
+          themeMode: text(fd, 'themeMode'),
+          defaultTheme: text(fd, 'defaultTheme'),
           imprintUrl: text(fd, 'imprintUrl'),
           privacyUrl: text(fd, 'privacyUrl'),
           termsUrl: text(fd, 'termsUrl'),
           footerText: sanitizeRichText(text(fd, 'footerText')) || undefined,
+        },
+      };
+    }
+    case 'sponsors': {
+      const general = await getSetting(getCore(), 'general');
+      const count = Math.min(Number(text(fd, 'itemCount') ?? 0) || 0, SPONSOR_MAX_ITEMS);
+      const items: Record<string, unknown>[] = [];
+      for (let i = 0; i < count; i++) {
+        const assetField = `item.${i}.assetId`;
+        const id = text(fd, assetField);
+        const asset =
+          id && z.uuid().safeParse(id).success ? await getMediaAsset(getCore(), id) : null;
+        if (!asset || !isPublicMediaKind(asset.kind)) {
+          errors[assetField] = id ? 'invalid' : 'required';
+        }
+        const alt: Record<string, string> = {};
+        for (const loc of SUPPORTED_LOCALES) {
+          const value = text(fd, `item.${i}.alt.${loc}`);
+          if (value !== undefined) alt[loc] = value;
+        }
+        const url = text(fd, `item.${i}.url`);
+        // A link without any accessible name is not allowed: the default language needs alt text.
+        if (url && !alt[general.defaultLocale])
+          errors[`item.${i}.alt.${general.defaultLocale}`] = 'required';
+        const duration = text(fd, `item.${i}.duration`);
+        if (duration === undefined || !Number.isInteger(Number(duration))) {
+          errors[`item.${i}.durationSeconds`] = duration === undefined ? 'required' : 'invalid';
+        }
+        items.push({
+          id: (text(fd, `item.${i}.id`) ?? '').replace(/[^\w-]/g, '').slice(0, 40) || `s${i}`,
+          assetId: id,
+          assetWidth: asset?.width ?? null,
+          assetHeight: asset?.height ?? null,
+          alt,
+          url,
+          durationSeconds: duration === undefined ? undefined : Number(duration),
+        });
+      }
+      const label: Record<string, string> = {};
+      for (const loc of SUPPORTED_LOCALES) {
+        const value = text(fd, `label.${loc}`);
+        if (value !== undefined) label[loc] = value;
+      }
+      return {
+        input: {
+          enabled: flag(fd, 'enabled'),
+          height: requiredInt(fd, 'height', errors),
+          label,
+          items,
         },
       };
     }
@@ -447,6 +502,13 @@ function mapZodErrors(err: z.ZodError): Errors {
     if (!m) continue;
     delete fields[key];
     fields[m[2] === 'galleryAlt' ? `galleryAlt${m[3] ?? 0}.${m[1]}` : `${m[2]}.${m[1]}`] = code;
+  }
+  // Sponsors: "items.<n>.<field>" → form field "item.<n>.<field>".
+  for (const [key, code] of Object.entries(fields)) {
+    const m = /^items\.(\d+)\.(.+)$/.exec(key);
+    if (!m) continue;
+    delete fields[key];
+    fields[`item.${m[1]}.${m[2]}`] = m[2] === 'url' ? 'url' : code;
   }
   // Cookie notice: "texts.<locale>" → form field "text.<locale>".
   for (const [key, code] of Object.entries(fields)) {

@@ -1,8 +1,9 @@
 import createIntlMiddleware from 'next-intl/middleware';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { DEFAULT_LOCALE_HEADER, localizedPath } from '@tix/shared';
+import { DEFAULT_LOCALE_HEADER, isAdminPath, localizedPath } from '@tix/shared';
 import { routing } from './i18n/routing';
+import { AREA_HEADER } from './lib/theme';
 import { buildCsp, newNonce } from './server/csp';
 import { getDefaultLocale } from './server/default-locale';
 import { maintenanceGate } from './server/maintenance-gate';
@@ -28,7 +29,6 @@ function intlFor(defaultLocale: (typeof routing.locales)[number]) {
   }
   return middleware;
 }
-const ADMIN_PATH = new RegExp(`^/(?:(?:${routing.locales.join('|')})/)?admin(?:/|$)`);
 /** Admin pages reachable without a session (sign-in, forgot password, invitation / reset links). */
 const ADMIN_LOGIN = new RegExp(
   `^/(?:(?:${routing.locales.join('|')})/)?admin/(?:login|forgot-password|reset-password|accept-invite|verify-email)/?$`,
@@ -46,11 +46,7 @@ export default async function proxy(request: NextRequest): Promise<NextResponse 
   if (blocked) return blocked;
   const { pathname } = request.nextUrl;
   const defaultLocale = await getDefaultLocale();
-  if (
-    ADMIN_PATH.test(pathname) &&
-    !ADMIN_LOGIN.test(pathname) &&
-    !request.cookies.has('tix_admin')
-  ) {
+  if (isAdminPath(pathname) && !ADMIN_LOGIN.test(pathname) && !request.cookies.has('tix_admin')) {
     const prefix = pathname.split('/')[1] ?? '';
     const locale = (routing.locales as readonly string[]).includes(prefix) ? prefix : defaultLocale;
     return NextResponse.redirect(
@@ -65,6 +61,8 @@ export default async function proxy(request: NextRequest): Promise<NextResponse 
   request.headers.set('x-nonce', nonce);
   // Same value the URL rules used; set (not append) so a client-sent header is overwritten.
   request.headers.set(DEFAULT_LOCALE_HEADER, defaultLocale);
+  // Shop or admin portal (the colour theme and brand colour only apply to the shop).
+  request.headers.set(AREA_HEADER, isAdminPath(pathname) ? 'admin' : 'shop');
   request.headers.set('Content-Security-Policy', csp);
   const response = intlFor(defaultLocale)(request);
   response.headers.set('Content-Security-Policy', csp);

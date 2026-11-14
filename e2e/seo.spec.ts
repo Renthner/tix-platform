@@ -47,7 +47,8 @@ test('event page has canonical, hreflang, Open Graph and valid Event JSON-LD', a
   );
   await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', canonical!);
   await expect(page.locator('meta[name="twitter:card"]')).toHaveCount(1);
-  await expect(page.locator('meta[name="theme-color"]')).toHaveCount(1);
+  // Brand colour (light) and dark page background (dark) for the browser chrome (media specific).
+  await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2);
 
   const raw = await page.locator('script[type="application/ld+json"]').first().textContent();
   const data = JSON.parse(raw ?? '');

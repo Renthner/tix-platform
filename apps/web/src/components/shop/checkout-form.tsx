@@ -1,5 +1,6 @@
 'use client';
 
+import { EmailText } from '@/components/email-text';
 import type { CheckoutQuote, PaymentMethodOption, QuoteItem } from '@tix/core';
 import type { OnlinePaymentMethod, PostalAddress } from '@tix/shared';
 import {
@@ -195,12 +196,13 @@ export function CheckoutForm(props: Props) {
           {props.customer && (
             <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
               <UserCheck className="size-5 text-primary" />
-              <span className="flex-1">
-                {t('account.signedInAs', {
+              <EmailText
+                className="flex-1"
+                text={t('account.signedInAs', {
                   name: `${props.customer.firstName} ${props.customer.lastName}`,
                   email: props.customer.email,
                 })}
-              </span>
+              />
               <Link href="/account" className="font-medium underline">
                 {t('account.myAccount')}
               </Link>

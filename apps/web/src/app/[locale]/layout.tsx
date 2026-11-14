@@ -1,6 +1,14 @@
 import { hasLocale, NextIntlClientProvider } from 'next-intl';
 import { cookies, headers } from 'next/headers';
-import { DEFAULT_LOCALE_HEADER, expandTitleTemplate, isAppLocale } from '@tix/shared';
+import {
+  DEFAULT_LOCALE_HEADER,
+  DARK_BACKGROUND_HEX,
+  brandTokens,
+  expandTitleTemplate,
+  isAppLocale,
+  parseThemeCookie,
+  resolveTheme,
+} from '@tix/shared';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { Metadata, Viewport } from 'next';
 import { notFound } from 'next/navigation';
@@ -14,7 +22,7 @@ import { routing } from '@/i18n/routing';
 import { pickMessages } from '@/i18n/messages';
 import { getCore } from '@/server/core';
 import { getDefaultLocale } from '@/server/default-locale';
-import { THEME_BOOT_SCRIPT, THEME_COOKIE, parseThemePreference } from '@/lib/theme';
+import { AREA_HEADER, THEME_BOOT_SCRIPT, THEME_COOKIE } from '@/lib/theme';
 import { loadSeoContext, publicBaseUrl } from '@/server/seo';
 import '../globals.css';
 
@@ -64,8 +72,21 @@ export async function generateMetadata({
 }
 
 export async function generateViewport(): Promise<Viewport> {
-  const branding = await getSetting(getCore(), 'branding');
-  return { width: 'device-width', initialScale: 1, themeColor: branding.primaryColor };
+  const [branding, h] = await Promise.all([getSetting(getCore(), 'branding'), headers()]);
+  const tokens = brandTokens(branding.brandColor, branding.brandColorDark);
+  const area = h.get(AREA_HEADER) === 'admin' ? 'admin' : 'shop';
+  // Browser chrome colour: the brand colour in the light theme, the dark page background in the
+  // dark theme; with a fixed theme the matching one only.
+  const themeColor =
+    area === 'admin' || branding.themeMode === 'VISITOR_CHOICE'
+      ? [
+          { media: '(prefers-color-scheme: light)', color: tokens.light.primary },
+          { media: '(prefers-color-scheme: dark)', color: DARK_BACKGROUND_HEX },
+        ]
+      : branding.themeMode === 'ALWAYS_DARK'
+        ? DARK_BACKGROUND_HEX
+        : tokens.light.primary;
+  return { width: 'device-width', initialScale: 1, themeColor };
 }
 
 export default async function LocaleLayout({
@@ -81,23 +102,39 @@ export default async function LocaleLayout({
   const headerLocale = (await headers()).get(DEFAULT_LOCALE_HEADER);
   const defaultLocale =
     headerLocale && isAppLocale(headerLocale) ? headerLocale : await getDefaultLocale();
-  // Explicit theme choices are rendered here (no flash); "system" (no cookie) is resolved by the
-  // boot script in <head> before first paint.
-  const theme = parseThemePreference((await cookies()).get(THEME_COOKIE)?.value);
-  const nonce = (await headers()).get('x-nonce') ?? undefined;
+  const requestHeaders = await headers();
+  const area = requestHeaders.get(AREA_HEADER) === 'admin' ? 'admin' : 'shop';
+  const branding = await getSetting(getCore(), 'branding');
+  const config = { mode: branding.themeMode, defaultTheme: branding.defaultTheme };
+  // The shop theme follows Settings → Appearance (fixed, or the default for visitors without a
+  // choice); the admin portal always uses the admin's own choice.
+  const cookieChoice = parseThemeCookie((await cookies()).get(THEME_COOKIE)?.value);
+  const { preference: theme } = resolveTheme({ area, config, cookie: cookieChoice });
+  // Explicit themes are rendered here (no flash); "system" is resolved by the boot script in
+  // <head> before first paint.
+  const nonce = requestHeaders.get('x-nonce') ?? undefined;
+  // Brand colour variables (light + computed/overridden dark); CSS applies them to the shop only.
+  const brand = brandTokens(branding.brandColor, branding.brandColorDark);
+  const brandVars = {
+    '--brand-light': brand.light.primary,
+    '--brand-fg-light': brand.light.foreground,
+    '--brand-dark': brand.dark.primary,
+    '--brand-fg-dark': brand.dark.foreground,
+  } as React.CSSProperties;
   return (
     <html
       lang={locale}
       data-theme={theme}
+      data-area={area}
       className={theme === 'dark' ? 'dark' : undefined}
-      style={theme === 'system' ? undefined : { colorScheme: theme }}
+      style={theme === 'system' ? brandVars : { ...brandVars, colorScheme: theme }}
       suppressHydrationWarning
     >
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
       <body className="min-h-dvh">
-        <ThemeProvider initial={theme}>
+        <ThemeProvider config={config} initialChoice={cookieChoice}>
           <NextIntlClientProvider messages={await pickMessages(['common'])}>
             <DefaultLocaleProvider value={defaultLocale}>
               <TooltipProvider>{children}</TooltipProvider>

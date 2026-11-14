@@ -1,4 +1,5 @@
 import { getSetting, listCustomerOrders, type CustomerOrderSummary } from '@tix/core';
+import { EmailText } from '@/components/email-text';
 import { CircleCheck, KeyRound, MailWarning, Ticket } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -64,12 +65,14 @@ export default async function AccountPage({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t('overview.title')}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t('overview.signedInAs', {
+          <EmailText
+            as="p"
+            className="text-sm text-muted-foreground"
+            text={t('overview.signedInAs', {
               name: `${session.firstName} ${session.lastName}`.trim(),
               email: session.email,
             })}
-          </p>
+          />
         </div>
         <SignOutButton />
       </div>
@@ -85,7 +88,7 @@ export default async function AccountPage({
           <MailWarning />
           <AlertTitle>{t('overview.unverifiedTitle')}</AlertTitle>
           <AlertDescription className="space-y-3">
-            <p>{t('overview.unverified', { email: session.email })}</p>
+            <EmailText as="p" text={t('overview.unverified', { email: session.email })} />
             <ResendVerificationForm next="/account" />
           </AlertDescription>
         </Alert>

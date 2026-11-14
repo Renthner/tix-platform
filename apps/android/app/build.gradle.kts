@@ -27,10 +27,8 @@ val hasReleaseSigning =
 android {
     namespace = "org.tix.checkin"
     compileSdk {
-        // Installed platform: android-36.1
-        version = release(36) {
-            minorApiLevel = 1
-        }
+        // Installed platform: android-37.0
+        version = release(37)
     }
 
     defaultConfig {

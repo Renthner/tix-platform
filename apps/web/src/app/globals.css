@@ -201,12 +201,39 @@ html[data-theme='light'] {
   color-scheme: light;
 }
 
-/* Brand-coloured text (shop name): lightened in the dark theme so any brand colour stays legible. */
-.tix-brand-text {
-  color: var(--brand);
+/*
+ * The shop's single brand colour (Settings → Appearance): the root layout sets --brand-light /
+ * --brand-dark (computed or overridden dark variant) and the matching text colours on <html>; they
+ * drive the primary tokens in the shop only – the admin portal keeps the neutral palette. The
+ * dark rule is more specific than the light one on purpose (both set the same tokens).
+ */
+html[data-area='shop'] {
+  --primary: var(--brand-light);
+  --primary-foreground: var(--brand-fg-light);
+  --ring: var(--brand-light);
 }
-.dark .tix-brand-text {
-  color: color-mix(in oklab, var(--brand) 45%, white);
+html.dark[data-area='shop'] {
+  --primary: var(--brand-dark);
+  --primary-foreground: var(--brand-fg-dark);
+  --ring: var(--brand-dark);
+}
+
+/* Brand-coloured text (shop name in the header). */
+.tix-brand-text {
+  color: var(--primary);
+}
+
+/*
+ * Shop header images. The logo and the sponsor banner have a configurable height (inline custom
+ * properties); phones scale them down (75%, at most 56px) so the header controls always fit.
+ */
+.tix-header-image {
+  height: var(--tix-h);
+}
+@media (max-width: 639px) {
+  .tix-header-image {
+    height: min(calc(var(--tix-h) * 0.75), 56px);
+  }
 }
 
 @layer base {

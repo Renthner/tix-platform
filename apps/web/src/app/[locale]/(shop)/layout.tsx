@@ -1,4 +1,5 @@
 import { getSetting } from '@tix/core';
+import { protectEmailsInHtml } from '@tix/shared';
 import { UserRound } from 'lucide-react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
@@ -25,6 +26,7 @@ import { FOOTER_RICH_TEXT_CLASS } from '@/lib/rich-text-styles';
 import { MediaThumb } from '@/components/media-image';
 import { cn } from '@/lib/utils';
 import { PresenceBeacon } from '@/components/shop/presence-beacon';
+import { HeaderSponsors, type SponsorView } from '@/components/shop/header-sponsors';
 
 export default async function ShopLayout({
   children,
@@ -48,6 +50,7 @@ export default async function ShopLayout({
     cookieNotice,
     tCookies,
     cookieJar,
+    sponsors,
   ] = await Promise.all([
     getSetting(core, 'general'),
     getSetting(core, 'branding'),
@@ -61,12 +64,31 @@ export default async function ShopLayout({
     getSetting(core, 'cookieNotice'),
     getTranslations('shop.cookies'),
     cookies(),
+    getSetting(core, 'sponsors'),
   ]);
   const showCookieNotice =
     cookieNotice.enabled && cookieJar.get(COOKIE_NOTICE_COOKIE)?.value !== '1';
   // Signed-in admin users get a dashboard button (never while a restore holds the system).
   const adminMenu = adminSession && !maintenance.active ? adminSession : null;
   const footerHtml = descriptionToHtml(branding.footerText);
+  // Theme fixed by the operator: no theme switch anywhere in the shop header.
+  const themeFixed = branding.themeMode !== 'VISITOR_CHOICE';
+  const sponsorItems: SponsorView[] = sponsors.enabled
+    ? sponsors.items.map((s) => ({
+        id: s.id,
+        assetId: s.assetId,
+        width: s.assetWidth,
+        height: s.assetHeight,
+        alt: s.alt[locale as 'en' | 'de'] || s.alt[general.defaultLocale as 'en' | 'de'] || '',
+        href: s.url,
+        seconds: s.durationSeconds,
+      }))
+    : [];
+  const sponsorLabel =
+    sponsors.label[locale as 'en' | 'de'] ||
+    sponsors.label[general.defaultLocale as 'en' | 'de'] ||
+    '';
+  const hasSponsors = sponsorItems.length > 0;
   const legal = [
     { href: branding.imprintUrl, label: t('imprint') },
     { href: branding.privacyUrl, label: t('privacy') },
@@ -93,11 +115,15 @@ export default async function ShopLayout({
         {!adminSession && <PresenceBeacon />}
         <div className="flex min-h-dvh flex-col">
           <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
-            <div className="mx-auto flex h-14 max-w-7xl items-center gap-1 px-3 sm:gap-4 sm:px-4">
+            <div className="mx-auto flex min-h-14 max-w-7xl items-center gap-1 px-3 py-1.5 sm:gap-4 sm:px-4">
               <Link
                 href="/"
-                className="tix-brand-text min-w-0 truncate font-semibold"
-                style={{ '--brand': branding.primaryColor } as React.CSSProperties}
+                className={cn(
+                  'tix-brand-text min-w-0 font-semibold',
+                  // With sponsors the logo yields space to them on phones.
+                  hasSponsors ? 'max-w-[30%] shrink-0 truncate' : 'truncate',
+                )}
+                style={{ '--tix-h': `${branding.logoHeight}px` } as React.CSSProperties}
               >
                 {branding.logoAssetId ? (
                   <MediaThumb
@@ -105,13 +131,27 @@ export default async function ShopLayout({
                     variantWidth={640}
                     loading="eager"
                     alt={general.shopName}
-                    className="h-9 w-auto max-w-28 object-contain sm:max-w-56"
+                    className={cn(
+                      'tix-header-image w-auto object-contain',
+                      hasSponsors ? 'max-w-full' : 'max-w-[45vw] sm:max-w-80',
+                    )}
                   />
                 ) : (
                   general.shopName
                 )}
               </Link>
-              <nav className="hidden flex-1 sm:block">
+              {hasSponsors && (
+                <HeaderSponsors
+                  items={sponsorItems}
+                  height={sponsors.height}
+                  label={sponsorLabel}
+                  regionLabel={t('sponsors')}
+                  previousLabel={t('sponsorPrevious')}
+                  nextLabel={t('sponsorNext')}
+                />
+              )}
+              {/* Both fill the space up to the controls (the nav link is hidden on phones). */}
+              <nav className="hidden min-w-0 flex-1 sm:block sm:pl-2">
                 <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
                   {t('events')}
                 </Link>
@@ -131,13 +171,17 @@ export default async function ShopLayout({
               <HeaderCart />
               <LocaleSwitcher />
               {/* With the admin dropdown the theme items live there below 480px. */}
-              <div
-                className={
-                  adminMenu && !adminMenu.twoFactorSetupRequired ? 'max-[479px]:hidden' : undefined
-                }
-              >
-                <ThemeSwitcher />
-              </div>
+              {!themeFixed && (
+                <div
+                  className={
+                    adminMenu && !adminMenu.twoFactorSetupRequired
+                      ? 'max-[479px]:hidden'
+                      : undefined
+                  }
+                >
+                  <ThemeSwitcher />
+                </div>
+              )}
               {adminMenu && (
                 <AdminMenu
                   label={
@@ -154,6 +198,7 @@ export default async function ShopLayout({
                         }))
                   }
                   setupRequired={adminMenu.twoFactorSetupRequired}
+                  hideTheme={themeFixed}
                   signOutLabel={tAccount('signOut')}
                   queueTest={
                     !adminMenu.twoFactorSetupRequired && adminMenu.roles.includes('SUPER_ADMIN')
@@ -185,7 +230,7 @@ export default async function ShopLayout({
                 <div
                   className={cn('tix-rt min-w-0 flex-1', FOOTER_RICH_TEXT_CLASS)}
                   // Sanitised with the rich-text allowlist (also on save).
-                  dangerouslySetInnerHTML={{ __html: footerHtml }}
+                  dangerouslySetInnerHTML={{ __html: protectEmailsInHtml(footerHtml) }}
                 />
               ) : (
                 <span className="flex-1">{general.shopName}</span>

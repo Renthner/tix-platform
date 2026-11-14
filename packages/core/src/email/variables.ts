@@ -7,7 +7,7 @@ import {
   tickets,
   type Executor,
 } from '@tix/db';
-import type { PaymentMethod } from '@tix/shared';
+import { foregroundOn, type PaymentMethod } from '@tix/shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { CoreContext } from '../context';
 import {
@@ -33,6 +33,10 @@ export const EMAIL_VARIABLES = {
     'shopName',
     'shopUrl',
     'supportEmail',
+    'brandColor',
+    // Black or white, whichever reads better on the brand colour (button / banner text).
+    'brandForegroundColor',
+    // Aliases of brandColor (the shop has one brand colour); kept so edited templates still render.
     'primaryColor',
     'accentColor',
     'imprintUrl',
@@ -141,8 +145,10 @@ export async function shopVariables(
       shopName: general.shopName,
       shopUrl: ctx.appUrl ? `${ctx.appUrl}/${locale}` : null,
       supportEmail: general.supportEmail ?? organizer.email ?? null,
-      primaryColor: branding.primaryColor,
-      accentColor: branding.accentColor,
+      brandColor: branding.brandColor,
+      brandForegroundColor: foregroundOn(branding.brandColor),
+      primaryColor: branding.brandColor,
+      accentColor: branding.brandColor,
       imprintUrl: branding.imprintUrl ?? null,
       privacyUrl: branding.privacyUrl ?? null,
       termsUrl: branding.termsUrl ?? null,

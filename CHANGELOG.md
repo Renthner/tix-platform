@@ -8,6 +8,48 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.19] - 2026-11-14
+
+### Added
+
+- Settings → Appearance, **colour theme of the shop**: visitors choose (with a default of device
+  setting, light or dark for visitors without a choice) or the theme is fixed to always light /
+  always dark. With a fixed theme the shop renders it regardless of the visitor's cookie and hides
+  the theme switch (also in the shop admin dropdown on phones). The admin portal is not affected.
+  The proxy tells shop and admin apart (`x-tix-area` header; the client re-evaluates on navigation).
+- **Sponsors** in the shop header (setting `sponsors`, Settings → Appearance): several sponsors rotate
+  directly next to the logo (desktop and phones alike; the nav link and the controls follow). Per sponsor an image (media library), alt text per language,
+  an optional link (https or shop path, new tab, `rel="noopener sponsored"`) and its own display time
+  (1-120 s, default 5); global switch, banner height (slider + free number input), optional label per
+  language and ordering with up / down buttons. Smooth fade, pauses on hover and focus, no automatic
+  rotation with `prefers-reduced-motion` (previous / next buttons instead), not a live region.
+- Logo height in the shop header is configurable (slider 24-96 px plus a number input up to 200 px);
+  phones show it at 75 % (at most 56 px) and the header grows with the logo.
+- E-mail addresses and `mailto:` links on shop pages are wrapped in Cloudflare's
+  `<!--email_off-->` comments at render time, so Cloudflare's e-mail obfuscation no longer breaks
+  them behind Cloudflare (see docs/INSTALL.md, "Behind Cloudflare"). New e-mail variable
+  `{{brandColor}}` and `{{brandForegroundColor}}` (black or white, whichever reads better on the
+  brand colour).
+
+### Changed
+
+- **Android app build:** `compileSdk` raised to 37 (platform `android-37.0`, `targetSdk` unchanged at 36) so
+  current AndroidX releases build again; updated navigation-compose 2.10.2, Compose BOM 2026.09.00,
+  core-ktx 1.19.1, Ktor 3.6.1, BouncyCastle 1.87, Robolectric 4.17 and Gradle 9.9.1. CI and release
+  workflows install the 37.0 platform; the Dependabot AndroidX ignore rules were removed.
+- **One brand colour** replaces primary + accent colour (setting `branding.brandColor`; stored
+  `primaryColor` values are migrated, `accentColor` is dropped). It drives the primary / ring tokens
+  of the shop (buttons, links, active and selected items, focus rings, progress bars, shop name), the
+  buttons and links in e-mails, the wallet pass fallback colour and the `theme-color` of the browser
+  (light: the brand colour, dark: the dark page background, `#0a0a0a`). An optional dark-theme colour can be set; without it a dark
+  variant is computed (OKLCH lightness raised until contrast is at least 4.5:1) and the text colour on
+  the brand colour is chosen automatically. The settings page shows a live light / dark preview and
+  warns when the colour has less than 4.5:1 contrast on white. The e-mail variables `{{primaryColor}}`
+  and `{{accentColor}}` stay valid as aliases of the brand colour. The admin portal keeps its neutral
+  palette. Text on e-mail buttons and the e-mail banner follows the brand colour automatically
+  (`{{brandForegroundColor}}` instead of a fixed white); unedited default templates are upgraded,
+  edited ones stay untouched.
+
 ## [1.0.0-alpha.18] - 2026-11-14
 
 ### Added

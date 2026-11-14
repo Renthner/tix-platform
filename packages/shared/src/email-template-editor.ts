@@ -26,6 +26,8 @@ const SHOP = names('shop', [
   'shopName',
   'shopUrl',
   'supportEmail',
+  'brandColor',
+  'brandForegroundColor',
   'primaryColor',
   'accentColor',
   'imprintUrl',

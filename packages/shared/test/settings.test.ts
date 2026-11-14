@@ -156,3 +156,48 @@ describe('settings registry', () => {
     expect(readableTextColor('#2563EB')).toBe('#FFFFFF');
   });
 });
+
+describe('branding setting migration', () => {
+  it('maps a stored primary colour to the brand colour and drops the accent colour', () => {
+    const v = parseSetting('branding', { primaryColor: '#123456', accentColor: '#DC2626' });
+    expect(v.brandColor).toBe('#123456');
+    expect(v).not.toHaveProperty('primaryColor');
+    expect(v).not.toHaveProperty('accentColor');
+    expect(v.themeMode).toBe('VISITOR_CHOICE');
+    expect(v.defaultTheme).toBe('SYSTEM');
+  });
+
+  it('cuts alpha digits off a legacy 8-digit colour and prefers an existing brand colour', () => {
+    expect(parseSetting('branding', { primaryColor: '#12345680' }).brandColor).toBe('#123456');
+    expect(
+      parseSetting('branding', { primaryColor: '#111111', brandColor: '#222222' }).brandColor,
+    ).toBe('#222222');
+  });
+
+  it('has working defaults and validates the new fields', () => {
+    const d = defaultSetting('branding');
+    expect(d.brandColor).toBe('#111827');
+    expect(d.logoHeight).toBe(36);
+    expect(() => parseSetting('branding', { logoHeight: 500 })).toThrow();
+    expect(() => parseSetting('branding', { logoHeight: 150 })).not.toThrow();
+    expect(() => parseSetting('branding', { brandColor: '#12345680' })).toThrow();
+    expect(() => parseSetting('branding', { themeMode: 'NEON' })).toThrow();
+  });
+});
+
+describe('sponsors setting', () => {
+  const asset = '3f2b1c1e-5d1a-4e8e-9d0e-0a1b2c3d4e5f';
+  it('is off by default and validates duration and link', () => {
+    expect(defaultSetting('sponsors').enabled).toBe(false);
+    const ok = parseSetting('sponsors', {
+      enabled: true,
+      items: [{ id: 'a', assetId: asset, url: 'https://example.org' }],
+    });
+    expect(ok.items[0]?.durationSeconds).toBe(5);
+    for (const bad of [{ durationSeconds: 0 }, { durationSeconds: 121 }, { url: 'javascript:x' }]) {
+      expect(() =>
+        parseSetting('sponsors', { items: [{ id: 'a', assetId: asset, ...bad }] }),
+      ).toThrow();
+    }
+  });
+});

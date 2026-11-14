@@ -5,7 +5,10 @@
     "privacy": "Privacy",
     "terms": "Terms",
     "cookies": "Cookies",
-    "draftBanner": "Draft – visible to super admins only. Orders are test orders."
+    "draftBanner": "Draft – visible to super admins only. Orders are test orders.",
+    "sponsors": "Sponsors",
+    "sponsorPrevious": "Previous sponsor",
+    "sponsorNext": "Next sponsor"
   },
   "cookies": {
     "notice": "We only use technically necessary cookies (e.g. for your cart).",

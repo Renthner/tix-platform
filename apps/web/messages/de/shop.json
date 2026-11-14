@@ -5,7 +5,10 @@
     "privacy": "Datenschutz",
     "terms": "AGB",
     "cookies": "Cookies",
-    "draftBanner": "Entwurf – nur für Super-Admins sichtbar. Bestellungen sind Testbestellungen."
+    "draftBanner": "Entwurf – nur für Super-Admins sichtbar. Bestellungen sind Testbestellungen.",
+    "sponsors": "Sponsoren",
+    "sponsorPrevious": "Vorheriger Sponsor",
+    "sponsorNext": "Nächster Sponsor"
   },
   "cookies": {
     "notice": "Wir verwenden nur technisch notwendige Cookies (z. B. für deinen Warenkorb).",

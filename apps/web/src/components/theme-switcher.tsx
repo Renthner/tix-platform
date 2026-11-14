@@ -18,7 +18,8 @@ const ICONS = { system: Monitor, light: Sun, dark: Moon } as const;
 /** Radio items for System / Light / Dark, to embed in another dropdown (e.g. the shop admin menu). */
 export function ThemeMenuItems({ className }: { className?: string }) {
   const t = useTranslations('common.theme');
-  const { preference, setPreference } = useTheme();
+  const { preference, setPreference, fixed } = useTheme();
+  if (fixed) return null;
   return (
     <DropdownMenuRadioGroup
       className={className}
@@ -42,8 +43,10 @@ export function ThemeMenuItems({ className }: { className?: string }) {
 /** Colour theme menu: System (follows the OS, default) / Light / Dark. */
 export function ThemeSwitcher() {
   const t = useTranslations('common.theme');
-  const { preference, setPreference } = useTheme();
+  const { preference, setPreference, fixed } = useTheme();
   const Icon = ICONS[preference];
+  // The shop operator fixed the theme: nothing to choose.
+  if (fixed) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

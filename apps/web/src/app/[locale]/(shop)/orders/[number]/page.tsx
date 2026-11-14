@@ -6,6 +6,7 @@ import {
   walletTicketPath,
   type OrderView,
 } from '@tix/core';
+import { EmailText } from '@/components/email-text';
 import { formatTicketCode } from '@tix/shared';
 import { CheckCircle2, Clock, Download, Info, Undo2, XCircle } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
@@ -364,7 +365,11 @@ export default async function OrderPage({
         </Card>
       )}
 
-      <p className="text-xs text-muted-foreground">{t('contact', { email: order.email ?? '' })}</p>
+      <EmailText
+        as="p"
+        className="text-xs text-muted-foreground"
+        text={t('contact', { email: order.email ?? '' })}
+      />
     </div>
   );
 }
@@ -388,7 +393,9 @@ function StatusCard({
       <Alert>
         <CheckCircle2 className="size-4" />
         <AlertTitle>{t('paid.title')}</AlertTitle>
-        <AlertDescription>{t('paid.text', { email: order.email ?? '' })}</AlertDescription>
+        <AlertDescription>
+          <EmailText text={t('paid.text', { email: order.email ?? '' })} />
+        </AlertDescription>
       </Alert>
     );
   }

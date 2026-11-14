@@ -38,17 +38,122 @@ const generalSchema = z.object({
   supportEmail: z.email().optional(),
 });
 
-const brandingSchema = z.object({
-  logoAssetId: z.uuid().optional(),
-  faviconAssetId: z.uuid().optional(),
-  primaryColor: hexColorSchema.default('#111827'),
-  accentColor: hexColorSchema.default('#DC2626'),
-  imprintUrl: optionalUrl,
-  privacyUrl: optionalUrl,
-  termsUrl: optionalUrl,
-  /** Sanitised rich-text HTML (legacy values are plain text). */
-  footerText: z.string().max(10_000).optional(),
+/** How the shop picks its colour theme (the admin portal always lets the admin choose). */
+export const THEME_MODES = ['VISITOR_CHOICE', 'ALWAYS_LIGHT', 'ALWAYS_DARK'] as const;
+export type ThemeMode = (typeof THEME_MODES)[number];
+/** Theme shown to visitors without their own choice (`SYSTEM` = their device setting). */
+export const DEFAULT_THEMES = ['SYSTEM', 'LIGHT', 'DARK'] as const;
+export type DefaultTheme = (typeof DEFAULT_THEMES)[number];
+
+/** Shop header logo height in pixels: allowed range and the range of the admin slider. */
+export const LOGO_HEIGHT_MIN = 16;
+export const LOGO_HEIGHT_MAX = 200;
+export const LOGO_HEIGHT_SLIDER_MIN = 24;
+export const LOGO_HEIGHT_SLIDER_MAX = 96;
+export const LOGO_HEIGHT_DEFAULT = 36;
+/** Logo / banner height on phones relative to the configured height, and its upper limit (px). */
+export const HEADER_IMAGE_PHONE_SCALE = 0.75;
+export const HEADER_IMAGE_PHONE_MAX_PX = 56;
+
+/** Opaque brand colours only (contrast maths and the colour picker know no alpha). */
+const brandColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Expected a hex color like #1A2B3C');
+
+/**
+ * Stored values of older versions had two colours (`primaryColor`, `accentColor`): the primary
+ * one becomes the brand colour, the accent colour is dropped. Alpha digits are cut off.
+ */
+function migrateBranding(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return raw;
+  const { primaryColor, accentColor: _accent, ...rest } = raw as Record<string, unknown>;
+  void _accent;
+  if (rest.brandColor === undefined && typeof primaryColor === 'string') {
+    rest.brandColor = /^#[0-9a-fA-F]{8}$/.test(primaryColor)
+      ? primaryColor.slice(0, 7)
+      : primaryColor;
+  }
+  return rest;
+}
+
+const brandingSchema = z.preprocess(
+  migrateBranding,
+  z.object({
+    logoAssetId: z.uuid().optional(),
+    faviconAssetId: z.uuid().optional(),
+    /** Height of the logo in the shop header (px, phones scale it down automatically). */
+    logoHeight: z
+      .number()
+      .int()
+      .min(LOGO_HEIGHT_MIN)
+      .max(LOGO_HEIGHT_MAX)
+      .default(LOGO_HEIGHT_DEFAULT),
+    /** The one brand colour of the shop (buttons, links, focus rings, e-mails, wallet fallback). */
+    brandColor: brandColorSchema.default('#111827'),
+    /** Optional dark-theme colour; empty = computed from the brand colour. */
+    brandColorDark: brandColorSchema.optional(),
+    themeMode: z.enum(THEME_MODES).default('VISITOR_CHOICE'),
+    defaultTheme: z.enum(DEFAULT_THEMES).default('SYSTEM'),
+    imprintUrl: optionalUrl,
+    privacyUrl: optionalUrl,
+    termsUrl: optionalUrl,
+    /** Sanitised rich-text HTML (legacy values are plain text). */
+    footerText: z.string().max(10_000).optional(),
+  }),
+);
+
+/** Button target: an https URL or a path inside the shop ("/events", not "//host"). */
+export const startPageLinkSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .refine((v) => {
+    if (/\s/.test(v)) return false;
+    if (v.startsWith('/')) return !v.startsWith('//') && !v.includes('\\');
+    try {
+      return new URL(v).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'url');
+
+export const SPONSOR_MAX_ITEMS = 12;
+export const SPONSOR_HEIGHT_MIN = 16;
+export const SPONSOR_HEIGHT_MAX = 200;
+export const SPONSOR_HEIGHT_SLIDER_MIN = 24;
+export const SPONSOR_HEIGHT_SLIDER_MAX = 96;
+export const SPONSOR_DURATION_MIN = 1;
+export const SPONSOR_DURATION_MAX = 120;
+export const SPONSOR_DURATION_DEFAULT = 5;
+
+const sponsorItemSchema = z.object({
+  /** Stable key of the entry (the form keeps its order). */
+  id: z.string().trim().min(1).max(40),
+  /** Public media asset; its pixel size is stored when saving (reserves the box). */
+  assetId: z.uuid(),
+  assetWidth: z.number().int().positive().nullable().default(null),
+  assetHeight: z.number().int().positive().nullable().default(null),
+  /** Alt text per locale (missing = shop default locale). */
+  alt: z.partialRecord(z.enum(SUPPORTED_LOCALES), z.string().trim().max(200)).default({}),
+  /** https URL or a path inside the shop; opens in a new tab. */
+  url: startPageLinkSchema.optional(),
+  durationSeconds: z
+    .number()
+    .int()
+    .min(SPONSOR_DURATION_MIN)
+    .max(SPONSOR_DURATION_MAX)
+    .default(SPONSOR_DURATION_DEFAULT),
 });
+export type SponsorItem = z.output<typeof sponsorItemSchema>;
+
+/** Sponsors rotating next to the logo in the shop header. */
+const sponsorsSchema = z.object({
+  enabled: z.boolean().default(false),
+  /** Height of the sponsor banner (px, phones scale it down automatically). */
+  height: z.number().int().min(SPONSOR_HEIGHT_MIN).max(SPONSOR_HEIGHT_MAX).default(40),
+  /** Optional short text before the banner ("Supported by"), per locale; empty = none. */
+  label: z.partialRecord(z.enum(SUPPORTED_LOCALES), z.string().trim().max(60)).default({}),
+  items: z.array(sponsorItemSchema).max(SPONSOR_MAX_ITEMS).default([]),
+});
+export type SponsorsSettings = z.output<typeof sponsorsSchema>;
 
 /** Seller master data printed on invoices (§ 14 UStG). */
 const organizerSchema = z.object({
@@ -354,21 +459,6 @@ export type StartPageMode = (typeof START_PAGE_MODES)[number];
 /** Maximum size of the custom start page HTML per locale (characters). */
 export const START_PAGE_HTML_MAX = 200_000;
 
-/** Button target: an https URL or a path inside the shop ("/events", not "//host"). */
-export const startPageLinkSchema = z
-  .string()
-  .trim()
-  .max(500)
-  .refine((v) => {
-    if (/\s/.test(v)) return false;
-    if (v.startsWith('/')) return !v.startsWith('//') && !v.includes('\\');
-    try {
-      return new URL(v).protocol === 'https:';
-    } catch {
-      return false;
-    }
-  }, 'url');
-
 const startPageTextSchema = z.object({
   headline: z.string().trim().max(200).optional(),
   subheadline: z.string().trim().max(400).optional(),
@@ -613,6 +703,11 @@ export const SETTINGS = {
     schema: seatDisplaySchema,
     secret: false,
     description: 'Colours of seats in other carts, sold and blocked seats',
+  }),
+  sponsors: define({
+    schema: sponsorsSchema,
+    secret: false,
+    description: 'Sponsors rotating next to the logo in the shop header',
   }),
   shopLayout: define({
     schema: shopLayoutSchema,

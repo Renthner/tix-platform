@@ -15,7 +15,7 @@ export const ALLOWED_LINK = /^(https?:\/\/|mailto:|tel:|\{\{[^{}]+\}\})/i;
 
 /** Style of the "button" links used by the default templates. */
 export const BUTTON_STYLE =
-  'display:inline-block;background:{{accentColor}};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600';
+  'display:inline-block;background:{{accentColor}};color:{{brandForegroundColor}};text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600';
 
 const styleAttribute = {
   default: null,

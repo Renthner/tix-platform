@@ -45,7 +45,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     scope: '/',
     display: 'standalone',
     background_color: '#ffffff',
-    theme_color: branding.primaryColor,
+    theme_color: branding.brandColor,
     icons: icons.length > 0 ? icons : [{ src: '/icon.svg', type: 'image/svg+xml', sizes: 'any' }],
   };
 }

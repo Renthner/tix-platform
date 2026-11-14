@@ -27,6 +27,7 @@ export function AdminMenu({
   setupRequired,
   signOutLabel,
   queueTest,
+  hideTheme = false,
 }: {
   label: string;
   entries: { key: NavKey; label: string }[];
@@ -34,6 +35,8 @@ export function AdminMenu({
   signOutLabel: string;
   /** Super-admins only: switch to experience the waiting room like a customer. */
   queueTest?: { enabled: boolean; label: string; stateLabel: string };
+  /** The shop theme is fixed (Settings → Appearance): no theme items in the menu. */
+  hideTheme?: boolean;
 }) {
   const [queueBusy, setQueueBusy] = useState(false);
   const toggleQueueTest = async () => {
@@ -98,8 +101,8 @@ export function AdminMenu({
               </DropdownMenuItem>
             )}
             {/* Narrow screens: the header has no room for its own theme button. */}
-            <DropdownMenuSeparator className="min-[480px]:hidden" />
-            <ThemeMenuItems className="min-[480px]:hidden" />
+            {!hideTheme && <DropdownMenuSeparator className="min-[480px]:hidden" />}
+            {!hideTheme && <ThemeMenuItems className="min-[480px]:hidden" />}
             <DropdownMenuSeparator />
             <form action={signOutAdminAction}>
               <DropdownMenuItem asChild>

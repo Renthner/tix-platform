@@ -16,6 +16,7 @@ import {
   INFO_BOX_ICON_PX,
   localized,
   normalizePageLayout,
+  protectEmailsInHtml,
   publicPriceRanges,
   type InfoBoxSize,
   type PageBlockRef,
@@ -279,7 +280,7 @@ export default async function EventPage({ params }: Params) {
       return (
         <div
           className={cn('rich-text text-sm', !shared && 'max-w-3xl')}
-          dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+          dangerouslySetInnerHTML={{ __html: protectEmailsInHtml(descriptionHtml) }}
         />
       );
     }
@@ -313,7 +314,7 @@ export default async function EventPage({ params }: Params) {
               // Sanitised with the rich-text allowlist when saved.
               <div
                 className={cn('rich-text', BOX_TEXT_SIZE[size])}
-                dangerouslySetInnerHTML={{ __html: box.content }}
+                dangerouslySetInnerHTML={{ __html: protectEmailsInHtml(box.content) }}
               />
             )}
           </div>

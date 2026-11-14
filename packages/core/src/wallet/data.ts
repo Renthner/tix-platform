@@ -240,7 +240,7 @@ export async function resolveWalletDesign(
   const branding = await getSetting(ctx, 'branding');
   const primary = eventRow ?? globalRow;
   return {
-    backgroundColor: primary?.backgroundColor ?? branding.primaryColor,
+    backgroundColor: primary?.backgroundColor ?? branding.brandColor,
     foregroundColor: primary?.foregroundColor ?? '#FFFFFF',
     labelColor: primary?.labelColor ?? '#E5E7EB',
     logoText: eventRow?.logoText ?? globalRow?.logoText ?? null,

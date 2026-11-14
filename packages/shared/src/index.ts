@@ -35,4 +35,7 @@ export * from './scanner';
 export * from './start-page';
 export * from './seo';
 export * from './swr-cache';
+export * from './color';
+export * from './theme';
+export * from './email-off';
 export * from './statistics';

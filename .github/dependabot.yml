@@ -45,15 +45,6 @@ updates:
         update-types: [minor, patch]
       gradle-minor-patch:
         update-types: [minor, patch]
-    ignore:
-      # Newer AndroidX releases require compileSdk 37; the app targets compileSdk 36.1. Raise the SDK
-      # deliberately, then remove these entries (patch updates stay allowed).
-      - dependency-name: 'androidx.navigation:*'
-        update-types: ['version-update:semver-minor', 'version-update:semver-major']
-      - dependency-name: 'androidx.compose:compose-bom'
-        update-types: ['version-update:semver-minor', 'version-update:semver-major']
-      - dependency-name: 'androidx.core:*'
-        update-types: ['version-update:semver-minor', 'version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /

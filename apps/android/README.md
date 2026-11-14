@@ -120,7 +120,7 @@ Plain HTTP on a trusted venue network is for the admin to decide; prefer https w
 One-time setup:
 
 1. Install **Android Studio** <https://developer.android.com/studio> and start it once. In
-   *Settings -> Languages & Frameworks -> Android SDK* install *Android SDK Platform 36.1* and the
+   *Settings -> Languages & Frameworks -> Android SDK* install *Android SDK Platform 37.0* and the
    current build-tools. Android Studio's bundled JDK is found automatically.
 2. Open PowerShell in the repository and create the signing key (asks for a password and your name,
    then prints a backup reminder; the password is only typed into keytool):
@@ -154,7 +154,7 @@ macOS/Linux and troubleshooting follow below.
 
 ### Requirements
 
-- **Android Studio** (or the Android SDK command-line tools) with the SDK platform **android-36.1**
+- **Android Studio** (or the Android SDK command-line tools) with the SDK platform **android-37.0**
   and current build-tools. Install them in Android Studio under *Settings -> Languages & Frameworks ->
   Android SDK*.
 - **A JDK 17 or newer** for Gradle. Android Studio's bundled JBR works, a separately installed JDK
@@ -184,9 +184,9 @@ bash (macOS/Linux/Git Bash): the same with `./gradlew`.
 A debug APK is signed with the local debug key and is fine for a first try on your own phone; for the
 devices at the door use the signed release APK below.
 
-`compileSdk` is 36 with minor version 1 (the platform `android-36.1`), `targetSdk` 36,
+`compileSdk` is 37 (the platform `android-37.0`), `targetSdk` 36,
 `minSdk` 26. Dependency versions live in `gradle/libs.versions.toml`; AndroidX libraries are
-pinned to releases that still compile against API 36 (newer ones require compileSdk 37).
+kept current by Dependabot (newer AndroidX releases require compileSdk 37).
 
 ### Version
 
@@ -280,7 +280,7 @@ manual check-in and an offline check-in.
 | --- | --- |
 | `SDK location not found` | Install the SDK via Android Studio, or set `ANDROID_HOME` / `sdk.dir` (see *Requirements*). |
 | `Android SDK not found ... Looked in: ...` | The SDK is not in a default location: set `ANDROID_HOME` to it. |
-| `Failed to find target with hash string 'android-36.1'` / missing build-tools | Install *Android SDK Platform 36.1* and the build-tools in Android Studio's SDK Manager. |
+| `Failed to find target with hash string 'android-37.0'` / missing build-tools | Install *Android SDK Platform 37.0* and the build-tools in Android Studio's SDK Manager. |
 | `JAVA_HOME is not set and no 'java' command could be found` / unsupported Java | Set `JAVA_HOME` to Android Studio's `jbr` folder. |
 | `WARNING: no release signing configured` | Step 2 is missing or a value is empty. |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | An app signed with another key is installed: uninstall it first. |

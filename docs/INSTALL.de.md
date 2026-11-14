@@ -28,7 +28,7 @@ Die `.env`-Datei enthält nur die wenigen technischen Einstellungen.
 ### 1. Die zwei Dateien herunterladen
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.18
+export TIX_VERSION=1.0.0-alpha.19
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -515,6 +515,14 @@ Danach `docker compose up -d`. Cloudflares Bereiche ändern sich selten; die akt
 
 **Prüfen:** Öffne im Admin Einstellungen → Kasse. „Erkannte IP deiner aktuellen Anfrage“ muss
 deine eigene öffentliche Adresse zeigen, nicht eine Cloudflare- oder private Adresse.
+
+**E-Mail-Adressen auf Shop-Seiten.** Cloudflares _Email Address Obfuscation_ (Scrape Shield) schreibt
+jede E-Mail-Adresse im HTML in einen `/cdn-cgi/l/email-protection`-Link um und fügt ein Skript ein,
+das die Content Security Policy des Shops blockiert - Besucher sähen „[email protected]“ statt der
+Adresse. Der Shop umschließt deshalb jede E-Mail-Adresse und jeden `mailto:`-Link, den er ausgibt
+(Veranstaltungsbeschreibungen, Infoboxen, Footer, Startseite, Bestell- und Kontoseiten), automatisch
+mit Cloudflares Opt-out-Kommentaren `<!--email_off-->...<!--/email_off-->`; es ist nichts einzustellen.
+Alternativ schaltest du die Funktion in Cloudflare ab (**Scrape Shield → Email Address Obfuscation**).
 
 Tipps:
 

@@ -1,6 +1,11 @@
 import { sanitizeCustomHtml } from '@tix/core';
 import { mediaAssets } from '@tix/db';
-import { resolveStartPageHtml, resolveStartPageTexts, type StartPageSettings } from '@tix/shared';
+import {
+  protectEmailsInHtml,
+  resolveStartPageHtml,
+  resolveStartPageTexts,
+  type StartPageSettings,
+} from '@tix/shared';
 import { inArray } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { MediaImage } from '@/components/media-image';
@@ -62,7 +67,7 @@ export async function StartPage({
     return (
       <div
         className="tix-start-custom tix-light-scope"
-        dangerouslySetInnerHTML={{ __html: custom }}
+        dangerouslySetInnerHTML={{ __html: protectEmailsInHtml(custom) }}
       />
     );
   }
@@ -112,7 +117,7 @@ export async function StartPage({
         <div
           className={cn('tix-rt', RICH_TEXT_CLASS, overlay && '[&_a]:text-white [&_a]:underline')}
           // Sanitised with the rich-text allowlist (also on save).
-          dangerouslySetInnerHTML={{ __html: bodyHtml }}
+          dangerouslySetInnerHTML={{ __html: protectEmailsInHtml(bodyHtml) }}
         />
       )}
       {showButton && (

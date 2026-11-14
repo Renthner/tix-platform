@@ -72,7 +72,7 @@ const paragraph = (html: string) => `<p style="${P}">${html}</p>`;
 
 function button(locale: Locale, urlVar: string, label: string): string {
   return `{{#if ${urlVar}}}<p style="margin:24px 0">
-  <a href="{{${urlVar}}}" style="display:inline-block;background:{{accentColor}};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600">${label}</a>
+  <a href="{{${urlVar}}}" style="display:inline-block;background:{{accentColor}};color:{{brandForegroundColor}};text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600">${label}</a>
 </p>
 <p style="margin:0 0 16px;font-size:12px;${MUTED}">${COMMON[locale].buttonFallback}<br><a href="{{${urlVar}}}" style="color:#52525b;word-break:break-all">{{${urlVar}}}</a></p>{{/if}}`;
 }
@@ -164,7 +164,7 @@ function layout(locale: Locale, inner: string): string {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5">
 <tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#18181b">
-<tr><td style="background:{{primaryColor}};border-radius:8px 8px 0 0;padding:20px 28px;color:#ffffff;font-size:20px;font-weight:700">{{shopName}}</td></tr>
+<tr><td style="background:{{primaryColor}};border-radius:8px 8px 0 0;padding:20px 28px;color:{{brandForegroundColor}};font-size:20px;font-weight:700">{{shopName}}</td></tr>
 <tr><td style="padding:28px;font-size:15px;line-height:1.6">
 ${inner}
 </td></tr>
