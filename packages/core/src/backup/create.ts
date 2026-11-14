@@ -69,6 +69,7 @@ export async function createBackup(
       formatVersion: BACKUP_FORMAT_VERSION,
       id,
       kind: params.kind,
+      scope: 'FULL',
       createdAt,
       appVersion: rt.appVersion,
       lastMigration,

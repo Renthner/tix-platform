@@ -30,7 +30,14 @@ import { apiFetch, errorCode, errorMessage } from '@/lib/api';
 import { useMoney } from '@/lib/format';
 import { startSocketPresence } from '@/lib/presence';
 import { MaintenanceNotice } from '@/components/shop/maintenance-notice';
-import { emitRealtime, onRealtime, onResync, subscribeRoom } from '@/lib/realtime';
+import {
+  emitRealtime,
+  isRoomJoined,
+  onRealtime,
+  onResync,
+  onRoomJoinChange,
+  subscribeRoom,
+} from '@/lib/realtime';
 import { useCart } from './cart-context';
 import { SeatChart, type SeatColors, type SeatStatus } from './seat-chart/seat-chart';
 import { SeatStateLegend, SeatSwatch, StandingSwatch } from './seat-chart/seat-legend';
@@ -155,6 +162,15 @@ export function SeatSelection({
   }, [loadAll, showError]);
 
   // ── Live updates ─────────────────────────────────────────────────────────
+  // True once the gateway confirmed the seat room; exposed as `data-realtime` (browser tests wait
+  // for it before another visitor acts, see e2e/shop.spec.ts).
+  const [realtimeJoined, setRealtimeJoined] = useState(false);
+  useEffect(() => {
+    const sync = () => setRealtimeJoined(isRoomJoined('seats', eventId));
+    sync();
+    return onRoomJoinChange(sync);
+  }, [eventId]);
+
   useEffect(() => {
     const unsubscribe = subscribeRoom('seats', eventId);
     const off = onRealtime('seats:delta', (payload) => {
@@ -446,7 +462,7 @@ export function SeatSelection({
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
-      <div className="space-y-3">
+      <div className="space-y-3" data-realtime={realtimeJoined ? 'connected' : 'connecting'}>
         <MaintenanceNotice />
         <SeatChart
           map={map}

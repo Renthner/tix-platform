@@ -109,6 +109,8 @@ export interface GeneralValues {
   defaultCurrency: string;
   defaultTimeZone: string;
   supportEmail?: string;
+  updateCheckEnabled: boolean;
+  updateRepository: string;
 }
 
 export function GeneralSettingsForm({
@@ -200,6 +202,30 @@ export function GeneralSettingsForm({
         </Field>
       </div>
       <TimeZoneOptions />
+      <div className="space-y-4 rounded-md border p-4">
+        <h3 className="text-sm font-semibold">{t('updates.title')}</h3>
+        <SwitchRow
+          name="updateCheckEnabled"
+          defaultChecked={initial.updateCheckEnabled}
+          label={t('updates.enabled')}
+          hint={t('updates.enabledHint')}
+        />
+        <Field
+          label={t('updates.repository')}
+          htmlFor="updateRepository"
+          error={err('updateRepository')}
+          hint={t('updates.repositoryHint')}
+        >
+          <Input
+            id="updateRepository"
+            name="updateRepository"
+            defaultValue={initial.updateRepository}
+            placeholder="owner/name"
+            maxLength={140}
+            autoComplete="off"
+          />
+        </Field>
+      </div>
       <SubmitButton>{tc('save')}</SubmitButton>
     </ActionForm>
   );

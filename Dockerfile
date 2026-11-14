@@ -69,6 +69,9 @@ COPY --from=build /sharp-version /tmp/sharp-version
 RUN npm install --omit=dev --no-save --no-audit --no-fund --ignore-scripts=false       "sharp@$(cat /tmp/sharp-version)"  && npm cache clean --force  && rm -rf /tmp/sharp-version /root/.npm  && chown -R node:node /app
 COPY --from=build --chown=node:node /repo/apps/worker/dist ./dist
 COPY --from=build --chown=node:node /repo/packages/db/migrations ./migrations
+# Fallback directory of the pre-update backup (compose mounts the volume `pre-update-backups` here;
+# a new named volume inherits this ownership).
+RUN mkdir -p /pre-update-backups && chown node:node /pre-update-backups
 USER node
 EXPOSE 8081
 CMD ["node", "--enable-source-maps", "dist/index.mjs"]

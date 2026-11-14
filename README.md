@@ -16,8 +16,10 @@ English | [Deutsch](README.de.md)
   <img src="docs/img/shop-event.webp" alt="Event page of the ticket shop" width="900">
 </p>
 
-> **Status:** pre-release (`1.0.0-alpha.20`). Feature-complete, but not yet declared stable. Take a
-> backup before every update and read the [CHANGELOG](CHANGELOG.md).
+> **Status:** pre-release (`1.0.0-alpha.21`). Feature-complete, but not yet declared stable. Take a
+> backup before every update (a database backup is also taken automatically before schema changes)
+> and read the [CHANGELOG](CHANGELOG.md). Update with the `tix-update.sh` script of the release
+> ([install guide](docs/INSTALL.md#updating-and-backups)).
 
 ## What you get
 
@@ -105,7 +107,7 @@ and troubleshooting is [docs/INSTALL.md](docs/INSTALL.md).
 
 ```bash
 # 1. Download the two files of the release
-export TIX_VERSION=1.0.0-alpha.20
+export TIX_VERSION=1.0.0-alpha.21
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example

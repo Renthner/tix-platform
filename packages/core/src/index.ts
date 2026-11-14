@@ -79,3 +79,4 @@ export * from './scanner';
 export * from './setup-checklist';
 export * from './custom-html';
 export * from './statistics';
+export * from './updates';

@@ -39,6 +39,25 @@ in the backup). Keep a copy of the key ring outside this system - without it a b
   temporary database `tix_verify_<id>`, compares row counts with the manifest and drops the database again.
   This needs a database role that may create databases (the default Docker setup has one).
 
+## Pre-update backups
+
+Before the `migrate` service applies pending database migrations to an installation that already
+has data, it writes a database-only backup in the same encrypted format (kind "Before update",
+listed on the Backups page, restorable like any other; a restore of it replaces the database and
+leaves all files untouched). The newest 3 are kept (`PRE_UPDATE_BACKUP_KEEP`) and they are not part
+of the scheduled/manual retention. If the backups bucket is not reachable the archive is written as
+a file to the Docker volume `pre-update-backups` (upload it on the Backups page to restore it). If
+no backup can be written the migration is not applied (`SKIP_PRE_UPDATE_BACKUP=1` disables the
+step). Fresh installations skip it.
+
+The backup holds your **data** from before the update. Restoring it replaces the database (files stay
+untouched; files uploaded since then are left orphaned in storage, which is harmless) and re-runs the
+migrations of the version that is running now: you stay on the **new** version. Going back to an
+older application version is not supported once a newer schema was applied (older versions cannot
+read the newer schema or the "Before update" backup type). A compose file of an older release cannot
+take pre-update backups (the new `migrate` image then warns and migrates without one): use the
+compose file of the running release or `tix-update.sh`.
+
 ## Restore
 
 Requirements: SUPER_ADMIN, fresh password, authenticator/recovery code (required by default, setting

@@ -62,9 +62,9 @@ To re-run it for an existing tag use Actions -> Release -> Run workflow, select 
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `ghcr.io/<owner>/tix-web`, `tix-worker`, `tix-realtime` | linux/amd64 + linux/arm64, signed, with SBOM and provenance; tags `<version>` plus the moving channel tags (see [Channels](#channels)) |
 | `docker-compose.yml`, `env.example`                     | the two files a server needs (config inline, see Deploying); `env.example` = `.env.example`                                            |
-| `tix-deploy-<version>.zip`                              | both files plus README                                                                                                                 |
+| `tix-update.sh`                                         | update script: downloads and verifies the release's compose file, pulls images, restarts (`--dry-run`)                                 |
 | `tix-checkin-<version>.apk`                             | release asset, only when the signing secrets exist                                                                                     |
-| `SHA256SUMS.txt`                                        | checksums of the compose file, env.example, the zip and the APK                                                                        |
+| `SHA256SUMS.txt`                                        | checksums of the compose file, env.example, tix-update.sh, the zip and the APK                                                         |
 
 The one-shot `migrate` service uses the worker image (as in `docker-compose.yml`), so there is
 no separate migrate image. The packages must be readable by your servers: after the first
@@ -210,7 +210,8 @@ otherwise) filled in; `TIX_IMAGE_OWNER` / `TIX_CHANNEL` in `.env` override them.
   address on, so rate limits and the audit log see the real visitor. Leave it empty when Caddy
   is the edge. No proxy-specific configuration is part of the stack.
 
-Update: `docker compose pull && docker compose up -d`. Roll back: set `TIX_CHANNEL` to an exact
+Update: `./tix-update.sh` (the release asset, next to `docker-compose.yml`; `--dry-run` previews) or by hand
+`docker compose pull && docker compose up -d`. Roll back: set `TIX_CHANNEL` to an exact
 earlier version (only if its schema matches; otherwise restore the backup). Backups: Admin ->
 Backups.
 
@@ -348,7 +349,7 @@ Dependabot runs always use GitHub-hosted runners. Delete the variable to go back
   are built by buildx (container driver, removed after the job) and pushed to GHCR with
   `push: true` and no `load`, so no image tags appear in the host daemon. Never add
   `docker system prune` or similar to the workflows. Pulled base images (`postgres:18`,
-  `postgres:18-alpine`, `redis:8-alpine`) stay cached; remove them manually if disk gets tight.
+  `postgres:18-alpine`, `redis:8.10-alpine`) stay cached; remove them manually if disk gets tight.
 - Register **one** runner on the host: a runner executes one job at a time, which is how at most
   one workflow job of this repository runs there at once (CI's `node` and `android` jobs and the
   three image builds queue up instead of running in parallel). Releases and CI runs cause

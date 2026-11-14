@@ -12,6 +12,14 @@ export async function openEvent(page: Page): Promise<void> {
 }
 
 /**
+ * Waits until the page's realtime socket is in the seat room (the gateway acknowledged the
+ * subscription), so seat changes of another visitor are guaranteed to arrive as deltas.
+ */
+export async function waitRealtimeConnected(page: Page): Promise<void> {
+  await expect(page.locator('[data-realtime="connected"]')).toBeAttached({ timeout: 30_000 });
+}
+
+/**
  * Ids of the seats that can be clicked right now, in plan order. Seats held in another cart or
  * sold carry no `data-seat` attribute.
  */

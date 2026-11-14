@@ -166,17 +166,31 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
                           {when(manifest.createdAt)}
                         </div>
                         <div className="max-w-sm text-xs text-muted-foreground">
-                          {t('list.details', {
-                            orders: manifest.rowCounts.orders ?? 0,
-                            assets: manifest.files?.assets.objects ?? 0,
-                            documents: manifest.files?.documents.objects ?? 0,
-                            migration: manifest.lastMigration.tag ?? manifest.lastMigration.count,
-                          })}
+                          {manifest.scope === 'DATABASE'
+                            ? t('list.detailsDatabaseOnly', {
+                                orders: manifest.rowCounts.orders ?? 0,
+                                migration:
+                                  manifest.lastMigration.tag ?? manifest.lastMigration.count,
+                                version: manifest.appVersion,
+                              })
+                            : t('list.details', {
+                                orders: manifest.rowCounts.orders ?? 0,
+                                assets: manifest.files?.assets.objects ?? 0,
+                                documents: manifest.files?.documents.objects ?? 0,
+                                migration:
+                                  manifest.lastMigration.tag ?? manifest.lastMigration.count,
+                              })}
                           {manifest.originalId ? ` · ${t('list.uploaded')}` : ''}
                         </div>
                       </TableCell>
                       <TableCell className="align-top">
-                        <Badge variant={manifest.kind === 'PRE_RESTORE' ? 'outline' : 'secondary'}>
+                        <Badge
+                          variant={
+                            manifest.kind === 'PRE_RESTORE' || manifest.kind === 'PRE_UPDATE'
+                              ? 'outline'
+                              : 'secondary'
+                          }
+                        >
                           {t(`list.kind.${manifest.kind}`)}
                         </Badge>
                       </TableCell>
@@ -227,6 +241,7 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
                           <RestoreButton
                             backupId={manifest.id}
                             createdAtLabel={when(manifest.createdAt)}
+                            databaseOnly={manifest.scope === 'DATABASE'}
                             preview={previewRestoreAction}
                             restore={restoreBackupAction}
                           />

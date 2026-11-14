@@ -45,7 +45,7 @@ jobs:
       - name: Start PostgreSQL 18 and Redis 8
         run: |
           docker run -d --name "$TIX_CI_PG" -p 127.0.0.1::5432             -e POSTGRES_PASSWORD=postgres -e TZ=UTC             postgres:18-alpine postgres -c max_connections=500
-          docker run -d --name "$TIX_CI_REDIS" -p 127.0.0.1::6379 redis:8-alpine
+          docker run -d --name "$TIX_CI_REDIS" -p 127.0.0.1::6379 redis:8.10-alpine
 
           ready=0
           for _ in $(seq 1 30); do

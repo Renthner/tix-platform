@@ -286,8 +286,11 @@ export function RestoreButton({
   preview,
   restore,
   label,
+  databaseOnly = false,
 }: {
   label?: string;
+  /** Database-only backup (before an update): the files are not touched. */
+  databaseOnly?: boolean;
   backupId: string;
   createdAtLabel: string;
   preview: (id: string) => Promise<RestorePreview | null>;
@@ -332,7 +335,9 @@ export function RestoreButton({
           <DialogHeader>
             <DialogTitle>{t('restore.title')}</DialogTitle>
             <DialogDescription>
-              {t('restore.description', { date: createdAtLabel })}
+              {t(databaseOnly ? 'restore.descriptionDatabaseOnly' : 'restore.description', {
+                date: createdAtLabel,
+              })}
             </DialogDescription>
           </DialogHeader>
           {loading || !data ? (

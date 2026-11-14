@@ -76,6 +76,7 @@ test('maintainer block is stripped and the release compose has no leftovers', ()
   })
     .replaceAll('TIX_IMAGE_OWNER_DEFAULT', 'o')
     .replaceAll('__TIX_VERSION__', '1.0.0')
+    .replaceAll('__TIX_REPOSITORY__', 'o/r')
     .replaceAll('__TIX_INSTALL_GUIDE__', 'x');
   assert.deepEqual(releaseComposeProblems(filled), []);
 });

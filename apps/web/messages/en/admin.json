@@ -145,6 +145,20 @@
       "status": "Status",
       "sale": "Sale"
     },
+    "updates": {
+      "available": {
+        "title": "Update available: v{version} (channel {channel})",
+        "text": "This installation runs v{current}. Update with {command} next to your docker-compose.yml (a database backup is taken automatically first).",
+        "link": "Release notes"
+      },
+      "pinned": "This installation is pinned to {channel}. A newer release exists: v{version}.",
+      "checkFailed": "Could not check for updates (GitHub is not reachable). The check is repeated automatically.",
+      "drift": {
+        "title": "Your docker-compose.yml is outdated",
+        "text": "Your docker-compose.yml is from v{composeVersion}, but the app runs v{appVersion}. Download the docker-compose.yml of v{appVersion} and run docker compose up -d (tix-update.sh does this for you).",
+        "link": "docker-compose.yml of v{version}"
+      }
+    },
     "refundsOpen": {
       "title": "{count, plural, one {# refund is open} other {# refunds are open}}",
       "text": "Customers are waiting for their money.",
@@ -915,7 +929,14 @@
       "defaultCurrency": "Default currency",
       "defaultCurrencyHint": "ISO code, e.g. EUR. Pre-filled when creating events.",
       "defaultTimeZone": "Default time zone",
-      "defaultTimeZoneHint": "IANA name, e.g. Europe/Berlin. Pre-filled for new venues and events."
+      "defaultTimeZoneHint": "IANA name, e.g. Europe/Berlin. Pre-filled for new venues and events.",
+      "updates": {
+        "title": "Updates",
+        "enabled": "Tell super admins about new releases",
+        "enabledHint": "At most every 6 hours the server asks the GitHub Releases API for the newest release of your channel (TIX_CHANNEL) and shows a notice on the dashboard. Nothing but the repository name is sent; switch it off to make no outgoing request.",
+        "repository": "GitHub repository",
+        "repositoryHint": "owner/name. Leave empty to use the repository this release was built from."
+      }
     },
     "branding": {
       "title": "Branding",

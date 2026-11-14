@@ -52,21 +52,29 @@ Plain `http://localhost:8080` (the defaults) is for a first test only.
 
 ## Update
 
-1. Take a backup first (Admin -> Backups) and read the release notes: schema changes can not be
-   rolled back.
-2. `docker compose pull && docker compose up -d`
+1. Read the release notes.
+2. `./tix-update.sh` (the script of the release, saved next to `docker-compose.yml`; `--dry-run`
+   only shows what would change; `./tix-update.sh 1.2.0` or `./tix-update.sh stable` choose a
+   version or channel). It downloads the `docker-compose.yml` of the target release, verifies its
+   checksum, keeps the old file as `docker-compose.yml.bak-<time>`, pulls the images and restarts
+   the stack. `.env` and `docker-compose.override.yml` are never touched.
 
-To get a newer compose file (rarely needed; services only change in release notes), download the
-`docker-compose.yml` of that release again and keep your `.env`. The running version is shown in
-the admin sidebar and in `GET /api/health`.
+By hand: download the `docker-compose.yml` of the release (keep your `.env`), then
+`docker compose pull && docker compose up -d`.
+
+Before database changes of an update are applied, an encrypted database backup is taken
+automatically (Admin -> Backups, "Before update"); if that fails, nothing is migrated. Restoring it
+keeps the new version and brings back the old data; going back to an older version is not supported
+once a newer schema was applied (`tix-update.sh` refuses a lower version without `--force`). The running
+version is shown in Admin -> System, the admin sidebar and in `GET /api/health`.
 
 ## Versions
 
 `TIX_CHANNEL` in `.env` selects the images: `stable` (newest stable release, production), `next`
 (newest release incl. pre-releases, test servers), `1` / `1.0` (stable line) or an exact version
-such as `__TIX_VERSION__` (pin). To roll back set the exact earlier version, then
-`docker compose pull && docker compose up -d`. Only roll back to a version whose database schema
-matches; otherwise restore the backup taken before the update.
+such as `__TIX_VERSION__` (pin). Pinning an earlier version works only while the database schema is
+unchanged (`docker compose pull && docker compose up -d`); once a newer release migrated the
+database, going back is not supported.
 
 ## Backups
 

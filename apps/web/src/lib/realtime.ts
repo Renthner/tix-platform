@@ -21,6 +21,9 @@ interface RealtimeState {
   listeners: Map<string, Set<Listener>>;
   statusListeners: Set<(connected: boolean) => void>;
   resyncListeners: Set<(info: ResyncInfo) => void>;
+  /** Rooms the gateway acknowledged for the current connection. */
+  joined: Set<string>;
+  joinedListeners: Set<() => void>;
   maintenanceListeners: Set<(active: boolean) => void>;
   maintenance: boolean;
   maintenanceTimer: ReturnType<typeof setTimeout> | null;
@@ -42,6 +45,8 @@ const state: RealtimeState = {
   listeners: new Map(),
   statusListeners: new Set(),
   resyncListeners: new Set(),
+  joined: new Set(),
+  joinedListeners: new Set(),
   maintenanceListeners: new Set(),
   maintenance: false,
   maintenanceTimer: null,
@@ -114,6 +119,16 @@ async function fetchToken(): Promise<{ token: string; url: string | null }> {
   return (await response.json()) as { token: string; url: string | null };
 }
 
+/** Emits `<kind>:subscribe`; the gateway's acknowledgement marks the room as joined. */
+function joinRoom(socket: Socket, room: string): void {
+  const [kind, eventId] = room.split(':');
+  socket.emit(`${kind}:subscribe`, eventId, () => {
+    if (!state.rooms.has(room) || state.socket !== socket) return;
+    state.joined.add(room);
+    for (const l of state.joinedListeners) l();
+  });
+}
+
 function connect(): Promise<Socket> {
   if (state.socket) return Promise.resolve(state.socket);
   state.connecting ??= fetchToken().then(({ token, url }) => {
@@ -132,10 +147,8 @@ function connect(): Promise<Socket> {
       randomizationFactor: 0.5,
     });
     socket.on('connect', () => {
-      for (const room of state.rooms.keys()) {
-        const [kind, eventId] = room.split(':');
-        socket.emit(`${kind}:subscribe`, eventId);
-      }
+      state.joined.clear();
+      for (const room of state.rooms.keys()) joinRoom(socket, room);
       for (const l of state.statusListeners) l(true);
       if (state.needsResync) {
         const info: ResyncInfo = { full: state.needsFullResync };
@@ -146,6 +159,8 @@ function connect(): Promise<Socket> {
     });
     socket.on('disconnect', (reason) => {
       state.needsResync = true;
+      state.joined.clear();
+      for (const l of state.joinedListeners) l();
       for (const l of state.statusListeners) l(false);
       // The server closed the socket (no automatic retry): reconnect unless it is maintenance.
       if (reason === 'io server disconnect' && !state.maintenance) {
@@ -179,7 +194,7 @@ export function subscribeRoom(kind: 'seats' | 'queue', eventId: string): () => v
   state.rooms.set(room, (state.rooms.get(room) ?? 0) + 1);
   resumeMaintenancePoll();
   void connect().then((socket) => {
-    if (socket.connected) socket.emit(`${kind}:subscribe`, eventId);
+    if (socket.connected) joinRoom(socket, room);
   });
   return () => {
     const count = (state.rooms.get(room) ?? 1) - 1;
@@ -188,9 +203,19 @@ export function subscribeRoom(kind: 'seats' | 'queue', eventId: string): () => v
       return;
     }
     state.rooms.delete(room);
+    state.joined.delete(room);
     if (![...state.rooms.keys()].some((r) => r.endsWith(`:${eventId}`)))
       state.socket?.emit('unsubscribe', eventId);
   };
+}
+
+/** The gateway confirmed that this tab is in the room (true again after every reconnect). */
+export const isRoomJoined = (kind: 'seats' | 'queue', eventId: string): boolean =>
+  state.joined.has(`${kind}:${eventId}`);
+
+export function onRoomJoinChange(listener: () => void): () => void {
+  state.joinedListeners.add(listener);
+  return () => state.joinedListeners.delete(listener);
 }
 
 export function onRealtime(

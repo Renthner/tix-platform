@@ -6,6 +6,7 @@ export * from './endpoint-guard';
 export * from './inspect';
 export * from './manifest';
 export * from './pg';
+export * from './pre-update';
 export * from './restore';
 export * from './runtime';
 export * from './s3';

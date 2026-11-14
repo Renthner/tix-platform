@@ -28,7 +28,7 @@ ESM files, so runtime images need no workspace `node_modules`.
 | Service      | Image                 | Role                                                                      |
 | ------------ | --------------------- | ------------------------------------------------------------------------- |
 | `postgres`   | `postgres:18-alpine`  | Primary data store (ACID orders, invoices)                                |
-| `redis`      | `redis:8-alpine`      | Seat locks, waiting room, rate limits, BullMQ, pub/sub. `noeviction`, AOF |
+| `redis`      | `redis:8.10-alpine`   | Seat locks, waiting room, rate limits, BullMQ, pub/sub. `noeviction`, AOF |
 | `minio`      | S3-compatible storage | Uploaded assets, generated PDFs / `.pkpass`, bank statements              |
 | `minio-init` | `mc`                  | Creates buckets + least-privilege app user (idempotent)                   |
 | `migrate`    | worker image          | One-shot: advisory-locked migrations + idempotent seed                    |

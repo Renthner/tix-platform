@@ -145,6 +145,20 @@
       "status": "Status",
       "sale": "Verkauf"
     },
+    "updates": {
+      "available": {
+        "title": "Update verfügbar: v{version} (Kanal {channel})",
+        "text": "Diese Installation läuft mit v{current}. Aktualisiere mit {command} neben deiner docker-compose.yml (vorher wird automatisch ein Datenbank-Backup erstellt).",
+        "link": "Release-Hinweise"
+      },
+      "pinned": "Diese Installation ist auf {channel} festgelegt. Es gibt ein neueres Release: v{version}.",
+      "checkFailed": "Die Update-Prüfung war nicht möglich (GitHub nicht erreichbar). Sie wird automatisch wiederholt.",
+      "drift": {
+        "title": "Deine docker-compose.yml ist veraltet",
+        "text": "Deine docker-compose.yml stammt von v{composeVersion}, die App läuft aber mit v{appVersion}. Lade die docker-compose.yml von v{appVersion} herunter und starte docker compose up -d (tix-update.sh erledigt das für dich).",
+        "link": "docker-compose.yml von v{version}"
+      }
+    },
     "refundsOpen": {
       "title": "{count, plural, one {# Erstattung offen} other {# Erstattungen offen}}",
       "text": "Kunden warten auf ihr Geld.",
@@ -915,7 +929,14 @@
       "defaultCurrency": "Standardwährung",
       "defaultCurrencyHint": "ISO-Code, z. B. EUR. Wird beim Anlegen von Veranstaltungen vorbelegt.",
       "defaultTimeZone": "Standard-Zeitzone",
-      "defaultTimeZoneHint": "IANA-Name, z. B. Europe/Berlin. Vorbelegung für neue Spielstätten und Veranstaltungen."
+      "defaultTimeZoneHint": "IANA-Name, z. B. Europe/Berlin. Vorbelegung für neue Spielstätten und Veranstaltungen.",
+      "updates": {
+        "title": "Updates",
+        "enabled": "Super-Admins über neue Releases informieren",
+        "enabledHint": "Der Server fragt höchstens alle 6 Stunden die GitHub-Releases-API nach dem neuesten Release deines Kanals (TIX_CHANNEL) und zeigt einen Hinweis im Dashboard. Gesendet wird nur der Repository-Name; schalte es aus, um keine ausgehende Anfrage zu machen.",
+        "repository": "GitHub-Repository",
+        "repositoryHint": "owner/name. Leer lassen, um das Repository zu verwenden, aus dem dieses Release gebaut wurde."
+      }
     },
     "branding": {
       "title": "Erscheinungsbild",

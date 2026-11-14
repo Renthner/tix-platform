@@ -8,6 +8,45 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.21] - 2026-11-14
+
+### Added
+
+- **Container hardening** (both compose files): log rotation for every service
+  (`LOG_MAX_SIZE` 10m, `LOG_MAX_FILES` 5), `no-new-privileges`, all Linux capabilities dropped for
+  web, worker, realtime, migrate, storage-credentials (only CHOWN/FOWNER/DAC_OVERRIDE) and proxy
+  (only NET_BIND_SERVICE), memory ceilings for the app containers (`WEB_MEMORY`, `WORKER_MEMORY`, `REALTIME_MEMORY`,
+  `PROXY_MEMORY`, `MIGRATE_MEMORY`; Redis, Postgres and MinIO have none unless you set
+  `REDIS_MEMORY`/`POSTGRES_MEMORY`/`MINIO_MEMORY`) and a process
+  limit (`APP_PIDS_LIMIT`). All have generous defaults; existing installations keep working with the
+  new compose file without `.env` changes.
+- **Safe migrations:** a table-lock timeout (`MIGRATION_LOCK_TIMEOUT`, default 10 s) with retries and
+  a log line naming the blocking table and session, a statement timeout, and an automatic encrypted
+  **database backup before pending migrations** of an existing installation (Admin -> Backups, type
+  "Before update"; newest 3 kept; fallback file in the volume `pre-update-backups`; no backup, no
+  migration; `SKIP_PRE_UPDATE_BACKUP=1` opts out). Restoring such a backup replaces only the database.
+  Upgrading from an older release: replace `docker-compose.yml` with this release's file (or run
+  `tix-update.sh`) to get the pre-update backup; the new image with an old compose file warns and
+  migrates without a backup instead of failing.
+- **Update notice** on the super admin dashboard when a newer release exists for the installation's
+  `TIX_CHANNEL` (GitHub Releases API, server-side, at most every 6 hours, switchable and repository
+  configurable in Settings -> General), and a warning when `docker-compose.yml` is older than the
+  running app (`TIX_COMPOSE_VERSION`).
+- **`tix-update.sh`**: release asset that downloads and verifies the compose file of a version or
+  channel, keeps a timestamped copy, pulls the images and restarts the stack (`--dry-run`).
+
+### Changed
+
+- The Redis image is pinned to `redis:8.10-alpine` (was the floating `8-alpine`): the corrupt-AOF-tail
+  directive needs Redis 8.4+, and Redis cannot read data written by a newer version, so the pin is the
+  version `8-alpine` resolved to when this was added.
+
+### Fixed
+
+- Redis survives a crash or power loss: a corrupt tail of up to 4 KB in the append-only file is
+  discarded on start instead of blocking the whole stack (`aof-load-corrupt-tail-max-size`); install
+  guide troubleshooting row for larger damage.
+
 ## [1.0.0-alpha.20] - 2026-11-14
 
 ### Added

@@ -352,6 +352,9 @@ export async function restoreBackup(
       connectionString: rt.databaseUrl,
       migrationsFolder: rt.migrationsDir,
       log: (message) => rt.logger.info({}, message),
+      // Maintenance mode holds the stack and other sessions were terminated: no short timeouts.
+      statementTimeoutMs: 0,
+      lockTimeoutMs: 120_000,
     });
     // The durable marker lives in the restored database (the table exists only after the migrations).
     await retry(() => markRefundsForReconciliation(rt.ctx, 'restore', reconcileToken, 'post'));
@@ -364,7 +367,11 @@ export async function restoreBackup(
 
     // Files first: the erasure replay below deletes the stored ticket files of erased customers
     // (they were just restored from the backup).
-    const files = await restoreFiles(rt, directory, inspected.files, restoreId, progress);
+    // A database-only backup (pre-update) says nothing about the files: they stay untouched.
+    const files =
+      manifest.scope === 'DATABASE'
+        ? { restored: 0, quarantined: 0 }
+        : await restoreFiles(rt, directory, inspected.files, restoreId, progress);
 
     await at('ERASURE_REPLAY');
     const erasures = await retry(() => replayErasureLedger(rt.ctx));

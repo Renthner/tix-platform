@@ -14,8 +14,10 @@ import {
   CalendarPlus,
   ChartLine,
   DatabaseBackup,
+  FileWarning,
   Hourglass,
   Undo2,
+  Rocket,
 } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
@@ -40,6 +42,7 @@ import { hasRole, requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { loadDashboard } from '@/server/admin/dashboard';
 import { listEvents } from '@/server/admin/queries';
+import { loadUpdateNotice } from '@/server/updates';
 
 export async function generateMetadata() {
   const t = await getTranslations('admin.dashboard');
@@ -68,6 +71,7 @@ export default async function AdminDashboardPage({
     refundReviews,
     reconcile,
     setup,
+    updates,
   ] = await Promise.all([
     getTranslations('admin.dashboard'),
     getTranslations('backups.dashboardAlert'),
@@ -91,7 +95,10 @@ export default async function AdminDashboardPage({
     session.roles.includes('SUPER_ADMIN')
       ? getSetupChecklist(getCore(), session.userId).catch(() => null)
       : Promise.resolve(null),
+    // Super admins only; answers from the cache and never waits for GitHub.
+    session.roles.includes('SUPER_ADMIN') ? loadUpdateNotice() : Promise.resolve(null),
   ]);
+  const tu = await getTranslations('admin.dashboard.updates');
 
   return (
     <>
@@ -124,6 +131,80 @@ export default async function AdminDashboardPage({
         )}
         {setup && !setup.allDone && (
           <SetupChecklistCard checklist={setup} canDismiss={hasRole(session, ['SUPER_ADMIN'])} />
+        )}
+        {updates?.drift && (
+          <Alert className="border-warning-border bg-warning-soft text-warning">
+            <FileWarning className="size-4" />
+            <AlertTitle>{tu('drift.title')}</AlertTitle>
+            <AlertDescription>
+              <span>
+                {tu('drift.text', {
+                  composeVersion: updates.drift.composeVersion,
+                  appVersion: updates.drift.appVersion,
+                })}
+              </span>{' '}
+              {updates.drift.downloadUrl && (
+                <a
+                  href={updates.drift.downloadUrl}
+                  className="font-medium underline"
+                  rel="noopener noreferrer"
+                >
+                  {tu('drift.link', { version: updates.drift.appVersion })}
+                </a>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+        {updates?.status.status === 'ok' &&
+          updates.status.latest &&
+          updates.status.updateAvailable && (
+            <Alert>
+              <Rocket className="size-4" />
+              <AlertTitle>
+                {tu('available.title', {
+                  version: updates.status.latest.version,
+                  channel: updates.status.channel,
+                })}
+              </AlertTitle>
+              <AlertDescription>
+                <span>
+                  {tu('available.text', {
+                    current: updates.status.current,
+                    command: './tix-update.sh',
+                  })}
+                </span>{' '}
+                <a
+                  href={updates.status.latest.url}
+                  className="font-medium underline"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {tu('available.link')}
+                </a>
+              </AlertDescription>
+            </Alert>
+          )}
+        {updates?.status.status === 'ok' &&
+          updates.status.pinned &&
+          updates.status.latest &&
+          updates.status.latest.version !== updates.status.current && (
+            <p className="text-sm text-muted-foreground">
+              {tu('pinned', {
+                channel: updates.status.channel,
+                version: updates.status.latest.version,
+              })}{' '}
+              <a
+                href={updates.status.latest.url}
+                className="underline"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                {tu('available.link')}
+              </a>
+            </p>
+          )}
+        {updates?.status.status === 'error' && (
+          <p className="text-sm text-muted-foreground">{tu('checkFailed')}</p>
         )}
         {backupFailure && (
           <Alert variant="destructive">

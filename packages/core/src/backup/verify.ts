@@ -3,7 +3,7 @@ import { BackupCryptoError } from './crypto';
 import { findBackup, writeBackupState } from './catalogue';
 import { extractDump, inspectArchive } from './inspect';
 import { archiveKey, type BackupManifest, type VerifyResult } from './manifest';
-import { pgRestoreFromStream, readRowCounts, withDatabase, withPgClient } from './pg';
+import { pgRestoreFromStream, readExistingRowCounts, withDatabase, withPgClient } from './pg';
 import { describeError, type BackupRuntime } from './runtime';
 import type { Progress } from './state';
 
@@ -103,7 +103,7 @@ async function runVerification(
     await pgRestoreFromStream(rt.pg, target, extractDump(source.stream, rt.keyRing), {
       applicationName: 'tix-backup-verify-restore',
     });
-    const counts = await withPgClient(target, 'tix-backup-verify-count', readRowCounts);
+    const counts = await withPgClient(target, 'tix-backup-verify-count', readExistingRowCounts);
     const mismatches = compareRowCounts(manifest.rowCounts, counts);
     return mismatches.length > 0
       ? fail('ROW_COUNT_MISMATCH', mismatches)

@@ -31,6 +31,26 @@ x-app-environment: &app-environment
   S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-tix-documents}
   S3_BUCKET_BACKUPS: ${S3_BUCKET_BACKUPS:-tix-backups}
   S3_FORCE_PATH_STYLE: 'true'
+  # Shown in the admin: update notice (channel) and docker-compose.yml drift warning (compose version).
+  TIX_CHANNEL: ${TIX_CHANNEL:-}
+  TIX_COMPOSE_VERSION: dev
+  # GitHub owner/name the update notice reads releases from (the setting in the admin wins).
+  TIX_UPDATE_REPOSITORY: ${TIX_UPDATE_REPOSITORY:-}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-10m}
+    max-file: ${LOG_MAX_FILES:-5}
+
+# Containers run without extra privileges; app containers also get a memory ceiling and a process
+# limit (generous defaults, tune in .env). Services needing Linux capabilities add exactly those.
+x-hardened: &hardened
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  pids_limit: ${APP_PIDS_LIMIT:-512}
 
 x-worker-image: &worker-image
   image: ${IMAGE_REGISTRY:-tix}/worker:${IMAGE_TAG:-local}
@@ -42,6 +62,10 @@ services:
   postgres:
     image: postgres:18-alpine
     restart: unless-stopped
+    logging: *logging
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${POSTGRES_MEMORY:-0}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-tix}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
@@ -72,8 +96,13 @@ services:
       retries: 20
 
   redis:
-    image: redis:8-alpine
+    image: redis:8.10-alpine
+    # >= 8.4 is required for aof-load-corrupt-tail-max-size (older 8.x lines refuse to start with it). Pinned to the line `8-alpine` resolved to when this was added: Redis cannot read data written by a newer version, so never pin below what was already running.
     restart: unless-stopped
+    logging: *logging
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${REDIS_MEMORY:-0}
     command:
       - redis-server
       - /usr/local/etc/redis/redis.conf
@@ -106,8 +135,14 @@ services:
   # credentials; overwriting the file would lock the stack out). The app key pair may be changed in
   # .env: minio-init rotates the user secret, then recreate web and worker (docs/INSTALL.md).
   storage-credentials:
-    <<: *worker-image
+    <<: [*worker-image, *hardened]
     restart: 'no'
+    logging: *logging
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - DAC_OVERRIDE
+    mem_limit: ${STORAGE_INIT_MEMORY:-256m}
     user: '0:0'
     command:
       - node
@@ -174,6 +209,10 @@ services:
   minio:
     image: ${MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
     restart: unless-stopped
+    logging: *logging
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${MINIO_MEMORY:-0}
     command: ['server', '/data', '--console-address', ':9001']
     depends_on:
       storage-credentials:
@@ -196,6 +235,10 @@ services:
   minio-init:
     image: ${MC_IMAGE:-pgsty/mc:RELEASE.2026-10-26T00-00-00Z}
     restart: 'no'
+    logging: *logging
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${STORAGE_INIT_MEMORY:-256m}
     depends_on:
       storage-credentials:
         condition: service_completed_successfully
@@ -216,13 +259,29 @@ services:
 
   # One-shot: apply SQL migrations (advisory-locked) and idempotent reference data.
   migrate:
-    <<: *worker-image
+    <<: [*worker-image, *hardened]
     restart: 'no'
+    logging: *logging
+    mem_limit: ${MIGRATE_MEMORY:-1g}
     command: ['sh', '-c', 'node dist/migrate.mjs && node dist/seed.mjs']
-    environment: *app-environment
+    # Before pending migrations are applied to an existing installation a database backup is taken
+    # (Admin > Backups, "Before update"; fallback: encrypted file in the `pre-update-backups` volume).
+    # Escape hatch: SKIP_PRE_UPDATE_BACKUP=1 in .env. It needs the object storage, hence minio-init.
+    environment:
+      <<: *app-environment
+      SKIP_PRE_UPDATE_BACKUP: ${SKIP_PRE_UPDATE_BACKUP:-}
+      PRE_UPDATE_BACKUP_KEEP: ${PRE_UPDATE_BACKUP_KEEP:-}
+      MIGRATION_LOCK_TIMEOUT: ${MIGRATION_LOCK_TIMEOUT:-}
+      MIGRATION_STATEMENT_TIMEOUT: ${MIGRATION_STATEMENT_TIMEOUT:-}
+      MIGRATION_LOCK_RETRIES: ${MIGRATION_LOCK_RETRIES:-}
+    volumes:
+      - storage-credentials:/run/tix-storage:ro
+      - pre-update-backups:/pre-update-backups
     depends_on:
       postgres:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
 
   web:
     image: ${IMAGE_REGISTRY:-tix}/web:${IMAGE_TAG:-local}
@@ -230,7 +289,10 @@ services:
       context: .
       target: web
     init: true
+    <<: *hardened
     restart: unless-stopped
+    logging: *logging
+    mem_limit: ${WEB_MEMORY:-1g}
     environment:
       <<: *app-environment
       DATABASE_POOL_MAX: ${WEB_DATABASE_POOL_MAX:-40}
@@ -253,9 +315,11 @@ services:
       retries: 3
 
   worker:
-    <<: *worker-image
+    <<: [*worker-image, *hardened]
     init: true
     restart: unless-stopped
+    logging: *logging
+    mem_limit: ${WORKER_MEMORY:-1536m}
     stop_grace_period: 40s
     environment:
       <<: *app-environment
@@ -285,7 +349,10 @@ services:
       context: .
       target: realtime
     init: true
+    <<: *hardened
     restart: unless-stopped
+    logging: *logging
+    mem_limit: ${REALTIME_MEMORY:-512m}
     environment:
       NODE_ENV: production
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -306,7 +373,12 @@ services:
   # Public entry point (HTTP/HTTPS). Automatic TLS when SITE_ADDRESS is a domain name.
   proxy:
     image: caddy:2-alpine
+    <<: *hardened
     restart: unless-stopped
+    logging: *logging
+    cap_add:
+      - NET_BIND_SERVICE
+    mem_limit: ${PROXY_MEMORY:-256m}
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
       # Empty = Caddy is the edge. Set when another reverse proxy sits in front (docker/caddy/Caddyfile).
@@ -329,5 +401,6 @@ volumes:
   redis-data:
   minio-data:
   storage-credentials:
+  pre-update-backups:
   caddy-data:
   caddy-config:

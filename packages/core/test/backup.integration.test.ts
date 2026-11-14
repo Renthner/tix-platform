@@ -7,7 +7,7 @@
  * Skipped cleanly when the variable is missing or pg_dump is not installed.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { join, resolve } from 'node:path';
@@ -19,6 +19,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   S3Bucket,
   createBackup,
+  createPreUpdateBackup,
+  inspectArchive,
+  selectBackupsToDelete,
   anonymizeCustomer,
   backupDirectory,
   decryptStream,
@@ -110,6 +113,9 @@ class MemoryBucket extends S3Bucket {
     const body = Buffer.concat(parts);
     this.objects.set(key, { body, contentType });
     return { sizeBytes: body.length, sha256: createHash('sha256').update(body).digest('hex') };
+  }
+  override async checkAccess() {
+    // always reachable
   }
   override async delete(key: string) {
     this.objects.delete(key);
@@ -544,5 +550,129 @@ run('backup, verify and restore (real PostgreSQL)', () => {
     // Run 3 (good backup, good migrations) finishes the job and clears the marker.
     await restoreBackup(rt, { backupId: entry!.manifest.id, userId: null, progress });
     expect(await getRestoreIncomplete(rt.ctx)).toBeNull();
+  });
+
+  describe('pre-update backup (database only)', () => {
+    const params = (overrides: Partial<Parameters<typeof createPreUpdateBackup>[0]> = {}) => ({
+      databaseUrl: url,
+      migrationsDir: resolve(__dirname, '../../db/migrations'),
+      appVersion: 'test',
+      keyRing: ring,
+      pg: DEFAULT_PG_BINARIES,
+      bucket: buckets.backups as S3Bucket | null,
+      localDir: null as string | null,
+      keep: 3,
+      logger: { info: () => undefined, warn: () => undefined },
+      ...overrides,
+    });
+    const preUpdates = async () =>
+      (await listCatalogue(buckets.backups)).filter((e) => e.manifest.kind === 'PRE_UPDATE');
+
+    it('is listed as "before update", database only, and restores without touching files', async () => {
+      await query(
+        `UPDATE system_settings SET value = '{"shopName":"BeforeUpdate"}' WHERE key = 'general'`,
+      );
+      const result = await createPreUpdateBackup(params());
+      expect(result.location).toBe('bucket');
+      const [entry] = await preUpdates();
+      expect(entry!.manifest).toMatchObject({ kind: 'PRE_UPDATE', scope: 'DATABASE' });
+      expect(entry!.manifest.files).toBeUndefined();
+      expect(entry!.manifest.rowCounts.system_settings).toBeGreaterThan(0);
+      const inspected = await inspectArchive(
+        (await buckets.backups.getStream(archiveKey(entry!.directory))).stream,
+        ring,
+      );
+      expect(inspected.files.assets.objects + inspected.files.documents.objects).toBe(0);
+
+      // The update changes data and files afterwards ...
+      await query(
+        `UPDATE system_settings SET value = '{"shopName":"After"}' WHERE key = 'general'`,
+      );
+      buckets.assets.objects.set('later.png', {
+        body: Buffer.from('later'),
+        contentType: 'image/png',
+      });
+      buckets.documents.objects.delete('tickets/b/c.pdf');
+      const assetsBefore = buckets.assets.snapshot();
+      const documentsBefore = buckets.documents.snapshot();
+      const quarantineBefore = [...buckets.backups.objects.keys()].filter((k) =>
+        k.startsWith('restore-quarantine/'),
+      ).length;
+
+      const restored = await restoreBackup(rt, {
+        backupId: entry!.manifest.id,
+        userId: null,
+        progress: createProgress({ redis, keys: rt.ctx.keys }, 'RESTORE', entry!.manifest.id),
+      });
+      // ... and the restore brings the database back but leaves every file alone.
+      const setting = await query(`SELECT value FROM system_settings WHERE key = 'general'`);
+      expect(setting.rows[0].value.shopName).toBe('BeforeUpdate');
+      expect(restored.filesRestored).toBe(0);
+      expect(restored.filesQuarantined).toBe(0);
+      expect(buckets.assets.snapshot()).toEqual(assetsBefore);
+      expect(buckets.documents.snapshot()).toEqual(documentsBefore);
+      expect(
+        [...buckets.backups.objects.keys()].filter((k) => k.startsWith('restore-quarantine/')),
+      ).toHaveLength(quarantineBefore);
+      buckets.assets.objects.delete('later.png');
+    });
+
+    it('keeps only the newest N pre-update backups and leaves other kinds alone', async () => {
+      const others = (await listCatalogue(buckets.backups)).filter(
+        (e) => e.manifest.kind !== 'PRE_UPDATE',
+      ).length;
+      for (let i = 0; i < 4; i += 1) await createPreUpdateBackup(params({ keep: 3 }));
+      const kept = await preUpdates();
+      expect(kept).toHaveLength(3);
+      expect(
+        (await listCatalogue(buckets.backups)).filter((e) => e.manifest.kind !== 'PRE_UPDATE'),
+      ).toHaveLength(others);
+      // Never counted against the schedule retention (neither by count nor by age).
+      const doomed = selectBackupsToDelete(
+        kept.map((e) => ({
+          id: e.manifest.id,
+          kind: e.manifest.kind,
+          createdAt: e.manifest.createdAt,
+          verifiedOk: false,
+        })),
+        { scheduled: 0, manualMaxAgeDays: 1 },
+        new Date('2100-01-01'),
+      );
+      expect(doomed).toEqual([]);
+    });
+
+    it('falls back to an encrypted local file when the bucket is unusable, and aborts without any target', async () => {
+      const broken = new MemoryBucket('broken');
+      broken.checkAccess = async () => {
+        throw new Error('connect ECONNREFUSED');
+      };
+      const dir = mkdtempSync(join(tmpdir(), 'tix-preupdate-'));
+      try {
+        for (let i = 0; i < 4; i += 1) {
+          const result = await createPreUpdateBackup(
+            params({ bucket: broken, localDir: dir, keep: 3 }),
+          );
+          expect(result.location).toBe('local');
+        }
+        const files = readdirSync(dir).filter((n) => n.endsWith('.tixbak'));
+        expect(files).toHaveLength(3);
+        expect(readdirSync(dir).filter((n) => n.endsWith('.partial'))).toEqual([]);
+        const raw = readFileSync(join(dir, files[0]!));
+        expect(raw.toString('latin1')).not.toContain('BeforeUpdate');
+        const inspected = await inspectArchive(
+          (async function* () {
+            yield raw;
+          })(),
+          ring,
+        );
+        expect(inspected.manifest).toMatchObject({ kind: 'PRE_UPDATE', scope: 'DATABASE' });
+        expect(broken.objects.size).toBe(0);
+        await expect(createPreUpdateBackup(params({ bucket: broken }))).rejects.toThrow(
+          /No place to store/,
+        );
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
   });
 });

@@ -94,7 +94,8 @@
     "kind": {
       "MANUAL": "Manuell",
       "SCHEDULED": "Geplant",
-      "PRE_RESTORE": "Sicherheitskopie"
+      "PRE_RESTORE": "Sicherheitskopie",
+      "PRE_UPDATE": "Vor Update"
     },
     "external": {
       "NONE": "–",
@@ -107,6 +108,7 @@
       "FAILED": "Fehlgeschlagen {date}"
     },
     "details": "{orders} Bestellungen, {assets} Bilder, {documents} Dokumente · Migration {migration}",
+    "detailsDatabaseOnly": "Nur Datenbank, {orders} Bestellungen · Migration {migration} · Version {version}",
     "uploaded": "hochgeladene Datei"
   },
   "verifyDetail": {
@@ -123,6 +125,7 @@
   "restore": {
     "title": "Diese Sicherung wiederherstellen?",
     "description": "Datenbank und alle Dateien werden durch den Stand vom {date} ersetzt. Vorher wird eine Sicherheitskopie des aktuellen Stands erstellt; während der Wiederherstellung ist der Shop nicht erreichbar.",
+    "descriptionDatabaseOnly": "Die Datenbank wird durch den Stand vom {date} ersetzt (automatisch vor einem Update erstellt). Dateien wie Bilder und Ticket-PDFs bleiben unverändert. Vorher wird eine Sicherheitskopie des aktuellen Stands erstellt; während der Wiederherstellung ist der Shop nicht erreichbar.",
     "loading": "Es wird geprüft, was verloren ginge…",
     "lossTitle": "Nach dieser Sicherung entstanden und durch die Wiederherstellung verloren:",
     "loss": "{orders} Bestellungen, {invoices} Rechnungen, {payments} Zahlungen, {refunds} Erstattungen",

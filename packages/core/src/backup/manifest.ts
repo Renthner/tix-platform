@@ -1,9 +1,13 @@
 import { z } from 'zod';
 
-export const BACKUP_KINDS = ['MANUAL', 'SCHEDULED', 'PRE_RESTORE'] as const;
+/** PRE_UPDATE: database-only backup taken by the `migrate` service before pending migrations. */
+export const BACKUP_KINDS = ['MANUAL', 'SCHEDULED', 'PRE_RESTORE', 'PRE_UPDATE'] as const;
 export type BackupKind = (typeof BACKUP_KINDS)[number];
 
 export const BACKUP_FORMAT_VERSION = 1;
+/** FULL = database + files; DATABASE = database only (a restore must not touch the files). */
+export const BACKUP_SCOPES = ['FULL', 'DATABASE'] as const;
+export type BackupScope = (typeof BACKUP_SCOPES)[number];
 /** Entry names inside the archive. */
 export const ARCHIVE_MANIFEST = 'manifest.json';
 export const ARCHIVE_DUMP = 'db.dump';
@@ -31,6 +35,8 @@ export const backupManifestSchema = z.object({
   formatVersion: z.literal(BACKUP_FORMAT_VERSION),
   id: z.uuid(),
   kind: z.enum(BACKUP_KINDS),
+  /** Absent in backups of earlier versions = FULL. */
+  scope: z.enum(BACKUP_SCOPES).default('FULL'),
   createdAt: z.iso.datetime(),
   appVersion: z.string().max(64),
   lastMigration: migrationInfo,

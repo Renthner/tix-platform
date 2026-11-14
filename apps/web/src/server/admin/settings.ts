@@ -139,6 +139,8 @@ async function readInput(
           defaultCurrency: text(fd, 'defaultCurrency')?.toUpperCase(),
           defaultTimeZone: text(fd, 'defaultTimeZone'),
           supportEmail: text(fd, 'supportEmail'),
+          updateCheckEnabled: flag(fd, 'updateCheckEnabled'),
+          updateRepository: text(fd, 'updateRepository') ?? '',
         },
       };
     case 'branding': {

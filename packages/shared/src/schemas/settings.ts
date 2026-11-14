@@ -36,6 +36,14 @@ const generalSchema = z.object({
   defaultCurrency: currencyCodeSchema.default('EUR'),
   defaultTimeZone: timeZoneSchema.default('Europe/Berlin'),
   supportEmail: z.email().optional(),
+  /** Super admins are told about newer releases (dashboard card; the check asks GitHub, see docs). */
+  updateCheckEnabled: z.boolean().default(true),
+  /** GitHub `owner/name` the update check reads releases from; empty = the repository this release came from. */
+  updateRepository: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || isValidGithubRepository(v))
+    .default(''),
 });
 
 /** How the shop picks its colour theme (the admin portal always lets the admin choose). */

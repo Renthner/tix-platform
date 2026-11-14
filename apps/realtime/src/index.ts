@@ -161,21 +161,33 @@ io.use((socket, next) => {
   next();
 });
 
-function eventRoomJoin(socket: Socket, prefix: 'seats' | 'queue', eventId: unknown): void {
+/** `ack` (optional second argument of the client's emit) is called once the socket is in the room. */
+function eventRoomJoin(
+  socket: Socket,
+  prefix: 'seats' | 'queue',
+  eventId: unknown,
+  ack?: unknown,
+): void {
   if (typeof eventId !== 'string' || !UUID.test(eventId)) return;
   const data = socket.data as SocketData;
   const room = `${prefix}:${eventId}`;
   if (!data.rooms.has(room) && data.rooms.size >= MAX_EVENT_ROOMS) return;
   data.rooms.add(room);
-  void socket.join(room);
+  void Promise.resolve(socket.join(room)).then(() => {
+    if (typeof ack === 'function') (ack as (joined: boolean) => void)(true);
+  });
 }
 
 io.on('connection', (socket) => {
   const data = socket.data as SocketData;
   void socket.join(`sid:${data.sid}`);
 
-  socket.on('seats:subscribe', (eventId: unknown) => eventRoomJoin(socket, 'seats', eventId));
-  socket.on('queue:subscribe', (eventId: unknown) => eventRoomJoin(socket, 'queue', eventId));
+  socket.on('seats:subscribe', (eventId: unknown, ack?: unknown) =>
+    eventRoomJoin(socket, 'seats', eventId, ack),
+  );
+  socket.on('queue:subscribe', (eventId: unknown, ack?: unknown) =>
+    eventRoomJoin(socket, 'queue', eventId, ack),
+  );
   socket.on('unsubscribe', (eventId: unknown) => {
     if (typeof eventId !== 'string') return;
     for (const prefix of ['seats', 'queue']) {

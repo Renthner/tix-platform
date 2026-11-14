@@ -4,9 +4,10 @@
 // needs only docker-compose.yml + .env.
 //
 //   node scripts/release/deploy-bundle.mjs <version> <outdir> [--owner <github-owner>] [--repo <owner/name>]
-//       writes <outdir>/tix-deploy-<version>/{docker-compose.yml,.env.example,README.md} and
+//       writes <outdir>/tix-deploy-<version>/{docker-compose.yml,.env.example,README.md,tix-update.sh} and
 //       <outdir>/tix-deploy-<version>.zip (owner defaults to $GITHUB_REPOSITORY_OWNER, repo to
-//       $GITHUB_REPOSITORY); the first two files are also release assets on their own
+//       $GITHUB_REPOSITORY); docker-compose.yml, .env.example and tix-update.sh are also release assets
+//       on their own
 //   node scripts/release/deploy-bundle.mjs --check
 //       fails when deploy/docker-compose.yml and docker-compose.yml disagree on anything but the
 //       intentional differences (image source, inline configs instead of file mounts, no published
@@ -145,7 +146,11 @@ function build(version, outdir, owner, repo) {
       )
       // Pre-release bundles default to the channel that exists for them.
       .replaceAll('__TIX_CHANNEL__', v.prerelease ? 'next' : 'stable');
-  const composeOut = fill(compose);
+  const composeOut = fill(compose).replaceAll('__TIX_REPOSITORY__', repo ?? '');
+  // The admin compares this with the running app version (docker-compose.yml drift warning).
+  if (!composeOut.includes(`TIX_COMPOSE_VERSION: ${version}`)) {
+    throw new Error('deploy/docker-compose.yml lacks "TIX_COMPOSE_VERSION: __TIX_VERSION__"');
+  }
   const problems = releaseComposeProblems(composeOut);
   if (problems.length) throw new Error(`generated docker-compose.yml: ${problems.join('; ')}`);
   let readme = fill(readFileSync(join(root, 'deploy/README.md'), 'utf8'));
@@ -160,6 +165,16 @@ function build(version, outdir, owner, repo) {
       mode: 0o644,
     },
     { path: 'README.md', data: Buffer.from(readme), mode: 0o644 },
+    {
+      path: 'tix-update.sh',
+      data: Buffer.from(
+        fill(readFileSync(join(root, 'deploy/tix-update.sh'), 'utf8')).replaceAll(
+          '__TIX_REPOSITORY__',
+          repo ?? '__TIX_REPOSITORY__',
+        ),
+      ),
+      mode: 0o755,
+    },
   ];
   for (const f of files) {
     const target = join(dir, f.path);
@@ -203,6 +218,13 @@ function normalise(config, dir) {
       delete svc.image;
       delete svc.build;
       delete svc.pull_policy;
+    }
+    // Informational variables of the admin (update channel, compose version): the release file
+    // carries its own version, the dev file says `dev`.
+    if (svc.environment) {
+      delete svc.environment.TIX_CHANNEL;
+      delete svc.environment.TIX_COMPOSE_VERSION;
+      delete svc.environment.TIX_UPDATE_REPOSITORY;
     }
     // Intentional differences of the self-contained deploy file.
     delete svc.configs;
@@ -284,6 +306,7 @@ function check() {
       renderCompose()
         .replaceAll(OWNER_PLACEHOLDER, 'owner')
         .replaceAll('__TIX_VERSION__', '0.0.0')
+        .replaceAll('__TIX_REPOSITORY__', 'owner/repo')
         .replaceAll('__TIX_INSTALL_GUIDE__', 'docs/INSTALL.md'),
     );
     if (leftovers.length) throw new Error(`generated docker-compose.yml: ${leftovers.join('; ')}`);

@@ -8,7 +8,8 @@ await rm('dist', { recursive: true, force: true });
 await build({
   entryPoints: {
     index: 'src/index.ts',
-    migrate: '../../packages/db/src/cli/migrate.ts',
+    // Pre-update backup + lock-timeout migrations (the dev CLI packages/db/src/cli/migrate.ts stays plain).
+    migrate: 'src/migrate.ts',
     seed: '../../packages/db/src/cli/seed.ts',
     'create-admin': '../../packages/db/src/cli/create-admin.ts',
   },

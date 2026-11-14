@@ -456,6 +456,8 @@ jobs:
           cp "bundle/tix-deploy-$VERSION/docker-compose.yml" dist/docker-compose.yml
           # GitHub renames release assets with a leading dot ("default.env.example"): publish it as env.example.
           cp "bundle/tix-deploy-$VERSION/.env.example" dist/env.example
+          cp "bundle/tix-deploy-$VERSION/tix-update.sh" dist/tix-update.sh
+          chmod 755 dist/tix-update.sh
 
       - name: Attest deploy files provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -464,6 +466,7 @@ jobs:
             dist/tix-deploy-*.zip
             dist/docker-compose.yml
             dist/env.example
+            dist/tix-update.sh
 
       # Pre-releases are never "latest"; a stable release only if it is the highest stable version.
       - name: GitHub latest flag
@@ -479,7 +482,7 @@ jobs:
         run: |
           mkdir -p dist
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          (cd dist && shopt -s nullglob && sha256sum docker-compose.yml env.example tix-deploy-*.zip tix-checkin-*.apk > SHA256SUMS.txt)
+          (cd dist && shopt -s nullglob && sha256sum docker-compose.yml env.example tix-update.sh tix-deploy-*.zip tix-checkin-*.apk > SHA256SUMS.txt)
           if ls dist/tix-checkin-*.apk > /dev/null 2>&1; then
             apk_note="The Android check-in app is attached as \`tix-checkin-$VERSION.apk\` (verify with \`SHA256SUMS.txt\`). Upload it in the admin portal under Scanners to distribute it to devices."
           else
@@ -490,7 +493,7 @@ jobs:
             echo
             echo "## Quick start"
             echo
-            echo "Download \`docker-compose.yml\` and \`env.example\` from this release (nothing else is needed), save \`env.example\` as \`.env\`, fill in the secrets and run \`docker compose pull && docker compose up -d\`. Requires Docker Compose 2.23.1 or newer. TLS, updates and backups: see the README inside \`tix-deploy-$VERSION.zip\`."
+            echo "Download \`docker-compose.yml\` and \`env.example\` from this release (nothing else is needed), save \`env.example\` as \`.env\`, fill in the secrets and run \`docker compose pull && docker compose up -d\`. Requires Docker Compose 2.23.1 or newer. Later updates: download \`tix-update.sh\` once and run \`./tix-update.sh\` next to the compose file. TLS, updates and backups: see the README inside \`tix-deploy-$VERSION.zip\`."
             echo
             echo "## Install"
             echo
@@ -518,6 +521,7 @@ jobs:
             dist/tix-deploy-*.zip
             dist/docker-compose.yml
             dist/env.example
+            dist/tix-update.sh
             dist/SHA256SUMS.txt
           fail_on_unmatched_files: false
 

@@ -85,7 +85,8 @@ export function selectBackupsToDelete(
   if (keep.manualMaxAgeDays > 0) {
     const cutoff = now.getTime() - keep.manualMaxAgeDays * 86_400_000;
     for (const b of backups) {
-      if (b.kind !== 'SCHEDULED' && Date.parse(b.createdAt) < cutoff) doomed.push(b.id);
+      if (b.kind !== 'SCHEDULED' && b.kind !== 'PRE_UPDATE' && Date.parse(b.createdAt) < cutoff)
+        doomed.push(b.id);
     }
   }
   return doomed.filter((id) => id !== protectedId);

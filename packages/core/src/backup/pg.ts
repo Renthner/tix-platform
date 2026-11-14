@@ -337,6 +337,27 @@ export async function readRowCounts(
   return counts;
 }
 
+/**
+ * Like `readRowCounts` but only for the tables that exist: the pre-update backup runs on the
+ * schema of the PREVIOUS version, which may lack tables the new code knows.
+ */
+export async function readExistingRowCounts(
+  client: Pick<PgClient, 'query'>,
+): Promise<Record<string, number>> {
+  const present = await client.query<{ table_name: string }>(
+    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])",
+    [[...BACKUP_COUNT_TABLES]],
+  );
+  const names = new Set(present.rows.map((r) => r.table_name));
+  const counts: Record<string, number> = {};
+  for (const table of BACKUP_COUNT_TABLES) {
+    if (!names.has(table)) continue;
+    const res = await client.query<{ n: string }>(`SELECT count(*) AS n FROM public."${table}"`);
+    counts[table] = Number(res.rows[0]?.n ?? 0);
+  }
+  return counts;
+}
+
 /** Number counters (GoBD): scope → last value. */
 export async function readSequenceCounters(
   client: Pick<PgClient, 'query'>,

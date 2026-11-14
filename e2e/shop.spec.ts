@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clickableSeatIds, clickSeat, EVENT_SLUG, openEvent } from './helpers';
+import {
+  clickableSeatIds,
+  clickSeat,
+  EVENT_SLUG,
+  openEvent,
+  waitRealtimeConnected,
+} from './helpers';
 
 // Seat ranges per test, so that held seats of one test never disturb another.
 const MANUAL = [40, 41];
@@ -44,6 +50,9 @@ test('a held seat shows up as "in another cart" in a second browser within 10 s'
     const pb = await b.newPage();
     await openEvent(pa);
     await openEvent(pb);
+    // Browser B must be subscribed before browser A holds seats, otherwise the delta is lost.
+    await waitRealtimeConnected(pa);
+    await waitRealtimeConnected(pb);
     const ids = await clickableSeatIds(pb);
     const held = REALTIME.map((i) => ids[i]!);
     for (const id of held) await clickSeat(pa, id);

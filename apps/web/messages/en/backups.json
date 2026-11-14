@@ -94,7 +94,8 @@
     "kind": {
       "MANUAL": "Manual",
       "SCHEDULED": "Scheduled",
-      "PRE_RESTORE": "Safety backup"
+      "PRE_RESTORE": "Safety backup",
+      "PRE_UPDATE": "Before update"
     },
     "external": {
       "NONE": "–",
@@ -107,6 +108,7 @@
       "FAILED": "Failed {date}"
     },
     "details": "{orders} orders, {assets} images, {documents} documents · migration {migration}",
+    "detailsDatabaseOnly": "Database only, {orders} orders · migration {migration} · version {version}",
     "uploaded": "uploaded file"
   },
   "verifyDetail": {
@@ -123,6 +125,7 @@
   "restore": {
     "title": "Restore this backup?",
     "description": "The database and all files are replaced by the state of {date}. A safety backup of the current state is created first; the shop is unavailable while the restore runs.",
+    "descriptionDatabaseOnly": "The database is replaced by the state of {date} (taken automatically before an update). Files such as images and ticket PDFs are not touched. A safety backup of the current state is created first; the shop is unavailable while the restore runs.",
     "loading": "Checking what would be lost…",
     "lossTitle": "Created after this backup and lost by the restore:",
     "loss": "{orders} orders, {invoices} invoices, {payments} payments, {refunds} refunds",
