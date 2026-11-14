@@ -381,6 +381,21 @@ describe.skipIf(!adminUrl || !redisUrl)('shop data cache (integration)', () => {
     expect(g3).toBeGreaterThan(g2);
     await handle.db.delete(ticketTypes).where(eq(ticketTypes.id, tt!.id)); // cascades the matrix row
     expect(await gen()).toBeGreaterThan(g3);
+    const g3b = await gen();
+    // The best-available switch of a category is part of the public map: its change bumps too.
+    await handle.db
+      .update(priceCategories)
+      .set({ bestAvailableEnabled: false })
+      .where(eq(priceCategories.id, categoryId));
+    expect(await gen()).toBeGreaterThan(g3b);
+    expect(
+      (await getPublicSeatMap(ctx, await getEventCached(ctx, eventId), { fresh: true }))
+        .categories[0]!.bestAvailable,
+    ).toBe(false);
+    await handle.db
+      .update(priceCategories)
+      .set({ bestAvailableEnabled: true })
+      .where(eq(priceCategories.id, categoryId));
     const g4 = await gen();
     await handle.db.update(events).set({ title: 'Gala' }).where(eq(events.id, eventId));
     expect(await gen()).toBe(g4);

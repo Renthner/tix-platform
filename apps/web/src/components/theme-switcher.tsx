@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useTheme } from '@/components/theme-provider';
+import { cn } from '@/lib/utils';
 import { THEME_PREFERENCES, parseThemePreference } from '@/lib/theme';
 
 const ICONS = { system: Monitor, light: Sun, dark: Moon } as const;
@@ -41,7 +42,7 @@ export function ThemeMenuItems({ className }: { className?: string }) {
 }
 
 /** Colour theme menu: System (follows the OS, default) / Light / Dark. */
-export function ThemeSwitcher() {
+export function ThemeSwitcher({ className }: { className?: string }) {
   const t = useTranslations('common.theme');
   const { preference, setPreference, fixed } = useTheme();
   const Icon = ICONS[preference];
@@ -54,7 +55,7 @@ export function ThemeSwitcher() {
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 w-8 shrink-0 px-0"
+          className={cn('h-8 w-8 shrink-0 px-0', className)}
           aria-label={`${t('label')}: ${t(preference)}`}
           data-testid="theme-switcher"
         >

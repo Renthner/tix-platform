@@ -12,8 +12,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { LocaleMenuItems } from '@/components/locale-switcher';
 import { ThemeMenuItems } from '@/components/theme-switcher';
 import { Link } from '@/i18n/navigation';
+import { routing } from '@/i18n/routing';
+import { cn } from '@/lib/utils';
 
 /**
  * Shop header entry for signed-in admin users: "To dashboard" plus a menu of the admin pages
@@ -27,7 +30,7 @@ export function AdminMenu({
   setupRequired,
   signOutLabel,
   queueTest,
-  hideTheme = false,
+  showTheme = false,
 }: {
   label: string;
   entries: { key: NavKey; label: string }[];
@@ -35,8 +38,8 @@ export function AdminMenu({
   signOutLabel: string;
   /** Super-admins only: switch to experience the waiting room like a customer. */
   queueTest?: { enabled: boolean; label: string; stateLabel: string };
-  /** The shop theme is fixed (Settings → Appearance): no theme items in the menu. */
-  hideTheme?: boolean;
+  /** Visitors may choose the colour theme: the theme items join this menu on phones. */
+  showTheme?: boolean;
 }) {
   const [queueBusy, setQueueBusy] = useState(false);
   const toggleQueueTest = async () => {
@@ -57,10 +60,15 @@ export function AdminMenu({
   const home = setupRequired ? '/admin/account' : '/admin';
   return (
     <div className="flex items-center">
-      <Button asChild variant="outline" size="sm" className={setupRequired ? '' : 'rounded-r-none'}>
+      <Button
+        asChild
+        variant="outline"
+        size="sm"
+        className={cn('h-9', !setupRequired && 'rounded-r-none')}
+      >
         <Link href={home}>
           {setupRequired ? <ShieldCheck /> : <LayoutDashboard />}
-          <span className="hidden sm:inline">{label}</span>
+          <span className="max-lg:sr-only">{label}</span>
         </Link>
       </Button>
       {!setupRequired && (
@@ -69,7 +77,7 @@ export function AdminMenu({
             <Button
               variant="outline"
               size="sm"
-              className="-ml-px rounded-l-none px-2"
+              className="-ml-px h-9 rounded-l-none px-1.5 sm:px-2"
               aria-label={label}
             >
               <ChevronDown />
@@ -100,9 +108,19 @@ export function AdminMenu({
                 <span className="text-xs text-muted-foreground">{queueTest.stateLabel}</span>
               </DropdownMenuItem>
             )}
-            {/* Narrow screens: the header has no room for its own theme button. */}
-            {!hideTheme && <DropdownMenuSeparator className="min-[480px]:hidden" />}
-            {!hideTheme && <ThemeMenuItems className="min-[480px]:hidden" />}
+            {/* Phones: the header has no room for its own language / theme button for admins. */}
+            {routing.locales.length > 1 && (
+              <>
+                <DropdownMenuSeparator className="sm:hidden" />
+                <LocaleMenuItems className="sm:hidden" />
+              </>
+            )}
+            {showTheme && (
+              <>
+                <DropdownMenuSeparator className="sm:hidden" />
+                <ThemeMenuItems className="sm:hidden" />
+              </>
+            )}
             <DropdownMenuSeparator />
             <form action={signOutAdminAction}>
               <DropdownMenuItem asChild>

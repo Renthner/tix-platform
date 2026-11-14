@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { AUTH_FILE, EVENT_SLUG, collectCsp } from './helpers';
+import { AUTH_FILE, EVENT_SLUG, clickableSeatIds, clickSeat, collectCsp } from './helpers';
 import { gradientPng } from './png';
 
 // Settings → Appearance: brand colour, shop theme mode, logo height, sponsors and the Cloudflare
@@ -434,6 +434,14 @@ test.describe.serial('brand colour, theme mode, logo and sponsors', () => {
     const navBox = await shop.locator('header nav').boundingBox();
     expect(sponsorBox!.x - (box!.x + box!.width)).toBeLessThan(40);
     expect(navBox!.x).toBeGreaterThan(sponsorBox!.x);
+    // The label sits ABOVE the banner (not before it), inside the sponsor block.
+    const labelAboveBanner = async () => {
+      const labelBox = await region.getByText('Supported by').boundingBox();
+      const imgBox = await region.locator('[data-active="true"] img').boundingBox();
+      expect(labelBox!.y + labelBox!.height).toBeLessThanOrEqual(imgBox!.y + 0.5);
+      expect(labelBox!.x).toBeGreaterThanOrEqual(sponsorBox!.x - 0.5);
+    };
+    await labelAboveBanner();
     if (SHOTS) {
       await region.hover();
       await shop.screenshot({
@@ -468,6 +476,11 @@ test.describe.serial('brand colour, theme mode, logo and sponsors', () => {
     const activeImg = phoneRegion.locator('[data-active="true"] img');
     const imgBox = await activeImg.boundingBox();
     expect(imgBox!.height).toBeLessThanOrEqual(30.5);
+    {
+      const labelBox = await phoneRegion.getByText('Supported by').boundingBox();
+      expect(labelBox!.y + labelBox!.height).toBeLessThanOrEqual(imgBox!.y + 0.5);
+      expect(labelBox!.height).toBeLessThanOrEqual(14);
+    }
     if (SHOTS) {
       await shop.screenshot({
         path: `${SHOTS}/header-mobile-light-logo40.png`,
@@ -555,6 +568,254 @@ test.describe.serial('brand colour, theme mode, logo and sponsors', () => {
     if (SHOTS) {
       await page.goto('/admin/settings/appearance#sponsors');
       await page.screenshot({ path: `${SHOTS}/settings-appearance-sponsors.png` });
+    }
+  });
+
+  // Logo, label and two sponsors stay configured from the previous test (restored in afterAll).
+  test('header never wraps: one row for visitors, cart timer and admins on every phone width', async ({
+    browser,
+  }) => {
+    test.setTimeout(420_000);
+    const SHOT_DIR = process.env.E2E_HEADER_SHOTS_DIR ?? SHOTS;
+    const WIDTHS = [360, 375, 390, 414, 480, 639, 640, 768, 1024];
+    const widthsFor = (locale: string) => (locale ? [360, 390, 640] : WIDTHS);
+    const MAX_HEIGHT = 66; // 20 px padding + 10 px label + 4 px gap + 30 px phone banner + border
+
+    const seatInCart = async (page: Page, index: number) => {
+      await page.goto(`/events/${EVENT_SLUG}`);
+      await expect(page.locator('g[data-seat]').first()).toBeAttached({ timeout: 30_000 });
+      const ids = await clickableSeatIds(page);
+      await clickSeat(page, ids[index]!);
+      await expect(page.locator('header a[href$="/cart"]')).toContainText(/\d+:\d\d/);
+    };
+    const measure = (page: Page) =>
+      page.evaluate(() => {
+        const header = document.querySelector('header')!;
+        const hb = header.getBoundingClientRect();
+        const controls = [...header.querySelectorAll('a, button')]
+          .map((e) => e.getBoundingClientRect())
+          .filter((r) => r.width > 0 && r.height > 0);
+        const centres = controls.map((r) => r.top + r.height / 2);
+        return {
+          height: Math.round(hb.height * 10) / 10,
+          fits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          rightmost: Math.max(...controls.map((r) => r.right)),
+          rowSpread: Math.max(...centres) - Math.min(...centres),
+          viewport: document.documentElement.clientWidth,
+        };
+      });
+    const assertOneRow = async (page: Page, label: string, results: string[]) => {
+      const m = await measure(page);
+      results.push(`${label}: height ${m.height}`);
+      expect(m.fits, `${label}: horizontal scroll`).toBe(true);
+      expect(m.rightmost, `${label}: control beyond the viewport`).toBeLessThanOrEqual(m.viewport);
+      // Single row: every control is vertically centred around the same line (a second row would
+      // be 30+ px away), and the header is not taller than one phone row.
+      expect(m.rowSpread, `${label}: second row`).toBeLessThan(24);
+      expect(m.height, `${label}: header height`).toBeLessThanOrEqual(
+        (page.viewportSize()?.width ?? 0) < 640 ? MAX_HEIGHT : 80,
+      );
+    };
+
+    // The page may not be hydrated right after navigation (a click then opens nothing) and an open
+    // menu can be re-rendered away: repeat open + choose until the item was selected.
+    const openMenu = async (page: Page, trigger: ReturnType<Page['locator']>) => {
+      await expect(async () => {
+        if ((await page.getByRole('menu').count()) === 0) await trigger.click({ timeout: 2000 });
+        await expect(page.getByRole('menu')).toHaveCount(1, { timeout: 1500 });
+      }).toPass({ timeout: 15_000 });
+    };
+    const choose = async (
+      page: Page,
+      trigger: ReturnType<Page['locator']>,
+      item: string,
+    ): Promise<void> => {
+      await expect(async () => {
+        if ((await page.getByRole('menu').count()) === 0) await trigger.click({ timeout: 2000 });
+        await page.getByRole('menuitemradio', { name: item }).click({ timeout: 2000 });
+      }).toPass({ timeout: 20_000 });
+      await expect(page.getByRole('menu')).toHaveCount(0);
+    };
+
+    const results: string[] = [];
+    const anon = await anonymous(browser, { viewport: { width: 390, height: 800 } });
+    const staff = await browser.newContext({
+      storageState: AUTH_FILE,
+      baseURL: BASE,
+      viewport: { width: 390, height: 800 },
+    });
+    const shop = anon.page;
+    const staffPage = await staff.newPage();
+    // A hanging action must not eat the whole test timeout.
+    shop.setDefaultTimeout(20_000);
+    staffPage.setDefaultTimeout(20_000);
+    try {
+      // Without cart.
+      for (const [name, p] of [
+        ['anonymous', shop],
+        ['admin', staffPage],
+      ] as const) {
+        for (const locale of ['', '/de']) {
+          for (const w of widthsFor(locale)) {
+            await p.setViewportSize({ width: w, height: 800 });
+            // The language cookie would redirect the unprefixed URL to the last visited language.
+            if (!locale) await p.context().clearCookies({ name: 'tix_locale' });
+            await p.goto(`${locale}/`);
+            await expect(p.getByTestId('header-sponsors')).toBeVisible();
+            await assertOneRow(p, `${name} ${locale || '/en'} ${w}px`, results);
+          }
+        }
+      }
+      // With a seat (badge + countdown), anonymous and admin.
+      await seatInCart(shop, 80);
+      await seatInCart(staffPage, 81);
+      for (const [name, p] of [
+        ['anonymous+cart', shop],
+        ['admin+cart', staffPage],
+      ] as const) {
+        for (const locale of ['', '/de']) {
+          for (const w of widthsFor(locale)) {
+            await p.setViewportSize({ width: w, height: 800 });
+            // The language cookie would redirect the unprefixed URL to the last visited language.
+            if (!locale) await p.context().clearCookies({ name: 'tix_locale' });
+            await p.goto(`${locale}/`);
+            await expect(p.locator('header a[href$="/cart"]')).toContainText(/\d+:\d\d/);
+            await assertOneRow(p, `${name} ${locale || '/en'} ${w}px`, results);
+          }
+        }
+      }
+      console.log(`[header] ${results.join(' | ')}`);
+
+      // Phones: ONE combined menu; from 640 px the two separate switchers.
+      await shop.setViewportSize({ width: 375, height: 800 });
+      await shop.context().clearCookies({ name: 'tix_locale' });
+      await shop.goto('/');
+      await expect(shop.getByTestId('display-menu')).toBeVisible();
+      await expect(shop.getByTestId('theme-switcher')).toBeHidden();
+      await expect(shop.locator('header button[aria-label^="Language:"]')).toBeHidden();
+      // The opened menu paints above the page content (event cards, seat chart), in both themes.
+      const menuOnTop = async (page: Page) => {
+        await expect(page.getByRole('menuitemradio').first()).toBeVisible();
+        // Wait for the open animation: a half-transparent menu is not a stacking problem.
+        await page.waitForFunction(() =>
+          document.getAnimations().every((an) => an.playState !== 'running'),
+        );
+        const items = page.getByRole('menuitemradio');
+        for (let i = 0; i < (await items.count()); i += 1) {
+          const box = (await items.nth(i).boundingBox())!;
+          const top = await page.evaluate(
+            ([x, y]) => {
+              const el = document.elementFromPoint(x!, y!);
+              return !!el?.closest('[role="menuitemradio"]');
+            },
+            [box.x + box.width / 2, box.y + box.height / 2],
+          );
+          expect(top, `menu item ${i} is covered by page content`).toBe(true);
+        }
+      };
+      for (const path of ['/', `/events/${EVENT_SLUG}`]) {
+        for (const theme of ['light', 'dark']) {
+          await shop.context().addCookies([{ name: 'tix_theme', value: theme, url: BASE }]);
+          await shop.goto(path);
+          await openMenu(shop, shop.getByTestId('display-menu'));
+          await menuOnTop(shop);
+          if (SHOT_DIR && theme === 'light') {
+            await shop.screenshot({
+              path: `${SHOT_DIR}/${path === '/' ? 'anon-menu-open-375' : 'event-menu-open-375'}.png`,
+              clip: { x: 0, y: 0, width: 375, height: 420 },
+            });
+          }
+          await shop.keyboard.press('Escape');
+          await expect(shop.getByRole('menu')).toHaveCount(0);
+        }
+      }
+      await shop.context().clearCookies({ name: 'tix_theme' });
+      await shop.goto('/');
+      await choose(shop, shop.getByTestId('display-menu'), 'Dark');
+      await expect.poll(() => isDark(shop)).toBe(true);
+      await choose(shop, shop.getByTestId('display-menu'), 'Light');
+      await expect.poll(() => isDark(shop)).toBe(false);
+      await choose(shop, shop.getByRole('button', { name: 'Language & appearance' }), 'Deutsch');
+      await expect(shop).toHaveURL(/\/de(\/|$)/);
+      await expect(shop.getByRole('button', { name: 'Sprache & Darstellung' })).toBeVisible();
+      await choose(shop, shop.getByRole('button', { name: 'Sprache & Darstellung' }), 'English');
+      await expect(shop).not.toHaveURL(/\/de(\/|$)/);
+      // Admins: no separate button on phones, the dashboard dropdown carries language + theme.
+      await staffPage.setViewportSize({ width: 375, height: 800 });
+      await staffPage.context().clearCookies({ name: 'tix_locale' });
+      await staffPage.goto('/');
+      await expect(staffPage.getByTestId('display-menu')).toBeHidden();
+      await openMenu(staffPage, staffPage.getByRole('button', { name: 'To dashboard' }).last());
+      await expect(staffPage.getByRole('menuitemradio', { name: 'Deutsch' })).toBeVisible();
+      await staffPage.keyboard.press('Escape');
+      await expect(staffPage.getByRole('menu')).toHaveCount(0);
+      await choose(
+        staffPage,
+        staffPage.getByRole('button', { name: 'To dashboard' }).last(),
+        'Dark',
+      );
+      await expect.poll(() => isDark(staffPage)).toBe(true);
+      await choose(
+        staffPage,
+        staffPage.getByRole('button', { name: 'To dashboard' }).last(),
+        'Light',
+      );
+      await expect.poll(() => isDark(staffPage)).toBe(false);
+      await staffPage.setViewportSize({ width: 768, height: 800 });
+      // From 640 px the dropdown no longer repeats language / theme (the header has the switchers).
+      await openMenu(staffPage, staffPage.getByRole('button', { name: 'To dashboard' }).last());
+      await expect(staffPage.getByRole('menuitem', { name: 'Dashboard' })).toBeVisible();
+      await expect(staffPage.getByRole('menuitemradio', { name: 'Deutsch' })).toBeHidden();
+      await staffPage.keyboard.press('Escape');
+      await shop.setViewportSize({ width: 768, height: 800 });
+      await expect(shop.getByTestId('display-menu')).toBeHidden();
+      await expect(shop.getByTestId('theme-switcher')).toBeVisible();
+      await expect(shop.locator('header button[aria-label^="Language:"]')).toBeVisible();
+
+      if (SHOT_DIR) {
+        for (const [name, p] of [
+          ['anon-cart', shop],
+          ['admin-cart', staffPage],
+        ] as const) {
+          for (const w of [375, 390]) {
+            for (const theme of ['light', 'dark']) {
+              const ctx = p.context();
+              await ctx.addCookies([{ name: 'tix_theme', value: theme, url: BASE }]);
+              await p.setViewportSize({ width: w, height: 800 });
+              await p.goto('/');
+              await expect(p.locator('header a[href$="/cart"]')).toContainText(/\d+:\d\d/);
+              await p.screenshot({
+                path: `${SHOT_DIR}/${name}-${w}-${theme}.png`,
+                clip: { x: 0, y: 0, width: w, height: 90 },
+              });
+            }
+          }
+        }
+        // Fresh visitors and admins WITHOUT a cart (the sessions above hold a seat).
+        for (const [name, state] of [
+          ['anon-nocart', ANON],
+          ['admin-nocart', AUTH_FILE],
+        ] as const) {
+          const fresh = await browser.newContext({ storageState: state, baseURL: BASE });
+          const p = await fresh.newPage();
+          for (const w of [375, 390]) {
+            for (const theme of ['light', 'dark']) {
+              await fresh.addCookies([{ name: 'tix_theme', value: theme, url: BASE }]);
+              await p.setViewportSize({ width: w, height: 800 });
+              await p.goto('/');
+              await expect(p.getByTestId('header-sponsors')).toBeVisible();
+              await p.screenshot({
+                path: `${SHOT_DIR}/${name}-${w}-${theme}.png`,
+                clip: { x: 0, y: 0, width: w, height: 90 },
+              });
+            }
+          }
+          await fresh.close();
+        }
+      }
+    } finally {
+      await anon.ctx.close();
+      await staff.close();
     }
   });
 

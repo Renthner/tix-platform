@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Link } from '@/i18n/navigation';
 import { formatCountdown } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { headerLinkClass } from './header-styles';
 import { useCart } from './cart-context';
 
 export function CartCountdown({ expiresAt, className }: { expiresAt: number; className?: string }) {
@@ -36,19 +37,16 @@ export function HeaderCart() {
   const { cart } = useCart();
   const count = cart?.itemCount ?? 0;
   return (
-    <Link
-      href="/cart"
-      className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-2 text-sm hover:bg-accent sm:gap-2 sm:px-3"
-    >
+    <Link href="/cart" title={t('title')} className={cn(headerLinkClass, 'gap-1.5 px-2 lg:px-3')}>
       <ShoppingCart className="size-4" />
-      <span className="hidden sm:inline">{t('title')}</span>
+      <span className="max-lg:sr-only">{t('title')}</span>
       {count > 0 && <Badge>{count}</Badge>}
       {count > 0 && cart?.expiresAt && (
         <span
           className="flex items-center gap-1 text-xs text-muted-foreground"
           title={t('summary.reservedFor')}
         >
-          <Timer className="size-3.5" />
+          <Timer className="size-3.5 max-sm:hidden" />
           <CartCountdown expiresAt={cart.expiresAt} />
         </span>
       )}

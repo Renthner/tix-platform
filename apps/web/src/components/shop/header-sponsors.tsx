@@ -18,7 +18,7 @@ export interface SponsorView {
 }
 
 /**
- * Sponsors directly next to the logo (phones and desktop alike; the nav and the controls follow): one visible at a time, cross-fading to the next after its own
+ * Sponsors directly next to the logo (phones and desktop alike; the controls follow on the right), with the optional label small and centred ABOVE the banner: one visible at a time, cross-fading to the next after its own
  * duration. Pauses while hovered or focused; with `prefers-reduced-motion` nothing rotates by
  * itself (previous / next buttons instead). The first sponsor is rendered by the server, so the
  * banner is complete without JavaScript. Not a live region: rotation is never announced.
@@ -34,7 +34,7 @@ export function HeaderSponsors({
   items: SponsorView[];
   /** Banner height in px (phones scale it down in CSS). */
   height: number;
-  /** Visible text before the banner (may be empty). */
+  /** Short visible text above the banner (may be empty). */
   label: string;
   /** Accessible name of the region when there is no visible label. */
   regionLabel: string;
@@ -72,7 +72,7 @@ export function HeaderSponsors({
       aria-label={label || regionLabel}
       aria-live="off"
       data-testid="header-sponsors"
-      className="flex min-w-0 items-center gap-2"
+      className="flex min-w-0 flex-col items-center justify-center gap-1 border-l pl-2 sm:pl-4"
       style={{ '--tix-h': `${height}px` } as CSSProperties}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
@@ -82,75 +82,82 @@ export function HeaderSponsors({
       }}
     >
       {label && (
-        <span className="hidden shrink-0 text-xs text-muted-foreground md:inline" aria-hidden>
+        // Phones: 10 px and never wider than the banner (truncated), so the header stays one row
+        // of about 44 px; from `sm` up the label may widen the block.
+        <span
+          className="w-0 min-w-full truncate text-center text-[10px] leading-none text-muted-foreground sm:w-auto sm:min-w-0 sm:text-[11px]"
+          aria-hidden
+        >
           {label}
         </span>
       )}
-      {reduced && count > 1 && (
-        <button
-          type="button"
-          onClick={() => step(-1)}
-          aria-label={previousLabel}
-          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent"
-        >
-          <ChevronLeft className="size-4" aria-hidden />
-        </button>
-      )}
-      <div className="grid min-w-0 items-center justify-items-center">
-        {items.map((item, i) => {
-          const isActive = i === active;
-          const image = (
-            <MediaImage
-              assetId={item.assetId}
-              alt={item.alt}
-              width={item.width}
-              height={item.height}
-              sizes={
-                item.width && item.height
-                  ? `${Math.ceil((height * item.width) / item.height)}px`
-                  : '200px'
-              }
-              loading={i === 0 ? 'eager' : 'lazy'}
-              className="tix-header-image w-auto max-w-full object-contain"
-            />
-          );
-          return (
-            <div
-              key={item.id}
-              data-active={isActive ? 'true' : 'false'}
-              aria-hidden={isActive ? undefined : true}
-              inert={!isActive}
-              className={cn(
-                'col-start-1 row-start-1 flex max-w-full min-w-0 items-center transition-opacity duration-500 motion-reduce:transition-none',
-                isActive ? 'opacity-100' : 'pointer-events-none opacity-0',
-              )}
-            >
-              {item.href ? (
-                <a
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener sponsored"
-                  className="flex min-w-0 rounded-sm"
-                >
-                  {image}
-                </a>
-              ) : (
-                image
-              )}
-            </div>
-          );
-        })}
+      <div className="flex min-w-0 max-w-full items-center gap-1">
+        {reduced && count > 1 && (
+          <button
+            type="button"
+            onClick={() => step(-1)}
+            aria-label={previousLabel}
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent"
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+          </button>
+        )}
+        <div className="grid min-w-0 items-center justify-items-center">
+          {items.map((item, i) => {
+            const isActive = i === active;
+            const image = (
+              <MediaImage
+                assetId={item.assetId}
+                alt={item.alt}
+                width={item.width}
+                height={item.height}
+                sizes={
+                  item.width && item.height
+                    ? `${Math.ceil((height * item.width) / item.height)}px`
+                    : '200px'
+                }
+                loading={i === 0 ? 'eager' : 'lazy'}
+                className="tix-header-image w-auto max-w-full object-contain"
+              />
+            );
+            return (
+              <div
+                key={item.id}
+                data-active={isActive ? 'true' : 'false'}
+                aria-hidden={isActive ? undefined : true}
+                inert={!isActive}
+                className={cn(
+                  'col-start-1 row-start-1 flex max-w-full min-w-0 items-center transition-opacity duration-500 motion-reduce:transition-none',
+                  isActive ? 'opacity-100' : 'pointer-events-none opacity-0',
+                )}
+              >
+                {item.href ? (
+                  <a
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener sponsored"
+                    className="flex min-w-0 rounded-sm"
+                  >
+                    {image}
+                  </a>
+                ) : (
+                  image
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {reduced && count > 1 && (
+          <button
+            type="button"
+            onClick={() => step(1)}
+            aria-label={nextLabel}
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent"
+          >
+            <ChevronRight className="size-4" aria-hidden />
+          </button>
+        )}
       </div>
-      {reduced && count > 1 && (
-        <button
-          type="button"
-          onClick={() => step(1)}
-          aria-label={nextLabel}
-          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent"
-        >
-          <ChevronRight className="size-4" aria-hidden />
-        </button>
-      )}
     </section>
   );
 }

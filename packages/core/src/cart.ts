@@ -660,8 +660,16 @@ export async function bestAvailable(
     throw new DomainError('TICKET_LIMIT', 'Invalid quantity', 422, { max: maxQuantity });
   }
   const map = await getPublicSeatMap(ctx, event, { fresh: true });
-  if (!map.categories.some((c) => c.id === categoryId)) {
+  const category = map.categories.find((c) => c.id === categoryId);
+  if (!category) {
     throw new DomainError('CATEGORY_NOT_FOUND', 'Price category not found', 404);
+  }
+  if (!category.bestAvailable) {
+    throw new DomainError(
+      'BEST_AVAILABLE_CATEGORY_DISABLED',
+      'Best available is not offered for this price category',
+      403,
+    );
   }
   await ensureInventory(ctx, event);
   await assertCategoryLimits(ctx, sessionId, event, map, new Map([[categoryId, quantity]]));

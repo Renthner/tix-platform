@@ -35,14 +35,14 @@ export function CookieNotice({
       data-testid="cookie-notice"
       className="border-t bg-muted/60 text-sm"
     >
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-        <p className="min-w-0 flex-1 basis-64">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:gap-x-6">
+        <p className="min-w-0 flex-1 basis-64 text-xs leading-relaxed [overflow-wrap:anywhere] sm:text-sm">
           {text}{' '}
           <Link href="/cookies" className="underline underline-offset-2">
             {moreLabel}
           </Link>
         </p>
-        <Button type="button" size="sm" onClick={dismiss}>
+        <Button type="button" size="sm" onClick={dismiss} className="max-sm:w-full">
           {dismissLabel}
         </Button>
       </div>

@@ -1,6 +1,6 @@
 import { getSetting } from '@tix/core';
 import { protectEmailsInHtml } from '@tix/shared';
-import { UserRound } from 'lucide-react';
+import { Ticket, UserRound } from 'lucide-react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import { cookies } from 'next/headers';
@@ -9,9 +9,12 @@ import { CookieNotice } from '@/components/shop/cookie-notice';
 import { COOKIE_NOTICE_COOKIE } from '@/lib/cookie-inventory';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ThemeSwitcher } from '@/components/theme-switcher';
+import { DisplayMenu } from '@/components/shop/display-menu';
+import { routing } from '@/i18n/routing';
 import { AdminMenu } from '@/components/shop/admin-menu';
 import { CartProvider } from '@/components/shop/cart-context';
 import { HeaderCart } from '@/components/shop/header-cart';
+import { headerLinkClass } from '@/components/shop/header-styles';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { pickMessages } from '@/i18n/messages';
@@ -70,6 +73,8 @@ export default async function ShopLayout({
     cookieNotice.enabled && cookieJar.get(COOKIE_NOTICE_COOKIE)?.value !== '1';
   // Signed-in admin users get a dashboard button (never while a restore holds the system).
   const adminMenu = adminSession && !maintenance.active ? adminSession : null;
+  // On phones the admin dropdown carries the language / theme items (one header button less).
+  const adminAbsorbsDisplay = !!adminMenu && !adminMenu.twoFactorSetupRequired;
   const footerHtml = descriptionToHtml(branding.footerText);
   // Theme fixed by the operator: no theme switch anywhere in the shop header.
   const themeFixed = branding.themeMode !== 'VISITOR_CHOICE';
@@ -115,105 +120,107 @@ export default async function ShopLayout({
         {!adminSession && <PresenceBeacon />}
         <div className="flex min-h-dvh flex-col">
           <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
-            <div className="mx-auto flex min-h-14 max-w-7xl items-center gap-1 px-3 py-1.5 sm:gap-4 sm:px-4">
-              <Link
-                href="/"
-                className={cn(
-                  'tix-brand-text min-w-0 font-semibold',
-                  // With sponsors the logo yields space to them on phones.
-                  hasSponsors ? 'max-w-[30%] shrink-0 truncate' : 'truncate',
-                )}
-                style={{ '--tix-h': `${branding.logoHeight}px` } as React.CSSProperties}
-              >
-                {branding.logoAssetId ? (
-                  <MediaThumb
-                    assetId={branding.logoAssetId}
-                    variantWidth={640}
-                    loading="eager"
-                    alt={general.shopName}
-                    className={cn(
-                      'tix-header-image w-auto object-contain',
-                      hasSponsors ? 'max-w-full' : 'max-w-[45vw] sm:max-w-80',
-                    )}
-                  />
-                ) : (
-                  general.shopName
-                )}
-              </Link>
-              {hasSponsors && (
-                <HeaderSponsors
-                  items={sponsorItems}
-                  height={sponsors.height}
-                  label={sponsorLabel}
-                  regionLabel={t('sponsors')}
-                  previousLabel={t('sponsorPrevious')}
-                  nextLabel={t('sponsorNext')}
-                />
-              )}
-              {/* Both fill the space up to the controls (the nav link is hidden on phones). */}
-              <nav className="hidden min-w-0 flex-1 sm:block sm:pl-2">
-                <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-                  {t('events')}
-                </Link>
-              </nav>
-              <div className="flex-1 sm:hidden" />
-              {accounts.enabled && (
+            <div className="mx-auto flex min-h-14 max-w-7xl flex-nowrap items-center gap-x-2 gap-y-1.5 px-3 py-2.5 sm:gap-x-4 sm:px-4">
+              {/* Brand group: logo (or shop name) and the sponsors. Takes what the controls leave. */}
+              <div className="flex min-w-28 flex-1 items-center gap-2 sm:gap-4">
                 <Link
-                  href={customer ? '/account' : '/account/login'}
-                  className="flex items-center gap-2 rounded-md px-1.5 py-2 text-sm hover:bg-accent sm:px-3"
+                  href="/"
+                  className={cn(
+                    'tix-brand-text min-w-0 text-base font-semibold sm:text-lg',
+                    // With sponsors the logo yields space to them on phones.
+                    hasSponsors ? 'max-w-[40%] shrink-0 truncate' : 'truncate',
+                  )}
+                  style={{ '--tix-h': `${branding.logoHeight}px` } as React.CSSProperties}
                 >
-                  <UserRound className="size-4" />
-                  <span className="hidden sm:inline">
-                    {customer ? tAccount('myAccount') : tAccount('signIn')}
-                  </span>
+                  {branding.logoAssetId ? (
+                    <MediaThumb
+                      assetId={branding.logoAssetId}
+                      variantWidth={640}
+                      loading="eager"
+                      alt={general.shopName}
+                      className={cn(
+                        'tix-header-image w-auto object-contain',
+                        hasSponsors ? 'max-w-full' : 'max-w-[45vw] sm:max-w-80',
+                      )}
+                    />
+                  ) : (
+                    general.shopName
+                  )}
                 </Link>
-              )}
-              <HeaderCart />
-              <LocaleSwitcher />
-              {/* With the admin dropdown the theme items live there below 480px. */}
-              {!themeFixed && (
-                <div
-                  className={
-                    adminMenu && !adminMenu.twoFactorSetupRequired
-                      ? 'max-[479px]:hidden'
-                      : undefined
-                  }
-                >
-                  <ThemeSwitcher />
-                </div>
-              )}
-              {adminMenu && (
-                <AdminMenu
-                  label={
-                    adminMenu.twoFactorSetupRequired
-                      ? tAccount('dashboardSetup')
-                      : tAccount('dashboard')
-                  }
-                  entries={
-                    adminMenu.twoFactorSetupRequired
-                      ? []
-                      : allowedNavKeys(adminMenu.roles).map((key) => ({
-                          key,
-                          label: tAdminNav(key),
-                        }))
-                  }
-                  setupRequired={adminMenu.twoFactorSetupRequired}
-                  hideTheme={themeFixed}
-                  signOutLabel={tAccount('signOut')}
-                  queueTest={
-                    !adminMenu.twoFactorSetupRequired && adminMenu.roles.includes('SUPER_ADMIN')
-                      ? {
-                          enabled: cookieJar.get(QUEUE_TEST_COOKIE)?.value === '1',
-                          label: tAccount('queueTest'),
-                          stateLabel:
-                            cookieJar.get(QUEUE_TEST_COOKIE)?.value === '1'
-                              ? tAccount('queueTestOn')
-                              : tAccount('queueTestOff'),
-                        }
-                      : undefined
-                  }
+                {hasSponsors && (
+                  <HeaderSponsors
+                    items={sponsorItems}
+                    height={sponsors.height}
+                    label={sponsorLabel}
+                    regionLabel={t('sponsors')}
+                    previousLabel={t('sponsorPrevious')}
+                    nextLabel={t('sponsorNext')}
+                  />
+                )}
+              </div>
+              {/* Controls: navigation items first (ghost), then the utility buttons (outlined). */}
+              <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1.5">
+                {/* Phones: the logo already leads to the event list. */}
+                <nav aria-label={t('mainNavigation')} className="hidden sm:block">
+                  <Link href="/" title={t('events')} className={headerLinkClass}>
+                    <Ticket className="size-4" aria-hidden />
+                    <span className="max-lg:sr-only">{t('events')}</span>
+                  </Link>
+                </nav>
+                {accounts.enabled && (
+                  <Link
+                    href={customer ? '/account' : '/account/login'}
+                    title={customer ? tAccount('myAccount') : tAccount('signIn')}
+                    className={headerLinkClass}
+                  >
+                    <UserRound className="size-4" aria-hidden />
+                    <span className="max-lg:sr-only">
+                      {customer ? tAccount('myAccount') : tAccount('signIn')}
+                    </span>
+                  </Link>
+                )}
+                <HeaderCart />
+                <span aria-hidden className="mx-0.5 hidden h-5 w-px bg-border sm:block" />
+                {/* Phones: language + theme share ONE menu button; from `sm` up two switchers. */}
+                <DisplayMenu
+                  showTheme={!themeFixed}
+                  className={adminAbsorbsDisplay ? 'hidden' : 'sm:hidden'}
                 />
-              )}
+                {routing.locales.length > 1 && <LocaleSwitcher className="h-9 max-sm:hidden" />}
+                {!themeFixed && <ThemeSwitcher className="size-9 max-sm:hidden" />}
+                {adminMenu && (
+                  <AdminMenu
+                    label={
+                      adminMenu.twoFactorSetupRequired
+                        ? tAccount('dashboardSetup')
+                        : tAccount('dashboard')
+                    }
+                    entries={
+                      adminMenu.twoFactorSetupRequired
+                        ? []
+                        : allowedNavKeys(adminMenu.roles).map((key) => ({
+                            key,
+                            label: tAdminNav(key),
+                          }))
+                    }
+                    setupRequired={adminMenu.twoFactorSetupRequired}
+                    showTheme={!themeFixed}
+                    signOutLabel={tAccount('signOut')}
+                    queueTest={
+                      !adminMenu.twoFactorSetupRequired && adminMenu.roles.includes('SUPER_ADMIN')
+                        ? {
+                            enabled: cookieJar.get(QUEUE_TEST_COOKIE)?.value === '1',
+                            label: tAccount('queueTest'),
+                            stateLabel:
+                              cookieJar.get(QUEUE_TEST_COOKIE)?.value === '1'
+                                ? tAccount('queueTestOn')
+                                : tAccount('queueTestOff'),
+                          }
+                        : undefined
+                    }
+                  />
+                )}
+              </div>
             </div>
           </header>
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
@@ -224,25 +231,49 @@ export default async function ShopLayout({
               dismissLabel={tCookies('dismiss')}
             />
           )}
-          <footer className="border-t py-6 text-sm text-muted-foreground">
-            <div className="mx-auto flex max-w-7xl flex-wrap items-start gap-x-6 gap-y-3 px-4">
+          <footer className="border-t bg-muted/30 text-sm text-muted-foreground">
+            <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 md:flex-row md:items-start md:justify-between md:gap-10 md:py-6">
               {footerHtml ? (
                 <div
-                  className={cn('tix-rt min-w-0 flex-1', FOOTER_RICH_TEXT_CLASS)}
+                  className={cn(
+                    'tix-rt min-w-0 max-w-prose [overflow-wrap:anywhere] md:max-w-3xl md:flex-1',
+                    FOOTER_RICH_TEXT_CLASS,
+                  )}
                   // Sanitised with the rich-text allowlist (also on save).
                   dangerouslySetInnerHTML={{ __html: protectEmailsInHtml(footerHtml) }}
                 />
               ) : (
-                <span className="flex-1">{general.shopName}</span>
+                <span className="min-w-0 [overflow-wrap:anywhere] md:flex-1">
+                  {general.shopName}
+                </span>
               )}
-              {legal.map((l) => (
-                <a key={l.label} href={l.href} className="hover:underline" rel="noopener">
-                  {l.label}
-                </a>
-              ))}
-              <Link href="/cookies" className="hover:underline">
-                {t('cookies')}
-              </Link>
+              {/* Legal links: one wrapping row with dot separators; on phones set off by a rule. */}
+              <nav
+                aria-label={t('legalNavigation')}
+                className="border-t pt-3 md:max-w-md md:shrink-0 md:border-t-0 md:pt-0"
+              >
+                <ul className="flex flex-wrap items-center gap-x-2 gap-y-1 md:justify-end">
+                  {legal.map((l) => (
+                    <li
+                      key={l.label}
+                      className="after:ml-2 after:text-border after:content-['•'] last:after:content-none"
+                    >
+                      <a
+                        href={l.href}
+                        className="py-1 hover:text-foreground hover:underline"
+                        rel="noopener"
+                      >
+                        {l.label}
+                      </a>
+                    </li>
+                  ))}
+                  <li>
+                    <Link href="/cookies" className="py-1 hover:text-foreground hover:underline">
+                      {t('cookies')}
+                    </Link>
+                  </li>
+                </ul>
+              </nav>
             </div>
           </footer>
         </div>

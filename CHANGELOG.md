@@ -8,6 +8,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.20] - 2026-11-14
+
+### Added
+
+- Price categories: switch **"Offer best-available booking"** (default on, in the category
+  dialog of the event's Pricing tab). Off hides the category from the shop's best-available
+  dropdown (and the box when no category remains) and the server refuses best-available for it;
+  manual seat selection is unaffected. Migration 0037 (`price_categories.best_available_enabled`);
+  the public seat map format is bumped (6), event duplication copies the switch.
+
+### Changed
+
+- Shop header reworked: logo and sponsors on the left (sponsor label now sits small and centred
+  **above** the banner, also on phones), one consistent 36 px control group on the right
+  ("Events" is a proper navigation item with icon; account, cart, language, theme and admin share
+  the same height; labels collapse to icons below 1024 px). The header is always a single row
+  (never wraps): below 640 px language and colour
+  theme share ONE "Language & appearance" menu button (theme items only when visitors may choose
+  the theme, languages only with more than one language); from 640 px the two separate switchers.
+  The logo/sponsor area shrinks instead of wrapping.
+- Shop footer reworked for phones: compact stacked layout, readable line length, legal links as a
+  wrapping row with separators, long URLs and e-mail addresses break instead of overflowing
+  (fixes horizontal scrolling on phones); the cookie notice stacks its button on phones.
+
 ## [1.0.0-alpha.19] - 2026-11-14
 
 ### Added

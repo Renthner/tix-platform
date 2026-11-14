@@ -87,3 +87,53 @@ test('ticket designer preview iframe receives a blob: src', async ({ page }) => 
   await expect(page.locator('iframe[src^="blob:"]')).toHaveCount(1, { timeout: 30_000 });
   expect(await violations()).toEqual([]);
 });
+
+test('price category switch "Offer best-available booking" controls the shop dropdown', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const id = await eventId(page);
+  const row = () => page.getByRole('row').filter({ hasText: 'Category 3' });
+  const setOffered = async (offered: boolean) => {
+    await page.goto(`/admin/events/${id}/pricing`);
+    await row().getByRole('button').first().click();
+    const dialog = page.getByRole('dialog');
+    const toggle = dialog.getByRole('switch', { name: 'Offer best-available booking' });
+    await expect(toggle).toBeVisible();
+    await expect(dialog.getByText(/wheelchair places/)).toBeVisible();
+    if ((await toggle.getAttribute('aria-checked')) === String(!offered)) await toggle.click();
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(dialog).toBeHidden();
+  };
+  const dropdownOptions = async (): Promise<string[]> => {
+    const shop = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    try {
+      const p = await shop.newPage();
+      const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:18090';
+      await p.goto(`${baseURL}/events/${EVENT_SLUG}`);
+      await expect(p.locator('g[data-seat]').first()).toBeAttached({ timeout: 30_000 });
+      const box = p.locator('aside').filter({ hasText: 'Best available' });
+      await box.getByRole('combobox').click();
+      return await p.getByRole('option').allTextContents();
+    } finally {
+      await shop.close();
+    }
+  };
+  try {
+    // Default ON: all seated categories are offered.
+    expect((await dropdownOptions()).some((o) => o.startsWith('Category 3'))).toBe(true);
+    await setOffered(false);
+    await expect
+      .poll(async () => (await dropdownOptions()).map((o) => o.split(' · ')[0]), {
+        timeout: 30_000,
+      })
+      .not.toContain('Category 3');
+    expect((await dropdownOptions()).map((o) => o.split(' · ')[0])).toContain('Category 1');
+  } finally {
+    await setOffered(true);
+  }
+  await expect
+    .poll(async () => (await dropdownOptions()).map((o) => o.split(' · ')[0]), { timeout: 30_000 })
+    .toContain('Category 3');
+});

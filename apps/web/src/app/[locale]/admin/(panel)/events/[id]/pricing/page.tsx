@@ -49,6 +49,7 @@ export default async function EventPricingPage({
         color: c.color,
         basePrice: c.basePrice,
         maxTicketsPerOrder: c.maxTicketsPerOrder,
+        bestAvailableEnabled: c.bestAvailableEnabled,
         sortOrder: c.sortOrder,
         isActive: c.isActive,
         save: saveCategoryAction.bind(null, event.id, c.id),

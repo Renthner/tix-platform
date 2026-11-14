@@ -226,6 +226,8 @@ export const priceCategories = pgTable(
     color: text('color').notNull(),
     basePrice: cents('base_price').notNull(),
     maxTicketsPerOrder: integer('max_tickets_per_order'),
+    /** Offer this category in the shop's best-available booking (off e.g. for wheelchair places). */
+    bestAvailableEnabled: boolean('best_available_enabled').notNull().default(true),
     /** Overrides the event's ticket template for this category (e.g. different artwork). */
     ticketTemplateId: uuid('ticket_template_id').references((): AnyPgColumn => ticketTemplates.id, {
       onDelete: 'set null',

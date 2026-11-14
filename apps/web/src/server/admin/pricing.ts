@@ -104,6 +104,7 @@ export async function saveCategoryAction(
     maxTicketsPerOrder: parsed.data.maxTicketsPerOrder ?? null,
     basePrice: basePrice!,
     isActive: flag(fd, 'isActive'),
+    bestAvailableEnabled: flag(fd, 'bestAvailableEnabled'),
   };
   const { db } = getCore();
   try {

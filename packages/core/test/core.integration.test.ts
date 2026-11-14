@@ -307,6 +307,39 @@ describe.skipIf(!adminUrl || !redisUrl)('core services (integration)', () => {
     expect(result.seatIds.some((id) => taken[id] === 'B')).toBe(false);
   });
 
+  it('refuses best-available for a category with the switch off, manual selection stays possible', async () => {
+    const sid = `bo${uuid().slice(0, 8)}`;
+    await enterShop(ctx, event, sid);
+    await handle.db
+      .update(priceCategories)
+      .set({ bestAvailableEnabled: false })
+      .where(eq(priceCategories.id, categoryId));
+    try {
+      const map = await getPublicSeatMap(ctx, event, { fresh: true });
+      // The shop dropdown is fed by this flag.
+      expect(map.categories.find((c) => c.id === categoryId)?.bestAvailable).toBe(false);
+      await expect(bestAvailable(ctx, sid, event, categoryId, 2)).rejects.toMatchObject({
+        code: 'BEST_AVAILABLE_CATEGORY_DISABLED',
+      });
+      const [taken, locked] = await Promise.all([
+        ctx.seats.takenSeats(event.id),
+        ctx.seats.lockedSeatIds(event.id),
+      ]);
+      const free = map.seats.filter(
+        (x) => x.c === categoryId && x.f === 0 && !(x.i in taken) && !locked.includes(x.i),
+      );
+      await addSeats(ctx, sid, event, [free[free.length - 1]!.i]);
+      expect((await getCart(ctx, sid)).itemCount).toBe(1);
+    } finally {
+      await handle.db
+        .update(priceCategories)
+        .set({ bestAvailableEnabled: true })
+        .where(eq(priceCategories.id, categoryId));
+    }
+    const again = await getPublicSeatMap(ctx, event, { fresh: true });
+    expect(again.categories.find((c) => c.id === categoryId)?.bestAvailable).toBe(true);
+  });
+
   it('refuses to remove a sold seat from the event map but soft-removes historical ones', async () => {
     const doc = (await loadSeatMapDocument(handle.db, event.seatMapId!))!;
     const sold = doc.seats.find((s) => s.blockReason === null)!;

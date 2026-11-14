@@ -2,6 +2,9 @@
   "meta": {
     "description": "Tickets, Saalpläne und Warteraum."
   },
+  "display": {
+    "label": "Sprache & Darstellung"
+  },
   "locale": {
     "label": "Sprache",
     "en": "English",
@@ -55,6 +58,7 @@
     "TARIFF_NOT_ALLOWED": "Dieser Tarif ist für diesen Platz nicht verfügbar.",
     "MANUAL_SELECTION_DISABLED": "Die Platzauswahl ist für diese Veranstaltung nicht verfügbar.",
     "BEST_AVAILABLE_DISABLED": "Die Bestplatzbuchung wird für diese Veranstaltung nicht angeboten.",
+    "BEST_AVAILABLE_CATEGORY_DISABLED": "Die Bestplatzbuchung wird für diese Kategorie nicht angeboten. Bitte wähle deine Plätze im Saalplan.",
     "INTERNAL_ERROR": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
     "BUSY": "Gerade ist sehr viel los – bitte versuche es in einem Moment erneut.",
     "CATEGORY_LIMIT": "In „{category}“ sind höchstens {max} Tickets pro Bestellung möglich.",

@@ -441,6 +441,8 @@ export function SeatSelection({
   const standingSections = map.sections.filter((s) => s.type === 'STANDING' && s.priceCategoryId);
   const activeGa = activeSection ? lookups.sections.get(activeSection) : undefined;
   const seatedCategories = map.categories.filter((c) => map.seats.some((s) => s.c === c.id));
+  // Best-available is offered per category (the operator may switch it off, e.g. wheelchair places).
+  const bestCategories = seatedCategories.filter((c) => c.bestAvailable);
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
@@ -481,7 +483,7 @@ export function SeatSelection({
       </div>
 
       <aside className="space-y-4">
-        {config.bestAvailableEnabled && seatedCategories.length > 0 && (
+        {config.bestAvailableEnabled && bestCategories.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -496,7 +498,7 @@ export function SeatSelection({
                     <SelectValue placeholder={t('bestAvailable.choose')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {seatedCategories.map((c) => (
+                    {bestCategories.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name} · {priceRangeLabel(c.id)}
                       </SelectItem>
@@ -514,7 +516,11 @@ export function SeatSelection({
                 )}
                 onChange={setBestQuantity}
               />
-              <Button className="w-full" disabled={!bestCategory || busy} onClick={requestBest}>
+              <Button
+                className="w-full"
+                disabled={!bestCategories.some((c) => c.id === bestCategory) || busy}
+                onClick={requestBest}
+              >
                 {t('bestAvailable.submit')}
               </Button>
             </CardContent>

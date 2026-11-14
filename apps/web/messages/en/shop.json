@@ -1,6 +1,8 @@
 {
   "layout": {
     "events": "Events",
+    "mainNavigation": "Main navigation",
+    "legalNavigation": "Legal information",
     "imprint": "Imprint",
     "privacy": "Privacy",
     "terms": "Terms",

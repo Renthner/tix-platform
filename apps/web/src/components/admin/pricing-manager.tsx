@@ -61,6 +61,7 @@ export interface CategoryRow {
   color: string;
   basePrice: number;
   maxTicketsPerOrder: number | null;
+  bestAvailableEnabled: boolean;
   sortOrder: number;
   isActive: boolean;
   save: Action;
@@ -423,6 +424,19 @@ function CategoryDialog({
             <Switch name="isActive" defaultChecked={initial?.isActive ?? true} />
             {t('active')}
           </label>
+          <div className="space-y-1">
+            <label className="flex items-center gap-3 text-sm">
+              <Switch
+                name="bestAvailableEnabled"
+                defaultChecked={initial?.bestAvailableEnabled ?? true}
+                aria-describedby="cat-best-hint"
+              />
+              {t('categories.bestAvailable')}
+            </label>
+            <p id="cat-best-hint" className="text-xs text-muted-foreground">
+              {t('categories.bestAvailableHint')}
+            </p>
+          </div>
           <DialogFooter>
             <SubmitButton>{tc('save')}</SubmitButton>
           </DialogFooter>

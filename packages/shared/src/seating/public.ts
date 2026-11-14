@@ -30,6 +30,8 @@ export interface PublicCategory {
   sortOrder: number;
   /** Max. tickets of this category per order (null = no category limit). */
   maxPerOrder: number | null;
+  /** Offered in best-available booking (the operator can switch it off per category). */
+  bestAvailable: boolean;
   tr?: Translations;
 }
 
@@ -97,9 +99,9 @@ export interface PublicEntrance {
 /**
  * Version of the PublicSeatMap payload shape. Part of the snapshot cache key – BUMP IT whenever
  * fields are added / changed, otherwise a deploy keeps serving cached snapshots of the old
- * shape for up to an hour. (3: companion seat partners `w`; 4: category `maxPerOrder`; 5: content translations `tr`.)
+ * shape for up to an hour. (3: companion seat partners `w`; 4: category `maxPerOrder`; 5: content translations `tr`; 6: category `bestAvailable`.)
  */
-export const PUBLIC_MAP_FORMAT = 5;
+export const PUBLIC_MAP_FORMAT = 6;
 
 /** Compact seat (thousands per map): short keys keep the payload small. */
 export interface PublicSeat {

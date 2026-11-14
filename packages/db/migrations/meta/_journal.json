@@ -260,6 +260,13 @@
       "when": 1794646602835,
       "tag": "0036_seo_noindex",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794663107640,
+      "tag": "0037_price_category_best_available",
+      "breakpoints": true
     }
   ]
 }

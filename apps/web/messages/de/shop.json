@@ -1,6 +1,8 @@
 {
   "layout": {
     "events": "Veranstaltungen",
+    "mainNavigation": "Hauptnavigation",
+    "legalNavigation": "Rechtliches",
     "imprint": "Impressum",
     "privacy": "Datenschutz",
     "terms": "AGB",

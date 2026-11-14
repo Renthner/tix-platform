@@ -376,6 +376,7 @@ async function buildPublicSeatMap(
       basePrice: c.basePrice,
       sortOrder: c.sortOrder,
       maxPerOrder: c.maxTicketsPerOrder,
+      bestAvailable: c.bestAvailableEnabled,
       tr: c.translations,
     })),
     ticketTypes: ticketTypeList,

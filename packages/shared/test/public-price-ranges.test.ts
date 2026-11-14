@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { publicPriceRanges, type PublicSeatMap } from '../src';
 
 const category = (id: string, basePrice: number) =>
-  ({ id, name: id, color: '#000', basePrice, sortOrder: 0, maxPerOrder: null }) as const;
+  ({
+    id,
+    name: id,
+    color: '#000',
+    basePrice,
+    sortOrder: 0,
+    maxPerOrder: null,
+    bestAvailable: true,
+  }) as const;
 const tariff = (
   id: string,
   prices: Record<string, number>,

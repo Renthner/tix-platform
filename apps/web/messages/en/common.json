@@ -2,6 +2,9 @@
   "meta": {
     "description": "Tickets, seating plans and waiting room."
   },
+  "display": {
+    "label": "Language & appearance"
+  },
   "locale": {
     "label": "Language",
     "en": "English",
@@ -55,6 +58,7 @@
     "TARIFF_NOT_ALLOWED": "This tariff is not available for this seat.",
     "MANUAL_SELECTION_DISABLED": "Seat selection is not available for this event.",
     "BEST_AVAILABLE_DISABLED": "Best available is not offered for this event.",
+    "BEST_AVAILABLE_CATEGORY_DISABLED": "Best available booking is not offered for this category. Please pick your seats on the plan.",
     "INTERNAL_ERROR": "Something went wrong. Please try again.",
     "BUSY": "Lots of traffic right now – please try again in a moment.",
     "CATEGORY_LIMIT": "You can book at most {max} tickets in “{category}” per order.",

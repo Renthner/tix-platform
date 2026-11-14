@@ -607,6 +607,8 @@
       "descriptionField": "Description",
       "basePrice": "Base price",
       "maxPerOrder": "Max. per order",
+      "bestAvailable": "Offer best-available booking",
+      "bestAvailableHint": "Customers can pick this category in the best-available box. Switch off e.g. for wheelchair places (manual seat selection stays possible).",
       "deleteTitle": "Delete price category?",
       "deleteDescription": "“{name}” is removed from all seats of this event."
     },

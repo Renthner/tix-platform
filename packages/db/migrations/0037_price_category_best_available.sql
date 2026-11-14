@@ -1,0 +1,1 @@
+ALTER TABLE "price_categories" ADD COLUMN "best_available_enabled" boolean DEFAULT true NOT NULL;

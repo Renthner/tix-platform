@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
+import { cn } from '@/lib/utils';
 
 /** Inline SVG flags (emoji flags are not rendered on Windows). Decorative only. */
 function Flag({ locale }: { locale: string }) {
@@ -46,12 +47,44 @@ function Flag({ locale }: { locale: string }) {
   return null;
 }
 
-/** Compact language menu: flag + short code; the list opens in a portal aligned to the right. */
-export function LocaleSwitcher() {
+/** Radio items for the languages, to embed in a dropdown (language switcher, combined display menu). */
+export function LocaleMenuItems({
+  onPending,
+  className,
+}: {
+  className?: string;
+  /** Runs the locale change inside a transition owned by the caller (it can disable its trigger). */
+  onPending?: (callback: () => void) => void;
+}) {
   const t = useTranslations('common.locale');
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
+  const [, startOwn] = useTransition();
+  const run = onPending ?? startOwn;
+  return (
+    <DropdownMenuRadioGroup
+      className={className}
+      value={locale}
+      aria-label={t('label')}
+      onValueChange={(value) =>
+        run(() => router.replace(pathname, { locale: value as typeof locale }))
+      }
+    >
+      {routing.locales.map((l) => (
+        <DropdownMenuRadioItem key={l} value={l} className="gap-2 text-sm">
+          <Flag locale={l} />
+          {t(l)}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+}
+
+/** Compact language menu: flag + short code; the list opens in a portal aligned to the right. */
+export function LocaleSwitcher({ className }: { className?: string }) {
+  const t = useTranslations('common.locale');
+  const locale = useLocale();
   const [pending, startTransition] = useTransition();
   return (
     <DropdownMenu>
@@ -60,7 +93,7 @@ export function LocaleSwitcher() {
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 shrink-0 gap-1.5 px-2 text-xs"
+          className={cn('h-8 shrink-0 gap-1.5 px-2 text-xs', className)}
           disabled={pending}
           aria-label={`${t('label')}: ${t(locale as 'en' | 'de')}`}
         >
@@ -70,19 +103,7 @@ export function LocaleSwitcher() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" collisionPadding={8} className="min-w-36">
-        <DropdownMenuRadioGroup
-          value={locale}
-          onValueChange={(value) =>
-            startTransition(() => router.replace(pathname, { locale: value as typeof locale }))
-          }
-        >
-          {routing.locales.map((l) => (
-            <DropdownMenuRadioItem key={l} value={l} className="gap-2 text-sm">
-              <Flag locale={l} />
-              {t(l)}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+        <LocaleMenuItems onPending={startTransition} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

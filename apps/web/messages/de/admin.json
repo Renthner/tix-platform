@@ -607,6 +607,8 @@
       "descriptionField": "Beschreibung",
       "basePrice": "Grundpreis",
       "maxPerOrder": "Max. pro Bestellung",
+      "bestAvailable": "Bestplatzbuchung anbieten",
+      "bestAvailableHint": "Kunden können diese Kategorie im Bestplatz-Feld wählen. Z. B. für Rollstuhlplätze ausschalten (die manuelle Platzwahl bleibt möglich).",
       "deleteTitle": "Preiskategorie löschen?",
       "deleteDescription": "„{name}“ wird von allen Plätzen dieser Veranstaltung entfernt."
     },
