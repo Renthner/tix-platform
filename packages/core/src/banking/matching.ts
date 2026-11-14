@@ -59,6 +59,7 @@ const orderColumns = {
   totalGross: orders.totalGross,
   amountPaid: orders.amountPaid,
   paymentReference: orders.paymentReference,
+  isTest: orders.isTest,
 };
 type OrderInfo = {
   id: string;
@@ -68,6 +69,8 @@ type OrderInfo = {
   totalGross: number;
   amountPaid: number;
   paymentReference: string | null;
+  /** Super-admin test order: never settled automatically. */
+  isTest: boolean;
 };
 
 export interface MatchResult {
@@ -288,6 +291,7 @@ async function matchLocked(
           adjustment: orderAdjustments,
           orderNumber: orders.orderNumber,
           orderStatus: orders.status,
+          orderIsTest: orders.isTest,
         })
         .from(orderAdjustments)
         .innerJoin(orders, eq(orders.id, orderAdjustments.orderId))
@@ -318,6 +322,24 @@ async function matchLocked(
     score,
     reasons: ['REFERENCE', ...extra],
   });
+
+  // ── Test orders (super-admin test purchases) ───────────────────────────────
+  // A transfer carrying the reference of a test order is never booked automatically: real money
+  // on a test order is an exception a human has to look at (assign explicitly, or pay it back).
+  const testOrders = referenced.filter((o) => o.isTest);
+  const testAdjustments = referencedAdjustments.filter((a) => a.orderIsTest);
+  if (testOrders.length > 0 || testAdjustments.length > 0) {
+    return review('ORDER_NOT_PAYABLE', [
+      ...testOrders.map((o) => direct(o, 90, 'TEST_ORDER')),
+      ...testAdjustments.map((a) => ({
+        orderId: a.adjustment.orderId,
+        orderNumber: a.orderNumber,
+        score: 90,
+        reasons: ['REFERENCE', 'ADJUSTMENT', 'TEST_ORDER'] as MatchCandidateReason[],
+        adjustmentId: a.adjustment.id,
+      })),
+    ]);
+  }
 
   // ── Additional payment (tariff change) ────────────────────────────────────
   if (referencedAdjustments.length > 0) {
@@ -704,7 +726,12 @@ export async function findCandidates(
   // Orders created after the booking (+2 days for value dating / time zones) cannot match.
   const cutoff = new Date(`${tx.bookingDate}T00:00:00Z`);
   cutoff.setUTCDate(cutoff.getUTCDate() + 2);
-  const open = and(inArray(orders.status, OPEN_STATUSES), lt(orders.createdAt, cutoff));
+  // Test orders (super-admin test purchases) are never offered as candidates.
+  const open = and(
+    inArray(orders.status, OPEN_STATUSES),
+    lt(orders.createdAt, cutoff),
+    eq(orders.isTest, false),
+  );
 
   // 1. Reference near-misses (wrong check digit, one wrong / swapped digit).
   const prefixes = [...new Set(refs.map((r) => r.reference.split('-')[0]!))];
@@ -743,6 +770,7 @@ export async function findCandidates(
       .where(
         and(
           inArray(orderAdjustments.status, ['PROPOSED', 'CONFIRMED']),
+          eq(orders.isTest, false),
           sql`${orderAdjustments.paymentReference} LIKE ${`${prefix}-%`}`,
         ),
       )
@@ -847,6 +875,8 @@ export async function assignBankTransaction(
      * itself. The assigned amount must equal the adjustment amount exactly.
      */
     adjustmentId?: string;
+    /** Explicit confirmation that real money is booked on a TEST order (refused otherwise). */
+    confirmTestOrder?: boolean;
   },
 ): Promise<AssignResult> {
   const locked = await withMutex(ctx, `bank-tx:${params.transactionId}`, MUTEX_TTL_MS, async () => {
@@ -861,6 +891,18 @@ export async function assignBankTransaction(
     const unassigned = tx.amount - already;
     if (unassigned <= 0)
       throw new DomainError('TX_RESOLVED', 'The transaction is fully assigned', 409);
+    // Test orders are not real sales: booking real money on one needs an explicit confirmation.
+    const [target] = await ctx.db
+      .select({ isTest: orders.isTest })
+      .from(orders)
+      .where(eq(orders.id, params.orderId));
+    if (target?.isTest && !params.confirmTestOrder) {
+      throw new DomainError(
+        'TEST_ORDER_CONFIRM_REQUIRED',
+        'This is a test order – confirm explicitly that the transfer belongs to it',
+        409,
+      );
+    }
     const [adjustment] = params.adjustmentId
       ? await ctx.db
           .select()

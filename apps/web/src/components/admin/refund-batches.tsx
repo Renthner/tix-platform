@@ -355,7 +355,7 @@ export function OverpaymentCard({
   const [confirmed, setConfirmed] = useState(false);
   const money = format.number(amount / 100, { style: 'currency', currency });
   return (
-    <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+    <div className="rounded-lg border border-warning-border bg-warning-soft p-4 text-sm text-warning">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-semibold">{t('title')}</h2>
         <span className="text-base font-semibold tabular-nums">{money}</span>

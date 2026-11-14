@@ -658,8 +658,10 @@ export const EditorCanvas = forwardRef<CanvasHandle, CanvasProps>(
     return (
       <div
         ref={containerRef}
-        className="relative h-full w-full overflow-hidden"
-        style={{ background: COLORS.outside, cursor: cursorStyle }}
+        // The plan sheet itself stays white (what you draw is what the shop shows); only the area
+        // around it follows the theme.
+        className="relative h-full w-full overflow-hidden bg-muted"
+        style={{ cursor: cursorStyle }}
         onContextMenu={(e) => e.preventDefault()}
         onMouseLeave={() => props.onPointerWorld?.(null)}
       >

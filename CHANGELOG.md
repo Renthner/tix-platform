@@ -8,6 +8,69 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.18] - 2026-11-14
+
+### Added
+
+- SEO settings in the admin (Settings → SEO, setting `seo`, super admin): a switch **Allow search
+  engines to index the shop** (for test / demo servers: off sends `X-Robots-Tag: noindex, nofollow`
+  and a `robots` meta tag on every page, `robots.txt` becomes `Disallow: /` without a sitemap,
+  `/sitemap.xml` answers 404 and the structured data is omitted), a title pattern (`%s | {siteTitle}`),
+  a site title and a default description per language, a default share image (Open Graph / Twitter),
+  the Twitter / X account and Google / Bing site verification tokens. Events have a switch
+  "Exclude this event from search engines" on the Sales tab (`events.seo_noindex`, migration `0036`):
+  noindex, not in the sitemap, no structured data.
+- Test purchases for super admins: a signed-in SUPER_ADMIN can open the shop page of a **draft**
+  event (`/events/<slug>`, hidden from everybody else: 404, home list, sitemap, structured data,
+  `noindex`) and buy like a customer – cart, seat selection, best available, standing areas,
+  checkout and payment. A banner on the event page, cart and checkout says that the event is a draft
+  and that orders are test orders; the event admin page has a "Test in shop" button. Draft data
+  never enters the public shop cache. On **any** event super admins bypass presale, "not started",
+  paused and ended online sale (until the event itself starts) and the waiting room (no queue slot,
+  not counted as active shopper); the shop header menu has a "Test waiting room" switch to
+  experience the queue like a customer. New staff cookie `tix_admin_queue_test` (listed on `/cookies`).
+- Test orders (orders on draft events, migration `0035`, `orders.is_test`, `orders.test_hidden_at`,
+  `events.had_test_orders`): own number series `TEST-<year>-<seq>`, never invoiced (no number from the
+  gapless invoice series is consumed), ticket PDFs carry a TEST watermark, all e-mails get a `[TEST]`
+  subject prefix and a banner, no Apple / Google Wallet passes, and they are excluded from statistics,
+  the dashboard KPIs and customer history. Mixed carts (draft + published events) are refused. The
+  admin order list shows a TEST badge and has a filter. Bank matching never proposes or auto-fulfils
+  test orders (exact reference → review; manual assignment needs a confirmation).
+  - A test order that never received money can be deleted completely by a super admin (single, or all
+    of an event): items, tickets, payments, e-mail outbox rows, stored ticket PDFs and access-code
+    redemptions are removed, seats are released, scanner devices drop deleted tickets on their next
+    sync. Once real money was captured it cannot be deleted any more (accounting): "Cancel & hide"
+    cancels it through the normal refund flow and hides it from the default order list; its payments
+    and refunds stay in the accounting / DATEV export, marked TEST (CSV column, booking text `TEST …`),
+    never with an invoice or credit-note number.
+  - A draft with active test orders cannot be published (test orders that were cancelled & hidden do
+    not count); the publish dialog offers "Delete test orders & publish" (super admins, only while
+    none held money) or cancel. When an event
+    that had test orders goes live its ticket signing key is rotated, so test QR codes stop verifying.
+- Dark mode in the shop and the admin portal. A theme menu (System / Light / Dark) sits in the shop
+  header and the admin sidebar / top bar, next to the language switcher. The default follows the
+  operating system (`prefers-color-scheme`); an explicit choice is stored in the strictly necessary
+  cookie `tix_theme` (1 year, listed on the cookie page) so the server renders the right theme
+  without a flash. The "System" case is resolved before first paint by a tiny inline script that
+  carries the CSP nonce.
+- Semantic colour tokens (`success`, `warning`, `info`, `danger`, solid destructive, `paper`) with
+  dark variants; hard-coded status colours were replaced by them.
+- Playwright `e2e/theme.spec.ts`: switch, persistence, OS default and an axe-core colour-contrast
+  check (WCAG AA) of the shop and all admin pages in both themes. `scripts/e2e/run.mjs` accepts
+  `E2E_PROJECT` (must start with `tix-e2e`) to run a second isolated stack in parallel.
+
+### Changed
+
+- Releases need only one CI run: the release workflow reuses the successful CI run of the tagged commit on `main` (waits for a running one, runs CI itself only if none exists; `force_ci` input to always re-run).
+- The seating chart and the plan editor keep a light "sheet" in the dark theme (plan colours,
+  symbols and background images are designed on white); the rest of the page is dark. The ticket
+  designer paper, the e-mail editor / preview and QR codes also stay light.
+- The custom HTML start page is rendered on a light sheet and is never themed (hint text updated);
+  author-chosen text colours in rich text fall back to theme colours in the dark theme.
+- Slightly darker light-theme muted and destructive text colours for contrast; the version label in
+  the admin sidebar is no longer dimmed below AA.
+- Standalone error and maintenance pages follow the operating system colour scheme.
+
 ## [1.0.0-alpha.17] - 2026-11-14
 
 ### Added

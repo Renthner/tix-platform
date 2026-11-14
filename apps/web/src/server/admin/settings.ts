@@ -29,6 +29,7 @@ import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { applyDefaultLocale } from '@/server/default-locale';
 import { sanitizeRichText } from '@/server/rich-text';
+import { applySeoIndexing } from '@/server/seo-indexing';
 import { audit } from './audit';
 import { fieldError, flag, success, text, zodFieldErrors } from './form';
 
@@ -41,6 +42,7 @@ export type EditableSettingKey =
   | 'shopLayout'
   | 'cookieNotice'
   | 'startPage'
+  | 'seo'
   | 'organizer'
   | 'invoicing'
   | 'bankTransfer'
@@ -245,6 +247,32 @@ async function readInput(
           galleryAssetIds,
           buttonUrl: text(fd, 'buttonUrl'),
           buttonAlign: text(fd, 'buttonAlign'),
+          texts,
+        },
+      };
+    }
+    case 'seo': {
+      const shareImageAssetId = await publicImageField(fd, 'shareImageAssetId', errors);
+      const texts: Record<string, Record<string, unknown>> = {};
+      for (const loc of SUPPORTED_LOCALES) {
+        texts[loc] = {
+          siteTitle: text(fd, `siteTitle.${loc}`),
+          description: text(fd, `description.${loc}`),
+        };
+      }
+      // A pasted <meta ... content="TOKEN"> tag is reduced to the token.
+      const token = (name: string) => {
+        const raw = text(fd, name);
+        return raw?.match(/content\s*=\s*["']([^"']*)["']/i)?.[1] ?? raw;
+      };
+      const handle = text(fd, 'twitterHandle');
+      return {
+        input: {
+          indexing: flag(fd, 'indexing'),
+          titleTemplate: text(fd, 'titleTemplate'),
+          shareImageAssetId,
+          twitterHandle: handle && !handle.startsWith('@') ? `@${handle}` : handle,
+          verification: { google: token('verification.google'), bing: token('verification.bing') },
           texts,
         },
       };
@@ -487,6 +515,8 @@ export async function saveSettingsAction(
   });
   // The default language decides which locale has no URL prefix: effective immediately here.
   if (key === 'general') applyDefaultLocale((saved as { defaultLocale: string }).defaultLocale);
+  // The proxy sends X-Robots-Tag from its own cache: effective immediately on this instance.
+  if (key === 'seo') applySeoIndexing((saved as { indexing: boolean }).indexing);
   revalidatePath('/', 'layout');
   return success('saved');
 }

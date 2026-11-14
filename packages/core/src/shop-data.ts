@@ -54,21 +54,7 @@ export async function getShopEventBySlug(
       if (!row || (row.event.status !== 'PUBLISHED' && row.event.status !== 'POSTPONED')) {
         return null;
       }
-      const [coverRows, symbolList] = await Promise.all([
-        row.event.heroImageAssetId
-          ? ctx.db.select().from(mediaAssets).where(eq(mediaAssets.id, row.event.heroImageAssetId))
-          : Promise.resolve([]),
-        symbolsByIds(
-          ctx.db,
-          row.event.infoBoxes.flatMap((b) => (b.symbolId ? [b.symbolId] : [])),
-        ),
-      ]);
-      return {
-        event: row.event,
-        venue: row.venue,
-        cover: coverRows[0] ?? null,
-        symbols: Object.fromEntries(symbolList.map((s) => [s.id, s])),
-      };
+      return buildShopEventBundle(ctx, row);
     },
     {
       tags: (bundle) => [
@@ -81,6 +67,46 @@ export async function getShopEventBySlug(
       ttlMs: (bundle) => (bundle ? SAFETY_TTL_MS : 0),
     },
   );
+}
+
+async function buildShopEventBundle(
+  ctx: Pick<CoreContext, 'db'>,
+  row: { event: EventRow; venue: VenueRow },
+): Promise<ShopEventBundle> {
+  const [coverRows, symbolList] = await Promise.all([
+    row.event.heroImageAssetId
+      ? ctx.db.select().from(mediaAssets).where(eq(mediaAssets.id, row.event.heroImageAssetId))
+      : Promise.resolve([]),
+    symbolsByIds(
+      ctx.db,
+      row.event.infoBoxes.flatMap((b) => (b.symbolId ? [b.symbolId] : [])),
+    ),
+  ]);
+  return {
+    event: row.event,
+    venue: row.venue,
+    cover: coverRows[0] ?? null,
+    symbols: Object.fromEntries(symbolList.map((s) => [s.id, s])),
+  };
+}
+
+/**
+ * DRAFT event by slug for super-admins (test purchases). NEVER cached: draft data must not enter
+ * the public shop cache, whose keys any visitor can reach. The caller must have verified the
+ * super-admin role on this request; only DRAFT rows are returned (published events use
+ * `getShopEventBySlug`).
+ */
+export async function getDraftEventBySlug(
+  ctx: Pick<CoreContext, 'db'>,
+  slug: string,
+): Promise<ShopEventBundle | null> {
+  if (!SLUG.test(slug)) return null;
+  const [row] = await ctx.db
+    .select({ event: events, venue: venues })
+    .from(events)
+    .innerJoin(venues, eq(venues.id, events.venueId))
+    .where(and(eq(events.slug, slug), eq(events.status, 'DRAFT')));
+  return row ? buildShopEventBundle(ctx, row) : null;
 }
 
 /** Media asset row (logo, cover) from the shop data cache; replaced / deleted assets invalidate `media`. */

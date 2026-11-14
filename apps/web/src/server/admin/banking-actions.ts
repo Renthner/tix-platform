@@ -100,6 +100,7 @@ const DOMAIN_TO_FORM: Record<string, BankingFormError> = {
   TAN_NOT_PENDING: 'tanNotPending',
   TAN_NOT_FOUND: 'tanNotPending',
   ORDER_NOT_PAYABLE: 'orderNotPayable',
+  TEST_ORDER_CONFIRM_REQUIRED: 'testOrderConfirm',
   ORDER_NOT_FOUND: 'orderNotFound',
   CURRENCY_MISMATCH: 'currencyMismatch',
   TX_RESOLVED: 'resolved',
@@ -487,6 +488,7 @@ export async function assignTransactionAction(
       amount,
       userId: session.userId,
       note,
+      confirmTestOrder: text(fd, 'confirmTest') === 'on',
     });
     const [tx] = await core.db
       .select({ currency: bankTransactions.currency })
@@ -537,6 +539,7 @@ export async function assignAdjustmentAction(
       adjustmentId,
       userId: session.userId,
       note,
+      confirmTestOrder: text(fd, 'confirmTest') === 'on',
     });
     await audit(core.db, session, 'bank.tx.assign_adjustment', 'bank_transaction', transactionId, {
       orderId,
@@ -672,6 +675,7 @@ export interface AssignableOrder {
   totalGross: number;
   amountPaid: number;
   currency: string;
+  isTest: boolean;
 }
 
 /** Order search for the "assign to another order" box (number, reference, name, e-mail). */
@@ -690,5 +694,6 @@ export async function searchAssignableOrders(query: string): Promise<AssignableO
     totalGross: r.totalGross,
     amountPaid: r.amountPaid,
     currency: r.currency,
+    isTest: r.isTest,
   }));
 }

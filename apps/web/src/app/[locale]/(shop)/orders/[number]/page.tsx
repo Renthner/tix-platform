@@ -62,7 +62,8 @@ export default async function OrderPage({
   if (!orderId || !(await canAccessOrder(orderId, token))) notFound();
   const view = (await getOrderView(core, orderId))!;
   const { order } = view;
-  const wallet = await walletAvailability(core);
+  // Test orders (super-admin test purchases) get no wallet passes.
+  const wallet = order.isTest ? { apple: false, google: false } : await walletAvailability(core);
   const [t, format] = await Promise.all([getTranslations('checkout.order'), getFormatter()]);
   const money = (cents: number) =>
     format.number(cents / 100, { style: 'currency', currency: order.currency });
@@ -97,7 +98,7 @@ export default async function OrderPage({
     (order.status === 'PAID' || order.status === 'PARTIALLY_REFUNDED') &&
     recentlyPaid &&
     ((expectsTickets && issuedTickets.length === 0) ||
-      (invoicing.issueInvoices && view.invoices.length === 0));
+      (invoicing.issueInvoices && !order.isTest && view.invoices.length === 0));
   const tokenQuery = token ? `?t=${encodeURIComponent(token)}` : '';
 
   return (
@@ -113,10 +114,24 @@ export default async function OrderPage({
             })}
           </p>
         </div>
-        <Badge variant={order.status === 'PAID' ? 'default' : 'secondary'} className="text-sm">
-          {t(`status.${order.status}`)}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {order.isTest && (
+            <Badge variant="outline" className="border-warning-border text-sm text-warning">
+              {t('testBadge')}
+            </Badge>
+          )}
+          <Badge variant={order.status === 'PAID' ? 'default' : 'secondary'} className="text-sm">
+            {t(`status.${order.status}`)}
+          </Badge>
+        </div>
       </div>
+
+      {order.isTest && (
+        <Alert className="border-warning-border bg-warning-soft text-warning">
+          <Info className="size-4" />
+          <AlertDescription>{t('testNotice')}</AlertDescription>
+        </Alert>
+      )}
 
       {notice && notice !== 'paid' && (
         <Alert variant={notice === 'pending' ? 'default' : 'destructive'}>
@@ -504,7 +519,7 @@ function AdjustmentCard({
   const bank = adjustment.payment?.bank ?? null;
   const paypal = adjustment.payment?.paypal ?? false;
   return (
-    <Card className="border-amber-400">
+    <Card className="border-warning-border">
       <CardHeader>
         <CardTitle>{t('adjustment.title')}</CardTitle>
         <p className="text-sm text-muted-foreground">{t('adjustment.intro')}</p>

@@ -320,7 +320,7 @@ export function WalletCheck({
             </ul>
           )}
           {state.warnings.length > 0 && (
-            <ul className="list-disc pl-5 text-amber-600">
+            <ul className="list-disc pl-5 text-warning">
               {state.warnings.map((e, i) => (
                 <li key={i}>{issueText(e)}</li>
               ))}
@@ -456,7 +456,7 @@ export function WalletDesignForm({
             </div>
             <div className="text-base font-semibold">{t('previewValue')}</div>
           </div>
-          <div className="size-12 rounded bg-white/90" />
+          <div className="size-12 rounded bg-paper/90" />
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <TextInput

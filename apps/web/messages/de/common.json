@@ -7,6 +7,12 @@
     "en": "English",
     "de": "Deutsch"
   },
+  "theme": {
+    "label": "Farbschema",
+    "system": "System",
+    "light": "Hell",
+    "dark": "Dunkel"
+  },
   "actions": {
     "save": "Speichern",
     "saving": "Speichert…",
@@ -102,7 +108,10 @@
     "ADJUSTMENT_NOT_OPEN": "Diese Nachzahlung ist nicht mehr offen.",
     "ADJUSTMENT_NOT_FOUND": "Nachzahlung nicht gefunden.",
     "ADJUSTMENT_NOT_PAYABLE": "Diese Nachzahlung kann nicht mehr bezahlt werden.",
-    "ADJUSTMENT_OPEN": "Dieses Ticket hat eine offene Nachzahlung. Setze zuerst den Tarif zurück."
+    "ADJUSTMENT_OPEN": "Dieses Ticket hat eine offene Nachzahlung. Setze zuerst den Tarif zurück.",
+    "EVENT_NOT_DRAFT": "Diese Veranstaltung wurde inzwischen veröffentlicht – Testkäufe sind nicht mehr möglich.",
+    "TEST_ORDER_MIXED_CART": "Noch nicht veröffentlichte Veranstaltungen (Testkauf) können nicht mit veröffentlichten Veranstaltungen in einer Bestellung kombiniert werden.",
+    "NOT_A_TEST_ORDER": "Nur Testbestellungen können gelöscht werden."
   },
   "errorPages": {
     "notFound": {

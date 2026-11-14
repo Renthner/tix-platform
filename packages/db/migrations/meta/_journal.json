@@ -246,6 +246,20 @@
       "when": 1794606466668,
       "tag": "0034_public_map_generation",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794614087460,
+      "tag": "0035_test_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794646602835,
+      "tag": "0036_seo_noindex",
+      "breakpoints": true
     }
   ]
 }

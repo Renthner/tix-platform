@@ -41,11 +41,18 @@ must be at most 99, N between 1 and 29; the script rejects anything else.
    "pre-release" / "Vorabversion" status lines in `README.md`, `README.de.md`, `docs/INSTALL.md` and
    `docs/INSTALL.de.md` (`set-version.mjs --check` fails otherwise).
 3. Commit (`VERSION`, `package.json` files, `gradle.properties`, `version.ts`, `CHANGELOG.md`) and
-   push to `main`; wait for CI.
-4. `git tag v1.0.0-alpha.2 && git push origin v1.0.0-alpha.2`
+   push to `main`; wait for CI. Recommended: put the version bump and the changelog section into the
+   **same commit as the last change** (or a version-only commit) and push once, so exactly one CI run
+   covers the release.
+4. `git tag -s v1.0.0-alpha.2 -m "Release 1.0.0-alpha.2" && git push origin v1.0.0-alpha.2`. The tag
+   must point at the commit CI just tested (`git rev-parse HEAD` = the commit of the green run on `main`).
 
-The workflow then verifies that the tag matches `VERSION` and that the changelog section exists,
-re-runs the CI checks, builds and pushes the images, builds the signed APK and creates the GitHub
+The workflow then verifies that the tag matches `VERSION` and that the changelog section exists.
+**CI is not run a second time:** a gate job looks for a successful `ci.yml` run on `main` (push event)
+for exactly the tagged commit and reuses it; a run still in progress is awaited (up to 30 minutes), a
+failed run fails the release. Only if no CI run exists for that commit (tag on an untested commit, or the
+run was skipped) the release runs the full CI itself; start the workflow manually with `force_ci` to
+always re-run it. The workflow then builds and pushes the images, builds the signed APK and creates the GitHub
 Release (marked as pre-release when the version has a suffix; named `TIX Platform v<version>`).
 To re-run it for an existing tag use Actions -> Release -> Run workflow, select the **tag** under "Use workflow from" (not `main`) and enter the same tag (`gh workflow run Release --ref v1.0.0-alpha.3 -f tag=v1.0.0-alpha.3`). The signature identity contains the ref the workflow ran from, so a run from `main` would not match the verification command in [Verifying releases](#verifying-releases); the workflow refuses such a run.
 

@@ -86,7 +86,7 @@ function SuccessNotice({ text, onGone }: { text: string; onGone: () => void }) {
   return (
     <Card
       role="status"
-      className={`border-emerald-300 bg-emerald-50 text-emerald-900 transition-opacity ease-out dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100 ${
+      className={`border-success-border bg-success-soft text-success transition-opacity ease-out ${
         fading ? 'opacity-0' : 'opacity-100'
       }`}
       style={{ transitionDuration: `${NOTICE_FADE_MS}ms` }}

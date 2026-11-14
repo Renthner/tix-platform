@@ -458,7 +458,7 @@ export function EmailTemplateEditor({
                   title={t('preview.title')}
                   sandbox=""
                   srcDoc={previewData.html}
-                  className="h-[34rem] w-full rounded-md border bg-white"
+                  className="h-[34rem] w-full rounded-md border bg-paper"
                 />
               ) : (
                 <pre className="max-h-[34rem] overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">

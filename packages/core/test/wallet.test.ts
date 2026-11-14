@@ -78,6 +78,7 @@ const ticket = (over: Partial<WalletTicketData> = {}): WalletTicketData => ({
   attendeeName: 'Alex Sample',
   orderId: '00000000-0000-4000-8000-0000000000aa',
   orderNumber: '2026-000001',
+  isTest: false,
   locale: 'de',
   eventId: '00000000-0000-4000-8000-000000000001',
   eventTitle: 'Sample Musical',

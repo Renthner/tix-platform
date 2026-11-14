@@ -74,7 +74,7 @@ export async function SetupChecklistCard({
             {checklist.steps.map((step) => (
               <li key={step.key} className="flex items-start gap-3 py-2.5">
                 {step.done ? (
-                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-green-600" aria-hidden />
+                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
                 ) : (
                   <Circle className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
                 )}

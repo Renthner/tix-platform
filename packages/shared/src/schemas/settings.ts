@@ -4,6 +4,12 @@ import { SUPPORTED_LOCALES } from '../i18n';
 import { accountingSchema } from './accounting';
 import { GERMAN_STATES } from '../payments/business-days';
 import {
+  DEFAULT_TITLE_TEMPLATE,
+  SEO_DESCRIPTION_MAX,
+  SEO_SITE_TITLE_MAX,
+  isValidTitleTemplate,
+} from '../seo';
+import {
   countryCodeSchema,
   currencyCodeSchema,
   hexColorSchema,
@@ -393,6 +399,47 @@ const startPageSchema = z.object({
 });
 export type StartPageSettings = z.output<typeof startPageSchema>;
 
+const seoVerificationToken = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9_-]{8,128}$/);
+
+const seoTextSchema = z.object({
+  /** Replaces the shop name in titles (optional). */
+  siteTitle: z.string().trim().max(SEO_SITE_TITLE_MAX).optional(),
+  /** Default meta / Open Graph description of pages without their own. */
+  description: z.string().trim().max(SEO_DESCRIPTION_MAX).optional(),
+});
+export type SeoText = z.output<typeof seoTextSchema>;
+
+/** Search engine and social sharing behaviour of the shop. */
+const seoSchema = z.object({
+  /** OFF: noindex header + meta tag, robots.txt "Disallow: /", no sitemap, no structured data. */
+  indexing: z.boolean().default(true),
+  /** Document title pattern: `%s` = page title (exactly once), `{siteTitle}` = site title. */
+  titleTemplate: z
+    .string()
+    .trim()
+    .max(SEO_SITE_TITLE_MAX)
+    .refine(isValidTitleTemplate, 'titleTemplate')
+    .default(DEFAULT_TITLE_TEMPLATE),
+  /** Public media asset (kind EVENT_IMAGE): default Open Graph / Twitter image. */
+  shareImageAssetId: z.uuid().optional(),
+  /** Twitter / X account of the organiser, "@name". */
+  twitterHandle: z
+    .string()
+    .trim()
+    .regex(/^@[A-Za-z0-9_]{1,15}$/)
+    .optional(),
+  /** Site verification tokens (the `content` value of the meta tag). */
+  verification: z
+    .object({ google: seoVerificationToken.optional(), bing: seoVerificationToken.optional() })
+    .default({}),
+  /** Per UI locale; missing fields fall back to the shop default locale. */
+  texts: z.partialRecord(z.enum(SUPPORTED_LOCALES), seoTextSchema).default({}),
+});
+export type SeoSettings = z.output<typeof seoSchema>;
+
 /** Optional customer accounts on top of guest checkout. */
 const customerAccountsSchema = z.object({
   /** Customers may register to see their orders and re-download tickets. */
@@ -581,6 +628,11 @@ export const SETTINGS = {
     schema: startPageSchema,
     secret: false,
     description: 'Shop home page while no event is published',
+  }),
+  seo: define({
+    schema: seoSchema,
+    secret: false,
+    description: 'Search engines and social sharing: indexing, titles, descriptions, share image',
   }),
   customerAccounts: define({
     schema: customerAccountsSchema,

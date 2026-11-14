@@ -32,6 +32,7 @@ export const FIELD_ERROR_CODES = [
   'prefixFormat',
   'pngOnly',
   'hostNotAllowed',
+  'titleTemplate',
 ] as const;
 export type FieldErrorCode = (typeof FIELD_ERROR_CODES)[number];
 
@@ -47,6 +48,14 @@ export const FORM_ERROR_CODES = [
   'builtinSymbol',
   'venueHasEvents',
   'mediaInUse',
+  'testOrderBlocked',
+  'testOrdersPending',
+  'testOrdersKept',
+  'testKeyRealTickets',
+  'testOrderPartialPayment',
+  'testOrderCancelFailed',
+  'testOrderPaymentOpen',
+  'testOrderInvoiceExists',
 ] as const;
 export type FormErrorCode = (typeof FORM_ERROR_CODES)[number];
 

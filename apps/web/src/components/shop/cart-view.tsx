@@ -121,7 +121,7 @@ function CartEventCard({
           ))}
         </ul>
         {needsProof && (
-          <p className="flex items-start gap-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <p className="flex items-start gap-2 rounded-md bg-warning-soft p-2 text-xs text-warning">
             <Info className="mt-0.5 size-3.5 shrink-0" /> {t('proofNote')}
           </p>
         )}

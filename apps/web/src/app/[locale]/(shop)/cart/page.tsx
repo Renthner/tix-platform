@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import { CartView } from '@/components/shop/cart-view';
+import { DraftCartNotice } from '@/components/shop/draft-cart-notice';
 import { resolveLocale } from '@/i18n/locale';
 
 export async function generateMetadata() {
@@ -13,6 +14,7 @@ export default async function CartPage({ params }: { params: Promise<{ locale: s
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+      <DraftCartNotice />
       <CartView />
     </div>
   );

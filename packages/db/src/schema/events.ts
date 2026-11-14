@@ -75,6 +75,13 @@ export const events = pgTable(
     translations: translationsColumn(),
     status: eventStatusEnum('status').notNull().default('DRAFT'),
     /**
+     * A super-admin test order was ever created for this event. Publishing such an event rotates
+     * its ticket signing key (old test QR codes stop verifying). Never reset.
+     */
+    hadTestOrders: boolean('had_test_orders').notNull().default(false),
+    /** TRUE = hidden from search engines (noindex, not in the sitemap, no structured data). */
+    seoNoindex: boolean('seo_noindex').notNull().default(false),
+    /**
      * Event page layout: rows of blocks side by side (drag & drop in the admin). Read through
      * `normalizePageLayout` (also converts the earlier flat format).
      */

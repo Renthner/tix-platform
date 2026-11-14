@@ -1,6 +1,11 @@
 import 'server-only';
-import { contentLocale } from '@tix/core';
-import { SUPPORTED_LOCALES, localizedPath } from '@tix/shared';
+import { contentLocale, getSetting, getShopMediaAsset } from '@tix/core';
+import {
+  SUPPORTED_LOCALES,
+  localizedPath,
+  resolveSeoDescription,
+  resolveSiteTitle,
+} from '@tix/shared';
 import type { Metadata } from 'next';
 import { cache } from 'react';
 import { getCore } from '@/server/core';
@@ -14,6 +19,34 @@ export function publicBaseUrl(): string {
 
 /** Content locale + live shop default locale, resolved once per request. */
 export const loadContentLocale = cache((locale: string) => contentLocale(getCore(), locale));
+
+/**
+ * Settings → SEO resolved for one request: indexing switch, site title / description of the
+ * content locale, default share image and Twitter handle. Settings reads are cached by core.
+ */
+export const loadSeoContext = cache(async (locale: string) => {
+  const core = getCore();
+  const content = await loadContentLocale(locale);
+  const [seo, general] = await Promise.all([getSetting(core, 'seo'), getSetting(core, 'general')]);
+  const shareAsset = seo.shareImageAssetId
+    ? await getShopMediaAsset(core, seo.shareImageAssetId)
+    : null;
+  return {
+    seo,
+    content,
+    indexing: seo.indexing,
+    shopName: general.shopName,
+    siteTitle: resolveSiteTitle(seo, content.locale, content.defaultLocale, general.shopName),
+    description: resolveSeoDescription(seo, content.locale, content.defaultLocale),
+    shareImage: shareAsset
+      ? {
+          url: `${publicBaseUrl()}/api/media/${shareAsset.id}`,
+          width: shareAsset.width ?? undefined,
+          height: shareAsset.height ?? undefined,
+        }
+      : undefined,
+  };
+});
 
 /** Absolute URL of `path` in `locale` (default locale unprefixed). */
 export function localeUrl(locale: string, path: string, defaultLocale: string): string {
@@ -62,6 +95,8 @@ export interface PageSeo {
   siteName: string;
   /** Absolute image URL + known size. */
   image?: { url: string; width?: number | null; height?: number | null };
+  /** Twitter / X account of the organiser ("@name"). */
+  twitterSite?: string;
 }
 
 /** Canonical, hreflang, Open Graph and Twitter metadata of an indexable page. */
@@ -91,6 +126,7 @@ export function pageSeo(p: PageSeo): Metadata {
     },
     twitter: {
       card: images ? 'summary_large_image' : 'summary',
+      ...(p.twitterSite && { site: p.twitterSite }),
       title: p.title,
       description: p.description,
       images: images?.map((i) => i.url),

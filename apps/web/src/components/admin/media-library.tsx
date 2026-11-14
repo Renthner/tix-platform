@@ -287,7 +287,7 @@ export function MediaUploadForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {done > 0 && (
-        <p role="status" className="text-sm text-green-700 dark:text-green-400">
+        <p role="status" className="text-sm text-success">
           {t('uploadedCount', { count: done })}
         </p>
       )}

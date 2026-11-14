@@ -771,7 +771,7 @@ function CompanionPartnerField({
         }
       />
       {!seat.companionOfSeatId && !automatic?.length && (
-        <p className="text-[11px] text-amber-700">{t('hints.companionNoPartner')}</p>
+        <p className="text-[11px] text-warning">{t('hints.companionNoPartner')}</p>
       )}
     </>
   );

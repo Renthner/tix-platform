@@ -26,6 +26,7 @@ import {
   CookieNoticeSettingsForm,
   GeneralSettingsForm,
   SeatDisplaySettingsForm,
+  SeoSettingsForm,
   ShopLayoutSettingsForm,
   StartPageSettingsForm,
   SettingsSection,
@@ -122,6 +123,7 @@ async function TabContent({
       | 'seatDisplay'
       | 'shopLayout'
       | 'startPage'
+      | 'seo'
       | 'cookieNotice'
       | 'bankTransfer',
     children: React.ReactNode,
@@ -229,6 +231,29 @@ async function TabContent({
             />,
           )}
         </>
+      );
+    }
+    case 'seo': {
+      const [seo, general] = await Promise.all([
+        getSetting(core, 'seo'),
+        getSetting(core, 'general'),
+      ]);
+      return section(
+        'seo',
+        <SeoSettingsForm
+          action={saveSettingsAction.bind(null, 'seo')}
+          initial={{
+            indexing: seo.indexing,
+            titleTemplate: seo.titleTemplate,
+            shareImage: await pickerAsset(seo.shareImageAssetId),
+            twitterHandle: seo.twitterHandle,
+            googleVerification: seo.verification.google,
+            bingVerification: seo.verification.bing,
+            defaultLocale: general.defaultLocale,
+            texts: seo.texts,
+            shopName: general.shopName,
+          }}
+        />,
       );
     }
     case 'organizer':

@@ -143,7 +143,8 @@ const ts = (d: Date) => sql`${d.toISOString()}::timestamptz`;
 /** Channel / method restriction of an `orders` alias. */
 function orderFilter(f: StatisticsFilter, alias: string): SQL {
   const a = sql.raw(alias);
-  return sql`${f.channels.length ? sql`AND ${a}.channel IN (${list(f.channels)})` : sql``}
+  // Test orders (super-admin purchases on draft events) never count.
+  return sql`AND NOT ${a}.is_test ${f.channels.length ? sql`AND ${a}.channel IN (${list(f.channels)})` : sql``}
     ${f.methods.length ? sql`AND ${a}.payment_method IN (${list(f.methods)})` : sql``}`;
 }
 
@@ -161,7 +162,7 @@ function ordCte(scope: Scope, w: Window, options: { firstPaid?: boolean } = {}):
            ${
              options.firstPaid
                ? sql`, (SELECT min(x.paid_at) FROM orders x
-                        WHERE x.customer_id = o.customer_id AND x.paid_at IS NOT NULL) AS first_paid`
+                        WHERE x.customer_id = o.customer_id AND x.paid_at IS NOT NULL AND NOT x.is_test) AS first_paid`
                : sql``
            }
     FROM orders o
@@ -462,11 +463,11 @@ async function loadCustomers(db: Database, scope: Scope, w: Window) {
     sql`WITH ${ordCte(scope, w)}, cust AS (SELECT DISTINCT customer_id FROM ord WHERE customer_id IS NOT NULL)
       SELECT count(*)::int AS total,
         count(*) FILTER (WHERE EXISTS (
-          SELECT 1 FROM orders x WHERE x.customer_id = cust.customer_id AND x.paid_at < ${ts(w.start)}
+          SELECT 1 FROM orders x WHERE x.customer_id = cust.customer_id AND x.paid_at < ${ts(w.start)} AND NOT x.is_test
         ))::int AS returning,
         count(*) FILTER (WHERE (
           SELECT count(DISTINCT oi.event_id) FROM orders x JOIN order_items oi ON oi.order_id = x.id
-          WHERE x.customer_id = cust.customer_id AND x.paid_at IS NOT NULL AND oi.status IN ${SOLD}
+          WHERE x.customer_id = cust.customer_id AND x.paid_at IS NOT NULL AND NOT x.is_test AND oi.status IN ${SOLD}
         ) >= 2)::int AS multi_event
       FROM cust`,
   );

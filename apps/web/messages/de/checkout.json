@@ -187,7 +187,9 @@
       "difference": "Preisdifferenz",
       "alreadyPaid": "Bereits bezahlt (Überzahlung)",
       "rest": "Restbetrag"
-    }
+    },
+    "testBadge": "TEST",
+    "testNotice": "Dies ist eine Testbestellung, die ein Administrator für eine unveröffentlichte Veranstaltung aufgegeben hat. Es handelt sich nicht um einen echten Kauf."
   },
   "account": {
     "title": "Schneller bestellen mit Kundenkonto",

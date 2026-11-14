@@ -301,7 +301,7 @@ function QueueCard({
             style={{ width: `${Math.round(progress * 100)}%` }}
           />
         </div>
-        {decision.paused && <p className="text-sm text-amber-600">{t('waiting.paused')}</p>}
+        {decision.paused && <p className="text-sm text-warning">{t('waiting.paused')}</p>}
         <p className="text-xs text-muted-foreground">{t('waiting.keepOpen')}</p>
       </CardContent>
     </Card>

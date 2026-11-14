@@ -184,7 +184,7 @@ export function PairDeviceDialog({ events }: { events: ScannerEventOption[] }) {
                   alt=""
                   width={240}
                   height={240}
-                  className={`mx-auto size-60 rounded-md border ${expired ? 'opacity-30' : ''}`}
+                  className={`mx-auto size-60 rounded-md border bg-paper ${expired ? 'opacity-30' : ''}`}
                 />
                 <div>
                   <div className="text-xs text-muted-foreground">{t('codeLabel')}</div>

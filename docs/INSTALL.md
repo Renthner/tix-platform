@@ -28,7 +28,7 @@ area. The `.env` file only holds the few technical settings.
 ### 1. Download the two files
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.17
+export TIX_VERSION=1.0.0-alpha.18
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -516,6 +516,11 @@ The dashboard shows the same steps as a setup checklist. Work through this list 
 
 1. **Settings → Organiser:** organiser name, address, imprint and privacy links, contact. They
    appear in the shop and on invoices.
+   - _Test or demo server?_ Open **Settings → SEO** and switch **Allow search engines to index the
+     shop** off right away: every page then asks Google and others to ignore the site, `robots.txt`
+     blocks crawling and there is no sitemap. Removal of pages that are already listed can take
+     days (the removal tool in Google Search Console is faster). On the live shop you can also set
+     the site title, description, preview image and verification tokens there.
 2. **Settings → E-mail:** enter SMTP host, port, user and password. Press **Send test e-mail**.
    Do not continue until it arrives.
 3. **Settings → Payments:** enable the methods you want.

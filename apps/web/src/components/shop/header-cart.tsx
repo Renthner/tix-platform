@@ -38,7 +38,7 @@ export function HeaderCart() {
   return (
     <Link
       href="/cart"
-      className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-2 text-sm hover:bg-accent sm:gap-2 sm:px-3"
+      className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-2 text-sm hover:bg-accent sm:gap-2 sm:px-3"
     >
       <ShoppingCart className="size-4" />
       <span className="hidden sm:inline">{t('title')}</span>

@@ -138,6 +138,74 @@ Order e-mails use a transactional outbox: the `email_messages` row is written in
 transaction as the state change, the BullMQ job is added after commit, and the worker
 re-queues stored-but-undispatched messages.
 
+## Test orders
+
+A signed-in **SUPER_ADMIN** (and only that role; the role is read from the database on every
+request and two-factor set-up must be complete) may test-buy. Core stays auth agnostic: the web
+layer derives a `ShopActor` (`apps/web/src/server/shop-actor.ts`) and passes it to
+`requireShopAccess`, `enterShop`, `queueStatus` and `placeOrder`; the sale state for that actor is
+`shopSaleState` (`packages/core/src/shop-actor.ts`), `computeSaleState` itself is untouched (it
+also drives the queue ticker, badges and structured data).
+
+- **Draft events** (`status = DRAFT`) exist only for super-admins: the event page loads them with
+  `getDraftEventBySlug` – never through the public shop cache – and every `/api/events/<id>/…` route
+  returns 404 for everybody else (`loadShopEvent`). Draft responses are `private, no-store`, the page is
+  `noindex` and has no structured data; drafts are not in the home list or the sitemap.
+- **Sale window**: the bypass only ever WIDENS access. Whenever customers could buy (`ON_SALE`) so can
+  super-admins; in addition they pass the closed windows – a draft, presale, "not started", pause and a
+  passed sale-end – but only until the event itself starts (then `ENDED`; door sales are the box office's
+  job). CANCELLED / ARCHIVED stay closed. Order limits are unchanged.
+- **Waiting room**: super-admins get a signed pass whose id is never stored in Redis and
+  `requireShopAccess` waives the pass for them: no queue slot, no active-shopper entry. The staff cookie
+  `tix_admin_queue_test` (set by `POST /api/admin/queue-test`) turns the bypass off.
+- **Test orders**: `is_test` is decided **at checkout**: an order whose events are all DRAFT then gets
+  `orders.is_test = true` and a number from its own series (`TEST-<year>-<seq>`; the real order and invoice
+  series stay gapless when test orders are deleted). It never changes afterwards: moving a PUBLISHED event
+  back to DRAFT keeps its existing orders real (invoiced, counted), and a test order stays a test order
+  after publishing. A cart mixing draft and published events is refused. Orders on published events
+  bought outside the sale window are normal orders. The checkout also sets `events.had_test_orders`
+  (never reset) in the order transaction and refuses when the event is no longer DRAFT (this UPDATE
+  serialises with publishing, see below). Test orders get **no invoice** (`issueInvoiceInTransaction`
+  returns null – no number from the GoBD series is consumed, also with `force`), a TEST watermark on
+  ticket PDFs, a `[TEST]` subject prefix + banner on every e-mail (`renderEmail`) and **no wallet passes**
+  (buttons and links are omitted, `ensureApplePass` / `ensureGoogleSaveUrl` refuse with
+  `WALLET_TEST_ORDER`). They are excluded from statistics, dashboard KPIs, customer history and
+  revenue. Payments (PayPal as configured – possibly live –, bank transfer) work normally; money is real.
+- **Bank matching**: test orders are never offered as candidates and a transfer carrying the exact
+  reference of a test order goes to review (`ORDER_NOT_PAYABLE`, candidate reason `TEST_ORDER`), never
+  auto-fulfilled. Manual assignment needs an explicit confirmation (`confirmTestOrder`).
+- **Money rules** (accounting). A test order that **never received money** is deleted completely
+  (`deleteTestOrder`, SUPER_ADMIN): items, tickets, payments, adjustments, e-mail outbox rows, stored
+  ticket PDFs, the shop session's access-code redemptions (code counters lowered, single-use codes usable
+  again) and the order in every bank transaction's review candidates; seats and standing capacity are
+  released and an `order.test.delete` audit entry is written. Open PayPal attempts are checked at PayPal
+  first (`reconcilePayPalOrder`, outside the transaction); an attempt that stays open keeps the order
+  (`PAYMENT_OPEN`). If the deleted order already had tickets the scanner **sync epoch** is rotated
+  (`rotateSyncEpoch`): the xid-horizon feed cannot express deletions, and a new epoch makes every device
+  drop its synced tickets and re-sync (unsent scans stay). Test orders without tickets leave the epoch
+  alone. Once real money was **captured** (a payment with `captured_at`, or a bank allocation – also
+  when refunded since) the order is a financial record and **cannot be deleted**
+  (`MONEY_CAPTURED`): `cancelAndHideTestOrder` cancels it through the normal flow (PayPal refunded
+  automatically, bank transfers become an open refund; no invoice → no credit note) and hides it
+  (`orders.test_hidden_at`) from the default order list; it stays findable by search and the test
+  filter. Its payments, refunds, reversals and write-offs stay in the accounting export (CSV column
+  `test` = `TEST`, DATEV booking text prefixed `TEST `, voucher = order number), never with an invoice or
+  credit-note number. Bulk delete deletes the money-free orders and reports the others as "cancel only".
+  A multi-event test order is deleted entirely, including its items at the other draft events.
+- **Publishing** (`changeEventStatus`, the only writer of `events.status`): going live (DRAFT /
+  ARCHIVED → PUBLISHED / POSTPONED) is refused (`TEST_ORDERS_PRESENT`) while a test order of the event exists that is not cancelled & hidden
+  (cancelled & hidden ones are inert: void tickets, released seats; they stay for accounting). When the event ever had test orders (`had_test_orders`) all
+  its signing keys are revoked and a fresh one created in the same transaction – scanners list revoked
+  keys without key material, so old test QR codes are RED ("invalid signature") after the next manifest
+  sync, also offline. Refused (`TEST_KEY_ROTATION_REAL_TICKETS`) if real tickets exist. The event row is
+  locked `FOR UPDATE`, the test checkout's `had_test_orders` UPDATE takes the same lock.
+- **Open item (not fixed)**: the realtime gateway has no database and joins socket rooms by event id
+  only, so a socket that knows the id of a DRAFT event receives its seat deltas (opaque seat ids and
+  lock states of test purchases; the id is unguessable and only shown in the admin). Gating this needs
+  the event status at every one of the ~14 `publishSeatDelta` call sites (many of them have no event
+  row: jobs, fulfilment) plus a super-admin claim in the `rt` token – no cheap, stale-proof way yet.
+- In-flight ticket PDF jobs skip deleted orders and never leave an object behind.
+
 ## Internationalisation
 
 `next-intl` with English as default (no URL prefix) and German under `/de`. Messages live in

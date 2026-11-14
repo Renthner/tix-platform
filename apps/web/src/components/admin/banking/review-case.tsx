@@ -383,6 +383,7 @@ function OrderRow({
       : assignTransactionAction.bind(null, transactionId, order?.id ?? ''),
     BANKING_IDLE,
   );
+  const [testConfirmed, setTestConfirmed] = useState(false);
   const money = (cents: number) => format.number(cents / 100, { style: 'currency', currency });
   if (!order) {
     return <div className="p-3 text-sm text-muted-foreground">{fallbackNumber}</div>;
@@ -410,6 +411,7 @@ function OrderRow({
             {order.orderNumber}
           </Link>
           <Badge variant="secondary">{ts(order.status as Parameters<typeof ts>[0])}</Badge>
+          {order.isTest ? <Badge variant="destructive">{t('testBadge')}</Badge> : null}
           {order.paymentReference ? (
             <span className="font-mono text-xs text-muted-foreground">
               {order.paymentReference}
@@ -431,7 +433,21 @@ function OrderRow({
       <ActionForm action={formAction} className="flex flex-col items-end gap-1">
         <input type="hidden" name="amount" value={amountInput} />
         <input type="hidden" name="note" value={note} />
-        <SubmitButton size="sm" disabled={!payable}>
+        {order.isTest ? (
+          <label className="flex max-w-xs items-start gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              name="confirmTest"
+              checked={testConfirmed}
+              onChange={(e) => setTestConfirmed(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              {t('testNotice')} {t('testConfirm')}
+            </span>
+          </label>
+        ) : null}
+        <SubmitButton size="sm" disabled={!payable || (order.isTest && !testConfirmed)}>
           {t('assign')}
         </SubmitButton>
         <span className="text-xs text-muted-foreground">{preview}</span>

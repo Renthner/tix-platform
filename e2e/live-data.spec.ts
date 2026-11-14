@@ -14,7 +14,13 @@ async function eventId(page: Page): Promise<string> {
 }
 
 async function visitor(browser: Browser, baseURL: string) {
-  const context = await browser.newContext({ baseURL, locale: 'en-US' });
+  // Explicitly signed out: with the project's admin storage state a visitor would be a super-admin,
+  // who bypasses a paused sale.
+  const context = await browser.newContext({
+    baseURL,
+    locale: 'en-US',
+    storageState: { cookies: [], origins: [] },
+  });
   return { context, page: await context.newPage() };
 }
 

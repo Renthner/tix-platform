@@ -4,7 +4,8 @@
     "imprint": "Imprint",
     "privacy": "Privacy",
     "terms": "Terms",
-    "cookies": "Cookies"
+    "cookies": "Cookies",
+    "draftBanner": "Draft – visible to super admins only. Orders are test orders."
   },
   "cookies": {
     "notice": "We only use technically necessary cookies (e.g. for your cart).",
@@ -37,6 +38,10 @@
         "purpose": "Remembers the language you chose.",
         "lifetime": "1 year"
       },
+      "theme": {
+        "purpose": "Remembers the colour theme you chose (light or dark). Only set when you pick one; without it the theme of your device is used.",
+        "lifetime": "1 year"
+      },
       "notice": {
         "purpose": "Remembers that you dismissed the cookie notice.",
         "lifetime": "1 year"
@@ -56,6 +61,10 @@
       "setupCollapsed": {
         "purpose": "Remembers that the setup checklist is collapsed.",
         "lifetime": "1 year"
+      },
+      "queueTest": {
+        "purpose": "Staff only: remembers that a super admin wants to try the waiting room like a customer.",
+        "lifetime": "Session"
       }
     },
     "ipHeading": "IP addresses",

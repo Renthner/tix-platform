@@ -90,7 +90,7 @@ export function AdminNavLinks({
             <Icon className="size-4" />
             {t(key)}
             {(badges[key] ?? 0) > 0 && (
-              <span className="ml-auto rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+              <span className="ml-auto rounded-full bg-destructive-solid px-1.5 text-xs font-medium text-destructive-foreground">
                 {badges[key]}
               </span>
             )}
@@ -131,7 +131,7 @@ export function AdminMobileMenu({
                 <Icon className="size-4" />
                 {t(key)}
                 {(badges[key] ?? 0) > 0 && (
-                  <span className="ml-auto rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+                  <span className="ml-auto rounded-full bg-destructive-solid px-1.5 text-xs font-medium text-destructive-foreground">
                     {badges[key]}
                   </span>
                 )}

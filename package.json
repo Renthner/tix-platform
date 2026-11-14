@@ -1,6 +1,6 @@
 {
   "name": "tix-platform",
-  "version": "1.0.0-alpha.17",
+  "version": "1.0.0-alpha.18",
   "private": true,
   "license": "PolyForm-Shield-1.0.0",
   "description": "High-concurrency ticketing platform with seating editor, virtual waiting room, Vorkasse reconciliation and offline check-in.",
@@ -26,6 +26,7 @@
     "test:e2e": "node scripts/e2e/run.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@playwright/test": "^1.65.0",
     "prettier": "^3.9.10",
     "turbo": "^2.11.10",

@@ -255,8 +255,14 @@ async function resolveAttachments(
           isTickets: true,
         });
       } catch (err) {
-        // Tickets voided since the mail was queued (cancelled order): send without the PDF.
-        if (!(err instanceof DomainError && err.code === 'NO_TICKETS')) throw err;
+        // Tickets voided (cancelled order) or the order deleted (test orders) since the mail was
+        // queued: send without the PDF.
+        if (!(
+          err instanceof DomainError &&
+          (err.code === 'NO_TICKETS' || err.code === 'ORDER_NOT_FOUND')
+        )) {
+          throw err;
+        }
       }
     } else {
       const object = await requireCapability(ctx, 'storage').get('documents', attachment.objectKey);

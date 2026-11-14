@@ -77,7 +77,11 @@
       "overdue": "Overdue transfers only",
       "apply": "Filter",
       "channel": "Sales channel",
-      "allChannels": "All channels"
+      "allChannels": "All channels",
+      "tests": "Test orders",
+      "testsAll": "With test orders",
+      "testsOnly": "Test orders only",
+      "testsHide": "Without test orders"
     },
     "empty": "No orders found.",
     "columns": {
@@ -568,6 +572,20 @@
       "confirm": "Refund {amount} to the customer (PayPal automatically, otherwise as an open transfer).",
       "submit": "Refund overpayment",
       "reserved": "{amount} of the overpayment is used by the open tariff change and is not included here."
+    },
+    "testBadge": "TEST",
+    "testHidden": "cancelled & hidden",
+    "testDelete": {
+      "button": "Delete test order",
+      "title": "Delete this test order?",
+      "description": "The order is removed completely (tickets, payments, e-mails, documents) and its seats are released. This cannot be undone. Only possible while no real money was received – otherwise use “Cancel & hide”.",
+      "confirm": "Delete test order"
+    },
+    "testCancelHide": {
+      "button": "Cancel & hide test order",
+      "title": "Cancel and hide this test order?",
+      "description": "Real money was received on this test order, so it cannot be deleted (accounting). It is cancelled like a normal order – PayPal payments are refunded automatically, bank transfers appear as an open refund – and hidden from the order list. Payments and refunds stay in the accounting export, marked TEST. Once cancelled and hidden it no longer blocks publishing the event.",
+      "confirm": "Cancel & hide"
     }
   },
   "eventPayments": {

@@ -234,6 +234,7 @@ export interface CandidateOrder {
   totalGross: number;
   amountPaid: number;
   currency: string;
+  isTest: boolean;
 }
 
 async function ordersById(ids: string[]): Promise<Map<string, CandidateOrder>> {
@@ -252,6 +253,7 @@ async function ordersById(ids: string[]): Promise<Map<string, CandidateOrder>> {
       totalGross: orders.totalGross,
       amountPaid: orders.amountPaid,
       currency: orders.currency,
+      isTest: orders.isTest,
     })
     .from(orders)
     .where(inArray(orders.id, ids));
@@ -268,6 +270,7 @@ async function ordersById(ids: string[]): Promise<Map<string, CandidateOrder>> {
         totalGross: r.totalGross,
         amountPaid: r.amountPaid,
         currency: r.currency,
+        isTest: r.isTest,
       },
     ]),
   );

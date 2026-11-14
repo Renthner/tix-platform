@@ -86,6 +86,8 @@ export interface AccountingPayment {
   currency: string;
   paymentReference: string | null;
   providerReference: string | null;
+  /** Payment on a super-admin TEST order: real money, but never revenue (no invoice). */
+  isTest: boolean;
 }
 
 /** A captured payment that was cancelled later (bank allocation reversed). */
@@ -105,6 +107,8 @@ export interface AccountingWriteOff {
   currency: string;
   /** Books the write-off back (the allocation it belonged to was reversed). */
   reversal: boolean;
+  /** Booking on a super-admin TEST order. */
+  isTest: boolean;
 }
 
 export interface AccountingRefund {
@@ -118,6 +122,8 @@ export interface AccountingRefund {
   creditNoteNumber: string | null;
   /** Pays back an overpayment (no credit note). */
   overpayment: boolean;
+  /** Refund of a super-admin TEST order (never has a credit note). */
+  isTest: boolean;
 }
 
 export interface AccountingData {
@@ -168,7 +174,13 @@ export async function loadAccountingData(
       .from(invoices)
       .innerJoin(orders, eq(orders.id, invoices.orderId))
       .leftJoin(corrected, eq(corrected.id, invoices.correctsInvoiceId))
-      .where(and(gte(invoices.issuedAt, window.gte), lt(invoices.issuedAt, window.lt)))
+      .where(
+        and(
+          gte(invoices.issuedAt, window.gte),
+          lt(invoices.issuedAt, window.lt),
+          eq(orders.isTest, false),
+        ),
+      )
       .orderBy(asc(invoices.issuedAt), asc(invoices.invoiceNumber));
     const lines = docs.length
       ? await db
@@ -242,6 +254,7 @@ export async function loadAccountingData(
         >`coalesce((select a.payment_reference from order_adjustments a where a.id = ${payments.adjustmentId}), ${orders.paymentReference})`,
         providerCaptureId: payments.providerCaptureId,
         endToEndId: bankTransactions.endToEndId,
+        isTest: orders.isTest,
       })
       .from(payments)
       .innerJoin(orders, eq(orders.id, payments.orderId))
@@ -283,6 +296,7 @@ export async function loadAccountingData(
       currency: r.currency,
       paymentReference: r.paymentReference,
       providerReference: r.providerCaptureId ?? r.endToEndId ?? null,
+      isTest: r.isTest,
     }));
   }
 
@@ -298,6 +312,7 @@ export async function loadAccountingData(
         currency: payments.currency,
         paymentReference: orders.paymentReference,
         endToEndId: bankTransactions.endToEndId,
+        isTest: orders.isTest,
       })
       .from(bankTransactionAllocations)
       .innerJoin(payments, eq(payments.id, bankTransactionAllocations.paymentId))
@@ -325,6 +340,7 @@ export async function loadAccountingData(
         orderId: orderHistory.orderId,
         orderNumber: orders.orderNumber,
         currency: orders.currency,
+        isTest: orders.isTest,
         reversedAt: bankTransactionAllocations.reversedAt,
       })
       .from(orderHistory)
@@ -363,6 +379,7 @@ export async function loadAccountingData(
       currency: r.currency,
       paymentReference: r.paymentReference,
       providerReference: r.endToEndId ?? null,
+      isTest: r.isTest,
     }));
     for (const r of writeOffRows) {
       const d = (r.data ?? {}) as { shortfall?: unknown; method?: unknown };
@@ -374,6 +391,7 @@ export async function loadAccountingData(
         method: (typeof d.method === 'string' ? d.method : null) as PaymentMethod | null,
         amount,
         currency: r.currency,
+        isTest: r.isTest,
       };
       if (r.createdAt >= window.gte && r.createdAt < window.lt) {
         data.writeOffs.push({ ...base, date: r.createdAt, reversal: false });
@@ -398,6 +416,7 @@ export async function loadAccountingData(
         currency: refunds.currency,
         creditNoteNumber: creditNote.invoiceNumber,
         overpayment: refunds.overpayment,
+        isTest: orders.isTest,
       })
       .from(refunds)
       .innerJoin(orders, eq(orders.id, refunds.orderId))
@@ -469,6 +488,7 @@ export const CSV_COLUMNS = {
     'reference',
     'providerId',
     'note',
+    'test',
   ],
   refunds: [
     'date',
@@ -480,6 +500,7 @@ export const CSV_COLUMNS = {
     'kind',
     'status',
     'overpayment',
+    'test',
   ],
 } as const;
 export type CsvKind = keyof typeof CSV_COLUMNS;
@@ -541,6 +562,7 @@ export function buildAccountingCsv(
         p.paymentReference,
         p.providerReference,
         note,
+        p.isTest ? 'TEST' : '',
       ] as CsvCell[],
     });
     for (const p of data.payments) entries.push(row(p.capturedAt, p, p.amount, ''));
@@ -556,6 +578,7 @@ export function buildAccountingCsv(
         currency: w.currency,
         paymentReference: null,
         providerReference: null,
+        isTest: w.isTest,
       };
       entries.push(
         row(
@@ -581,6 +604,7 @@ export function buildAccountingCsv(
         r.kind,
         r.status,
         r.overpayment ? 'yes' : '',
+        r.isTest ? 'TEST' : '',
       ]);
     }
   }
@@ -624,6 +648,9 @@ export function moneyAccountFor(
       return null;
   }
 }
+
+/** Booking text of a TEST order posting: the marker leads, so the 60 character cut never drops it. */
+const testText = (isTest: boolean, text: string) => (isTest ? `TEST ${text}` : text);
 
 export interface DatevBuild {
   body: Buffer;
@@ -743,7 +770,7 @@ export function buildDatevExport(
       counterAccount: settings.debtorAccount,
       ...day(p.capturedAt),
       voucher1: p.voucher,
-      text: `${labels.payment} ${p.orderNumber}`,
+      text: testText(p.isTest, `${labels.payment} ${p.orderNumber}`),
     });
   }
   for (const p of data.paymentReversals) {
@@ -756,7 +783,7 @@ export function buildDatevExport(
       counterAccount: settings.debtorAccount,
       ...day(p.reversedAt),
       voucher1: p.voucher,
-      text: `${labels.paymentReversal} ${p.orderNumber}`,
+      text: testText(p.isTest, `${labels.paymentReversal} ${p.orderNumber}`),
     });
   }
   for (const w of data.writeOffs) {
@@ -767,7 +794,10 @@ export function buildDatevExport(
       counterAccount: settings.writeOffAccount,
       ...day(w.date),
       voucher1: w.voucher,
-      text: `${w.reversal ? labels.writeOffReversal : labels.writeOff} ${w.orderNumber}`,
+      text: testText(
+        w.isTest,
+        `${w.reversal ? labels.writeOffReversal : labels.writeOff} ${w.orderNumber}`,
+      ),
     });
   }
   for (const r of data.refunds) {
@@ -780,7 +810,7 @@ export function buildDatevExport(
       counterAccount: settings.debtorAccount,
       ...day(r.processedAt),
       voucher1: r.creditNoteNumber ?? r.orderNumber,
-      text: `${labels.refund} ${r.creditNoteNumber ?? r.orderNumber}`,
+      text: testText(r.isTest, `${labels.refund} ${r.creditNoteNumber ?? r.orderNumber}`),
     });
   }
 

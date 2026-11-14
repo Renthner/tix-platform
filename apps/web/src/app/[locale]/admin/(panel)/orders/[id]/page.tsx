@@ -9,9 +9,10 @@ import {
   resendableEmail,
 } from '@tix/core';
 import { formatTicketCode } from '@tix/shared';
-import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Ban, Download, ExternalLink, Trash2 } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
+import { ConfirmAction } from '@/components/admin/confirm-action';
 import { ReverseAllocationButton } from '@/components/admin/banking/reverse-allocation';
 import { OrderAdminActions } from '@/components/admin/order-actions';
 import { OrderAdjustmentCard } from '@/components/admin/order-adjustment';
@@ -34,6 +35,7 @@ import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { hasRole, requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { cancelHideTestOrderAction, deleteTestOrderAction } from '@/server/admin/test-orders';
 
 export async function generateMetadata() {
   const t = await getTranslations('orders.admin');
@@ -59,6 +61,13 @@ export default async function OrderDetailPage({
   ]);
   if (!view) notFound();
   const { order } = view;
+  // Real money was received on a test order: it cannot be deleted any more, only cancelled & hidden.
+  const testMoneyCaptured =
+    order.isTest &&
+    (view.payments.some(
+      (p) => p.capturedAt !== null && p.amount > 0 && p.method !== 'COMPLIMENTARY',
+    ) ||
+      view.allocations.length > 0);
   const [t, tChannel, tMethod, tPayment, tStatus, format] = await Promise.all([
     getTranslations('orders.admin'),
     getTranslations('orders.channel'),
@@ -116,11 +125,42 @@ export default async function OrderDetailPage({
           <span className="flex flex-wrap items-center gap-2">
             {t('detailHeading', { number: order.orderNumber })}{' '}
             <OrderStatusBadge status={order.status} />
+            {order.isTest && (
+              <Badge variant="outline" className="border-warning-border text-warning">
+                {t('testBadge')}
+              </Badge>
+            )}
           </span>
         }
         description={`${dateTime(order.createdAt)} · ${tMethod(order.paymentMethod)} · ${money(order.totalGross)}`}
         actions={
           <div className="flex gap-2">
+            {order.isTest && order.testHiddenAt && (
+              <Badge variant="outline">{t('testHidden')}</Badge>
+            )}
+            {order.isTest && hasRole(session, ['SUPER_ADMIN']) && !testMoneyCaptured && (
+              <ConfirmAction
+                action={deleteTestOrderAction.bind(null, order.id)}
+                title={t('testDelete.title')}
+                description={t('testDelete.description')}
+                confirmLabel={t('testDelete.confirm')}
+              >
+                <Trash2 /> {t('testDelete.button')}
+              </ConfirmAction>
+            )}
+            {order.isTest &&
+              hasRole(session, ['SUPER_ADMIN']) &&
+              testMoneyCaptured &&
+              !order.testHiddenAt && (
+                <ConfirmAction
+                  action={cancelHideTestOrderAction.bind(null, order.id)}
+                  title={t('testCancelHide.title')}
+                  description={t('testCancelHide.description')}
+                  confirmLabel={t('testCancelHide.confirm')}
+                >
+                  <Ban /> {t('testCancelHide.button')}
+                </ConfirmAction>
+              )}
             <Button asChild variant="outline">
               <a href={orderUrl(core, order)} target="_blank" rel="noopener">
                 <ExternalLink /> {t('customerView')}

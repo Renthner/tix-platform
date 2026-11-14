@@ -76,7 +76,15 @@
       "eventNotArchived": "Nur archivierte Veranstaltungen können gelöscht werden. Setze den Status zuerst auf „Archiviert“.",
       "builtinSymbol": "Mitgelieferte Symbole können nicht gelöscht werden.",
       "venueHasEvents": "An dieser Spielstätte gibt es noch Veranstaltungen, daher kann sie nicht gelöscht werden.",
-      "mediaInUse": "Dieses Bild wird noch verwendet. Entferne es zuerst von den aufgeführten Stellen."
+      "mediaInUse": "Dieses Bild wird noch verwendet. Entferne es zuerst von den aufgeführten Stellen.",
+      "testOrderBlocked": "Diese Testbestellung hat echtes Geld erhalten und kann nicht gelöscht werden. Nutze stattdessen „Stornieren & ausblenden“.",
+      "testOrdersPending": "Diese Veranstaltung hat Testbestellungen und kann nicht veröffentlicht werden. Ein Super-Admin muss sie zuerst löschen.",
+      "testOrdersKept": "Einige Testbestellungen konnten nicht gelöscht werden (echtes Geld eingegangen oder offene Zahlung) – storniere und blende sie zuerst aus („Stornieren & ausblenden“ auf der Bestellseite). Solange sie aktiv sind, kann die Veranstaltung nicht veröffentlicht werden.",
+      "testKeyRealTickets": "Diese Veranstaltung hatte Testkäufe und hat bereits echte Tickets, daher kann der Ticket-Schlüssel nicht erneuert werden – das Veröffentlichen wird abgelehnt.",
+      "testOrderPartialPayment": "Die Testbestellung hat eine Teilzahlung. Erstatte sie zuerst (Bankzuordnung rückgängig machen), bevor du stornierst.",
+      "testOrderCancelFailed": "Die Testbestellung konnte nicht storniert werden.",
+      "testOrderPaymentOpen": "Eine PayPal-Zahlung dieser Testbestellung ist noch offen. Versuche es in ein paar Minuten erneut oder storniere die Bestellung.",
+      "testOrderInvoiceExists": "Zu dieser Testbestellung existiert eine Rechnung, sie kann nicht gelöscht werden."
     },
     "email": "Bitte eine gültige E-Mail-Adresse eingeben.",
     "fileRequired": "Bitte eine Datei auswählen.",
@@ -88,7 +96,8 @@
     "numberPattern": "Das Muster muss einen Zähler wie '{SEQ:6}' enthalten.",
     "dunningOrder": "Bitte die Reihenfolge der Fristen prüfen: Erinnerung vor der Stornierung, Stornierung nicht vor Ablauf der Zahlungsfrist.",
     "secretRequired": "Bitte das Geheimnis eingeben – es ist noch keines gespeichert.",
-    "prefixFormat": "Bitte 2–6 Großbuchstaben (A–Z) verwenden."
+    "prefixFormat": "Bitte 2–6 Großbuchstaben (A–Z) verwenden.",
+    "titleTemplate": "Das Muster muss %s genau einmal enthalten."
   },
   "common": {
     "inherit": "Global übernehmen ({value})",
@@ -475,7 +484,11 @@
       "customerAccountsEnabled": "Anmelden / Registrieren an der Kasse",
       "accountsShown": "angezeigt",
       "accountsHidden": "ausgeblendet",
-      "accountsHideForEvent": "Für diese Veranstaltung ausblenden (nur Gastbestellung)"
+      "accountsHideForEvent": "Für diese Veranstaltung ausblenden (nur Gastbestellung)",
+      "searchEngines": "Suchmaschinen",
+      "searchEnginesHint": "Der Schalter für den gesamten Shop liegt unter Einstellungen → SEO.",
+      "seoNoindex": "Diese Veranstaltung von Suchmaschinen ausschließen",
+      "seoNoindexHint": "Die Veranstaltungsseite wird mit noindex markiert, nicht in die Sitemap aufgenommen und enthält keine strukturierten Daten. Wer den Link kennt, kann sie weiterhin öffnen."
     },
     "deletedNotice": "Die Veranstaltung wurde endgültig gelöscht.",
     "duplicate": {
@@ -558,6 +571,22 @@
         "L": "Groß",
         "XL": "Sehr groß"
       }
+    },
+    "testInShop": "Im Shop testen",
+    "testOrders": {
+      "title": "Es gibt Testbestellungen",
+      "description": "Dieser Entwurf hat {orders} Testbestellungen ({seats} Plätze belegt). Ein Entwurf mit Testbestellungen kann nicht veröffentlicht werden. Jetzt löschen und veröffentlichen? Die alten Test-Tickets werden ungültig: Die Veranstaltung erhält einen neuen Ticket-Signaturschlüssel.",
+      "blockedMoney": "{withMoney} der {orders} Testbestellungen haben echtes Geld erhalten und können nicht gelöscht werden (Buchhaltung). Storniere und blende sie auf ihrer Bestellseite aus („Stornieren & ausblenden“), dann kannst du veröffentlichen.",
+      "blockedRole": "Nur ein Super-Admin kann Testbestellungen löschen. Bitte ihn, sie vor dem Veröffentlichen zu löschen.",
+      "cancel": "Abbrechen",
+      "delete": "Testbestellungen löschen & veröffentlichen",
+      "cardTitle": "Testbestellungen",
+      "cardDescription": "{orders} Testbestellungen belegen {seats} Plätze dieser Veranstaltung ({withMoney} haben echtes Geld erhalten und sind nur stornierbar).",
+      "deleteAll": "Alle Testbestellungen löschen",
+      "deleteAllTitle": "Alle Testbestellungen dieser Veranstaltung löschen?",
+      "deleteAllDescription": "{orders} Testbestellungen ({seats} Plätze) werden vollständig gelöscht und ihre Plätze freigegeben. Eine Testbestellung aus einem Warenkorb mit mehreren Entwurfs-Veranstaltungen wird komplett gelöscht, auch ihre Plätze bei den anderen Veranstaltungen. Bestellungen mit echtem Geldeingang können nicht gelöscht werden („nur stornierbar“): storniere und blende sie auf der Bestellseite aus.",
+      "deleteAllConfirm": "Testbestellungen löschen",
+      "showOrders": "Testbestellungen anzeigen"
     }
   },
   "pricing": {
@@ -977,6 +1006,27 @@
       "text": "Eigener Text ({language})",
       "textHint": "Leer = Standardtext."
     },
+    "seo": {
+      "title": "Suchmaschinen & Teilen",
+      "description": "Steuert, wie Suchmaschinen und soziale Netzwerke den Shop sehen: Indexierung, Titel, Beschreibungen und das Vorschaubild geteilter Links.",
+      "indexing": "Suchmaschinen dürfen den Shop indexieren",
+      "indexingHint": "Für Test- und Demo-Server ausschalten. Dann bittet jede Seite die Suchmaschinen, sie nicht zu indexieren (Header und Meta-Tag), robots.txt sperrt das Crawlen, es gibt keine Sitemap und keine strukturierten Daten. Die Entfernung aus Google kann Tage dauern; für sofortige Wirkung das Entfernen-Werkzeug der Google Search Console nutzen.",
+      "indexingOffNotice": "Die Indexierung ist ausgeschaltet: Suchmaschinen sollen diesen Shop ignorieren. Bereits gelistete Seiten verschwinden erst aus den Suchergebnissen, nachdem Google sie erneut besucht hat.",
+      "titleTemplate": "Titelmuster",
+      "titleTemplateHint": "Titel im Browser-Tab und in Suchergebnissen. %s = Seitentitel (genau einmal), '{siteTitle}' = der Website-Titel unten. Beispiel: %s | '{siteTitle}'",
+      "twitterHandle": "Twitter-/X-Konto",
+      "twitterHandleHint": "Optional, zum Beispiel @verein.",
+      "siteTitle": "Website-Titel ({language})",
+      "siteTitleHint": "Leer = Shop-Name („{shopName}“).",
+      "description": "Standardbeschreibung",
+      "descriptionHint": "Wird in Suchergebnissen und Link-Vorschauen von Seiten ohne eigene Beschreibung angezeigt. Bis zu {max} Zeichen; leer = Standardtext.",
+      "shareImage": "Standard-Vorschaubild",
+      "shareImageHint": "Wird beim Teilen von Seiten ohne eigenes Bild gezeigt (Startseite, Cookie-Seite, Veranstaltungen ohne Titelbild). Empfohlen: 1200 × 630 Pixel.",
+      "verification": "Website-Bestätigung",
+      "verificationHint": "Optionale Tokens aus der Google Search Console und den Bing Webmaster Tools (nur der Wert des content-Attributs; ein eingefügter Meta-Tag wird ebenfalls akzeptiert).",
+      "googleVerification": "Google-Search-Console-Token",
+      "bingVerification": "Bing-Webmaster-Tools-Token"
+    },
     "shopLayout": {
       "title": "Veranstaltungsliste im Shop",
       "description": "Wie die Veranstaltungen auf der Startseite des Shops angeordnet werden.",
@@ -998,7 +1048,11 @@
       "buttonLabel": "Beschriftung der Schaltfläche",
       "buttonUrl": "Link der Schaltfläche",
       "buttonAlign": "Position der Schaltfläche",
-      "buttonAligns": { "LEFT": "Links", "CENTER": "Mittig", "RIGHT": "Rechts" },
+      "buttonAligns": {
+        "LEFT": "Links",
+        "CENTER": "Mittig",
+        "RIGHT": "Rechts"
+      },
       "buttonUrlHint": "https://-Adresse oder ein Pfad im Shop (z. B. /account). Die Schaltfläche erscheint nur mit Beschriftung und Link.",
       "heroAlt": "Alternativtext des Hauptbilds",
       "hero": "Hauptbild",
@@ -1014,7 +1068,7 @@
       },
       "html": "HTML-Code",
       "htmlInsertImage": "Bild einfügen",
-      "htmlHint": "Fülle die Seite mit eigenem HTML und CSS (style-Elemente und style-Attribute sind erlaubt; begrenze dein CSS mit der Klasse .tix-start-custom). Skripte, eingebettete Frames, Formulare und Event-Handler (onclick usw.) werden beim Speichern und bei der Anzeige entfernt. Bilder lädst du unter Medien hoch und verweist mit /api/media/ID darauf, oder du fügst über „Bild einfügen“ ein img-Tag an der Cursorposition ein. Höchstens {max} KB pro Sprache; eine leere Sprache greift auf die Standardsprache des Shops zurück, ganz ohne HTML wird der Baukasten-Inhalt angezeigt. Die Baukasten-Inhalte bleiben beim Umschalten erhalten."
+      "htmlHint": "Fülle die Seite mit eigenem HTML und CSS (style-Elemente und style-Attribute sind erlaubt; begrenze dein CSS mit der Klasse .tix-start-custom). Die Seite wird immer auf hellem Hintergrund angezeigt (sie passt sich dem dunklen Farbschema nicht an), gestalte sie also für helle Farben. Skripte, eingebettete Frames, Formulare und Event-Handler (onclick usw.) werden beim Speichern und bei der Anzeige entfernt. Bilder lädst du unter Medien hoch und verweist mit /api/media/ID darauf, oder du fügst über „Bild einfügen“ ein img-Tag an der Cursorposition ein. Höchstens {max} KB pro Sprache; eine leere Sprache greift auf die Standardsprache des Shops zurück, ganz ohne HTML wird der Baukasten-Inhalt angezeigt. Die Baukasten-Inhalte bleiben beim Umschalten erhalten."
     },
     "secret": {
       "stored": "gespeichert",
@@ -1217,6 +1271,7 @@
       "label": "Einstellungsbereiche",
       "general": "Allgemein",
       "appearance": "Erscheinungsbild",
+      "seo": "SEO",
       "organizer": "Veranstalter",
       "checkout": "Kasse",
       "payments": "Zahlungen",

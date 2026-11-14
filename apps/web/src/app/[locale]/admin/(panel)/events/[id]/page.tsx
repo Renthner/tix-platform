@@ -1,20 +1,22 @@
-import { eventHasOrders, getMediaAsset } from '@tix/core';
+import { eventHasOrders, getMediaAsset, summarizeTestOrders } from '@tix/core';
 import { EventTranslationPane } from '@/components/admin/event-translation-pane';
 import { getEditLocale } from '@/server/admin/edit-locale';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { EventDangerZone } from '@/components/admin/event-danger-zone';
+import { EventTestOrdersCard } from '@/components/admin/event-test-orders-card';
 import { EventDetailsForm, EventStatusForm } from '@/components/admin/event-forms';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { resolveLocale } from '@/i18n/locale';
 import { utcToZonedWallTime } from '@/lib/datetime';
-import { requireAdmin } from '@/server/auth';
+import { hasRole, requireAdmin } from '@/server/auth';
 import {
   deleteEventAction,
   setEventStatusAction,
   updateEventDetailsAction,
 } from '@/server/admin/events';
+import { deleteEventTestOrdersAction } from '@/server/admin/test-orders';
 import { getEventWithVenue, listTaxRates, publishChecklist } from '@/server/admin/queries';
 import { getCore } from '@/server/core';
 import { descriptionToHtml } from '@/server/rich-text';
@@ -32,7 +34,7 @@ export default async function EventDetailsPage({
   searchParams: Promise<{ duplicated?: string }>;
 }) {
   await resolveLocale(params);
-  await requireAdmin(['EVENT_MANAGER']);
+  const session = await requireAdmin(['EVENT_MANAGER']);
   const { id } = await params;
   const { duplicated } = await searchParams;
   const row = await getEventWithVenue(id);
@@ -42,13 +44,15 @@ export default async function EventDetailsPage({
   if (editLocale) {
     return <EventTranslationPane eventId={event.id} scope="event" editLocale={editLocale} />;
   }
-  const [t, taxRates, checklist, hasOrders, cover] = await Promise.all([
+  const [t, taxRates, checklist, hasOrders, cover, testOrders] = await Promise.all([
     getTranslations('admin.events'),
     listTaxRates(),
     publishChecklist(event),
     eventHasOrders(getCore(), event.id),
     event.heroImageAssetId ? getMediaAsset(getCore(), event.heroImageAssetId) : null,
+    summarizeTestOrders(getCore(), event.id),
   ]);
+  const isSuperAdmin = hasRole(session, ['SUPER_ADMIN']);
   const tz = event.timeZone;
 
   return (
@@ -102,9 +106,19 @@ export default async function EventDetailsPage({
                 action={setEventStatusAction.bind(null, event.id)}
                 status={event.status}
                 checklist={checklist}
+                testOrders={testOrders}
+                canDeleteTestOrders={isSuperAdmin}
               />
             </CardContent>
           </Card>
+          {isSuperAdmin && testOrders.orders > 0 && (
+            <EventTestOrdersCard
+              action={deleteEventTestOrdersAction.bind(null, event.id)}
+              orders={testOrders.orders}
+              seats={testOrders.seats}
+              withMoney={testOrders.withMoney}
+            />
+          )}
           <EventDangerZone
             action={deleteEventAction.bind(null, event.id)}
             title={event.title}

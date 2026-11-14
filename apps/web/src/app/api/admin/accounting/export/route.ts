@@ -106,6 +106,7 @@ export async function GET(request: Request) {
         kind: t('csv.kind'),
         status: t('csv.status'),
         note: t('csv.note'),
+        test: t('csv.test'),
       };
       const built = buildAccountingCsv(kind, data, labels, timeZone);
       body = built.body;

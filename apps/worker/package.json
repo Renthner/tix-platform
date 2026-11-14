@@ -1,6 +1,6 @@
 {
   "name": "@tix/worker",
-  "version": "1.0.0-alpha.17",
+  "version": "1.0.0-alpha.18",
   "private": true,
   "license": "PolyForm-Shield-1.0.0",
   "type": "module",

@@ -10,6 +10,8 @@ import {
   loadWalletTicketData,
   resolveWalletDesign,
   walletDoors,
+  assertTicketNotOfTestOrder,
+  walletTestOrderError,
   walletPlaceLabel,
   walletWhen,
   type ResolvedWalletDesign,
@@ -376,10 +378,12 @@ export async function ensureApplePass(
   ctx: CoreContext,
   ticketId: string,
 ): Promise<{ bytes: Uint8Array; fileName: string }> {
+  await assertTicketNotOfTestOrder(ctx.db, ticketId);
   const config = await loadAppleWalletConfig(ctx);
   if (!config) throw new DomainError('WALLET_DISABLED', 'Apple Wallet is not available', 404);
   const [data] = await loadWalletTicketData(ctx.db, { ticketId });
   if (!data) throw new DomainError('TICKET_NOT_FOUND', 'Ticket not found', 404);
+  if (data.isTest) throw walletTestOrderError();
   const storage = requireCapability(ctx, 'storage');
   const [row] = await ctx.db
     .select({ key: tickets.pkpassObjectKey })

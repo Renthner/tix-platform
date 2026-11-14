@@ -187,7 +187,9 @@
       "difference": "Price difference",
       "alreadyPaid": "Already paid (overpayment)",
       "rest": "Remaining amount"
-    }
+    },
+    "testBadge": "TEST",
+    "testNotice": "This is a test order placed by an administrator on an unpublished event. It is not a real purchase."
   },
   "account": {
     "title": "Order faster with a customer account",

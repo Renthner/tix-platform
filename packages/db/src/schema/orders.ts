@@ -216,6 +216,16 @@ export const orders = pgTable(
     cancellationReason: text('cancellation_reason'),
     /** Optimistic concurrency token for admin edits. */
     version: integer('version').notNull().default(1),
+    /**
+     * Test order: bought by a super-admin on a DRAFT event. Never invoiced, never in statistics or
+     * accounting exports, deletable; stays a test order after the event is published.
+     */
+    isTest: boolean('is_test').notNull().default(false),
+    /**
+     * Test order that held real money and was therefore cancelled instead of deleted: hidden from
+     * the default admin order list (still found by search / the test filter).
+     */
+    testHiddenAt: tstz('test_hidden_at'),
     /** GDPR erasure: contact data of this order was replaced (see `customers/privacy.ts`). */
     anonymizedAt: tstz('anonymized_at'),
     /**
@@ -240,6 +250,9 @@ export const orders = pgTable(
       .on(t.cartSessionId)
       .where(sql`${t.cartSessionId} IS NOT NULL`),
     index('orders_created_idx').on(t.createdAt),
+    index('orders_test_idx')
+      .on(t.createdAt)
+      .where(sql`${t.isTest}`),
     index('orders_paid_at_idx')
       .on(t.paidAt)
       .where(sql`${t.paidAt} IS NOT NULL`),

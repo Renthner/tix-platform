@@ -282,6 +282,8 @@ export const MATCH_CANDIDATE_REASONS = [
   'CURRENCY',
   /** The money fits an additional payment (tariff change) of the order, see `adjustmentId`. */
   'ADJUSTMENT',
+  /** The order is a super-admin test order: never booked automatically. */
+  'TEST_ORDER',
 ] as const;
 export type MatchCandidateReason = (typeof MATCH_CANDIDATE_REASONS)[number];
 

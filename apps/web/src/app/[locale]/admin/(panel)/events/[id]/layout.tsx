@@ -1,5 +1,5 @@
 import { computeSaleState, eventTranslationCompleteness } from '@tix/core';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, FlaskConical } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { formatInZone, utcToZonedWallTime } from '@/lib/datetime';
-import { requireAdmin } from '@/server/auth';
+import { hasRole, requireAdmin } from '@/server/auth';
 import { getBaseContentLocale, getEditLocale } from '@/server/admin/edit-locale';
 import { getCore } from '@/server/core';
 import { duplicateEventAction } from '@/server/admin/events';
@@ -27,7 +27,7 @@ export default async function EventLayout({
   params: Promise<{ locale: string; id: string }>;
 }) {
   const locale = await resolveLocale(params);
-  await requireAdmin(['EVENT_MANAGER']);
+  const session = await requireAdmin(['EVENT_MANAGER']);
   const { id } = await params;
   const row = await getEventWithVenue(id);
   if (!row) notFound();
@@ -60,6 +60,16 @@ export default async function EventLayout({
               title={event.title}
               startsAt={utcToZonedWallTime(event.startsAt, event.timeZone)}
             />
+            {hasRole(session, ['SUPER_ADMIN']) &&
+              (event.status === 'DRAFT' ||
+                event.status === 'PUBLISHED' ||
+                event.status === 'POSTPONED') && (
+                <Button asChild variant="outline">
+                  <Link href={`/events/${event.slug}`} target="_blank" rel="noopener">
+                    <FlaskConical /> {t('testInShop')}
+                  </Link>
+                </Button>
+              )}
             <Button asChild variant="outline">
               <Link href="/admin/events">
                 <ArrowLeft /> {t('backToList')}

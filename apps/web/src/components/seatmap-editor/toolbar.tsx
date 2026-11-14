@@ -126,7 +126,7 @@ export function TopBar({
         <IconButton icon={Maximize} label={t('fit')} shortcut="F" onClick={onFit} />
         <Separator orientation="vertical" className="mx-1 h-6" />
         <span
-          className={cn('px-2 text-xs', dirty ? 'text-amber-600' : 'text-muted-foreground')}
+          className={cn('px-2 text-xs', dirty ? 'text-warning' : 'text-muted-foreground')}
           aria-live="polite"
         >
           {saving ? t('saving') : dirty ? t('unsaved') : t('saved')}
@@ -301,7 +301,7 @@ export function StatusBar({
           </span>
         ))}
       {isEventMap && stats.unassigned > 0 && (
-        <span className="text-amber-600">{t('unassigned', { count: stats.unassigned })}</span>
+        <span className="text-warning">{t('unassigned', { count: stats.unassigned })}</span>
       )}
       {stats.blocked > 0 && <span>{t('blocked', { count: stats.blocked })}</span>}
       {stats.wheelchair > 0 && <span>{t('wheelchair', { count: stats.wheelchair })}</span>}

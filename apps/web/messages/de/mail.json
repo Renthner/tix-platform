@@ -104,5 +104,10 @@
     "downloadPdf": "PDF herunterladen",
     "addApple": "Zu Apple Wallet hinzufügen",
     "addGoogle": "Zu Google Wallet hinzufügen"
+  },
+  "test": {
+    "subjectPrefix": "[TEST]",
+    "notice": "TESTBESTELLUNG – diese E-Mail gehört zu einer Testbestellung, die ein Administrator aufgegeben hat. Es handelt sich nicht um einen echten Kauf.",
+    "watermark": "TESTBESTELLUNG"
   }
 }

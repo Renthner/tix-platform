@@ -59,7 +59,12 @@ export async function StartPage({
   if (custom) {
     // Sanitised with the wide custom-HTML allowlist (no scripts/frames/handlers), also on save.
     // No prose styles here so the admin's own CSS controls the look.
-    return <div className="tix-start-custom" dangerouslySetInnerHTML={{ __html: custom }} />;
+    return (
+      <div
+        className="tix-start-custom tix-light-scope"
+        dangerouslySetInnerHTML={{ __html: custom }}
+      />
+    );
   }
   const t = await getTranslations('shop.home');
   const r = resolveStartPageTexts(settings, locale, defaultLocale);
@@ -105,7 +110,7 @@ export async function StartPage({
       )}
       {bodyHtml && (
         <div
-          className={cn(RICH_TEXT_CLASS, overlay && '[&_a]:text-white [&_a]:underline')}
+          className={cn('tix-rt', RICH_TEXT_CLASS, overlay && '[&_a]:text-white [&_a]:underline')}
           // Sanitised with the rich-text allowlist (also on save).
           dangerouslySetInnerHTML={{ __html: bodyHtml }}
         />

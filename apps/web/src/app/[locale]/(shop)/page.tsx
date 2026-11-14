@@ -1,5 +1,5 @@
 import { computeSaleState, getSetting, getShopEventList, getShopMediaAsset } from '@tix/core';
-import { localized, SHOP_EVENTS_PER_ROW_MAX } from '@tix/shared';
+import { applyTitleTemplate, localized, SHOP_EVENTS_PER_ROW_MAX } from '@tix/shared';
 import { CalendarDays, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import { Link } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
 import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
-import { loadContentLocale, pageSeo, publicBaseUrl } from '@/server/seo';
+import { loadContentLocale, loadSeoContext, pageSeo, publicBaseUrl } from '@/server/seo';
 import { MediaImage } from '@/components/media-image';
 import { StartPage, hasStartPageContent } from '@/components/shop/start-page';
 
@@ -25,28 +25,36 @@ function coverAspect(width: number | null, height: number | null): number {
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const content = await loadContentLocale((await params).locale);
-  const [t, tc, general, branding] = await Promise.all([
+  const [t, tc, branding, ctx] = await Promise.all([
     getTranslations('shop.home'),
     getTranslations('common'),
-    getSetting(getCore(), 'general'),
     getSetting(getCore(), 'branding'),
+    loadSeoContext(content.locale),
   ]);
   const logo = branding.logoAssetId
     ? await getShopMediaAsset(getCore(), branding.logoAssetId)
     : null;
-  const description = tc('meta.description');
+  const description = ctx.description ?? tc('meta.description');
   return {
     title: t('title'),
     ...pageSeo({
       path: '/',
       locale: content.locale,
       defaultLocale: content.defaultLocale,
-      title: `${t('title')} · ${general.shopName}`,
+      title: applyTitleTemplate(ctx.seo.titleTemplate, t('title'), ctx.siteTitle),
       description,
-      siteName: general.shopName,
-      image: logo
-        ? { url: `${publicBaseUrl()}/api/media/${logo.id}`, width: logo.width, height: logo.height }
-        : undefined,
+      siteName: ctx.siteTitle,
+      // Configured share image first, else the shop logo.
+      image:
+        ctx.shareImage ??
+        (logo
+          ? {
+              url: `${publicBaseUrl()}/api/media/${logo.id}`,
+              width: logo.width,
+              height: logo.height,
+            }
+          : undefined),
+      twitterSite: ctx.seo.twitterHandle,
     }),
   };
 }

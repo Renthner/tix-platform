@@ -4,7 +4,10 @@
     "myAccount": "My account",
     "dashboard": "To dashboard",
     "dashboardSetup": "Set up two-factor sign-in",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "queueTest": "Test waiting room",
+    "queueTestOn": "on",
+    "queueTestOff": "off"
   },
   "fields": {
     "email": "E-mail address",

@@ -4,7 +4,8 @@
     "imprint": "Impressum",
     "privacy": "Datenschutz",
     "terms": "AGB",
-    "cookies": "Cookies"
+    "cookies": "Cookies",
+    "draftBanner": "Entwurf – nur für Super-Admins sichtbar. Bestellungen sind Testbestellungen."
   },
   "cookies": {
     "notice": "Wir verwenden nur technisch notwendige Cookies (z. B. für deinen Warenkorb).",
@@ -37,6 +38,10 @@
         "purpose": "Merkt sich die gewählte Sprache.",
         "lifetime": "1 Jahr"
       },
+      "theme": {
+        "purpose": "Merkt sich das gewählte Farbschema (hell oder dunkel). Wird nur gesetzt, wenn du eines auswählst; sonst gilt das Farbschema deines Geräts.",
+        "lifetime": "1 Jahr"
+      },
       "notice": {
         "purpose": "Merkt sich, dass du den Cookie-Hinweis geschlossen hast.",
         "lifetime": "1 Jahr"
@@ -56,6 +61,10 @@
       "setupCollapsed": {
         "purpose": "Merkt sich, dass die Einrichtungs-Checkliste eingeklappt ist.",
         "lifetime": "1 Jahr"
+      },
+      "queueTest": {
+        "purpose": "Nur für Mitarbeitende: merkt sich, dass ein Super-Admin den Warteraum wie ein Kunde ausprobieren möchte.",
+        "lifetime": "Sitzung"
       }
     },
     "ipHeading": "IP-Adressen",

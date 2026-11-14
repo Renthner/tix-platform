@@ -12,6 +12,7 @@ import { getCore } from '@/server/core';
 import { getCustomerSession } from '@/server/customer-session';
 import { clientIp, enforceRateLimit, handle, parseBody } from '@/server/http';
 import { readSessionId } from '@/server/session';
+import { getShopActor } from '@/server/shop-actor';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
       input,
       account: customer ? { customerId: customer.customerId, email: customer.email } : null,
       ipAddress: await clientIp(),
+      actor: await getShopActor(),
     });
     const orderPath = `/${placed.locale}/orders/${encodeURIComponent(placed.orderNumber)}?t=${encodeURIComponent(placed.accessToken)}`;
     let redirect = orderPath;

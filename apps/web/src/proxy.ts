@@ -6,6 +6,7 @@ import { routing } from './i18n/routing';
 import { buildCsp, newNonce } from './server/csp';
 import { getDefaultLocale } from './server/default-locale';
 import { maintenanceGate } from './server/maintenance-gate';
+import { getSeoIndexing } from './server/seo-indexing';
 import {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
@@ -67,6 +68,8 @@ export default async function proxy(request: NextRequest): Promise<NextResponse 
   request.headers.set('Content-Security-Policy', csp);
   const response = intlFor(defaultLocale)(request);
   response.headers.set('Content-Security-Policy', csp);
+  // Settings → SEO: indexing switched off (e.g. a test or demo server).
+  if (!(await getSeoIndexing())) response.headers.set('X-Robots-Tag', 'noindex, nofollow');
   const secret = process.env.SESSION_SECRET;
   if (secret && !sessionIdFromToken(request.cookies.get(SESSION_COOKIE)?.value, secret)) {
     const { token } = newSessionToken(secret);

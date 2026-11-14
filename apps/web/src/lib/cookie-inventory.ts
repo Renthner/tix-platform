@@ -7,6 +7,8 @@
  * Keep this list in sync when a new cookie is introduced.
  */
 
+import { THEME_COOKIE } from './theme';
+
 /** Remembers that the information notice was dismissed. */
 export const COOKIE_NOTICE_COOKIE = 'tix_cookie_notice';
 /** Dismissal is remembered for one year. */
@@ -17,11 +19,13 @@ export type CookieKey =
   | 'queuePass'
   | 'customer'
   | 'locale'
+  | 'theme'
   | 'notice'
   | 'admin'
   | 'adminTwoFactor'
   | 'editLocale'
-  | 'setupCollapsed';
+  | 'setupCollapsed'
+  | 'queueTest';
 
 export interface CookieInfo {
   /** Message key below `shop.cookies.items`. */
@@ -37,9 +41,11 @@ export const COOKIE_INVENTORY: readonly CookieInfo[] = [
   { key: 'queuePass', name: 'tix_qp_…', scope: 'shop' },
   { key: 'customer', name: 'tix_customer', scope: 'shop' },
   { key: 'locale', name: 'tix_locale', scope: 'shop' },
+  { key: 'theme', name: THEME_COOKIE, scope: 'shop' },
   { key: 'notice', name: COOKIE_NOTICE_COOKIE, scope: 'shop' },
   { key: 'admin', name: 'tix_admin', scope: 'staff' },
   { key: 'adminTwoFactor', name: 'tix_admin_2fa', scope: 'staff' },
   { key: 'editLocale', name: 'tix_edit_locale', scope: 'staff' },
   { key: 'setupCollapsed', name: 'tix_setup_collapsed', scope: 'staff' },
+  { key: 'queueTest', name: 'tix_admin_queue_test', scope: 'staff' },
 ];

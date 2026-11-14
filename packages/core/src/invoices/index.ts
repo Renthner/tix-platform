@@ -115,13 +115,21 @@ export async function issueInvoiceInTransaction(
 
   // Row lock: concurrent calls for the same order serialise here (one invoice per order).
   const [order] = await tx
-    .select({ id: orders.id, paidAt: orders.paidAt, paymentMethod: orders.paymentMethod })
+    .select({
+      id: orders.id,
+      paidAt: orders.paidAt,
+      paymentMethod: orders.paymentMethod,
+      isTest: orders.isTest,
+    })
     .from(orders)
     .where(eq(orders.id, orderId))
     .for('update');
   if (!order) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
   // Complimentary tickets (Freikarten) are free of charge: no sale, no invoice.
   if (order.paymentMethod === 'COMPLIMENTARY') return null;
+  // Test orders (super-admin purchases on draft events) are no sales: no invoice and – above all –
+  // no number from the gapless GoBD series, not even with `force`.
+  if (order.isTest) return null;
   const existing = await findActiveInvoice(tx, orderId);
   if (existing)
     return { invoiceId: existing.id, invoiceNumber: existing.invoiceNumber, created: false };
@@ -592,6 +600,7 @@ export async function backfillMissingInvoices(
       and(
         inArray(orders.status, ['PAID', 'PARTIALLY_REFUNDED']),
         sql`${orders.paymentMethod} <> 'COMPLIMENTARY'`,
+        eq(orders.isTest, false),
         sql`${orders.paidAt} >= ${new Date(Date.now() - INVOICE_BACKFILL_WINDOW_MS)}`,
         notExists(
           ctx.db

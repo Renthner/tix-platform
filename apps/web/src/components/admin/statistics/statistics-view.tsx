@@ -54,7 +54,7 @@ function Delta({
     <span
       className={cn(
         'flex items-center gap-0.5 text-xs font-medium',
-        good ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400',
+        good ? 'text-success' : 'text-destructive',
       )}
     >
       <Icon className="size-3" aria-hidden />

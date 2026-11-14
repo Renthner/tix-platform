@@ -76,7 +76,15 @@
       "eventNotArchived": "Only archived events can be deleted. Set the status to “Archived” first.",
       "builtinSymbol": "Built-in symbols cannot be deleted.",
       "venueHasEvents": "Events still exist at this venue, so it cannot be deleted.",
-      "mediaInUse": "This image is still in use. Remove it from the places listed first."
+      "mediaInUse": "This image is still in use. Remove it from the places listed first.",
+      "testOrderBlocked": "This test order received real money and cannot be deleted. Use “Cancel & hide” instead.",
+      "testOrdersPending": "This event has test orders and cannot be published. A super-admin must delete them first.",
+      "testOrdersKept": "Some test orders could not be deleted (real money received or an open payment) – cancel and hide them first (Cancel & hide on the order page). The event cannot be published while they stay active.",
+      "testKeyRealTickets": "This event had test purchases and already has real tickets, so its ticket key cannot be renewed – publishing is refused.",
+      "testOrderPartialPayment": "The test order holds a partial payment. Pay it back (reverse the bank allocation) before cancelling.",
+      "testOrderCancelFailed": "The test order could not be cancelled.",
+      "testOrderPaymentOpen": "A PayPal payment of this test order is still open. Try again in a few minutes or cancel the order.",
+      "testOrderInvoiceExists": "This test order has an invoice and cannot be deleted."
     },
     "email": "Enter a valid e-mail address.",
     "fileRequired": "Please choose a file.",
@@ -88,7 +96,8 @@
     "numberPattern": "The pattern must contain a counter token such as '{SEQ:6}'.",
     "dunningOrder": "Check the order of the deadlines: reminder before cancellation, cancellation not before the payment term.",
     "secretRequired": "Please enter the secret – none is stored yet.",
-    "prefixFormat": "Use 2–6 capital letters (A–Z)."
+    "prefixFormat": "Use 2–6 capital letters (A–Z).",
+    "titleTemplate": "The pattern must contain %s exactly once."
   },
   "common": {
     "inherit": "Inherit global ({value})",
@@ -475,7 +484,11 @@
       "customerAccountsEnabled": "Sign-in / registration at the checkout",
       "accountsShown": "shown",
       "accountsHidden": "hidden",
-      "accountsHideForEvent": "Hide for this event (guest orders only)"
+      "accountsHideForEvent": "Hide for this event (guest orders only)",
+      "searchEngines": "Search engines",
+      "searchEnginesHint": "The shop-wide switch is in Settings → SEO.",
+      "seoNoindex": "Exclude this event from search engines",
+      "seoNoindexHint": "The event page is marked noindex, left out of the sitemap and carries no structured data. Anyone with the link can still open it."
     },
     "deletedNotice": "The event was deleted permanently.",
     "duplicate": {
@@ -558,6 +571,22 @@
         "L": "Large",
         "XL": "Extra large"
       }
+    },
+    "testInShop": "Test in shop",
+    "testOrders": {
+      "title": "Test orders exist",
+      "description": "This draft has {orders} test orders ({seats} seats occupied). A draft with test orders cannot be published. Delete them now and publish? The old test tickets stop working: the event gets a new ticket signing key.",
+      "blockedMoney": "{withMoney} of the {orders} test orders received real money and cannot be deleted (accounting). Cancel and hide them on their order page (Cancel & hide), then publish.",
+      "blockedRole": "Only a super-admin can delete test orders. Ask one to delete them before publishing.",
+      "cancel": "Cancel",
+      "delete": "Delete test orders & publish",
+      "cardTitle": "Test orders",
+      "cardDescription": "{orders} test orders occupy {seats} seats of this event ({withMoney} received real money and can only be cancelled).",
+      "deleteAll": "Delete all test orders",
+      "deleteAllTitle": "Delete all test orders of this event?",
+      "deleteAllDescription": "{orders} test orders ({seats} seats) are deleted completely and their seats released. A test order from a cart with several draft events is deleted entirely, including its seats at the other events. Orders that received real money cannot be deleted (“cancel only”): cancel and hide them on the order page.",
+      "deleteAllConfirm": "Delete test orders",
+      "showOrders": "Show test orders"
     }
   },
   "pricing": {
@@ -977,6 +1006,27 @@
       "text": "Custom text ({language})",
       "textHint": "Empty = standard text."
     },
+    "seo": {
+      "title": "Search engines & sharing",
+      "description": "Control how search engines and social networks see the shop: indexing, titles, descriptions and the preview image of shared links.",
+      "indexing": "Allow search engines to index the shop",
+      "indexingHint": "Switch off for test and demo servers. Then every page asks search engines not to index it (header and meta tag), robots.txt blocks crawling, there is no sitemap and no structured data. Removal from Google can take days; for an immediate effect use the removal tool in Google Search Console.",
+      "indexingOffNotice": "Indexing is switched off: search engines are asked to ignore this shop. Events that are already listed disappear from search results only after Google has visited the pages again.",
+      "titleTemplate": "Title pattern",
+      "titleTemplateHint": "Browser tab and search result title. %s = the page title (exactly once), '{siteTitle}' = the site title below. Example: %s | '{siteTitle}'",
+      "twitterHandle": "Twitter / X account",
+      "twitterHandleHint": "Optional, for example @club.",
+      "siteTitle": "Site title ({language})",
+      "siteTitleHint": "Empty = the shop name (\"{shopName}\").",
+      "description": "Default description",
+      "descriptionHint": "Shown in search results and link previews of pages without their own description. Up to {max} characters; empty = standard text.",
+      "shareImage": "Default preview image",
+      "shareImageHint": "Shown when a page without its own image is shared (home page, cookie page, events without a cover). Recommended: 1200 × 630 pixels.",
+      "verification": "Site verification",
+      "verificationHint": "Optional tokens from Google Search Console and Bing Webmaster Tools (only the value of the content attribute; a pasted meta tag is accepted too).",
+      "googleVerification": "Google Search Console token",
+      "bingVerification": "Bing Webmaster Tools token"
+    },
     "shopLayout": {
       "title": "Event list in the shop",
       "description": "How the events are arranged on the shop home page.",
@@ -998,7 +1048,11 @@
       "buttonLabel": "Button label",
       "buttonUrl": "Button link",
       "buttonAlign": "Button position",
-      "buttonAligns": { "LEFT": "Left", "CENTER": "Centred", "RIGHT": "Right" },
+      "buttonAligns": {
+        "LEFT": "Left",
+        "CENTER": "Centred",
+        "RIGHT": "Right"
+      },
       "buttonUrlHint": "https:// address or a path in the shop (e.g. /account). The button only appears with a label and a link.",
       "heroAlt": "Alt text of the main image",
       "hero": "Main image",
@@ -1014,7 +1068,7 @@
       },
       "html": "HTML code",
       "htmlInsertImage": "Insert image",
-      "htmlHint": "Fill the page with your own HTML and CSS (style elements and style attributes are allowed; scope your CSS with the class .tix-start-custom). Scripts, embedded frames, forms and event handlers (onclick etc.) are removed when saving and when the page is shown. Upload images under Media and reference them as /api/media/ID, or use \"Insert image\" below to add an img tag at the cursor. Maximum {max} KB per language; an empty language falls back to the shop default language, and without any HTML the builder content is shown. The builder content is kept while you switch."
+      "htmlHint": "Fill the page with your own HTML and CSS (style elements and style attributes are allowed; scope your CSS with the class .tix-start-custom). The page is always shown on a light background (it is not adapted to the dark theme), so design it for light colours. Scripts, embedded frames, forms and event handlers (onclick etc.) are removed when saving and when the page is shown. Upload images under Media and reference them as /api/media/ID, or use \"Insert image\" below to add an img tag at the cursor. Maximum {max} KB per language; an empty language falls back to the shop default language, and without any HTML the builder content is shown. The builder content is kept while you switch."
     },
     "secret": {
       "stored": "stored",
@@ -1217,6 +1271,7 @@
       "label": "Settings areas",
       "general": "General",
       "appearance": "Appearance",
+      "seo": "SEO",
       "organizer": "Organiser",
       "checkout": "Checkout",
       "payments": "Payments",

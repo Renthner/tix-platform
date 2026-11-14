@@ -190,7 +190,7 @@ export async function getDashboardData(
               COUNT(*) FILTER (
                 WHERE o.status = 'AWAITING_PAYMENT' AND o.payment_method = 'BANK_TRANSFER') AS open_count
             FROM orders o
-            WHERE o.currency = ${currency}
+            WHERE o.currency = ${currency} AND NOT o.is_test
               AND (o.status = 'AWAITING_PAYMENT'
                 OR o.created_at >= now() - interval '8 days'
                 OR o.paid_at >= now() - interval '8 days')
@@ -200,7 +200,7 @@ export async function getDashboardData(
           await ctx.db.execute<{ n: number }>(sql`
             SELECT COUNT(*)::int AS n
             FROM order_items i JOIN orders o ON o.id = i.order_id
-            WHERE i.status = 'CONFIRMED' AND o.currency = ${currency}
+            WHERE i.status = 'CONFIRMED' AND o.currency = ${currency} AND NOT o.is_test
               AND o.paid_at >= (date_trunc('day', now() AT TIME ZONE ${zone}) AT TIME ZONE ${zone})
           `)
         ).rows;
@@ -225,7 +225,7 @@ export async function getDashboardData(
             SELECT i.event_id, o.payment_method AS method, COUNT(*)::int AS tickets,
               COALESCE(SUM(i.price_gross), 0) AS amount
             FROM order_items i JOIN orders o ON o.id = i.order_id
-            WHERE i.status = 'CONFIRMED' AND i.event_id IN (${scope})
+            WHERE i.status = 'CONFIRMED' AND NOT o.is_test AND i.event_id IN (${scope})
             GROUP BY i.event_id, o.payment_method
             ORDER BY amount DESC
           `)

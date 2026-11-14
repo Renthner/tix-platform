@@ -1,5 +1,7 @@
+import { getSetting } from '@tix/core';
 import { SUPPORTED_LOCALES } from '@tix/shared';
 import type { MetadataRoute } from 'next';
+import { getCore } from '@/server/core';
 import { publicBaseUrl } from '@/server/seo';
 
 // Absolute URLs come from the runtime environment (APP_URL): never evaluate at build time.
@@ -8,7 +10,11 @@ export const dynamic = 'force-dynamic';
 /** Private / transactional areas, bare and under every locale prefix. */
 const PRIVATE = ['/admin', '/cart', '/checkout', '/account', '/orders'];
 
-export default function robots(): MetadataRoute.Robots {
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  // Settings → SEO: indexing off (test / demo servers) = nothing may be crawled, no sitemap.
+  if (!(await getSetting(getCore(), 'seo')).indexing) {
+    return { rules: [{ userAgent: '*', disallow: '/' }] };
+  }
   const base = publicBaseUrl();
   const disallow = [
     '/api/',

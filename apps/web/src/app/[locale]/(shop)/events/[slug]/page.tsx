@@ -1,6 +1,7 @@
 import {
   computeSaleState,
   effectiveCheckoutConfig,
+  getDraftEventBySlug,
   getPublicSeatMap,
   getSetting,
   getShopAnnouncements,
@@ -25,14 +26,23 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { cache, type CSSProperties, type ReactNode } from 'react';
 import { MediaImage } from '@/components/media-image';
+import { DraftBanner } from '@/components/shop/draft-banner';
 import { EventShop } from '@/components/shop/event-shop';
 import { Badge } from '@/components/ui/badge';
 import { resolveLocale } from '@/i18n/locale';
 import { cn } from '@/lib/utils';
 import { getCore } from '@/server/core';
+import { getShopActor } from '@/server/shop-actor';
 import { buildEventJsonLd, jsonLdString } from '@/server/event-jsonld';
 import { descriptionToHtml } from '@/server/rich-text';
-import { loadContentLocale, localeUrl, pageSeo, plainSnippet, publicBaseUrl } from '@/server/seo';
+import {
+  loadContentLocale,
+  loadSeoContext,
+  localeUrl,
+  pageSeo,
+  plainSnippet,
+  publicBaseUrl,
+} from '@/server/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,18 +64,32 @@ function mapsUrl(venue: VenueRow): string {
  * Event, venue, cover and info box symbols of a slug from the shop data cache (tag invalidated
  * by every admin change, see docs/ARCHITECTURE.md); memoised per request on top.
  */
-const loadEvent = cache((slug: string) => getShopEventBySlug(getCore(), slug));
+const loadEvent = cache(async (slug: string) => {
+  const published = await getShopEventBySlug(getCore(), slug);
+  if (published) return published;
+  // Draft events: signed-in super-admins only (role checked per request), loaded WITHOUT the
+  // public shop cache so draft data never enters keys any visitor can reach.
+  return (await getShopActor()) ? getDraftEventBySlug(getCore(), slug) : null;
+});
 
 export async function generateMetadata({ params }: Params) {
   const { slug, locale } = await params;
   const raw = await loadEvent(slug);
   if (!raw) return {};
-  const [content, general] = await Promise.all([
-    loadContentLocale(locale),
-    getSetting(getCore(), 'general'),
-  ]);
+  // Drafts are never indexed (and never get canonical / alternate links).
+  if (raw.event.status === 'DRAFT')
+    return { title: raw.event.title, robots: { index: false, follow: false } };
+  // Excluded from search engines (event tab "Sales"): same as a draft, no canonical / alternates.
+  const ctx = await loadSeoContext(locale);
+  const { content } = ctx;
+  if (raw.event.seoNoindex)
+    return {
+      title: localizeEventRow(raw.event, content.locale, content.defaultLocale).title,
+      robots: { index: false, follow: false },
+    };
   const event = localizeEventRow(raw.event, content.locale, content.defaultLocale);
-  const description = event.subtitle || plainSnippet(event.description) || undefined;
+  const description =
+    event.subtitle || plainSnippet(event.description) || ctx.description || undefined;
   const cover = raw.cover;
   return {
     title: event.title,
@@ -76,14 +100,16 @@ export async function generateMetadata({ params }: Params) {
       defaultLocale: content.defaultLocale,
       title: event.title,
       description,
-      siteName: general.shopName,
+      siteName: ctx.siteTitle,
+      // Event cover first, else the configured share image.
       image: cover
         ? {
             url: `${publicBaseUrl()}/api/media/${cover.id}`,
             width: cover.width,
             height: cover.height,
           }
-        : undefined,
+        : ctx.shareImage,
+      twitterSite: ctx.seo.twitterHandle,
     }),
   };
 }
@@ -104,7 +130,8 @@ export default async function EventPage({ params }: Params) {
       getTranslations('shop.event'),
       getShopAnnouncements(core, event.id),
       getSetting(core, 'seatDisplay'),
-      event.seatMapId
+      // Only needed for structured data, which drafts do not get.
+      event.seatMapId && found.event.status !== 'DRAFT'
         ? getPublicSeatMap(core, found.event)
             .then((map) => publicPriceRanges(map).overall)
             // Structured data is auxiliary: never fail the page because of it.
@@ -115,25 +142,31 @@ export default async function EventPage({ params }: Params) {
     ]);
   const cover = found.cover;
   const base = publicBaseUrl();
-  const jsonLd = jsonLdString(
-    buildEventJsonLd({
-      url: localeUrl(content.locale, `/events/${event.slug}`, content.defaultLocale),
-      name: event.title,
-      description: event.subtitle || plainSnippet(event.description, 500) || undefined,
-      status: event.status,
-      saleState: computeSaleState(found.event),
-      startsAt: event.startsAt,
-      endsAt: event.endsAt,
-      doorsOpenAt: event.doorsOpenAt,
-      timeZone: event.timeZone,
-      currency: event.currency,
-      priceRange,
-      saleOpensAt: saleOpensAt(found.event),
-      images: cover ? [`${base}/api/media/${cover.id}`] : [],
-      venue,
-      organizer: { name: organizer.legalName, url: organizer.website },
-    }),
-  );
+  const isDraft = found.event.status === 'DRAFT';
+  // No structured data for drafts, events excluded from search engines or while indexing is off.
+  const seoIndexing = (await getSetting(core, 'seo')).indexing;
+  const jsonLd =
+    isDraft || found.event.seoNoindex || !seoIndexing
+      ? null
+      : jsonLdString(
+          buildEventJsonLd({
+            url: localeUrl(content.locale, `/events/${event.slug}`, content.defaultLocale),
+            name: event.title,
+            description: event.subtitle || plainSnippet(event.description, 500) || undefined,
+            status: event.status,
+            saleState: computeSaleState(found.event),
+            startsAt: event.startsAt,
+            endsAt: event.endsAt,
+            doorsOpenAt: event.doorsOpenAt,
+            timeZone: event.timeZone,
+            currency: event.currency,
+            priceRange,
+            saleOpensAt: saleOpensAt(found.event),
+            images: cover ? [`${base}/api/media/${cover.id}`] : [],
+            venue,
+            organizer: { name: organizer.legalName, url: organizer.website },
+          }),
+        );
   const infoBoxes = event.infoBoxes.filter((b) => b.title || b.content);
   const boxSymbols = new Map(Object.entries(found.symbols));
   const descriptionHtml = descriptionToHtml(event.description);
@@ -145,11 +178,14 @@ export default async function EventPage({ params }: Params) {
 
   return (
     <div className="space-y-6">
-      <script
-        type="application/ld+json"
-        nonce={nonce}
-        dangerouslySetInnerHTML={{ __html: jsonLd }}
-      />
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
+      )}
+      {isDraft && <DraftBanner />}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{event.title}</h1>

@@ -319,7 +319,7 @@ export function ScannerDevices({
               <TableCell>
                 {device.appVersion ?? '–'}
                 {device.appVersion && device.appVersion !== serverVersion ? (
-                  <Badge variant="outline" className="ml-2 border-amber-500 text-amber-700">
+                  <Badge variant="outline" className="ml-2 border-warning-border text-warning">
                     {t('versionMismatch', { app: device.appVersion, server: serverVersion })}
                   </Badge>
                 ) : null}

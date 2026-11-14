@@ -57,6 +57,7 @@ export async function walletLinksForOrder(
     const available = await walletAvailability(ctx);
     if (!available.apple && !available.google) return [];
     const rows = await loadWalletTicketData(ctx.db, { orderId });
+    if (rows.some((row) => row.isTest)) return []; // test orders: no wallet passes
     const token = orderAccessToken(ctx, orderId);
     const base = ctx.appUrl ?? '';
     return rows.map((row) => ({

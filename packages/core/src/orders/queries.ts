@@ -23,7 +23,7 @@ import type {
   SalesChannel,
   TicketStatus,
 } from '@tix/shared';
-import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { parseStoredEmailRequest } from '../email/request';
 import { placeOrderBy } from '../tickets/order';
 import type { CoreContext } from '../context';
@@ -339,6 +339,8 @@ export interface OrderSearch {
   channel?: SalesChannel;
   /** Unpaid Vorkasse orders past their auto-cancel date (kept reserved / partially paid). */
   overdueOnly?: boolean;
+  /** Test orders (super-admin purchases on draft events): shown by default; `only` / `hide` filter them. */
+  tests?: 'only' | 'hide';
   page?: number;
   pageSize?: number;
 }
@@ -359,6 +361,9 @@ export interface OrderListRow {
   paymentDueAt: Date | null;
   autoCancelAt: Date | null;
   keepReserved: boolean;
+  isTest: boolean;
+  /** Cancelled test order with money, hidden from the default list. */
+  testHidden: boolean;
   createdAt: Date;
   ticketCount: number;
 }
@@ -400,6 +405,11 @@ export async function searchOrders(
       ),
     );
   }
+  if (search.tests === 'only') conditions.push(eq(orders.isTest, true));
+  if (search.tests === 'hide') conditions.push(eq(orders.isTest, false));
+  // Cancelled test orders that held real money are hidden from the plain list; the test filter
+  // and any search (by number, e-mail, name, reference) still find them.
+  if (search.tests !== 'only' && !q) conditions.push(isNull(orders.testHiddenAt));
   if (search.overdueOnly) {
     conditions.push(eq(orders.status, 'AWAITING_PAYMENT'), sql`${orders.paymentDueAt} < now()`);
   }
@@ -424,6 +434,8 @@ export async function searchOrders(
         paymentDueAt: orders.paymentDueAt,
         autoCancelAt: orders.autoCancelAt,
         keepReserved: orders.keepReserved,
+        isTest: orders.isTest,
+        testHidden: sql<boolean>`${orders.testHiddenAt} IS NOT NULL`,
         createdAt: orders.createdAt,
         ticketCount,
       })

@@ -29,6 +29,7 @@ export const BANKING_FORM_ERRORS = [
   'hasTransactions',
   'tanNotPending',
   'orderNotPayable',
+  'testOrderConfirm',
   'orderNotFound',
   'currencyMismatch',
   'amountExceeds',

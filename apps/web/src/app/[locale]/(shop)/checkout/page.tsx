@@ -13,6 +13,7 @@ import type { OnlinePaymentMethod } from '@tix/shared';
 import { inArray } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { CheckoutForm } from '@/components/shop/checkout-form';
+import { DraftCartNotice } from '@/components/shop/draft-cart-notice';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link, redirect } from '@/i18n/navigation';
@@ -91,6 +92,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ local
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+      <DraftCartNotice />
       <CheckoutForm
         locale={locale}
         quotes={options.quotes}

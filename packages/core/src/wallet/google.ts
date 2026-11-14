@@ -12,6 +12,8 @@ import {
   loadWalletTicketData,
   resolveWalletDesign,
   walletPlaceLabel,
+  assertTicketNotOfTestOrder,
+  walletTestOrderError,
   type ResolvedWalletDesign,
   type WalletTicketData,
 } from './data';
@@ -442,10 +444,12 @@ export async function ensureGoogleSaveUrl(
   ticketId: string,
   doFetch: FetchLike = fetch,
 ): Promise<string> {
+  await assertTicketNotOfTestOrder(ctx.db, ticketId);
   const config = await loadGoogleWalletConfig(ctx);
   if (!config) throw new DomainError('WALLET_DISABLED', 'Google Wallet is not available', 404);
   const [data] = await loadWalletTicketData(ctx.db, { ticketId });
   if (!data) throw new DomainError('TICKET_NOT_FOUND', 'Ticket not found', 404);
+  if (data.isTest) throw walletTestOrderError();
   const general = await getSetting(ctx, 'general');
   const design = await resolveWalletDesign(ctx, data.eventId);
   const branding = await getSetting(ctx, 'branding');

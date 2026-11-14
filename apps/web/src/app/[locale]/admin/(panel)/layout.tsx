@@ -7,6 +7,7 @@ import { APP_VERSION } from '@tix/shared';
 import { logoutAction } from '@/components/admin/admin-actions';
 import { AdminNav } from '@/components/admin/admin-nav';
 import { LocaleSwitcher } from '@/components/locale-switcher';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 import { AccountContent } from '@/components/admin/account/account-content';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -64,9 +65,7 @@ export default async function AdminPanelLayout({
           <div className="mb-6 shrink-0 px-3">
             <div className="text-sm font-semibold">{general.shopName}</div>
             <div className="text-xs text-muted-foreground">{t('panelTitle')}</div>
-            <div className="mt-0.5 font-mono text-[10px] text-muted-foreground/70">
-              v{APP_VERSION}
-            </div>
+            <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">v{APP_VERSION}</div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <AdminNav />
@@ -79,7 +78,10 @@ export default async function AdminPanelLayout({
             >
               {session.displayName}
             </Link>
-            <LocaleSwitcher />
+            <div className="flex items-center gap-2">
+              <LocaleSwitcher />
+              <ThemeSwitcher />
+            </div>
             <form action={logoutAction}>
               <Button type="submit" variant="ghost" size="sm" className="w-full justify-start px-0">
                 <LogOut className="size-4" /> {t('logout')}
@@ -107,9 +109,13 @@ export default async function AdminPanelLayout({
               <div className="md:hidden">
                 <LocaleSwitcher />
               </div>
+              <div className="md:hidden">
+                <ThemeSwitcher />
+              </div>
               <Button asChild variant="outline" size="sm">
                 <Link href="/">
-                  <Store className="size-4" /> {t('shopLink')}
+                  <Store className="size-4" />{' '}
+                  <span className="max-[420px]:sr-only">{t('shopLink')}</span>
                 </Link>
               </Button>
             </div>

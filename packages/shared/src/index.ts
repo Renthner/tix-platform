@@ -33,5 +33,6 @@ export * from './translations';
 export * from './seating/localize';
 export * from './scanner';
 export * from './start-page';
+export * from './seo';
 export * from './swr-cache';
 export * from './statistics';

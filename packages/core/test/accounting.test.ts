@@ -97,6 +97,7 @@ const data: AccountingData = {
       currency: 'EUR',
       paymentReference: 'TIX-2026-000001-1',
       providerReference: null,
+      isTest: false,
     },
     {
       capturedAt: new Date('2026-03-08T08:00:00Z'),
@@ -107,6 +108,7 @@ const data: AccountingData = {
       currency: 'EUR',
       paymentReference: null,
       providerReference: 'CAP1',
+      isTest: false,
     },
   ],
   refunds: [
@@ -120,6 +122,7 @@ const data: AccountingData = {
       currency: 'EUR',
       creditNoteNumber: 'GS-2026-000001',
       overpayment: false,
+      isTest: false,
     },
   ],
 };
@@ -207,6 +210,7 @@ describe('DATEV export', () => {
           amount: 50,
           currency: 'EUR',
           reversal: false,
+          isTest: false,
         },
         {
           date: new Date('2026-03-20T08:00:00Z'),
@@ -216,6 +220,7 @@ describe('DATEV export', () => {
           amount: 50,
           currency: 'EUR',
           reversal: true,
+          isTest: false,
         },
       ],
     };
@@ -233,13 +238,13 @@ describe('DATEV export', () => {
     expect(rows).toBe(3);
     const csv = buildAccountingCsv('payments', more, {}, tz).body.split('\r\n');
     expect(csv[1]).toBe(
-      '2026-03-07;2026-000001;RE-2026-000001;BANK_TRANSFER;0,50;EUR;;;SHORTFALL_WRITE_OFF',
+      '2026-03-07;2026-000001;RE-2026-000001;BANK_TRANSFER;0,50;EUR;;;SHORTFALL_WRITE_OFF;',
     );
     expect(csv[2]).toBe(
-      '2026-03-20;2026-000001;RE-2026-000001;BANK_TRANSFER;-227,19;EUR;TIX-2026-000001-1;;PAYMENT_REVERSED',
+      '2026-03-20;2026-000001;RE-2026-000001;BANK_TRANSFER;-227,19;EUR;TIX-2026-000001-1;;PAYMENT_REVERSED;',
     );
     expect(csv[3]).toBe(
-      '2026-03-20;2026-000001;RE-2026-000001;BANK_TRANSFER;-0,50;EUR;;;SHORTFALL_WRITE_OFF_REVERSED',
+      '2026-03-20;2026-000001;RE-2026-000001;BANK_TRANSFER;-0,50;EUR;;;SHORTFALL_WRITE_OFF_REVERSED;',
     );
   });
 
@@ -402,12 +407,71 @@ describe('simple CSV', () => {
     const p = buildAccountingCsv('payments', data, {}, tz);
     expect(p.rows).toBe(2);
     expect(p.body.split('\r\n')[1]).toBe(
-      '2026-03-07;2026-000001;RE-2026-000001;BANK_TRANSFER;227,19;EUR;TIX-2026-000001-1;;',
+      '2026-03-07;2026-000001;RE-2026-000001;BANK_TRANSFER;227,19;EUR;TIX-2026-000001-1;;;',
     );
     const r = buildAccountingCsv('refunds', data, {}, tz);
     expect(r.body.split('\r\n')[1]).toBe(
-      '2026-03-09;2026-000001;BANK_TRANSFER;119,00;EUR;GS-2026-000001;MANUAL;SUCCEEDED;',
+      '2026-03-09;2026-000001;BANK_TRANSFER;119,00;EUR;GS-2026-000001;MANUAL;SUCCEEDED;;',
     );
+  });
+});
+
+describe('TEST order postings', () => {
+  const testData: AccountingData = {
+    documents: [],
+    payments: [
+      {
+        capturedAt: new Date('2026-03-07T08:00:00Z'),
+        orderNumber: 'TEST-2026-0001',
+        voucher: 'TEST-2026-0001',
+        method: 'PAYPAL',
+        amount: 5000,
+        currency: 'EUR',
+        paymentReference: null,
+        providerReference: 'CAPT',
+        isTest: true,
+      },
+    ],
+    paymentReversals: [],
+    writeOffs: [],
+    refunds: [
+      {
+        processedAt: new Date('2026-03-09T08:00:00Z'),
+        orderNumber: 'TEST-2026-0001',
+        method: 'PAYPAL',
+        kind: 'AUTOMATIC',
+        status: 'SUCCEEDED',
+        amount: 5000,
+        currency: 'EUR',
+        creditNoteNumber: null,
+        overpayment: false,
+        isTest: true,
+      },
+    ],
+  };
+
+  it('marks test postings in a dedicated CSV column', () => {
+    expect(buildAccountingCsv('payments', testData, {}, tz).body.split('\r\n')[1]).toBe(
+      '2026-03-07;TEST-2026-0001;;PAYPAL;50,00;EUR;;CAPT;;TEST',
+    );
+    expect(buildAccountingCsv('refunds', testData, {}, tz).body.split('\r\n')[1]).toBe(
+      '2026-03-09;TEST-2026-0001;PAYPAL;50,00;EUR;;AUTOMATIC;SUCCEEDED;;TEST',
+    );
+  });
+
+  it('prefixes the DATEV booking text with TEST and never uses an invoice number', () => {
+    const { body } = buildDatevExport(
+      testData,
+      settings(),
+      { from: '2026-03-01', to: '2026-03-31' },
+      labels,
+      tz,
+      new Date('2026-03-31T10:00:00Z'),
+    );
+    const lines = body.toString('latin1').split('\r\n');
+    const bookings = lines.filter((l) => l.includes('TEST-2026-0001'));
+    expect(bookings).toHaveLength(2);
+    for (const l of bookings) expect(l).toMatch(/"TEST [^"]*TEST-2026-0001/);
   });
 });
 

@@ -7,6 +7,8 @@
 //   E2E_SKIP_BUILD=1   reuse the images tix-e2e/tix-{web,worker,realtime}:local
 //   E2E_KEEP=1         leave the stack running afterwards (the stop command is printed)
 //   E2E_PORT=18090     public HTTP port of the stack
+//   E2E_PROJECT=tix-e2e  compose project / image / temp dir name (must start with `tix-e2e`,
+//                      use another one to run a second stack in parallel)
 //   E2E_BUILD_CACHE_DIR=<dir>  buildx local layer cache (needs the docker-container driver, CI)
 //
 // It never touches another compose project: every docker compose call carries `-p tix-e2e`,
@@ -20,10 +22,13 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const PROJECT = 'tix-e2e';
+const PROJECT = process.env.E2E_PROJECT ?? 'tix-e2e';
+if (!PROJECT.startsWith('tix-e2e')) {
+  throw new Error(`E2E_PROJECT must start with 'tix-e2e' (got '${PROJECT}')`);
+}
 const PORT = Number(process.env.E2E_PORT ?? 18090);
 const TARGETS = ['web', 'worker', 'realtime'];
-const image = (t) => `tix-e2e/tix-${t}:local`;
+const image = (t) => `${PROJECT}/tix-${t}:local`;
 const isWin = process.platform === 'win32';
 
 function log(msg) {
@@ -57,7 +62,7 @@ function freePort() {
 const hex = (n = 24) => randomBytes(n).toString('hex');
 
 async function main() {
-  const dir = mkdtempSync(join(tmpdir(), 'tix-e2e-'));
+  const dir = mkdtempSync(join(tmpdir(), `${PROJECT}-`));
   const dbPort = await freePort();
   const adminEmail = 'e2e@example.org';
   const adminPassword = `E2e-${hex(10)}-Pw1!`;

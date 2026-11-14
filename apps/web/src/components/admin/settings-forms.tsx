@@ -2,6 +2,7 @@
 
 import {
   COOKIE_NOTICE_TEXT_MAX,
+  SEO_DESCRIPTION_MAX,
   SEAT_SELECTION_STYLES,
   START_PAGE_LAYOUTS,
   START_PAGE_HTML_MAX,
@@ -1192,6 +1193,203 @@ export function StartPageSettingsForm({
           ))}
         </div>
         <p className="text-xs text-muted-foreground">{t('altHint')}</p>
+      </div>
+      <SubmitButton>{tc('save')}</SubmitButton>
+    </ActionForm>
+  );
+}
+
+// ─── SEO ────────────────────────────────────────────────────────────────────
+
+export interface SeoValues {
+  indexing: boolean;
+  titleTemplate: string;
+  shareImage: MediaPickerAsset | null;
+  twitterHandle?: string;
+  googleVerification?: string;
+  bingVerification?: string;
+  /** Shop default language: preselected content language. */
+  defaultLocale: string;
+  texts: Partial<Record<string, { siteTitle?: string; description?: string }>>;
+  /** Shop name (placeholder of the site title). */
+  shopName: string;
+}
+
+export function SeoSettingsForm({ action, initial }: { action: Action; initial: SeoValues }) {
+  const t = useTranslations('admin.settings.seo');
+  const tl = useTranslations('common.locale');
+  const tc = useTranslations('common.actions');
+  const tsw = useTranslations('translations.switcher');
+  const { state, formAction, err } = useSettingsForm(action);
+  const [indexing, setIndexing] = useState(initial.indexing);
+  // One content language is shown at a time; all languages stay mounted (hidden) and submitted.
+  const [current, setCurrent] = useState<string>(
+    (SUPPORTED_LOCALES as readonly string[]).includes(initial.defaultLocale)
+      ? initial.defaultLocale
+      : SUPPORTED_LOCALES[0],
+  );
+  // A validation error in a hidden language switches the dropdown to that language.
+  const [seenAt, setSeenAt] = useState(0);
+  if (state.status === 'error' && state.at !== seenAt) {
+    setSeenAt(state.at);
+    const withError = SUPPORTED_LOCALES.find((loc) =>
+      Object.keys(state.fieldErrors ?? {}).some((k) => k.endsWith(`.${loc}`)),
+    );
+    if (withError && withError !== current) setCurrent(withError);
+  }
+  return (
+    <ActionForm action={formAction} className="space-y-6">
+      <ActionFeedback state={state} />
+      <div className="space-y-2">
+        <label className="flex items-start gap-3 text-sm">
+          <Switch
+            name="indexing"
+            checked={indexing}
+            onCheckedChange={setIndexing}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="font-medium">{t('indexing')}</span>
+            <span className="block text-xs text-muted-foreground">{t('indexingHint')}</span>
+          </span>
+        </label>
+        {!indexing && (
+          <Alert>
+            <AlertDescription>{t('indexingOffNotice')}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field
+          label={t('titleTemplate')}
+          htmlFor="titleTemplate"
+          error={err('titleTemplate')}
+          hint={t('titleTemplateHint')}
+        >
+          <Input
+            id="titleTemplate"
+            name="titleTemplate"
+            defaultValue={initial.titleTemplate}
+            maxLength={120}
+            spellCheck={false}
+          />
+        </Field>
+        <Field
+          label={t('twitterHandle')}
+          htmlFor="twitterHandle"
+          error={err('twitterHandle')}
+          hint={t('twitterHandleHint')}
+        >
+          <Input
+            id="twitterHandle"
+            name="twitterHandle"
+            defaultValue={initial.twitterHandle ?? ''}
+            placeholder="@"
+            maxLength={16}
+            spellCheck={false}
+          />
+        </Field>
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">{tsw('label')}</span>
+        <NativeSelect
+          aria-label={tsw('label')}
+          value={current}
+          className="h-9 w-auto min-w-44"
+          onChange={(e) => setCurrent(e.target.value)}
+        >
+          {SUPPORTED_LOCALES.map((loc) => (
+            <option key={loc} value={loc}>
+              {tl(loc)}
+              {loc === initial.defaultLocale ? ` ${tsw('default')}` : ''}
+            </option>
+          ))}
+        </NativeSelect>
+      </label>
+      {SUPPORTED_LOCALES.map((loc) => {
+        const v = initial.texts[loc] ?? {};
+        return (
+          <fieldset
+            key={loc}
+            className={loc === current ? 'space-y-4 rounded-lg border p-4' : 'hidden'}
+          >
+            <legend className="px-1 text-sm font-semibold">{tl(loc)}</legend>
+            <Field
+              label={t('siteTitle', { language: tl(loc) })}
+              htmlFor={`siteTitle.${loc}`}
+              error={err(`siteTitle.${loc}`)}
+              hint={t('siteTitleHint', { shopName: initial.shopName })}
+            >
+              <Input
+                id={`siteTitle.${loc}`}
+                name={`siteTitle.${loc}`}
+                defaultValue={v.siteTitle ?? ''}
+                placeholder={initial.shopName}
+                maxLength={120}
+              />
+            </Field>
+            <Field
+              label={t('description')}
+              htmlFor={`description.${loc}`}
+              error={err(`description.${loc}`)}
+              hint={t('descriptionHint', { max: SEO_DESCRIPTION_MAX })}
+            >
+              <Textarea
+                id={`description.${loc}`}
+                name={`description.${loc}`}
+                rows={3}
+                defaultValue={v.description ?? ''}
+                maxLength={SEO_DESCRIPTION_MAX}
+              />
+            </Field>
+          </fieldset>
+        );
+      })}
+      <Field
+        label={t('shareImage')}
+        htmlFor="shareImageAssetId"
+        error={err('shareImageAssetId')}
+        hint={t('shareImageHint')}
+      >
+        <MediaPicker
+          name="shareImageAssetId"
+          kind="EVENT_IMAGE"
+          initialAsset={initial.shareImage}
+          previewClassName="max-w-md"
+          previewAlt={t('shareImage')}
+        />
+      </Field>
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium">{t('verification')}</h3>
+        <p className="text-xs text-muted-foreground">{t('verificationHint')}</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field
+            label={t('googleVerification')}
+            htmlFor="verification.google"
+            error={err('verification.google')}
+          >
+            <Input
+              id="verification.google"
+              name="verification.google"
+              defaultValue={initial.googleVerification ?? ''}
+              maxLength={400}
+              spellCheck={false}
+            />
+          </Field>
+          <Field
+            label={t('bingVerification')}
+            htmlFor="verification.bing"
+            error={err('verification.bing')}
+          >
+            <Input
+              id="verification.bing"
+              name="verification.bing"
+              defaultValue={initial.bingVerification ?? ''}
+              maxLength={400}
+              spellCheck={false}
+            />
+          </Field>
+        </div>
       </div>
       <SubmitButton>{tc('save')}</SubmitButton>
     </ActionForm>

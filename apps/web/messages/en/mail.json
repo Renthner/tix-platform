@@ -104,5 +104,10 @@
     "downloadPdf": "Download PDF",
     "addApple": "Add to Apple Wallet",
     "addGoogle": "Add to Google Wallet"
+  },
+  "test": {
+    "subjectPrefix": "[TEST]",
+    "notice": "TEST ORDER – this e-mail belongs to a test order placed by an administrator. It is not a real purchase.",
+    "watermark": "TEST ORDER"
   }
 }

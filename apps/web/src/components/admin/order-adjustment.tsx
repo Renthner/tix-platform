@@ -199,7 +199,7 @@ function ProposeForm({
               </Label>
             </div>
             {blockedCredit && (
-              <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+              <p className="rounded-md bg-warning-soft px-3 py-2 text-xs text-warning">
                 {t('creditFinanceOnly', { credit: money(credit) })}
               </p>
             )}
@@ -246,7 +246,7 @@ function OpenAdjustment({
     format.dateTime(new Date(iso), { dateStyle: 'medium', timeStyle: 'short' });
   const today = new Date().toISOString().slice(0, 10);
   return (
-    <Card className="border-amber-300 dark:border-amber-800">
+    <Card className="border-warning-border">
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
           {t('openTitle')}
@@ -307,7 +307,7 @@ function OpenAdjustment({
           <ActionForm action={payAction} className="space-y-2 border-t pt-3">
             <p className="font-medium">{t('record.title')}</p>
             {credit > 0 && (
-              <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+              <p className="rounded-md bg-warning-soft px-3 py-2 text-xs text-warning">
                 {t('record.overpaymentWarning', { amount: money(credit) })}
               </p>
             )}

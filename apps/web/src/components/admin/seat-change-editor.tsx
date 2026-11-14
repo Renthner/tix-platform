@@ -614,7 +614,7 @@ export function SeatChangeEditor({
                       {t('newSeat')}: <span className="font-medium">{placeText(seat)}</span>
                     </div>
                     {result?.ok ? (
-                      <div className="flex items-center gap-1 text-xs text-green-700">
+                      <div className="flex items-center gap-1 text-xs text-success">
                         <Check className="size-3" /> {t('priceOk')}
                       </div>
                     ) : result?.reason === 'PRICE' ? (

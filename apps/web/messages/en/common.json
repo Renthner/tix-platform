@@ -7,6 +7,12 @@
     "en": "English",
     "de": "Deutsch"
   },
+  "theme": {
+    "label": "Colour theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
   "actions": {
     "save": "Save",
     "saving": "Saving…",
@@ -102,7 +108,10 @@
     "ADJUSTMENT_NOT_OPEN": "This additional payment is not open any more.",
     "ADJUSTMENT_NOT_FOUND": "Additional payment not found.",
     "ADJUSTMENT_NOT_PAYABLE": "This additional payment cannot be paid any more.",
-    "ADJUSTMENT_OPEN": "This ticket has an open additional payment. Reset the tariff first."
+    "ADJUSTMENT_OPEN": "This ticket has an open additional payment. Reset the tariff first.",
+    "EVENT_NOT_DRAFT": "This event was published in the meantime – test purchases are no longer possible.",
+    "TEST_ORDER_MIXED_CART": "Events that are not published yet (test purchase) cannot be combined with published events in one order.",
+    "NOT_A_TEST_ORDER": "Only test orders can be deleted."
   },
   "errorPages": {
     "notFound": {
