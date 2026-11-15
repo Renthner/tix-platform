@@ -4,7 +4,9 @@ import { resolveLocale } from '@/i18n/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { redirect } from '@/i18n/navigation';
 import { pickMessages } from '@/i18n/messages';
+import { passkeysAvailable } from '@tix/core';
 import { getAdminSession, readPendingAdminLogin } from '@/server/auth';
+import { getCore } from '@/server/core';
 import { LoginForm } from './login-form';
 
 export async function generateMetadata() {
@@ -36,6 +38,7 @@ export default async function AdminLoginPage({
           >
             <LoginForm
               initialStep={pending ? 'code' : 'password'}
+              passkeys={passkeysAvailable(getCore())}
               notice={notice === 'reset' || notice === 'invited' ? notice : null}
             />
           </NextIntlClientProvider>

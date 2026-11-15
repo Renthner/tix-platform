@@ -122,6 +122,10 @@
       "external": {
         "title": "Upload der Sicherung zum externen Ziel fehlgeschlagen",
         "summary": "Die Sicherung wurde lokal erstellt, konnte aber nicht zum externen Ziel hochgeladen werden: {reason}"
+      },
+      "probe": {
+        "title": "Probe-Wiederherstellung der neuesten Sicherung fehlgeschlagen",
+        "summary": "Die neueste Sicherung konnte nicht in eine Testdatenbank wiederhergestellt werden: {reason}. Sie ist möglicherweise beschädigt oder unvollständig und könnte im Ernstfall versagen. Unter \"Sicherungen\" findest du Details; erstelle eine neue Sicherung."
       }
     },
     "BACKUP_OVERDUE": {

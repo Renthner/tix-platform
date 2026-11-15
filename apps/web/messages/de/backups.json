@@ -32,7 +32,8 @@
     "verify": "Prüfen",
     "restore": "Wiederherstellen",
     "delete": "Löschen",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "probeNow": "Probe jetzt starten"
   },
   "status": {
     "title": "Aktueller Vorgang",
@@ -40,7 +41,8 @@
       "BACKUP": "Sicherung",
       "VERIFY": "Prüfung",
       "RESTORE": "Wiederherstellung",
-      "IMPORT": "Import der hochgeladenen Datei"
+      "IMPORT": "Import der hochgeladenen Datei",
+      "PROBE": "Probe-Wiederherstellung"
     },
     "state": {
       "RUNNING": "Läuft",
@@ -77,7 +79,9 @@
       "REJECTED_ARCHIVE_INVALID": "Abgelehnt: Das Archiv ist beschädigt oder wurde verändert",
       "REJECTED_CHECKSUM_MISMATCH": "Abgelehnt: Die Prüfsumme stimmt nicht",
       "REJECTED_NOT_FOUND": "Abgelehnt: Sicherung nicht gefunden",
-      "ERASURE_REPLAY": "Aufgezeichnete Löschungen werden erneut angewendet…"
+      "ERASURE_REPLAY": "Aufgezeichnete Löschungen werden erneut angewendet…",
+      "SANITY": "Kopie migrieren und wichtige Tabellen prüfen…",
+      "CLEANUP": "Alte Testdatenbanken aufräumen…"
     }
   },
   "list": {
@@ -120,7 +124,10 @@
     "KEY_UNKNOWN": "Der Verschlüsselungsschlüssel dieser Sicherung ist nicht vorhanden.",
     "CORRUPT": "Die Sicherung ist beschädigt oder wurde verändert.",
     "TRUNCATED": "Die Sicherungsdatei ist unvollständig.",
-    "BAD_ARCHIVE": "Die Archivstruktur ist ungültig."
+    "BAD_ARCHIVE": "Die Archivstruktur ist ungültig.",
+    "SANITY_FAILED": "Die Testwiederherstellung hat funktioniert, die Kopie hat aber die Plausibilitätsprüfung nicht bestanden.",
+    "MIGRATION_NEWER": "Die Sicherung wurde mit einer neueren Version der Software erstellt als der aktuell laufenden.",
+    "PROBE_FAILED": "Die Probe-Wiederherstellung konnte nicht abgeschlossen werden."
   },
   "restore": {
     "title": "Diese Sicherung wiederherstellen?",
@@ -136,7 +143,10 @@
     "acknowledge": "Ich verstehe, dass nach der Sicherung entstandene Daten verloren gehen und das System während der Wiederherstellung nicht erreichbar ist.",
     "submit": "Jetzt wiederherstellen",
     "submitting": "Wird gestartet…",
-    "twoFactorSetup": "Zum Wiederherstellen ist die Zwei-Faktor-Authentifizierung nötig, dein Konto hat aber keine. Richte zuerst eine Authenticator-App ein.",
+    "twoFactorSetup": "Zum Wiederherstellen ist die Zwei-Faktor-Authentifizierung nötig, dein Konto hat aber keine. Richte zuerst eine Authenticator-App oder einen Passkey ein.",
+    "passkeyHint": "Statt eines Codes kannst du mit deinem Passkey bestätigen.",
+    "passkeySubmit": "Mit Passkey wiederherstellen",
+    "passkeyWaiting": "Warte auf Passkey…",
     "twoFactorSetupLink": "Mein Konto öffnen"
   },
   "deleteConfirm": {
@@ -193,7 +203,12 @@
     "restoreRequiresTwoFactor": "Wiederherstellen erfordert Zwei-Faktor-Authentifizierung (empfohlen)",
     "allowInsecureEndpoint": "Unverschlüsselte http://-Endpoints erlauben",
     "allowPrivateNetwork": "Endpoints in privaten Netzen erlauben (z. B. MinIO im eigenen LAN)",
-    "credentialsChangeHint": "Bei Änderung von Endpoint oder Bucket müssen die Schlüssel neu eingegeben werden."
+    "credentialsChangeHint": "Bei Änderung von Endpoint oder Bucket müssen die Schlüssel neu eingegeben werden.",
+    "probe": {
+      "title": "Automatische Probe-Wiederherstellung",
+      "enabled": "Neueste Sicherung regelmäßig probeweise wiederherstellen",
+      "hint": "Spielt die Sicherung in eine temporäre Datenbank zurück, migriert und prüft sie und löscht sie wieder. Ein Fehler erscheint im Dashboard und per Warn-E-Mail. Die Live-Datenbank wird nicht angefasst. Standardmäßig aus: Schalte es ein, sobald auf dem Datenbankserver mindestens doppelt so viel freier Speicher wie die Datenbankgröße vorhanden ist."
+    }
   },
   "feedback": {
     "queued": "Gestartet – den Fortschritt siehst du oben.",
@@ -203,8 +218,9 @@
     "busy": "Ein anderer Sicherungsvorgang läuft. Bitte warte, bis er beendet ist.",
     "notFound": "Sicherung nicht gefunden.",
     "password": "Das Passwort ist nicht korrekt.",
-    "twoFactorRequired": "Gib den Code deiner Authenticator-App (oder einen Wiederherstellungscode) ein.",
+    "twoFactorRequired": "Gib den Code deiner Authenticator-App (oder einen Wiederherstellungscode) ein oder bestätige mit einem Passkey.",
     "twoFactorInvalid": "Der Code ist nicht korrekt.",
+    "passkeyInvalid": "Der Passkey konnte nicht überprüft werden. Bitte versuche es erneut.",
     "acknowledge": "Bitte bestätige, dass du die Folgen verstanden hast.",
     "locked": "Das Konto ist vorübergehend gesperrt.",
     "rateLimited": "Zu viele Versuche. Bitte warte einige Minuten.",
@@ -234,5 +250,32 @@
     "retry": "Wiederherstellung erneut ausführen",
     "safety": "Sicherheitskopie wiederherstellen",
     "error": "Fehler: {error}"
+  },
+  "probe": {
+    "title": "Automatische Probe-Wiederherstellung",
+    "description": "Die neueste Sicherung wird regelmäßig in eine temporäre Testdatenbank (nie die Live-Datenbank) zurückgespielt, auf die aktuelle Datenbankstruktur gebracht und geprüft. So weißt du, dass sich eine Sicherung im Ernstfall wirklich wiederherstellen lässt.",
+    "off": "Probe-Wiederherstellung ist ausgeschaltet",
+    "never": "Es lief noch keine Probe-Wiederherstellung.",
+    "status": {
+      "OK": "Letzte Probe bestanden am {date}",
+      "FAILED": "Letzte Probe fehlgeschlagen am {date}"
+    },
+    "result": {
+      "OK": "Bestanden",
+      "FAILED": "Fehlgeschlagen"
+    },
+    "trigger": {
+      "SCHEDULED": "Geplant",
+      "MANUAL": "Manuell"
+    },
+    "columns": {
+      "date": "Gestartet",
+      "result": "Ergebnis",
+      "backup": "Sicherung vom",
+      "duration": "Dauer",
+      "details": "Details"
+    },
+    "seconds": "{seconds} s",
+    "counts": "{events} Veranstaltungen, {orders} Bestellungen, {tickets} Tickets · {migrations} Migrationen angewendet"
   }
 }

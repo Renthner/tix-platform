@@ -1,4 +1,5 @@
 import {
+  buildOrderViewModel,
   getOrderAdminView,
   holderTicketUrls,
   listTicketChanges,
@@ -23,6 +24,8 @@ import {
   TicketSelfServiceActions,
 } from '@/components/shop/ticket-self-service';
 import { OrderStatusBadge } from '@/components/admin/order-badges';
+import { OrderInvoiceList } from '@/components/orders/order-invoice-list';
+import { OrderItemsCard } from '@/components/orders/order-items-card';
 import { OrderTimeline } from '@/components/admin/order-timeline';
 import { OverpaymentCard, RefundBatchList } from '@/components/admin/refund-batches';
 import { PageHeader } from '@/components/admin/form-controls';
@@ -88,6 +91,7 @@ export default async function OrderDetailPage({
     format.number(cents / 100, { style: 'currency', currency: order.currency });
   const dateTime = (d: Date | string | null) =>
     d ? format.dateTime(new Date(d), { dateStyle: 'medium', timeStyle: 'short' }) : '–';
+  const model = buildOrderViewModel(view, { audience: 'admin' });
   const open = order.status === 'PENDING' || order.status === 'AWAITING_PAYMENT';
   const address = order.billingAddress;
   const canRefund = hasRole(session, ['FINANCE']);
@@ -312,88 +316,37 @@ export default async function OrderDetailPage({
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('items.title')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {view.events.map((event) => (
-                <div key={event.eventId} className="space-y-2">
-                  <div className="font-medium">
-                    {event.title}{' '}
-                    <span className="font-normal text-muted-foreground">
-                      ·{' '}
-                      {format.dateTime(new Date(event.startsAt), {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                        timeZone: event.timeZone,
-                      })}
-                    </span>
-                  </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('items.place')}</TableHead>
-                        <TableHead>{t('items.category')}</TableHead>
-                        <TableHead>{t('items.tariff')}</TableHead>
-                        <TableHead>{t('items.status')}</TableHead>
-                        <TableHead className="text-right">{t('items.price')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {event.items.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            {item.sectionLabel}
-                            {item.kind === 'SEAT'
-                              ? ` · ${t('items.rowSeat', { row: item.rowLabel ?? '–', seat: item.seatLabel ?? '–' })}`
-                              : ` · ${t('items.standing')}`}
-                          </TableCell>
-                          <TableCell>{item.categoryName}</TableCell>
-                          <TableCell>{item.ticketTypeName}</TableCell>
-                          <TableCell>{t(`itemStatus.${item.status}`)}</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {item.discountAmount > 0 && (
-                              <span className="mr-2 text-xs text-muted-foreground line-through">
-                                {money(item.unitPriceGross)}
-                              </span>
-                            )}
-                            {money(item.priceGross)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ))}
-              <div className="space-y-1 border-t pt-3 text-sm">
-                {view.fees.map((fee) => (
-                  <div key={fee.id} className="flex justify-between text-muted-foreground">
-                    <span>
-                      {fee.name}
-                      {fee.quantity > 1 && ` (${fee.quantity}×)`}
-                    </span>
-                    <span className="tabular-nums">{money(fee.totalGross)}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between font-semibold">
-                  <span>{t('items.total')}</span>
-                  <span className="tabular-nums">{money(order.totalGross)}</span>
-                </div>
-                {view.taxes.map((tax) => (
-                  <div
-                    key={tax.rateBasisPoints}
-                    className="flex justify-between text-xs text-muted-foreground"
-                  >
-                    <span>{t('items.tax', { rate: tax.rateBasisPoints / 100 })}</span>
-                    <span className="tabular-nums">
-                      {money(tax.net)} + {money(tax.tax)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <OrderItemsCard
+            audience="admin"
+            events={model.events}
+            totals={model.totals}
+            money={money}
+            labels={{
+              title: t('items.title'),
+              total: t('items.total'),
+              place: (item) =>
+                `${item.sectionLabel}${
+                  item.kind === 'SEAT'
+                    ? ` · ${t('items.rowSeat', { row: item.rowLabel ?? '–', seat: item.seatLabel ?? '–' })}`
+                    : ` · ${t('items.standing')}`
+                }`,
+              eventDate: (event) =>
+                format.dateTime(new Date(event.startsAt), {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                  timeZone: event.timeZone,
+                }),
+              tax: (tax) => t('items.tax', { rate: tax.rateBasisPoints / 100 }),
+              columns: {
+                place: t('items.place'),
+                category: t('items.category'),
+                tariff: t('items.tariff'),
+                status: t('items.status'),
+                price: t('items.price'),
+              },
+              itemStatus: (item) => t(`itemStatus.${item.status}`),
+            }}
+          />
 
           {view.tickets.length > 0 && (
             <Card>
@@ -644,35 +597,21 @@ export default async function OrderDetailPage({
             </Card>
           )}
 
-          {view.invoices.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('documents.title')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm">
-                  {view.invoices.map((invoice) => (
-                    <li key={invoice.id}>
-                      <a
-                        href={`/api/admin/invoices/${invoice.id}`}
-                        className="inline-flex items-center gap-2 hover:underline"
-                      >
-                        <Download className="size-4" /> {invoice.invoiceNumber} ·{' '}
-                        {invoice.isCorrection && invoice.correctsNumber
-                          ? t('documents.correction', { invoice: invoice.correctsNumber })
-                          : t(
-                              invoice.type === 'CREDIT_NOTE'
-                                ? 'documents.creditNote'
-                                : 'documents.invoice',
-                            )}{' '}
-                        · {dateTime(invoice.issuedAt)}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
+          <OrderInvoiceList
+            title={t('documents.title')}
+            invoices={model.invoices}
+            label={(invoice) => (
+              <>
+                {invoice.number} ·{' '}
+                {invoice.kind === 'correction'
+                  ? t('documents.correction', { invoice: invoice.correctsNumber ?? '' })
+                  : t(
+                      invoice.kind === 'creditNote' ? 'documents.creditNote' : 'documents.invoice',
+                    )}{' '}
+                · {dateTime(invoice.issuedAt)}
+              </>
+            )}
+          />
 
           <Card>
             <CardHeader>

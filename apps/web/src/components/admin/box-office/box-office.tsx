@@ -2,22 +2,15 @@
 
 import {
   SEAT_FLAG,
-  SUPPORTED_LOCALES,
   type EventAvailability,
   type PublicSeat,
   type PublicSeatMap,
-  type PublicTicketType,
-  type SeatDeltaMessage,
 } from '@tix/shared';
-import { Check, Loader2, Minus, Plus, Printer, X } from 'lucide-react';
-import { useLocale, useTranslations } from 'next-intl';
+import { Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { formatCountdown } from '@/lib/format';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -26,12 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { COUNTRIES } from '@/components/shop/checkout-form';
-import { Link } from '@/i18n/navigation';
 import { apiFetch, errorMessage } from '@/lib/api';
-import { useEventDate, useMoney } from '@/lib/format';
-import { useFieldErrors, type FieldMap } from '@/lib/field-errors';
+import { useEventDate } from '@/lib/format';
+import { useFieldErrors } from '@/lib/field-errors';
 import {
   readHoldSnapshot,
   remountedInDocument,
@@ -39,127 +29,42 @@ import {
   writeHoldSnapshot,
 } from '@/lib/hold-session';
 import { parseMoneyToCents } from '@/lib/money';
-import { onRealtime, onResync, subscribeRoom } from '@/lib/realtime';
 import {
   SeatChart,
   type SeatColors,
   type SeatStatus,
 } from '@/components/shop/seat-chart/seat-chart';
 import { SeatStateLegend } from '@/components/shop/seat-chart/seat-legend';
+import {
+  buildLines,
+  defaultTariff,
+  emptyBuyer,
+  sectionTotal,
+  SELL_FIELDS,
+  sortSeatsForList,
+} from './parts/helpers';
+import { PaymentCard } from './parts/payment-card';
+import { SaleSuccess } from './parts/sale-success';
+import { SelectionCard } from './parts/selection-card';
+import { StandingCard } from './parts/standing-card';
+import { TotalsCard } from './parts/totals-card';
+import type {
+  BoxOfficeEvent,
+  BuyerState,
+  HeldState,
+  HoldSnapshot,
+  Inventory,
+  Payment,
+  Permissions,
+  Pick,
+  SaleResult,
+} from './parts/types';
+import { useHoldRelease } from './parts/use-hold-release';
+import { useInvoicePoll } from './parts/use-invoice-poll';
+import { useLiveSeats } from './parts/use-live-seats';
+import { useQuote } from './parts/use-quote';
 
-export interface BoxOfficeEvent {
-  id: string;
-  title: string;
-  startsAt: string;
-  timeZone: string;
-  venueName: string;
-}
-
-interface Permissions {
-  complimentary: boolean;
-  priceOverride: boolean;
-  blockedSeats: boolean;
-}
-
-type Payment = 'CASH' | 'CARD' | 'COMPLIMENTARY';
-
-interface Inventory {
-  taken: Set<string>;
-  locked: Set<string>;
-  ga: Record<string, number>;
-  version: number;
-}
-
-interface Pick {
-  tariffId: string;
-  /** Typed price override (text, as entered). */
-  override: string;
-}
-
-/** What the tab remembers about its selection (the server only knows seats and quantities). */
-interface HoldSnapshot {
-  eventId: string;
-  picks: [string, Pick][];
-  ga: Record<string, Record<string, number>>;
-}
-
-interface Quote {
-  currency: string;
-  subtotalGross: number;
-  discountTotal: number;
-  feeTotal: number;
-  totalGross: number;
-  fees: { name: string; totalGross: number }[];
-  buyerDataRequired: boolean;
-  smallAmountInvoiceLimit: number;
-}
-
-interface SaleResult {
-  orderId: string;
-  orderNumber: string;
-  totalGross: number;
-  currency: string;
-  ticketCount: number;
-  ticketsReady: boolean;
-  payment: Payment;
-  email: string | null;
-}
-
-/** Tariffs sellable on a seat / in an area (same rules as the shop cart). */
-function allowedTariffs(
-  map: PublicSeatMap,
-  categoryId: string,
-  flags: number | null,
-): PublicTicketType[] {
-  return map.ticketTypes.filter((t) => {
-    if (t.prices[categoryId] === undefined) return false;
-    if (t.requiredSeatFeature === 'WHEELCHAIR_SPACE')
-      return flags !== null && (flags & SEAT_FLAG.WHEELCHAIR) !== 0;
-    if (t.requiredSeatFeature === 'COMPANION_SEAT')
-      return flags !== null && (flags & SEAT_FLAG.COMPANION) !== 0;
-    return true;
-  });
-}
-
-function defaultTariff(
-  map: PublicSeatMap,
-  categoryId: string,
-  flags: number | null,
-): PublicTicketType | null {
-  const allowed = allowedTariffs(map, categoryId, flags);
-  return (
-    allowed.find((t) => t.requiredSeatFeature !== null) ??
-    allowed.find((t) => t.isDefault) ??
-    allowed[0] ??
-    null
-  );
-}
-
-/** Zod issue path (sell API) → control id. */
-const SELL_FIELDS: FieldMap = {
-  'buyer.firstName': 'bo-firstName',
-  'buyer.lastName': 'bo-lastName',
-  'buyer.email': 'bo-email',
-  'buyer.phone': 'bo-phone',
-  'buyer.company': 'bo-company',
-  'buyer.address': 'bo-street',
-  'buyer.address.street': 'bo-street',
-  'buyer.address.addressLine2': 'bo-addressLine2',
-  'buyer.address.postalCode': 'bo-postalCode',
-  'buyer.address.city': 'bo-city',
-  'buyer.address.country': 'bo-country',
-  note: 'bo-note',
-  locale: 'bo-language',
-  priceOverrideReason: 'bo-reason',
-};
-
-function FieldMessage({ message }: { message: string | undefined }) {
-  return message ? (
-    <p className="text-xs text-destructive" role="alert">
-      {message}
-    </p>
-  ) : null;
-}
+export type { BoxOfficeEvent } from './parts/types';
 
 export function BoxOffice({
   events,
@@ -178,9 +83,6 @@ export function BoxOffice({
   const t = useTranslations('orders.boxOffice');
   const tErr = useTranslations('common.errors');
   const fe = useFieldErrors(SELL_FIELDS, tErr('FIELD_INVALID'));
-  const locale = useLocale();
-  const tMethod = useTranslations('orders.method');
-  const money = useMoney();
   const eventDate = useEventDate();
 
   const [eventId, setEventId] = useState<string>('');
@@ -203,29 +105,13 @@ export function BoxOffice({
   const [holdExpiresAt, setHoldExpiresAt] = useState<number | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const pendingSeats = useRef(new Set<string>());
-  const tErrAddress = useTranslations('checkout.address');
   const [allowBlocked, setAllowBlocked] = useState(false);
   const [payment, setPayment] = useState<Payment>('CASH');
   const [showBuyer, setShowBuyer] = useState(false);
-  const [buyer, setBuyer] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    company: '',
-    note: '',
-    street: '',
-    addressLine2: '',
-    postalCode: '',
-    city: '',
-    country: 'DE',
-  });
+  const [buyer, setBuyer] = useState<BuyerState>(emptyBuyer);
   const [sendEmail, setSendEmail] = useState(false);
   const [reason, setReason] = useState('');
   const [given, setGiven] = useState('');
-  const [quote, setQuote] = useState<Quote | null>(null);
-  const [quoteBusy, setQuoteBusy] = useState(false);
-  const [quoteError, setQuoteError] = useState<string | null>(null);
   const [selling, setSelling] = useState(false);
   const [sale, setSale] = useState<SaleResult | null>(null);
 
@@ -286,11 +172,9 @@ export function BoxOffice({
       }
       try {
         const loaded = await load(snapshot.eventId);
-        const held = await apiFetch<{
-          seatIds: string[];
-          ga: Record<string, number>;
-          expiresAt: number | null;
-        }>(`/api/admin/box-office/hold?eventId=${snapshot.eventId}&tabId=${id}`);
+        const held = await apiFetch<HeldState>(
+          `/api/admin/box-office/hold?eventId=${snapshot.eventId}&tabId=${id}`,
+        );
         if (cancelled) return;
         const picks = new Map<string, Pick>();
         const savedPicks = new Map(snapshot.picks);
@@ -308,7 +192,7 @@ export function BoxOffice({
         const ga: Record<string, Record<string, number>> = {};
         for (const [sectionId, quantity] of Object.entries(held.ga)) {
           const saved = snapshot.ga[sectionId];
-          const savedTotal = Object.values(saved ?? {}).reduce((n, q) => n + q, 0);
+          const savedTotal = sectionTotal(saved);
           if (saved && savedTotal === quantity) {
             ga[sectionId] = saved;
             continue;
@@ -355,60 +239,11 @@ export function BoxOffice({
     setMap(null);
     setSeatPicks(new Map());
     setGaPicks({});
-    setQuote(null);
     setSale(null);
     load(id).catch(showError);
   };
 
-  // ── Live updates (same stream as the shop; no shopper heartbeat is sent) ──
-  useEffect(() => {
-    if (!eventId) return;
-    const unsubscribe = subscribeRoom('seats', eventId);
-    const off = onRealtime('seats:delta', (payload) => {
-      const delta = payload as SeatDeltaMessage;
-      if (delta.eventId !== eventId) return;
-      if (delta.version !== undefined && delta.version !== invRef.current.version) {
-        void load(eventId).catch(() => undefined);
-        return;
-      }
-      setInv((prev) => {
-        const next: Inventory = {
-          ...prev,
-          taken: new Set(prev.taken),
-          locked: new Set(prev.locked),
-          ga: { ...prev.ga },
-        };
-        for (const [id, s] of delta.seats) {
-          if (s === 'F') {
-            next.taken.delete(id);
-            next.locked.delete(id);
-          } else if (s === 'L') {
-            next.locked.add(id);
-          } else {
-            next.taken.add(id);
-            next.locked.delete(id);
-          }
-        }
-        if (delta.ga) Object.assign(next.ga, delta.ga);
-        return next;
-      });
-      setStatusVersion((v) => v + 1);
-      // A selected seat that was sold meanwhile leaves the selection.
-      setSeatPicks((prev) => {
-        const sold = delta.seats.filter(([id, s]) => s === 'S' && prev.has(id));
-        if (sold.length === 0) return prev;
-        const next = new Map(prev);
-        for (const [id] of sold) next.delete(id);
-        return next;
-      });
-    });
-    const offResync = onResync(() => void load(eventId).catch(() => undefined));
-    return () => {
-      off();
-      offResync();
-      unsubscribe();
-    };
-  }, [eventId, load]);
+  useLiveSeats({ eventId, load, invRef, setInv, setStatusVersion, setSeatPicks });
 
   const lookups = useMemo(() => {
     if (!map) return null;
@@ -508,9 +343,6 @@ export function BoxOffice({
     });
   }, [allowBlocked, lookups]);
 
-  const sectionTotal = (picks: Record<string, number> | undefined) =>
-    Object.values(picks ?? {}).reduce((n, q) => n + q, 0);
-
   /** Sets the quantity of one tariff in a standing area and holds the new total. */
   const setGa = async (sectionId: string, tariffId: string, quantity: number) => {
     const current = gaPicks[sectionId] ?? {};
@@ -533,71 +365,17 @@ export function BoxOffice({
   // ── Lines + quote ────────────────────────────────────────────────────────
   const hasOverride =
     payment !== 'COMPLIMENTARY' && [...seatPicks.values()].some((p) => p.override.trim() !== '');
-  const lines = useMemo(() => {
-    const result: Record<string, unknown>[] = [];
-    for (const [seatId, pick] of seatPicks) {
-      const cents =
-        payment !== 'COMPLIMENTARY' && pick.override.trim()
-          ? parseMoneyToCents(pick.override)
-          : null;
-      result.push({
-        eventId,
-        seatId,
-        ticketTypeId: pick.tariffId,
-        ...(cents !== null ? { priceOverrideCents: cents } : {}),
-      });
-    }
-    for (const [sectionId, picks] of Object.entries(gaPicks)) {
-      for (const [tariffId, quantity] of Object.entries(picks)) {
-        if (quantity > 0) result.push({ eventId, sectionId, quantity, ticketTypeId: tariffId });
-      }
-    }
-    return result;
-  }, [eventId, seatPicks, gaPicks, payment]);
+  const lines = useMemo(
+    () => buildLines(eventId, seatPicks, gaPicks, payment),
+    [eventId, seatPicks, gaPicks, payment],
+  );
   const ticketCount = lines.reduce(
     (n, l) => n + (typeof l.quantity === 'number' ? l.quantity : 1),
     0,
   );
-
-  useEffect(() => {
-    if (lines.length === 0 || sale) {
-      setQuote(null);
-      setQuoteError(null);
-      return;
-    }
-    let cancelled = false;
-    setQuoteBusy(true);
-    const timer = setTimeout(() => {
-      apiFetch<Quote>('/api/admin/box-office/quote', {
-        method: 'POST',
-        json: { lines, payment, allowBlocked },
-      })
-        .then((q) => {
-          if (cancelled) return;
-          setQuote(q);
-          setQuoteError(null);
-        })
-        .catch((err: unknown) => {
-          if (cancelled) return;
-          setQuote(null);
-          setQuoteError(errorMessage(tErr, err));
-        })
-        .finally(() => {
-          if (!cancelled) setQuoteBusy(false);
-        });
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [lines, payment, allowBlocked, sale, tErr]);
+  const { quote, quoteBusy, quoteError } = useQuote(lines, payment, allowBlocked, sale);
 
   // ── Sell ─────────────────────────────────────────────────────────────────
-  const languageNames = useMemo(
-    () => new Intl.DisplayNames([locale], { type: 'language' }),
-    [locale],
-  );
-  const regionNames = useMemo(() => new Intl.DisplayNames([locale], { type: 'region' }), [locale]);
   const emailGiven = buyer.email.trim() !== '';
   const addressGiven = Boolean(buyer.street.trim() && buyer.postalCode.trim() && buyer.city.trim());
   const buyerDataMissing =
@@ -669,19 +447,7 @@ export function BoxOffice({
 
   const nextSale = () => {
     setSale(null);
-    setBuyer({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      company: '',
-      note: '',
-      street: '',
-      addressLine2: '',
-      postalCode: '',
-      city: '',
-      country: 'DE',
-    });
+    setBuyer(emptyBuyer());
     setSendEmail(false);
     setReason('');
     setGiven('');
@@ -707,88 +473,18 @@ export function BoxOffice({
     toast.warning(t('hold.expired'));
     void load(eventId).catch(() => undefined);
   }, [clock, holdExpiresAt, eventId, load, t]);
-  // Only closing / reloading the tab releases the hold; client-side navigation keeps it (the
-  // selection is restored when the page is opened again, the TTL frees it otherwise).
-  useEffect(() => {
-    if (!eventId || !tabId) return;
-    const release = () =>
-      void fetch('/api/admin/box-office/hold', {
-        method: 'POST',
-        keepalive: true,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ op: 'release', eventId, tabId }),
-      }).catch(() => undefined);
-    // Back/forward cache: the page returns without remounting although pagehide released the
-    // hold on the server. Re-read what the server still holds so the UI never shows a stale hold.
-    const restored = (event: PageTransitionEvent) => {
-      if (!event.persisted) return;
-      void (async () => {
-        try {
-          await load(eventId);
-          const held = await apiFetch<{
-            seatIds: string[];
-            ga: Record<string, number>;
-            expiresAt: number | null;
-          }>(`/api/admin/box-office/hold?eventId=${eventId}&tabId=${tabId}`);
-          const heldSeats = new Set(held.seatIds);
-          setSeatPicks((prev) => new Map([...prev].filter(([seatId]) => heldSeats.has(seatId))));
-          setGaPicks((prev) => {
-            const next: Record<string, Record<string, number>> = {};
-            for (const [sectionId, quantity] of Object.entries(held.ga)) {
-              const mine = prev[sectionId];
-              if (mine && Object.values(mine).reduce((n, q) => n + q, 0) === quantity) {
-                next[sectionId] = mine;
-              }
-            }
-            return next;
-          });
-          setHoldExpiresAt(held.expiresAt);
-          setStatusVersion((v) => v + 1);
-        } catch (err) {
-          showError(err);
-        }
-      })();
-    };
-    window.addEventListener('pagehide', release);
-    window.addEventListener('pageshow', restored);
-    return () => {
-      window.removeEventListener('pagehide', release);
-      window.removeEventListener('pageshow', restored);
-    };
-  }, [eventId, tabId, load, showError]);
+  useHoldRelease({
+    eventId,
+    tabId,
+    load,
+    showError,
+    setSeatPicks,
+    setGaPicks,
+    setHoldExpiresAt,
+    setStatusVersion,
+  });
 
-  // ── Invoice (issued by the worker shortly after the sale) ─────────────────
-  const [invoiceId, setInvoiceId] = useState<string | null>(null);
-  const [invoiceGaveUp, setInvoiceGaveUp] = useState(false);
-  useEffect(() => {
-    setInvoiceId(null);
-    setInvoiceGaveUp(false);
-    if (!sale || sale.payment === 'COMPLIMENTARY') return;
-    let stopped = false;
-    let attempts = 0;
-    const poll = async () => {
-      attempts += 1;
-      try {
-        const state = await apiFetch<{ invoiceId: string | null }>(
-          `/api/admin/box-office/orders/${sale.orderId}`,
-        );
-        if (stopped) return;
-        if (state.invoiceId) {
-          setInvoiceId(state.invoiceId);
-          return;
-        }
-      } catch {
-        // keep polling
-      }
-      if (attempts >= 10) setInvoiceGaveUp(true);
-      else timer = setTimeout(poll, 2000);
-    };
-    let timer = setTimeout(poll, 1500);
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-    };
-  }, [sale]);
+  const { invoiceId, invoiceGaveUp } = useInvoicePoll(sale);
 
   // ── Render ───────────────────────────────────────────────────────────────
   const selectedEvent = events.find((e) => e.id === eventId);
@@ -796,14 +492,9 @@ export function BoxOffice({
   const givenCents = given.trim() ? parseMoneyToCents(given) : null;
   const sortedSeats = useMemo(() => {
     if (!lookups) return [];
-    return [...seatPicks.keys()]
-      .map((id) => lookups.seats.get(id))
-      .filter((s): s is PublicSeat => !!s)
-      .sort((a, b) =>
-        `${a.s}|${a.r}|${String(a.p ?? 0).padStart(6, '0')}`.localeCompare(
-          `${b.s}|${b.r}|${String(b.p ?? 0).padStart(6, '0')}`,
-        ),
-      );
+    return sortSeatsForList(
+      [...seatPicks.keys()].map((id) => lookups.seats.get(id)).filter((s): s is PublicSeat => !!s),
+    );
   }, [lookups, seatPicks]);
 
   return (
@@ -893,523 +584,70 @@ export function BoxOffice({
               />
             ) : (
               <>
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center justify-between text-base">
-                      {t('selection')}
-                      {holdExpiresAt && (
-                        <span className="text-xs font-normal text-muted-foreground tabular-nums">
-                          {t('hold.countdown', {
-                            time: formatCountdown(Math.max(0, holdExpiresAt - clock)),
-                          })}
-                        </span>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {lines.length === 0 && (
-                      <p className="text-sm text-muted-foreground">{t('empty')}</p>
-                    )}
-                    <ul className="space-y-3 text-sm">
-                      {sortedSeats.map((seat) => {
-                        const pick = seatPicks.get(seat.i)!;
-                        const allowed = seat.c ? allowedTariffs(map, seat.c, seat.f) : [];
-                        const price = seat.c
-                          ? (lookups.tariffs.get(pick.tariffId)?.prices[seat.c] ?? 0)
-                          : 0;
-                        return (
-                          <li key={seat.i} className="space-y-1.5 rounded-md border p-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className="inline-block size-2.5 rounded-full"
-                                  style={{
-                                    background: lookups.categories.get(seat.c ?? '')?.color,
-                                  }}
-                                />
-                                {seatText(seat)}
-                              </span>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                aria-label={t('remove')}
-                                onClick={() => removeSeat(seat.i)}
-                              >
-                                <X className="size-4" />
-                              </Button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Select
-                                value={pick.tariffId}
-                                onValueChange={(v) => updatePick(seat.i, { tariffId: v })}
-                              >
-                                <SelectTrigger className="flex-1" aria-label={t('tariff')}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {allowed.map((tariff) => (
-                                    <SelectItem key={tariff.id} value={tariff.id}>
-                                      {tariff.name} ·{' '}
-                                      {money(tariff.prices[seat.c!] ?? 0, map.currency)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {permissions.priceOverride && payment !== 'COMPLIMENTARY' && (
-                                <Input
-                                  className="w-24"
-                                  inputMode="decimal"
-                                  value={pick.override}
-                                  placeholder={(price / 100).toFixed(2)}
-                                  aria-label={t('priceOverride')}
-                                  title={t('priceOverrideHint')}
-                                  onChange={(e) => updatePick(seat.i, { override: e.target.value })}
-                                />
-                              )}
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    {hasOverride && (
-                      <div className="space-y-1.5">
-                        <Label htmlFor="bo-reason">{t('overrideReason')}</Label>
-                        <Input
-                          id="bo-reason"
-                          aria-invalid={fe.invalid('bo-reason')}
-                          value={reason}
-                          maxLength={500}
-                          onChange={(e) => {
-                            setReason(e.target.value);
-                            fe.clear('bo-reason');
-                          }}
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
+                <SelectionCard
+                  map={map}
+                  lookups={lookups}
+                  sortedSeats={sortedSeats}
+                  seatPicks={seatPicks}
+                  seatText={seatText}
+                  permissions={permissions}
+                  payment={payment}
+                  lineCount={lines.length}
+                  holdExpiresAt={holdExpiresAt}
+                  clock={clock}
+                  hasOverride={hasOverride}
+                  reason={reason}
+                  setReason={setReason}
+                  fe={fe}
+                  removeSeat={removeSeat}
+                  updatePick={updatePick}
+                />
                 {standing.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">{t('standing')}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {standing.map((section) => {
-                        const picks = gaPicks[section.id] ?? {};
-                        const remaining = inv.ga[section.id] ?? 0;
-                        const allowed = allowedTariffs(map, section.priceCategoryId!, null);
-                        return (
-                          <div key={section.id} className="space-y-1.5">
-                            <div className="text-sm">
-                              {section.name}{' '}
-                              <span className="text-xs text-muted-foreground">
-                                {t('remaining', { count: remaining })}
-                              </span>
-                            </div>
-                            {allowed.map((tariff) => {
-                              const quantity = picks[tariff.id] ?? 0;
-                              return (
-                                <div
-                                  key={tariff.id}
-                                  className="flex items-center justify-between gap-2 text-sm"
-                                >
-                                  <span>
-                                    {tariff.name} ·{' '}
-                                    {money(
-                                      tariff.prices[section.priceCategoryId!] ?? 0,
-                                      map.currency,
-                                    )}
-                                  </span>
-                                  <span className="flex items-center gap-2">
-                                    <Button
-                                      size="icon"
-                                      variant="outline"
-                                      aria-label={t('decrease')}
-                                      disabled={quantity <= 0}
-                                      onClick={() =>
-                                        void setGa(section.id, tariff.id, quantity - 1)
-                                      }
-                                    >
-                                      <Minus />
-                                    </Button>
-                                    <span className="w-6 text-center tabular-nums">{quantity}</span>
-                                    <Button
-                                      size="icon"
-                                      variant="outline"
-                                      aria-label={t('increase')}
-                                      disabled={remaining <= 0}
-                                      onClick={() =>
-                                        void setGa(section.id, tariff.id, quantity + 1)
-                                      }
-                                    >
-                                      <Plus />
-                                    </Button>
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </CardContent>
-                  </Card>
+                  <StandingCard
+                    map={map}
+                    standing={standing}
+                    gaPicks={gaPicks}
+                    inv={inv}
+                    setGa={setGa}
+                  />
                 )}
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">{t('payment.title')}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['CASH', 'CARD', 'COMPLIMENTARY'] as const)
-                        .filter((p) => p !== 'COMPLIMENTARY' || permissions.complimentary)
-                        .map((p) => (
-                          <Button
-                            key={p}
-                            type="button"
-                            variant={payment === p ? 'default' : 'outline'}
-                            aria-pressed={payment === p}
-                            onClick={() => setPayment(p)}
-                          >
-                            {t(`payment.${p}`)}
-                          </Button>
-                        ))}
-                    </div>
-                    {payment === 'COMPLIMENTARY' && (
-                      <p className="text-xs text-muted-foreground">{t('complimentaryHint')}</p>
-                    )}
-
-                    {quote?.buyerDataRequired && (
-                      <p className="text-sm text-warning">
-                        {t('buyer.required', {
-                          limit: money(quote.smallAmountInvoiceLimit, quote.currency),
-                        })}
-                      </p>
-                    )}
-                    <button
-                      type="button"
-                      className="text-sm text-primary underline-offset-2 hover:underline"
-                      onClick={() => setShowBuyer((v) => !v)}
-                    >
-                      {showBuyer || buyerDataMissing ? t('buyer.hide') : t('buyer.show')}
-                    </button>
-                    {(showBuyer || buyerDataMissing) && (
-                      <div className="space-y-2" onChange={fe.onFormChange}>
-                        <div className="grid grid-cols-2 gap-2">
-                          {(['firstName', 'lastName'] as const).map((k) => (
-                            <div key={k} className="space-y-1">
-                              <Label htmlFor={`bo-${k}`}>{t(`buyer.${k}`)}</Label>
-                              <Input
-                                id={`bo-${k}`}
-                                aria-invalid={fe.invalid(`bo-${k}`)}
-                                value={buyer[k]}
-                                maxLength={100}
-                                onChange={(e) => setBuyer((b) => ({ ...b, [k]: e.target.value }))}
-                              />
-                              <FieldMessage message={fe.message(`bo-${k}`)} />
-                            </div>
-                          ))}
-                        </div>
-                        {(['email', 'phone', 'company'] as const).map((k) => (
-                          <div key={k} className="space-y-1">
-                            <Label htmlFor={`bo-${k}`}>{t(`buyer.${k}`)}</Label>
-                            <Input
-                              id={`bo-${k}`}
-                              aria-invalid={fe.invalid(`bo-${k}`)}
-                              type={k === 'email' ? 'email' : 'text'}
-                              value={buyer[k]}
-                              maxLength={k === 'email' ? 254 : 200}
-                              onChange={(e) => setBuyer((b) => ({ ...b, [k]: e.target.value }))}
-                            />
-                            <FieldMessage message={fe.message(`bo-${k}`)} />
-                          </div>
-                        ))}
-                        <div className="space-y-1">
-                          <Label htmlFor="bo-language">{t('buyer.language')}</Label>
-                          <select
-                            id="bo-language"
-                            aria-invalid={fe.invalid('bo-language')}
-                            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20"
-                            value={buyerLocale}
-                            onChange={(e) => setBuyerLocale(e.target.value)}
-                          >
-                            {SUPPORTED_LOCALES.map((code) => (
-                              <option key={code} value={code}>
-                                {languageNames.of(code) ?? code}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="space-y-2 rounded-md border p-2">
-                          <div className="text-sm font-medium">{t('buyer.address')}</div>
-                          {(
-                            [
-                              ['street', tErrAddress('street')],
-                              ['addressLine2', tErrAddress('line2')],
-                            ] as const
-                          ).map(([k, label]) => (
-                            <div key={k} className="space-y-1">
-                              <Label htmlFor={`bo-${k}`}>{label}</Label>
-                              <Input
-                                id={`bo-${k}`}
-                                aria-invalid={fe.invalid(`bo-${k}`)}
-                                value={buyer[k]}
-                                maxLength={200}
-                                onChange={(e) => setBuyer((b) => ({ ...b, [k]: e.target.value }))}
-                              />
-                              <FieldMessage message={fe.message(`bo-${k}`)} />
-                            </div>
-                          ))}
-                          <div className="grid grid-cols-[1fr_2fr] gap-2">
-                            {(
-                              [
-                                ['postalCode', tErrAddress('postalCode')],
-                                ['city', tErrAddress('city')],
-                              ] as const
-                            ).map(([k, label]) => (
-                              <div key={k} className="space-y-1">
-                                <Label htmlFor={`bo-${k}`}>{label}</Label>
-                                <Input
-                                  id={`bo-${k}`}
-                                  aria-invalid={fe.invalid(`bo-${k}`)}
-                                  value={buyer[k]}
-                                  maxLength={k === 'postalCode' ? 20 : 120}
-                                  onChange={(e) => setBuyer((b) => ({ ...b, [k]: e.target.value }))}
-                                />
-                                <FieldMessage message={fe.message(`bo-${k}`)} />
-                              </div>
-                            ))}
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="bo-country">{tErrAddress('country')}</Label>
-                            <select
-                              id="bo-country"
-                              aria-invalid={fe.invalid('bo-country')}
-                              className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20"
-                              value={buyer.country}
-                              onChange={(e) => setBuyer((b) => ({ ...b, country: e.target.value }))}
-                            >
-                              {COUNTRIES.map((code) => (
-                                <option key={code} value={code}>
-                                  {regionNames.of(code) ?? code}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="bo-note">{t('buyer.note')}</Label>
-                          <Textarea
-                            id="bo-note"
-                            aria-invalid={fe.invalid('bo-note')}
-                            rows={2}
-                            maxLength={1000}
-                            value={buyer.note}
-                            onChange={(e) => setBuyer((b) => ({ ...b, note: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <label className="flex items-start gap-2 text-sm">
-                      <Checkbox
-                        checked={sendEmail && emailGiven}
-                        disabled={!emailGiven}
-                        onCheckedChange={(v) => setSendEmail(v === true)}
-                        className="mt-0.5"
-                      />
-                      <span>
-                        {t('sendEmail')}
-                        {!emailGiven && (
-                          <span className="block text-xs text-muted-foreground">
-                            {t('sendEmailNeedsAddress')}
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="space-y-3 pt-6">
-                    {quoteError && <p className="text-sm text-destructive">{quoteError}</p>}
-                    {quote && (
-                      <dl className="space-y-1 text-sm">
-                        <Row
-                          label={t('totals.subtotal')}
-                          value={money(quote.subtotalGross, quote.currency)}
-                        />
-                        {quote.discountTotal > 0 && (
-                          <Row
-                            label={t('totals.discount')}
-                            value={`−${money(quote.discountTotal, quote.currency)}`}
-                          />
-                        )}
-                        {quote.fees.map((fee, i) => (
-                          <Row
-                            key={i}
-                            label={fee.name}
-                            value={money(fee.totalGross, quote.currency)}
-                          />
-                        ))}
-                        <div className="flex justify-between border-t pt-1 text-base font-semibold">
-                          <dt>{t('totals.total')}</dt>
-                          <dd className="tabular-nums">
-                            {money(quote.totalGross, quote.currency)}
-                          </dd>
-                        </div>
-                      </dl>
-                    )}
-                    {!quote && !quoteError && quoteBusy && (
-                      <p className="text-sm text-muted-foreground">{t('totals.calculating')}</p>
-                    )}
-                    {payment === 'CASH' && quote && quote.totalGross > 0 && (
-                      <div className="space-y-1.5">
-                        <Label htmlFor="bo-given">{t('cash.given')}</Label>
-                        <Input
-                          id="bo-given"
-                          inputMode="decimal"
-                          value={given}
-                          onChange={(e) => setGiven(e.target.value)}
-                        />
-                        {givenCents !== null && (
-                          <p
-                            className={`text-sm font-medium tabular-nums ${givenCents < quote.totalGross ? 'text-destructive' : ''}`}
-                          >
-                            {givenCents >= quote.totalGross
-                              ? `${t('cash.change')}: ${money(givenCents - quote.totalGross, quote.currency)}`
-                              : `${t('cash.missing')}: ${money(quote.totalGross - givenCents, quote.currency)}`}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {lines.length > 0 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full"
-                        disabled={selling}
-                        onClick={clearSelection}
-                      >
-                        <X /> {t('clearSelection')}
-                      </Button>
-                    )}
-                    <Button
-                      className="w-full"
-                      size="lg"
-                      disabled={
-                        selling ||
-                        lines.length === 0 ||
-                        !quote ||
-                        buyerDataMissing ||
-                        (hasOverride && reason.trim() === '')
-                      }
-                      onClick={() => void sell()}
-                    >
-                      {selling ? (
-                        <>
-                          <Loader2 className="animate-spin" /> {t('selling')}
-                        </>
-                      ) : (
-                        <>
-                          {t('sellCount', { count: ticketCount })} · {tMethod(payment)}
-                        </>
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
+                <PaymentCard
+                  permissions={permissions}
+                  payment={payment}
+                  setPayment={setPayment}
+                  quote={quote}
+                  showBuyer={showBuyer}
+                  setShowBuyer={setShowBuyer}
+                  buyerDataMissing={buyerDataMissing}
+                  buyer={buyer}
+                  setBuyer={setBuyer}
+                  buyerLocale={buyerLocale}
+                  setBuyerLocale={setBuyerLocale}
+                  sendEmail={sendEmail}
+                  setSendEmail={setSendEmail}
+                  emailGiven={emailGiven}
+                  fe={fe}
+                />
+                <TotalsCard
+                  quote={quote}
+                  quoteError={quoteError}
+                  quoteBusy={quoteBusy}
+                  payment={payment}
+                  given={given}
+                  setGiven={setGiven}
+                  givenCents={givenCents}
+                  lineCount={lines.length}
+                  ticketCount={ticketCount}
+                  selling={selling}
+                  sellDisabled={!quote || buyerDataMissing || (hasOverride && reason.trim() === '')}
+                  onClear={clearSelection}
+                  onSell={() => void sell()}
+                />
               </>
             )}
           </aside>
         </div>
       )}
     </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-2">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="tabular-nums">{value}</dd>
-    </div>
-  );
-}
-
-function SaleSuccess({
-  sale,
-  invoiceId,
-  invoiceGaveUp,
-  canOpenOrders,
-  onNext,
-}: {
-  sale: SaleResult;
-  invoiceId: string | null;
-  invoiceGaveUp: boolean;
-  canOpenOrders: boolean;
-  onNext: () => void;
-}) {
-  const t = useTranslations('orders.boxOffice.success');
-  const money = useMoney();
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base text-success">
-          <Check className="size-5" /> {t('title')}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="text-sm">
-          <div className="font-medium">{t('order', { number: sale.orderNumber })}</div>
-          <div>
-            {t('total', { amount: money(sale.totalGross, sale.currency) })} ·{' '}
-            {t('tickets', { count: sale.ticketCount })}
-          </div>
-          {sale.email && (
-            <div className="text-muted-foreground">{t('emailQueued', { email: sale.email })}</div>
-          )}
-        </div>
-        {!sale.ticketsReady && <p className="text-sm text-warning">{t('ticketsNotReady')}</p>}
-        <Button asChild className="w-full" size="lg">
-          <a
-            href={`/api/admin/box-office/orders/${sale.orderId}/tickets`}
-            target="_blank"
-            rel="noopener"
-          >
-            <Printer /> {t('print')}
-          </a>
-        </Button>
-        {sale.payment !== 'COMPLIMENTARY' &&
-          (invoiceId ? (
-            <Button asChild variant="outline" className="w-full">
-              <a
-                href={`/api/admin/box-office/orders/${sale.orderId}/invoice`}
-                target="_blank"
-                rel="noopener"
-              >
-                {t('invoice')}
-              </a>
-            </Button>
-          ) : (
-            !invoiceGaveUp && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" /> {t('invoicePending')}
-              </p>
-            )
-          ))}
-        <Button variant="secondary" className="w-full" onClick={onNext}>
-          {t('nextSale')}
-        </Button>
-        {canOpenOrders && (
-          <Link
-            href={`/admin/orders/${sale.orderId}`}
-            className="block text-center text-sm text-primary hover:underline"
-          >
-            {t('orderDetail')}
-          </Link>
-        )}
-      </CardContent>
-    </Card>
   );
 }

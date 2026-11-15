@@ -19,6 +19,7 @@ import type queue from '../../messages/en/queue.json';
 import type scanners from '../../messages/en/scanners.json';
 import type statistics from '../../messages/en/statistics.json';
 import type system from '../../messages/en/system.json';
+import type audit from '../../messages/en/audit.json';
 import type shop from '../../messages/en/shop.json';
 import type ticketDesigner from '../../messages/en/ticketDesigner.json';
 import type translations from '../../messages/en/translations.json';
@@ -52,6 +53,7 @@ declare module 'next-intl' {
       system: typeof system;
       discount: typeof discount;
       discounts: typeof discounts;
+      audit: typeof audit;
     };
   }
 }

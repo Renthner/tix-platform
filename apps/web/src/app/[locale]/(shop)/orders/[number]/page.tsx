@@ -7,6 +7,9 @@ import {
   getTicketSelfServiceStates,
   walletAvailability,
   walletTicketPath,
+  buildOrderViewModel,
+  type BankDetailsModel,
+  type OrderItemLine,
   type OrderView,
 } from '@tix/core';
 import { EmailText } from '@/components/email-text';
@@ -23,7 +26,10 @@ import {
 } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { CopyValue, OrderPaymentActions } from '@/components/shop/order-actions';
+import { BankTransferDetails } from '@/components/orders/bank-transfer-details';
+import { OrderInvoiceList } from '@/components/orders/order-invoice-list';
+import { OrderItemsCard } from '@/components/orders/order-items-card';
+import { OrderPaymentActions } from '@/components/shop/order-actions';
 import {
   AdjustmentConfirmButton,
   AdjustmentPayPalButton,
@@ -58,8 +64,6 @@ type PayPalNotice = (typeof PAYPAL_NOTICES)[number];
 
 const PREPARING_WINDOW_MS = 10 * 60 * 1000;
 
-const groupIban = (iban: string) => iban.replace(/(.{4})(?=.)/g, '$1 ');
-
 export default async function OrderPage({
   params,
   searchParams,
@@ -89,21 +93,22 @@ export default async function OrderPage({
   const selfService = new Map(
     (await getTicketSelfServiceStates(core, orderId)).map((s) => [s.ticketId, s]),
   );
+  const tokenQuery = token ? `?t=${encodeURIComponent(token)}` : '';
+  const model = buildOrderViewModel(view, { audience: 'shop', tokenQuery });
+  const placeText = (
+    item: Pick<OrderItemLine, 'kind' | 'sectionLabel' | 'rowLabel' | 'seatLabel'>,
+  ) =>
+    item.kind === 'SEAT'
+      ? [
+          item.sectionLabel,
+          item.rowLabel ? t('items.row', { label: item.rowLabel }) : null,
+          t('items.seat', { label: item.seatLabel ?? '' }),
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : `${item.sectionLabel} · ${t('items.standing')}`;
   const placeByItem = new Map(
-    view.events.flatMap((event) =>
-      event.items.map((item) => [
-        item.id,
-        item.kind === 'SEAT'
-          ? [
-              item.sectionLabel,
-              item.rowLabel ? t('items.row', { label: item.rowLabel }) : null,
-              t('items.seat', { label: item.seatLabel ?? '' }),
-            ]
-              .filter(Boolean)
-              .join(' · ')
-          : `${item.sectionLabel} · ${t('items.standing')}`,
-      ]),
-    ),
+    model.events.flatMap((event) => event.items.map((item) => [item.id, placeText(item)])),
   );
   const invoicing = await getSetting(core, 'invoicing');
   const expectsTickets = view.events.some((event) =>
@@ -120,7 +125,6 @@ export default async function OrderPage({
   const calendarEvents = (await loadOrderCalendarEvents(core, order.id, { locale })).filter(
     (event) => event.endsAt.getTime() > Date.now(),
   );
-  const tokenQuery = token ? `?t=${encodeURIComponent(token)}` : '';
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -172,7 +176,14 @@ export default async function OrderPage({
         </Alert>
       )}
 
-      <StatusCard view={view} money={money} token={token ?? null} format={format} t={t} />
+      <StatusCard
+        view={view}
+        bank={model.bank}
+        money={money}
+        token={token ?? null}
+        format={format}
+        t={t}
+      />
 
       {view.adjustment && (
         <AdjustmentCard
@@ -187,119 +198,28 @@ export default async function OrderPage({
 
       {preparing && <OrderAutoRefresh />}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('items.title')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {view.events.map((event) => (
-            <div key={event.eventId} className="space-y-2">
-              <div>
-                <div className="font-medium">{event.title}</div>
-                <div className="text-sm text-muted-foreground">
-                  {format.dateTime(new Date(event.startsAt), {
-                    dateStyle: 'full',
-                    timeStyle: 'short',
-                    timeZone: event.timeZone,
-                  })}{' '}
-                  · {event.venueName}
-                </div>
-              </div>
-              <ul className="divide-y text-sm">
-                {event.items.map((item) => (
-                  <li key={item.id} className="flex justify-between gap-3 py-2">
-                    <div className="min-w-0">
-                      <div
-                        className={
-                          item.status === 'CANCELLED' || item.status === 'REFUNDED'
-                            ? 'line-through'
-                            : undefined
-                        }
-                      >
-                        {item.kind === 'SEAT'
-                          ? [
-                              item.sectionLabel,
-                              item.rowLabel ? t('items.row', { label: item.rowLabel }) : null,
-                              t('items.seat', { label: item.seatLabel ?? '' }),
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')
-                          : `${item.sectionLabel} · ${t('items.standing')}`}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {item.categoryName} · {item.ticketTypeName}
-                        {item.status === 'REFUNDED' && ` · ${t('items.refundedItem')}`}
-                      </div>
-                    </div>
-                    <span className="tabular-nums">
-                      {money(item.priceGross + item.codeDiscountAmount)}
-                    </span>
-                  </li>
-                ))}
-                {view.fees
-                  .filter((fee) => fee.eventId === event.eventId)
-                  .map((fee) => (
-                    <li
-                      key={fee.id}
-                      className="flex justify-between gap-3 py-2 text-muted-foreground"
-                    >
-                      <span>
-                        {fee.name}
-                        {fee.quantity > 1 && ` (${fee.quantity}×)`}
-                      </span>
-                      <span className="tabular-nums">{money(fee.totalGross)}</span>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ))}
-          <div className="space-y-1 border-t pt-3 text-sm">
-            {order.codeDiscountTotal > 0 && (
-              <div className="flex justify-between text-success" data-testid="order-discount">
-                <span>
-                  {t('items.discount', { codes: view.discounts.map((d) => d.code).join(', ') })}
-                </span>
-                <span className="tabular-nums">−{money(order.codeDiscountTotal)}</span>
-              </div>
-            )}
-            {view.fees
-              .filter((fee) => fee.eventId === null)
-              .map((fee) => (
-                <div key={fee.id} className="flex justify-between text-muted-foreground">
-                  <span>{fee.name}</span>
-                  <span className="tabular-nums">{money(fee.totalGross)}</span>
-                </div>
-              ))}
-            <div className="flex justify-between text-base font-semibold">
-              <span>{t('items.total')}</span>
-              <span className="tabular-nums">{money(order.totalGross)}</span>
-            </div>
-            {view.taxes
-              .filter((tax) => tax.rateBasisPoints > 0 && tax.tax > 0)
-              .map((tax) => (
-                <div
-                  key={tax.rateBasisPoints}
-                  className="flex justify-between text-xs text-muted-foreground"
-                >
-                  <span>{t('items.vat', { rate: tax.rateBasisPoints / 100 })}</span>
-                  <span className="tabular-nums">{money(tax.tax)}</span>
-                </div>
-              ))}
-            {order.amountPaid > 0 && (
-              <div className="flex justify-between text-muted-foreground">
-                <span>{t('items.paid')}</span>
-                <span className="tabular-nums">{money(order.amountPaid)}</span>
-              </div>
-            )}
-            {order.amountRefunded > 0 && (
-              <div className="flex justify-between text-muted-foreground">
-                <span>{t('items.refunded')}</span>
-                <span className="tabular-nums">−{money(order.amountRefunded)}</span>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <OrderItemsCard
+        audience="shop"
+        events={model.events}
+        totals={model.totals}
+        money={money}
+        labels={{
+          title: t('items.title'),
+          total: t('items.total'),
+          place: placeText,
+          eventDate: (event) =>
+            format.dateTime(new Date(event.startsAt), {
+              dateStyle: 'full',
+              timeStyle: 'short',
+              timeZone: event.timeZone,
+            }),
+          tax: (tax) => t('items.vat', { rate: tax.rateBasisPoints / 100 }),
+          discount: (codes) => t('items.discount', { codes }),
+          refundedItem: t('items.refundedItem'),
+          paid: t('items.paid'),
+          refunded: t('items.refunded'),
+        }}
+      />
 
       {issuedTickets.length > 0 && (
         <Card>
@@ -427,38 +347,20 @@ export default async function OrderPage({
         </Card>
       )}
 
-      {view.invoices.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('documents.title')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm">
-              {view.invoices.map((invoice) => (
-                <li key={invoice.id}>
-                  <a
-                    href={`/api/orders/${order.id}/invoices/${invoice.id}${tokenQuery}`}
-                    className="inline-flex items-center gap-2 hover:underline"
-                  >
-                    <Download className="size-4" />
-                    {invoice.isCorrection && invoice.correctsNumber
-                      ? t('documents.correction', {
-                          number: invoice.invoiceNumber,
-                          invoice: invoice.correctsNumber,
-                        })
-                      : t(
-                          invoice.type === 'CREDIT_NOTE'
-                            ? 'documents.creditNote'
-                            : 'documents.invoice',
-                          { number: invoice.invoiceNumber },
-                        )}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+      <OrderInvoiceList
+        title={t('documents.title')}
+        invoices={model.invoices}
+        label={(invoice) =>
+          invoice.kind === 'correction'
+            ? t('documents.correction', {
+                number: invoice.number,
+                invoice: invoice.correctsNumber ?? '',
+              })
+            : t(invoice.kind === 'creditNote' ? 'documents.creditNote' : 'documents.invoice', {
+                number: invoice.number,
+              })
+        }
+      />
 
       <EmailText
         as="p"
@@ -471,12 +373,14 @@ export default async function OrderPage({
 
 function StatusCard({
   view,
+  bank,
   money,
   token,
   format,
   t,
 }: {
   view: OrderView;
+  bank: BankDetailsModel | null;
   money: (cents: number) => string;
   token: string | null;
   format: Awaited<ReturnType<typeof getFormatter>>;
@@ -518,7 +422,6 @@ function StatusCard({
     );
   }
   if (order.status === 'AWAITING_PAYMENT' && order.paymentMethod === 'BANK_TRANSFER') {
-    const account = view.bankAccount;
     return (
       <Card className="border-primary/40">
         <CardHeader>
@@ -534,43 +437,14 @@ function StatusCard({
           </p>
         </CardHeader>
         <CardContent>
-          {account ? (
-            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-[180px_1fr]">
-              <dt className="text-muted-foreground">{t('bankTransfer.amount')}</dt>
-              <dd>
-                <CopyValue
-                  value={money(view.outstanding)}
-                  copyText={(view.outstanding / 100).toFixed(2)}
-                  strong
-                />
-              </dd>
-              <dt className="text-muted-foreground">{t('bankTransfer.reference')}</dt>
-              <dd>
-                <CopyValue value={order.paymentReference ?? ''} strong />
-              </dd>
-              <dt className="text-muted-foreground">{t('bankTransfer.holder')}</dt>
-              <dd>
-                <CopyValue value={account.accountHolder} />
-              </dd>
-              <dt className="text-muted-foreground">IBAN</dt>
-              <dd>
-                <CopyValue value={groupIban(account.iban)} copyText={account.iban} mono />
-              </dd>
-              {account.bic && (
-                <>
-                  <dt className="text-muted-foreground">BIC</dt>
-                  <dd>
-                    <CopyValue value={account.bic} mono />
-                  </dd>
-                </>
-              )}
-              {account.bankName && (
-                <>
-                  <dt className="text-muted-foreground">{t('bankTransfer.bank')}</dt>
-                  <dd>{account.bankName}</dd>
-                </>
-              )}
-            </dl>
+          {bank ? (
+            <BankTransferDetails
+              bank={bank}
+              amountText={money(view.outstanding)}
+              amountCents={view.outstanding}
+              reference={order.paymentReference ?? ''}
+              labels={bankLabels(t)}
+            />
           ) : (
             <p className="text-sm">{t('bankTransfer.noAccount')}</p>
           )}
@@ -691,42 +565,13 @@ function AdjustmentCard({
             {bank && (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold">{t('adjustment.bankTitle')}</h3>
-                <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-[180px_1fr]">
-                  <dt className="text-muted-foreground">{t('bankTransfer.amount')}</dt>
-                  <dd>
-                    <CopyValue
-                      value={money(adjustment.amount)}
-                      copyText={(adjustment.amount / 100).toFixed(2)}
-                      strong
-                    />
-                  </dd>
-                  <dt className="text-muted-foreground">{t('bankTransfer.reference')}</dt>
-                  <dd>
-                    <CopyValue value={adjustment.paymentReference} strong />
-                  </dd>
-                  <dt className="text-muted-foreground">{t('bankTransfer.holder')}</dt>
-                  <dd>
-                    <CopyValue value={bank.holder} />
-                  </dd>
-                  <dt className="text-muted-foreground">IBAN</dt>
-                  <dd>
-                    <CopyValue value={groupIban(bank.iban)} copyText={bank.iban} mono />
-                  </dd>
-                  {bank.bic && (
-                    <>
-                      <dt className="text-muted-foreground">BIC</dt>
-                      <dd>
-                        <CopyValue value={bank.bic} mono />
-                      </dd>
-                    </>
-                  )}
-                  {bank.bankName && (
-                    <>
-                      <dt className="text-muted-foreground">{t('bankTransfer.bank')}</dt>
-                      <dd>{bank.bankName}</dd>
-                    </>
-                  )}
-                </dl>
+                <BankTransferDetails
+                  bank={bank}
+                  amountText={money(adjustment.amount)}
+                  amountCents={adjustment.amount}
+                  reference={adjustment.paymentReference}
+                  labels={bankLabels(t)}
+                />
                 <p className="text-xs text-muted-foreground">{t('adjustment.bankHint')}</p>
               </div>
             )}
@@ -737,3 +582,10 @@ function AdjustmentCard({
     </Card>
   );
 }
+
+const bankLabels = (t: Awaited<ReturnType<typeof getTranslations<'checkout.order'>>>) => ({
+  amount: t('bankTransfer.amount'),
+  reference: t('bankTransfer.reference'),
+  holder: t('bankTransfer.holder'),
+  bank: t('bankTransfer.bank'),
+});

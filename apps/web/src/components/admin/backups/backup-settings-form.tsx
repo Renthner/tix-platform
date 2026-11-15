@@ -17,6 +17,10 @@ export interface BackupSettingsValues {
   frequency: (typeof BACKUP_FREQUENCIES)[number];
   weekday: number;
   time: string;
+  probeEnabled: boolean;
+  probeFrequency: (typeof BACKUP_FREQUENCIES)[number];
+  probeWeekday: number;
+  probeTime: string;
   keepScheduled: number;
   manualMaxAgeDays: number;
   maxUploadMb: number;
@@ -49,6 +53,7 @@ export function BackupSettingsForm({
   const tc = useTranslations('common.actions');
   const { state, formAction, err } = useSettingsForm(action);
   const [frequency, setFrequency] = useState(initial.frequency);
+  const [probeFrequency, setProbeFrequency] = useState(initial.probeFrequency);
   const [testing, startTest] = useTransition();
   const [testResult, setTestResult] = useState<BackupActionState | null>(null);
 
@@ -167,6 +172,59 @@ export function BackupSettingsForm({
               name="alertEmail"
               type="email"
               defaultValue={initial.alertEmail ?? ''}
+            />
+          </Field>
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-lg border p-4">
+        <h3 className="text-sm font-medium">{t('probe.title')}</h3>
+        <SwitchRow
+          name="probeEnabled"
+          defaultChecked={initial.probeEnabled}
+          label={t('probe.enabled')}
+          hint={t('probe.hint')}
+        />
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field label={t('frequency')} htmlFor="probeFrequency" error={err('probeFrequency')}>
+            <NativeSelect
+              id="probeFrequency"
+              name="probeFrequency"
+              value={probeFrequency}
+              onChange={(e) => setProbeFrequency(e.target.value as typeof probeFrequency)}
+            >
+              {BACKUP_FREQUENCIES.map((f) => (
+                <option key={f} value={f}>
+                  {t(`frequencies.${f}`)}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field label={t('weekday')} htmlFor="probeWeekday" error={err('probeWeekday')}>
+            <NativeSelect
+              id="probeWeekday"
+              name="probeWeekday"
+              defaultValue={initial.probeWeekday}
+              disabled={probeFrequency !== 'WEEKLY'}
+            >
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                <option key={d} value={d}>
+                  {tw(String(d) as '0')}
+                </option>
+              ))}
+            </NativeSelect>
+            {/* Disabled selects are not submitted: keep the stored weekday. */}
+            {probeFrequency !== 'WEEKLY' && (
+              <input type="hidden" name="probeWeekday" value={initial.probeWeekday} />
+            )}
+          </Field>
+          <Field label={t('time')} htmlFor="probeTime" error={err('probeTime')}>
+            <Input
+              id="probeTime"
+              name="probeTime"
+              type="time"
+              defaultValue={initial.probeTime}
+              required
             />
           </Field>
         </div>

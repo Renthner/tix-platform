@@ -406,6 +406,8 @@ const securitySchema = z.object({
   minPasswordLength: z.number().int().min(8).max(128).default(12),
   /** Every admin must use an authenticator app (TOTP); users without one are forced to set it up. */
   requireTwoFactor: z.boolean().default(false),
+  /** Every user with the SUPER_ADMIN role must use a second factor (authenticator app OR passkey). Off by default so existing stacks cannot lock themselves out. */
+  requireTwoFactorForSuperAdmins: z.boolean().default(false),
   /** Validity of the invitation link for new admin users. */
   inviteTtlHours: z.number().int().min(1).max(720).default(72),
   /** Validity of the admin password reset link. */
@@ -601,6 +603,19 @@ const backupSchema = z.object({
   maxUploadMb: z.number().int().min(1).max(1_048_576).default(20_480),
   /** Restore needs a second factor (authenticator / recovery code); users without 2FA cannot restore. */
   restoreRequiresTwoFactor: z.boolean().default(true),
+  /**
+   * Automatic probe restore: the newest backup is restored into a throwaway database, migrated to
+   * the current structure and sanity-checked (never touches the live database). Off by default:
+   * it needs free disk of about twice the database size, so it is switched on deliberately.
+   */
+  probeEnabled: z.boolean().default(false),
+  probeFrequency: z.enum(BACKUP_FREQUENCIES).default('WEEKLY'),
+  /** Weekly probes only: 0 = Sunday … 6 = Saturday (shop time zone). */
+  probeWeekday: z.number().int().min(0).max(6).default(0),
+  probeTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .default('05:00'),
   externalEnabled: z.boolean().default(false),
   externalEndpoint: z.url().optional(),
   externalBucket: z.string().trim().min(3).max(63).optional(),

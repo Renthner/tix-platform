@@ -92,6 +92,10 @@
       "name": "Admin-Warnung: behoben",
       "description": "Kurzer Hinweis, dass sich eine Warnung von selbst erledigt hat."
     },
+    "ADMIN_PASSKEY_ADDED": {
+      "name": "Admin: Passkey hinzugefügt",
+      "description": "Sicherheitshinweis an einen Admin, wenn seinem Konto ein Passkey hinzugefügt wurde."
+    },
     "WAITLIST_CONFIRM": {
       "name": "Warteliste: E-Mail bestätigen",
       "description": "Double-Opt-in: Link zum Bestätigen eines Wartelisten-Eintrags."
@@ -183,6 +187,7 @@
       "smtpTest": "Test",
       "adjustment": "Nachzahlung",
       "alert": "Admin-Warnung",
+      "passkey": "Passkey",
       "waitlist": "Warteliste",
       "transfer": "Ticket-Weitergabe"
     }

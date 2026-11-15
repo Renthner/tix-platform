@@ -92,6 +92,10 @@
       "name": "Admin warning: resolved",
       "description": "Short note that a warning has cleared by itself."
     },
+    "ADMIN_PASSKEY_ADDED": {
+      "name": "Admin: passkey added",
+      "description": "Security notice to an admin when a passkey was added to their account."
+    },
     "WAITLIST_CONFIRM": {
       "name": "Waiting list: confirm e-mail",
       "description": "Double opt-in: link to confirm a waiting list entry."
@@ -183,6 +187,7 @@
       "smtpTest": "Test",
       "adjustment": "Additional payment",
       "alert": "Admin alert",
+      "passkey": "Passkey",
       "waitlist": "Waiting list",
       "transfer": "Ticket transfer"
     }

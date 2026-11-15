@@ -1,5 +1,6 @@
 import { isIP } from 'node:net';
 import {
+  adminPasskeys,
   adminRecoveryCodes,
   adminSessions,
   adminTokens,
@@ -34,6 +35,11 @@ import { rateLimit } from '@tix/redis';
 import { and, asc, count, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import qrcode from 'qrcode-generator';
 import { z } from 'zod';
+import {
+  canRemoveSecondFactor,
+  isTwoFactorRequired,
+  twoFactorSetupRequired,
+} from './admin-two-factor';
 import { DomainError, requireCapability, type CoreContext } from './context';
 import { createEmailMessage, dispatchEmailMessage } from './email/request';
 import { formatDateTime } from './format';
@@ -328,25 +334,28 @@ const summaryColumns = {
   createdAt: adminUsers.createdAt,
 };
 
-function toSummary(row: {
-  id: string;
-  email: string;
-  displayName: string;
-  roles: AdminRole[];
-  isActive: boolean;
-  totp: string | null;
-  passwordHash: string | null;
-  lastLoginAt: Date | null;
-  lockedUntil: Date | null;
-  createdAt: Date;
-}): AdminUserSummary {
+function toSummary(
+  row: {
+    id: string;
+    email: string;
+    displayName: string;
+    roles: AdminRole[];
+    isActive: boolean;
+    totp: string | null;
+    passwordHash: string | null;
+    lastLoginAt: Date | null;
+    lockedUntil: Date | null;
+    createdAt: Date;
+  },
+  hasPasskeys: boolean,
+): AdminUserSummary {
   return {
     id: row.id,
     email: row.email,
     displayName: row.displayName,
     roles: row.roles,
     isActive: row.isActive,
-    twoFactorEnabled: row.totp !== null,
+    twoFactorEnabled: row.totp !== null || hasPasskeys,
     lastLoginAt: row.lastLoginAt,
     invitePending: row.passwordHash === null,
     lockedUntil: row.lockedUntil,
@@ -354,12 +363,22 @@ function toSummary(row: {
   };
 }
 
-export async function listAdminUsers(ctx: Pick<CoreContext, 'db'>): Promise<AdminUserSummary[]> {
+async function usersWithPasskeys(ctx: Pick<CoreContext, 'db'>): Promise<Set<string>> {
   const rows = await ctx.db
-    .select(summaryColumns)
-    .from(adminUsers)
-    .orderBy(asc(sql`lower(${adminUsers.displayName})`), asc(adminUsers.email));
-  return rows.map(toSummary);
+    .selectDistinct({ userId: adminPasskeys.adminUserId })
+    .from(adminPasskeys);
+  return new Set(rows.map((r) => r.userId));
+}
+
+export async function listAdminUsers(ctx: Pick<CoreContext, 'db'>): Promise<AdminUserSummary[]> {
+  const [rows, withPasskeys] = await Promise.all([
+    ctx.db
+      .select(summaryColumns)
+      .from(adminUsers)
+      .orderBy(asc(sql`lower(${adminUsers.displayName})`), asc(adminUsers.email)),
+    usersWithPasskeys(ctx),
+  ]);
+  return rows.map((row) => toSummary(row, withPasskeys.has(row.id)));
 }
 
 export async function getAdminUserSummary(
@@ -370,7 +389,7 @@ export async function getAdminUserSummary(
     .select(summaryColumns)
     .from(adminUsers)
     .where(eq(adminUsers.id, userId));
-  return row ? toSummary(row) : null;
+  return row ? toSummary(row, (await passkeyCount(ctx, userId)) > 0) : null;
 }
 
 // ─── Invitations ──────────────────────────────────────────────────────────────────────
@@ -574,6 +593,18 @@ export type AdminPasswordCheck =
   | { status: 'invalid'; failedUserId?: string; passwordMatched?: boolean }
   | { status: 'ok'; userId: string; twoFactor: boolean; passwordChangedAt: Date | null };
 
+async function passkeyCount(
+  ctx: Pick<CoreContext, 'db'> | Executor,
+  userId: string,
+): Promise<number> {
+  const db: Executor = 'select' in ctx ? ctx : (ctx as Pick<CoreContext, 'db'>).db;
+  const [row] = await db
+    .select({ n: count() })
+    .from(adminPasskeys)
+    .where(eq(adminPasskeys.adminUserId, userId));
+  return row?.n ?? 0;
+}
+
 // Constant-time-ish behaviour for unknown e-mails: verify against a fixed dummy hash.
 let dummyHash: Promise<string> | null = null;
 
@@ -587,7 +618,7 @@ async function registerFailedAttempt(
   ctx: Pick<CoreContext, 'db'>,
   userId: string,
   ipAddress: string | null | undefined,
-  method: 'password' | 'second_factor',
+  method: 'password' | 'second_factor' | 'passkey',
 ): Promise<boolean> {
   const { maxFailedLogins, lockoutMinutes } = await getSetting(ctx, 'security');
   const [row] = await ctx.db
@@ -661,9 +692,20 @@ export async function checkAdminPassword(
   return {
     status: 'ok',
     userId: user.id,
-    twoFactor: user.totpSecretEncrypted !== null,
+    // An authenticator app or a registered passkey: the password alone is then never enough.
+    twoFactor: user.totpSecretEncrypted !== null || (await passkeyCount(ctx, user.id)) > 0,
     passwordChangedAt: user.passwordChangedAt,
   };
+}
+
+/** Counts a failed passkey verification towards the shared lockout; true when now locked. */
+export function registerAdminFailedAttempt(
+  ctx: Pick<CoreContext, 'db'>,
+  userId: string,
+  ipAddress: string | null | undefined,
+  method: 'passkey',
+): Promise<boolean> {
+  return registerFailedAttempt(ctx, userId, ipAddress, method);
 }
 
 /** Counts a deferred wrong-password attempt (see `checkAdminPassword`); true when now locked. */
@@ -680,17 +722,20 @@ export async function completeAdminLogin(
   ctx: Pick<CoreContext, 'db'>,
   userId: string,
   ipAddress?: string | null,
-  method: 'password' | 'totp' | 'recovery_code' = 'password',
+  method: 'password' | 'totp' | 'recovery_code' | 'passkey' = 'password',
   via: 'admin_portal' | 'shop' = 'admin_portal',
 ): Promise<void> {
   await ctx.db
     .update(adminUsers)
     .set({ failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() })
     .where(eq(adminUsers.id, userId));
-  await writeAdminAudit(ctx.db, { userId, ipAddress }, 'admin_user.login', userId, {
-    method,
-    via,
-  });
+  await writeAdminAudit(
+    ctx.db,
+    { userId, ipAddress },
+    method === 'passkey' ? 'admin_user.passkey_login' : 'admin_user.login',
+    userId,
+    { method, via },
+  );
 }
 
 /** Details the pending-login cookie is bound to (so a password change invalidates it). */
@@ -737,6 +782,11 @@ async function replaceRecoveryCodes(tx: Executor, userId: string): Promise<strin
   return codes.map(formatRecoveryCode);
 }
 
+/** Replaces all recovery codes of the user (used when the first passkey is registered). */
+export function replaceAdminRecoveryCodes(tx: Executor, userId: string): Promise<string[]> {
+  return replaceRecoveryCodes(tx, userId);
+}
+
 const looksLikeTotp = (code: string) => /^\d{6}$/.test(code.replace(/\s/g, ''));
 
 /**
@@ -751,12 +801,25 @@ export async function verifyAdminSecondFactor(
   ipAddress?: string | null,
 ): Promise<'totp' | 'recovery_code'> {
   const [user] = await ctx.db.select().from(adminUsers).where(eq(adminUsers.id, userId));
-  if (!user || !user.isActive || !user.totpSecretEncrypted) throw invalidCode();
+  // Recovery codes also work for users whose only second factor is a passkey.
+  if (
+    !user ||
+    !user.isActive ||
+    !(user.totpSecretEncrypted || (await passkeyCount(ctx, userId)) > 0)
+  ) {
+    throw invalidCode();
+  }
   if (user.lockedUntil && user.lockedUntil > new Date()) {
     throw new DomainError('ACCOUNT_LOCKED', 'The account is temporarily locked', 423);
   }
   const input = code.slice(0, 64);
-  if (looksLikeTotp(input)) {
+  if (looksLikeTotp(input) && !user.totpSecretEncrypted) {
+    // Digits cannot be a recovery code and there is no authenticator app: a plain failure.
+    const locked = await registerFailedAttempt(ctx, userId, ipAddress, 'second_factor');
+    if (locked) throw new DomainError('ACCOUNT_LOCKED', 'The account is temporarily locked', 423);
+    throw invalidCode();
+  }
+  if (looksLikeTotp(input) && user.totpSecretEncrypted) {
     const secret = requireCapability(ctx, 'secrets').decrypt(
       user.totpSecretEncrypted,
       TOTP_SECRET_CONTEXT(userId),
@@ -871,8 +934,9 @@ export interface OwnAccount {
   /** The e-mail address was proven (invitation / reset / verification link). */
   emailVerified: boolean;
   recoveryCodesLeft: number;
-  /** All admins must use 2FA (security settings). */
+  /** The security settings demand a second factor from this user (all admins, or super admins). */
   twoFactorRequired: boolean;
+  passkeyCount: number;
 }
 
 export async function getOwnAccount(ctx: CoreContext, userId: string): Promise<OwnAccount> {
@@ -890,7 +954,8 @@ export async function getOwnAccount(ctx: CoreContext, userId: string): Promise<O
     twoFactorEnabled: user.totpSecretEncrypted !== null,
     emailVerified: user.emailVerifiedAt !== null,
     recoveryCodesLeft: left?.n ?? 0,
-    twoFactorRequired: security.requireTwoFactor,
+    twoFactorRequired: isTwoFactorRequired(security, user.roles),
+    passkeyCount: await passkeyCount(ctx, userId),
   };
 }
 
@@ -1063,17 +1128,40 @@ export async function disableTotp(
   code: string,
 ): Promise<void> {
   const security = await getSetting(ctx, 'security');
-  if (security.requireTwoFactor) {
+  // Early refusal (before a code is spent); the transaction below re-checks under a row lock.
+  const early = await loadUser(ctx.db, actor.userId);
+  if (
+    !canRemoveSecondFactor(
+      { hasTotp: false, passkeyCount: await passkeyCount(ctx, actor.userId) },
+      early.roles,
+      security,
+    )
+  ) {
     throw new DomainError(
       'TWO_FACTOR_REQUIRED',
-      'Two-factor authentication is mandatory for all admins',
+      'Two-factor authentication is mandatory for you',
       409,
     );
   }
   await requirePassword(ctx, actor.userId, password);
   await verifyAdminSecondFactor(ctx, actor.userId, code, undefined, actor.ipAddress);
   await withTransaction(ctx.db, async (tx) => {
-    await clearTotp(tx, actor.userId);
+    const [user] = await tx
+      .select({ roles: adminUsers.roles })
+      .from(adminUsers)
+      .where(eq(adminUsers.id, actor.userId))
+      .for('update');
+    if (!user) throw notFound();
+    const passkeys = await passkeyCount(tx, actor.userId);
+    // Mandatory second factor: dropping the authenticator app is fine only while a passkey remains.
+    if (!canRemoveSecondFactor({ hasTotp: false, passkeyCount: passkeys }, user.roles, security)) {
+      throw new DomainError(
+        'TWO_FACTOR_REQUIRED',
+        'Two-factor authentication is mandatory for you',
+        409,
+      );
+    }
+    await clearTotp(tx, actor.userId, { keepRecoveryCodes: passkeys > 0 });
     await writeAdminAudit(tx, actor, 'admin_user.two_factor_disable', actor.userId);
   });
 }
@@ -1093,12 +1181,18 @@ export async function regenerateRecoveryCodes(
   });
 }
 
-async function clearTotp(tx: Executor, userId: string): Promise<void> {
+async function clearTotp(
+  tx: Executor,
+  userId: string,
+  options: { keepRecoveryCodes?: boolean } = {},
+): Promise<void> {
   await tx
     .update(adminUsers)
     .set({ totpSecretEncrypted: null, totpPendingSecretEncrypted: null, totpLastStep: null })
     .where(eq(adminUsers.id, userId));
-  await tx.delete(adminRecoveryCodes).where(eq(adminRecoveryCodes.userId, userId));
+  if (!options.keepRecoveryCodes) {
+    await tx.delete(adminRecoveryCodes).where(eq(adminRecoveryCodes.userId, userId));
+  }
 }
 
 // ─── User management (SUPER_ADMIN) ────────────────────────────────────────────────────
@@ -1185,7 +1279,12 @@ export async function unlockAdminUser(
   });
 }
 
-/** Support case: the user lost the authenticator. Clears 2FA and ends the user's sessions. */
+/**
+ * Support case: the user lost the authenticator or the passkey device. Clears every second factor
+ * (authenticator app, recovery codes AND all passkeys: a stolen device must not keep working) and
+ * ends the user's sessions. The password stays; with mandatory 2FA the user sets a new factor up
+ * right after the next sign-in.
+ */
 export async function resetAdminTwoFactor(
   ctx: CoreContext,
   actor: AdminActor,
@@ -1193,10 +1292,15 @@ export async function resetAdminTwoFactor(
 ): Promise<void> {
   await withTransaction(ctx.db, async (tx) => {
     const user = await loadUser(tx, userId, true);
+    const removedPasskeys = await tx
+      .delete(adminPasskeys)
+      .where(eq(adminPasskeys.adminUserId, userId))
+      .returning({ id: adminPasskeys.id });
     await clearTotp(tx, userId);
     await revokeAdminSessions(tx, userId);
     await writeAdminAudit(tx, actor, 'admin_user.two_factor_reset', userId, {
       hadTwoFactor: user.totpSecretEncrypted !== null,
+      removedPasskeys: removedPasskeys.length,
     });
   });
 }
@@ -1221,15 +1325,21 @@ export async function deleteAdminInvite(
   });
 }
 
-/** True when the user has no 2FA although the security settings demand it. */
+/** True when the user has no second factor (authenticator app or passkey) although the settings demand it. */
 export async function adminNeedsTwoFactorSetup(
   ctx: Pick<CoreContext, 'db'>,
   userId: string,
 ): Promise<boolean> {
   const [user] = await ctx.db
-    .select({ totp: adminUsers.totpSecretEncrypted })
+    .select({ totp: adminUsers.totpSecretEncrypted, roles: adminUsers.roles })
     .from(adminUsers)
     .where(eq(adminUsers.id, userId));
-  if (!user || user.totp) return false;
-  return (await getSetting(ctx, 'security')).requireTwoFactor;
+  if (!user) return false;
+  const security = await getSetting(ctx, 'security');
+  if (!isTwoFactorRequired(security, user.roles) || user.totp) return false;
+  return twoFactorSetupRequired(
+    { hasTotp: false, passkeyCount: await passkeyCount(ctx, userId) },
+    user.roles,
+    security,
+  );
 }

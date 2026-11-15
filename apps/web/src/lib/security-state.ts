@@ -24,6 +24,11 @@ export const SECURITY_ERROR_CODES = [
   'INVITE_NOT_PENDING',
   'USER_HAS_SIGNED_IN',
   'ADMIN_USER_NOT_FOUND',
+  'PASSKEY_INVALID',
+  'PASSKEY_LIMIT',
+  'PASSKEY_EXISTS',
+  'PASSKEY_NOT_FOUND',
+  'PASSKEYS_UNAVAILABLE',
 ] as const;
 export type SecurityErrorCode = (typeof SECURITY_ERROR_CODES)[number];
 

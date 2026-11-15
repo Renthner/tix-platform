@@ -67,6 +67,10 @@ export const verifyResultSchema = z.object({
   /** Human-readable reason (never contains secrets). */
   detail: z.string().max(1_000).optional(),
   mismatches: z.array(z.string().max(200)).max(50).optional(),
+  /** Probe restore only: row counts of the key tables in the migrated throwaway database. */
+  counts: z.record(z.string(), z.number().int().min(0)).optional(),
+  /** Probe restore only: migrations applied on top of the backup to reach the current structure. */
+  migrationsApplied: z.number().int().min(0).optional(),
 });
 /** Mutable sidecar (`state.json`) next to the immutable manifest. */
 export const backupStateSchema = z.object({

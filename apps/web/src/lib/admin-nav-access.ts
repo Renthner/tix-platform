@@ -27,6 +27,7 @@ export const NAV_ACCESS: readonly (readonly [NavKey, readonly AdminRole[]])[] = 
   ['users', ['SUPER_ADMIN']],
   ['backups', ['SUPER_ADMIN']],
   ['system', ['SUPER_ADMIN']],
+  ['audit', ['SUPER_ADMIN']],
   ['settings', ['SUPER_ADMIN']],
 ];
 

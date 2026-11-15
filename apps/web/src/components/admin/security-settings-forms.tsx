@@ -60,6 +60,7 @@ export interface SecurityValues {
   lockoutMinutes: number;
   minPasswordLength: number;
   requireTwoFactor: boolean;
+  requireTwoFactorForSuperAdmins: boolean;
   inviteTtlHours: number;
   passwordResetTtlMinutes: number;
 }
@@ -82,6 +83,12 @@ export function SecuritySettingsForm({
         defaultChecked={initial.requireTwoFactor}
         label={t('requireTwoFactor')}
         hint={t('requireTwoFactorHint')}
+      />
+      <SwitchRow
+        name="requireTwoFactorForSuperAdmins"
+        defaultChecked={initial.requireTwoFactorForSuperAdmins}
+        label={t('requireTwoFactorForSuperAdmins')}
+        hint={t('requireTwoFactorForSuperAdminsHint')}
       />
       <div className="grid gap-4 md:grid-cols-2">
         <NumberField

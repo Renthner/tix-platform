@@ -122,6 +122,10 @@
       "external": {
         "title": "Backup upload to the external target failed",
         "summary": "The backup was created locally but could not be uploaded to the external target: {reason}"
+      },
+      "probe": {
+        "title": "Test restore of the newest backup failed",
+        "summary": "The newest backup could not be restored into a test database: {reason}. It may be damaged or incomplete, so it could fail when you really need it. Open \"Backups\" for details and create a new backup."
       }
     },
     "BACKUP_OVERDUE": {

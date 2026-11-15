@@ -131,6 +131,61 @@
     "title": "Check-in",
     "description": "Live progress and the scan journal of this event.",
     "backToDevices": "Check-in devices",
+    "reports": {
+      "title": "Reports for the door",
+      "description": "Printable lists for the entrance. Test orders and cancelled orders are not included.",
+      "generated": "Created {time}",
+      "pageOf": "Page {page} of {pages}",
+      "columns": {
+        "name": "Name",
+        "orderNumber": "Order no.",
+        "category": "Category",
+        "tariff": "Tariff",
+        "block": "Block",
+        "row": "Row",
+        "seat": "Seat",
+        "ticketStatus": "Ticket status",
+        "checkIn": "Check-in",
+        "checkInTime": "Check-in time",
+        "holder": "Name",
+        "status": "Status"
+      },
+      "ticketStatuses": {
+        "VALID": "Valid",
+        "CANCELLED": "Cancelled",
+        "REFUNDED": "Refunded",
+        "REPLACED": "Replaced"
+      },
+      "checkInStates": {
+        "NONE": "Not arrived",
+        "CHECKED_IN": "Inside",
+        "CHECKED_OUT": "Checked out"
+      },
+      "occupancy": {
+        "title": "Seating occupancy",
+        "description": "Seat overview per block and row (PDF).",
+        "holders": "Print names of the ticket holders",
+        "download": "Download occupancy PDF",
+        "SOLD": "Sold",
+        "RESERVED": "Reserved (unpaid)",
+        "BLOCKED": "Blocked",
+        "FREE": "Free",
+        "standing": "{sold} sold, {reserved} reserved of {capacity}",
+        "totals": "{sold} sold, {reserved} reserved, {blocked} blocked, {free} free",
+        "noOccupied": "No occupied seats.",
+        "noSeats": "No seats in this block."
+      },
+      "guestList": {
+        "title": "Guest list",
+        "description": "All tickets with check-in status (CSV for Excel or PDF).",
+        "count": "{count} tickets",
+        "sort": "Sort by",
+        "sortName": "Name",
+        "sortSeat": "Seat",
+        "csv": "Download CSV",
+        "pdf": "Download PDF"
+      }
+    },
     "stats": {
       "valid": "Valid tickets",
       "checkedIn": "Inside",

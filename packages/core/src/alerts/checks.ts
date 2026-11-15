@@ -46,6 +46,17 @@ export interface BackupSnapshot {
   externalFailure: { at: Date; message: string } | null;
   /** When the schedule was last configured (reference while no backup exists yet). */
   scheduleConfiguredAt: Date | null;
+  /** The latest probe restore failed (null = probes off, no probe yet, or the latest one passed). */
+  probeFailure?: { at: Date; message: string } | null;
+}
+
+/** A failed probe restore: the newest backup could not be restored into a throwaway database. */
+export function checkBackupProbe(s: BackupSnapshot): AlertFinding[] {
+  const f = s.probeFailure;
+  if (!f) return [];
+  return [
+    finding('BACKUP_FAILED', 'BACKUP_PROBE', 'probe', f.at, { reason: f.message.slice(0, 300) }),
+  ];
 }
 
 export function checkBackupFailed(s: BackupSnapshot): AlertFinding[] {

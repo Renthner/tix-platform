@@ -140,6 +140,8 @@ export const EMAIL_VARIABLES = {
   smtpTest: ['sentAt'],
   /** ADMIN_ALERT / ADMIN_ALERT_RESOLVED (warning e-mails to admins). */
   alert: ['firstName', 'alertTitle', 'alertSummary', 'alertSince', 'alertUrl'],
+  /** ADMIN_PASSKEY_ADDED (security notice to the admin who registered a passkey). */
+  passkey: ['firstName', 'passkeyName', 'addedAt', 'accountUrl'],
   /** WAITLIST_CONFIRM / _AVAILABLE / _REMOVED: passed with the message (no order). */
   waitlist: [
     'eventTitle',

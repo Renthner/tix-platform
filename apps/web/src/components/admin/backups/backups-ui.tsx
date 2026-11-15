@@ -1,6 +1,15 @@
 'use client';
 
-import { DatabaseBackup, Download, RotateCcw, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import {
+  DatabaseBackup,
+  Download,
+  FlaskConical,
+  RotateCcw,
+  ShieldCheck,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
@@ -16,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { restorePasskeyOptionsAction } from '@/server/admin/backups';
 import { BACKUP_IDLE, type BackupActionState, type RestorePreview } from '@/lib/backup-state';
 import { ActionForm, Field, SubmitButton } from '../form-controls';
 
@@ -33,7 +43,7 @@ function useFeedback() {
 
 interface StatusResponse {
   status: {
-    operation: 'BACKUP' | 'VERIFY' | 'RESTORE' | 'IMPORT';
+    operation: 'BACKUP' | 'VERIFY' | 'RESTORE' | 'IMPORT' | 'PROBE';
     state: 'RUNNING' | 'SUCCEEDED' | 'FAILED';
     step: string;
     startedAt: string;
@@ -130,6 +140,28 @@ export function BackupNowButton({ action }: { action: OperationAction }) {
       }
     >
       <DatabaseBackup /> {t('backupNow')}
+    </Button>
+  );
+}
+
+export function ProbeNowButton({ action }: { action: OperationAction }) {
+  const t = useTranslations('backups.actions');
+  const feedback = useFeedback();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={pending}
+      onClick={() =>
+        start(async () => {
+          feedback(await action());
+          router.refresh();
+        })
+      }
+    >
+      <FlaskConical /> {t('probeNow')}
     </Button>
   );
 }
@@ -317,6 +349,50 @@ export function RestoreButton({
   const lossTotal = data
     ? data.loss.orders + data.loss.invoices + data.loss.payments + data.loss.refunds
     : 0;
+
+  // Passkey confirmation: fresh assertion for this backup, sent with the form (password and
+  // acknowledgement are still required).
+  const [webauthn, setWebauthn] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const passkeyChallenge = useRef<HTMLInputElement>(null);
+  const passkeyResponse = useRef<HTMLInputElement>(null);
+  useEffect(() => setWebauthn(browserSupportsWebAuthn()), []);
+  const canPasskey = Boolean(data?.passkeys) && webauthn;
+
+  const confirmWithPasskey = async (form: HTMLFormElement | null) => {
+    if (!form || !form.reportValidity()) return;
+    setPasskeyBusy(true);
+    try {
+      const prepared = await restorePasskeyOptionsAction(backupId);
+      if (!prepared.ok) {
+        toast.error(
+          t(prepared.error === 'rateLimited' ? 'feedback.rateLimited' : 'feedback.passkeyInvalid'),
+        );
+        return;
+      }
+      let assertion;
+      try {
+        assertion = await startAuthentication({ optionsJSON: prepared.options });
+      } catch (err) {
+        const cancelled =
+          err instanceof Error &&
+          (err.name === 'NotAllowedError' ||
+            err.name === 'AbortError' ||
+            err.name === 'ERROR_CEREMONY_ABORTED');
+        if (!cancelled) toast.error(t('feedback.passkeyInvalid'));
+        return;
+      }
+      if (!passkeyChallenge.current || !passkeyResponse.current) return;
+      passkeyChallenge.current.value = prepared.challengeId;
+      passkeyResponse.current.value = JSON.stringify(assertion);
+      form.requestSubmit();
+      // The assertion is single use: never send it along with a later code submission.
+      passkeyChallenge.current.value = '';
+      passkeyResponse.current.value = '';
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
   return (
     <>
       <Button
@@ -378,9 +454,16 @@ export function RestoreButton({
                     name="code"
                     inputMode="text"
                     autoComplete="one-time-code"
-                    required
+                    required={!canPasskey}
                   />
                 </Field>
+              )}
+              {canPasskey && (
+                <>
+                  <input type="hidden" name="passkeyChallengeId" ref={passkeyChallenge} />
+                  <input type="hidden" name="passkeyResponse" ref={passkeyResponse} />
+                  <p className="text-xs text-muted-foreground">{t('restore.passkeyHint')}</p>
+                </>
               )}
               <label className="flex items-start gap-2 text-sm">
                 <input type="checkbox" name="acknowledge" className="mt-1" required />
@@ -390,7 +473,20 @@ export function RestoreButton({
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   {t('actions.cancel')}
                 </Button>
-                <SubmitButton variant="destructive" pendingLabel={t('restore.submitting')}>
+                {canPasskey && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={passkeyBusy}
+                    onClick={(e) => void confirmWithPasskey(e.currentTarget.form)}
+                  >
+                    {passkeyBusy ? t('restore.passkeyWaiting') : t('restore.passkeySubmit')}
+                  </Button>
+                )}
+                <SubmitButton
+                  variant={canPasskey ? 'outline' : 'destructive'}
+                  pendingLabel={t('restore.submitting')}
+                >
                   {t('restore.submit')}
                 </SubmitButton>
               </DialogFooter>

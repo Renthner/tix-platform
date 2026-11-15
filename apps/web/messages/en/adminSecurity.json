@@ -15,8 +15,12 @@
       "LOCKED": "Too many failed attempts. The account is temporarily locked.",
       "RATE_LIMITED": "Too many attempts. Please wait a few minutes.",
       "INVALID_CODE": "The code is not correct.",
-      "EXPIRED": "The sign-in expired. Please enter your password again."
-    }
+      "EXPIRED": "The sign-in expired. Please enter your password again.",
+      "PASSKEY_FAILED": "The passkey could not be verified. Please try again or use your password."
+    },
+    "passkey": "Sign in with a passkey",
+    "passkeySecondFactor": "Use a passkey instead",
+    "or": "or"
   },
   "forgot": {
     "title": "Reset password",
@@ -47,7 +51,7 @@
     "INVALID_CODE": "The code is not correct.",
     "WEAK_PASSWORD": "The password must have at least {min} characters.",
     "PASSWORD_TOO_LONG": "The password is too long.",
-    "TWO_FACTOR_REQUIRED": "Two-factor authentication is mandatory for all admins.",
+    "TWO_FACTOR_REQUIRED": "Two-factor authentication is mandatory for you. Keep at least one authenticator app or passkey.",
     "TWO_FACTOR_ALREADY_ENABLED": "Two-factor authentication is already on.",
     "TWO_FACTOR_NO_SETUP": "There is no pending setup. Start again.",
     "ACCOUNT_LOCKED": "Too many failed attempts. The account is temporarily locked.",
@@ -58,7 +62,12 @@
     "CANNOT_DEACTIVATE_SELF": "You cannot deactivate yourself.",
     "INVITE_NOT_PENDING": "This user has already accepted the invitation.",
     "USER_HAS_SIGNED_IN": "Only invitations that were never accepted can be deleted.",
-    "ADMIN_USER_NOT_FOUND": "User not found."
+    "ADMIN_USER_NOT_FOUND": "User not found.",
+    "PASSKEY_INVALID": "The passkey could not be verified. Please try again.",
+    "PASSKEY_LIMIT": "The maximum number of passkeys is reached. Remove one first.",
+    "PASSKEY_EXISTS": "This passkey is already registered.",
+    "PASSKEY_NOT_FOUND": "Passkey not found.",
+    "PASSKEYS_UNAVAILABLE": "Passkeys need the public address of this shop to be https:// (or localhost) with a domain name."
   },
   "messages": {
     "invited": "Invitation sent.",
@@ -78,12 +87,15 @@
     "verificationSent": "Confirmation link sent. Please check your inbox.",
     "alreadyVerified": "Your e-mail address is already confirmed.",
     "alertsSaved": "Warning e-mail settings saved.",
-    "alertsReset": "Back to the defaults of your role."
+    "alertsReset": "Back to the defaults of your role.",
+    "passkeyAdded": "Passkey added.",
+    "passkeyRenamed": "Passkey renamed.",
+    "passkeyRemoved": "Passkey removed."
   },
   "account": {
     "title": "My account",
     "description": "Your profile, password and two-factor authentication.",
-    "setupRequired": "Two-factor authentication is mandatory. Set it up with an authenticator app to continue.",
+    "setupRequired": "Two-factor authentication is mandatory for you. Set it up with an authenticator app or a passkey to continue.",
     "twoFactor": {
       "title": "Two-factor authentication",
       "description": "Protect your sign-in with a code from an authenticator app."
@@ -111,6 +123,10 @@
       "verified": "Your e-mail address is confirmed.",
       "unverified": "Your e-mail address ({email}) is not confirmed yet.",
       "send": "Send confirmation link"
+    },
+    "passkeys": {
+      "title": "Passkeys",
+      "description": "Sign in with fingerprint, face, a device PIN or a security key instead of a password. A passkey counts as your second factor."
     }
   },
   "twoFactor": {
@@ -133,7 +149,7 @@
     "verifying": "Checking…",
     "enable": "Turn on",
     "onStatus": "Two-factor authentication is on. Unused recovery codes: {count}.",
-    "requiredNote": "It is mandatory for all admins and cannot be turned off.",
+    "requiredNote": "It is mandatory for you and cannot be turned off while it is your only second factor.",
     "regenerateTitle": "New recovery codes",
     "regenerateHint": "Creates 10 new codes; the old ones stop working.",
     "regenerate": "Create new codes",
@@ -206,7 +222,9 @@
       "title": "Security",
       "description": "Sessions, lockout, passwords and two-factor authentication of admin users.",
       "requireTwoFactor": "Two-factor authentication mandatory",
-      "requireTwoFactorHint": "Every admin must use an authenticator app. Users without one are taken to the setup right after signing in.",
+      "requireTwoFactorHint": "Every admin must use an authenticator app or a passkey. Users without one are taken to the setup right after signing in.",
+      "requireTwoFactorForSuperAdmins": "Two-factor authentication mandatory for super admins",
+      "requireTwoFactorForSuperAdminsHint": "Users with the Super admin role must use an authenticator app or a passkey, even if it is not mandatory for everyone. Off by default: turn it on only after every super admin has a second factor (or they are taken to the setup at their next sign-in).",
       "adminSessionTtlHours": "Session lifetime (hours)",
       "adminSessionTtlHoursHint": "Applies to new sign-ins.",
       "minPasswordLength": "Minimum password length",
@@ -277,5 +295,39 @@
     "done": "Your e-mail address is confirmed. At your next sign-in in the shop, \"My account\" is linked.",
     "invalid": "This link is invalid or has expired. You can request a new one in your account settings.",
     "backToLogin": "To sign-in"
+  },
+  "passkeys": {
+    "none": "No passkey yet.",
+    "add": "Add a passkey",
+    "create": "Create passkey",
+    "adding": "Waiting for your device…",
+    "cancel": "Cancel",
+    "name": "Name",
+    "nameHint": "Helps you recognise it later, e.g. \"Work laptop\" or \"YubiKey\".",
+    "defaultName": "Passkey",
+    "password": "Current password",
+    "addHint": "Confirm your password, then follow the prompt of your device.",
+    "added": "Added {date}",
+    "lastUsed": "last used {date}",
+    "neverUsed": "never used",
+    "synced": "synced across devices",
+    "rename": "Rename",
+    "remove": "Remove",
+    "removeConfirm": "Remove passkey",
+    "removeHint": "Confirm with your password. The passkey stops working immediately.",
+    "removeLocked": "Two-factor authentication is mandatory and this is your only second factor.",
+    "save": "Save",
+    "addedNow": "Passkey added. Save your recovery codes now.",
+    "addedToast": "Passkey added.",
+    "unavailable": "Passkeys are not available: the public address of this installation must be https:// (or localhost) with a domain name.",
+    "unsupported": "This browser does not support passkeys.",
+    "proofCode": "Authenticator or recovery code",
+    "proofHint": "Adding a passkey needs proof of your current second factor.",
+    "proofHintOptional": "Leave empty to confirm with one of your existing passkeys instead.",
+    "regenerateTitle": "New recovery codes",
+    "regenerateHint": "Creates a new set of recovery codes; the old ones stop working.",
+    "regenerate": "Create new recovery codes",
+    "regenerateConfirm": "Create codes",
+    "regenerated": "New recovery codes created."
   }
 }

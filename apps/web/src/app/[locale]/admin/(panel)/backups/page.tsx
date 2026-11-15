@@ -4,6 +4,7 @@ import {
   getSetting,
   hasSecretSetting,
   listCatalogue,
+  readProbeHistory,
 } from '@tix/core';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -13,6 +14,7 @@ import {
   BackupStatusPanel,
   DeleteBackupButton,
   DownloadLink,
+  ProbeNowButton,
   RestoreButton,
   UploadBackupButton,
   VerifyButton,
@@ -35,6 +37,7 @@ import {
   backupNowAction,
   deleteBackupAction,
   previewRestoreAction,
+  probeNowAction,
   restoreBackupAction,
   saveBackupSettingsAction,
   testBackupTargetAction,
@@ -60,18 +63,30 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
   await resolveLocale(params);
   await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
   const core = getCore();
-  const [t, tv, format, entries, settings, credentialsStored, general, failure, incomplete] =
-    await Promise.all([
-      getTranslations('backups'),
-      getTranslations('backups.verifyDetail'),
-      getFormatter(),
-      listCatalogue(getBackupBuckets().backups),
-      getSetting(core, 'backup'),
-      hasSecretSetting(core, 'backup.external.credentials'),
-      getSetting(core, 'general'),
-      getBackupFailure(core),
-      getRestoreIncomplete(core),
-    ]);
+  const [
+    t,
+    tv,
+    format,
+    entries,
+    settings,
+    credentialsStored,
+    general,
+    failure,
+    incomplete,
+    probes,
+  ] = await Promise.all([
+    getTranslations('backups'),
+    getTranslations('backups.verifyDetail'),
+    getFormatter(),
+    listCatalogue(getBackupBuckets().backups),
+    getSetting(core, 'backup'),
+    hasSecretSetting(core, 'backup.external.credentials'),
+    getSetting(core, 'general'),
+    getBackupFailure(core),
+    getRestoreIncomplete(core),
+    readProbeHistory(getBackupBuckets().backups),
+  ]);
+  const lastProbe = probes[0] ?? null;
   const keyId = core.secrets?.activeKeyId ?? '';
   const when = (iso: string) =>
     format.dateTime(new Date(iso), {
@@ -139,6 +154,92 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
         <BackupStatusPanel />
         <p className="text-sm text-muted-foreground">{t('keyNote', { keyId })}</p>
         <p className="text-sm text-muted-foreground">{t('upload.hint')}</p>
+
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="space-y-1">
+                <h2 className="text-sm font-medium">{t('probe.title')}</h2>
+                <p className="max-w-2xl text-xs text-muted-foreground">{t('probe.description')}</p>
+              </div>
+              <ProbeNowButton action={probeNowAction} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              {!settings.probeEnabled && <Badge variant="outline">{t('probe.off')}</Badge>}
+              {lastProbe ? (
+                <>
+                  <Badge variant={lastProbe.status === 'OK' ? 'secondary' : 'destructive'}>
+                    {t(`probe.status.${lastProbe.status}`, { date: when(lastProbe.finishedAt) })}
+                  </Badge>
+                  {lastProbe.status === 'FAILED' && (
+                    <span className="text-xs text-destructive">
+                      {verifyReason(lastProbe.error)}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-xs text-muted-foreground">{t('probe.never')}</span>
+              )}
+            </div>
+            {probes.length > 0 && (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('probe.columns.date')}</TableHead>
+                    <TableHead>{t('probe.columns.result')}</TableHead>
+                    <TableHead>{t('probe.columns.backup')}</TableHead>
+                    <TableHead className="text-right">{t('probe.columns.duration')}</TableHead>
+                    <TableHead>{t('probe.columns.details')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {probes.slice(0, 10).map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="whitespace-nowrap align-top">
+                        {when(p.startedAt)}
+                        <div className="text-xs text-muted-foreground">
+                          {t(`probe.trigger.${p.trigger}`)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Badge variant={p.status === 'OK' ? 'secondary' : 'destructive'}>
+                          {t(`probe.result.${p.status}`)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap align-top">
+                        {p.backupCreatedAt ? when(p.backupCreatedAt) : '–'}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-right align-top tabular-nums">
+                        {t('probe.seconds', {
+                          seconds: Math.max(1, Math.round(p.durationMs / 1000)),
+                        })}
+                      </TableCell>
+                      <TableCell className="align-top text-xs">
+                        {p.status === 'OK' ? (
+                          <span className="text-muted-foreground">
+                            {t('probe.counts', {
+                              events: p.counts?.events ?? 0,
+                              orders: p.counts?.orders ?? 0,
+                              tickets: p.counts?.tickets ?? 0,
+                              migrations: p.migrationsApplied ?? 0,
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-destructive">
+                            {verifyReason(p.error)}
+                            {p.mismatches?.map((m) => (
+                              <div key={m}>{m}</div>
+                            ))}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent className="pt-6">

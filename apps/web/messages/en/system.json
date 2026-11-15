@@ -160,7 +160,7 @@
     "types": {
       "BACKUP_FAILED": {
         "name": "Backup failed",
-        "description": "A scheduled or manual backup failed, or the upload to the external target failed."
+        "description": "A scheduled or manual backup failed, the upload to the external target failed, or the automatic test restore of the newest backup failed."
       },
       "BACKUP_OVERDUE": {
         "name": "Backup overdue",

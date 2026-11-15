@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/table';
 import { getCore } from '@/server/core';
 import { AutoRefresh } from './auto-refresh';
+import { EventReports } from './event-reports';
 import { LogFilterForm } from './log-filter-form';
 
 export interface CheckInFilters {
@@ -103,6 +104,8 @@ export async function CheckInPanel({
           {t('stats.lastScan')}: {stats.lastScanAt ? dateTime(stats.lastScanAt) : t('stats.noScan')}
         </div>
       </div>
+
+      <EventReports eventId={eventId} />
 
       <section className="space-y-2">
         <h2 className="text-base font-semibold">{t('byEntrance.title')}</h2>

@@ -16,6 +16,7 @@ export type EmailVariableGroup =
   | 'account'
   | 'smtpTest'
   | 'alert'
+  | 'passkey'
   | 'waitlist';
 
 export interface EmailVariableInfo {
@@ -149,6 +150,10 @@ const account = (url: string) => [
 ];
 
 const ALERT = names('alert', ['firstName', 'alertTitle', 'alertSummary', 'alertSince', 'alertUrl']);
+const PASSKEY = [
+  ...names('customer', ['firstName']),
+  ...names('passkey', ['passkeyName', 'addedAt', 'accountUrl']),
+];
 const WAITLIST = [
   ...names('customer', ['firstName']),
   ...names('waitlist', [
@@ -192,6 +197,7 @@ const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
   ADMIN_PASSWORD_RESET: [...SHOP, ...account('resetUrl')],
   ADMIN_ALERT: [...SHOP, ...ALERT],
   ADMIN_ALERT_RESOLVED: [...SHOP, ...ALERT],
+  ADMIN_PASSKEY_ADDED: [...SHOP, ...PASSKEY],
   WAITLIST_CONFIRM: [...SHOP, ...WAITLIST],
   WAITLIST_AVAILABLE: [...SHOP, ...WAITLIST],
   WAITLIST_REMOVED: [...SHOP, ...WAITLIST],

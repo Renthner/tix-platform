@@ -13,6 +13,10 @@ import { getCore } from '@/server/core';
 import { audit } from './audit';
 import { fieldError, flag, formError, success, text, zodFieldErrors } from './form';
 
+/** Presale codes grant access: the audit trail keeps only a recognisable hint, never the code. */
+const maskCode = (code: string): string =>
+  `${code.slice(0, 2)}${'*'.repeat(Math.max(code.length - 2, 0))}`;
+
 const CODE_PATTERN = /^[A-Z0-9-]{4,64}$/;
 const BATCH_MAX = 500;
 
@@ -100,7 +104,7 @@ export async function createAccessCodesAction(
       throw err;
     }
     await audit(db, session, 'accesscode.create', 'event', eventId, {
-      code: singleCode,
+      code: maskCode(singleCode),
       type: data.type,
     });
   } else {
@@ -150,7 +154,7 @@ export async function setAccessCodeActiveAction(
     'access_code',
     codeId,
     {
-      code: updated[0]!.code,
+      code: maskCode(updated[0]!.code),
     },
   );
   revalidatePath('/', 'layout');

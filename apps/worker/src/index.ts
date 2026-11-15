@@ -5,6 +5,7 @@ import {
   DEFAULT_PG_BINARIES,
   JobQueues,
   backupBucketsFromEnv,
+  cleanupStaleTestDatabases,
   createCoreContext,
   startShopCacheSync,
   getRestoreIncomplete,
@@ -99,6 +100,9 @@ async function main(): Promise<void> {
   await warnOnPgToolMismatch(backups, Number(serverVersion.rows[0]?.v ?? 0), logger).catch((err) =>
     logger.warn({ err }, 'could not check the PostgreSQL client tools'),
   );
+  await cleanupStaleTestDatabases(backups)
+    .then((n) => n > 0 && logger.info({ dropped: n }, 'stale backup test databases dropped'))
+    .catch((err) => logger.warn({ err }, 'cleanup of stale backup test databases failed'));
   const registrations = processorRegistrations({ core, db: dbHandle.db, logger, backups });
   const schedulerQueues: Queue[] = [];
   for (const registration of registrations) {

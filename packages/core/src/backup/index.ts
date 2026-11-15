@@ -7,6 +7,7 @@ export * from './inspect';
 export * from './manifest';
 export * from './pg';
 export * from './pre-update';
+export * from './probe';
 export * from './restore';
 export * from './runtime';
 export * from './s3';

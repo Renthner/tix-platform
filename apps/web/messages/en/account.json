@@ -41,8 +41,10 @@
         "LOCKED": "Too many failed attempts. Please try again later.",
         "RATE_LIMITED": "Too many attempts. Please wait a few minutes.",
         "EXPIRED": "The sign-in expired. Please enter your password again.",
-        "INVALID": "The e-mail address or password is not correct."
-      }
+        "INVALID": "The e-mail address or password is not correct.",
+        "PASSKEY_FAILED": "The passkey could not be verified. Please try again or use a code."
+      },
+      "passkey": "Use a passkey instead"
     }
   },
   "register": {

@@ -1728,6 +1728,55 @@ gute Nachricht: Die folgende Warnung für {{shopName}} hat sich von selbst erled
 ${COMMON.de.regardsText}`,
     }),
   },
+
+  ADMIN_PASSKEY_ADDED: {
+    en: () => ({
+      subject: '[{{shopName}}] A passkey was added to your account',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'a new passkey <strong>{{passkeyName}}</strong> was added to your admin account for {{shopName}} on {{addedAt}}.',
+        ),
+        paragraph(
+          'If this was you, nothing else is needed. If it was not you, sign in, remove the passkey and change your password right away.',
+        ),
+        button('en', 'accountUrl', 'Open my account'),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+a new passkey "{{passkeyName}}" was added to your admin account for {{shopName}} on {{addedAt}}.
+
+If this was you, nothing else is needed. If it was not you, sign in, remove the passkey and change your password right away.
+
+{{accountUrl}}
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: '[{{shopName}}] Ein Passkey wurde deinem Konto hinzugefügt',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'deinem Admin-Konto bei {{shopName}} wurde am {{addedAt}} ein neuer Passkey <strong>{{passkeyName}}</strong> hinzugefügt.',
+        ),
+        paragraph(
+          'Wenn du das warst, ist nichts weiter nötig. Wenn nicht, melde dich an, entferne den Passkey und ändere sofort dein Passwort.',
+        ),
+        button('de', 'accountUrl', 'Mein Konto öffnen'),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+deinem Admin-Konto bei {{shopName}} wurde am {{addedAt}} ein neuer Passkey "{{passkeyName}}" hinzugefügt.
+
+Wenn du das warst, ist nichts weiter nötig. Wenn nicht, melde dich an, entferne den Passkey und ändere sofort dein Passwort.
+
+{{accountUrl}}
+
+${COMMON.de.regardsText}`,
+    }),
+  },
 };
 
 const LOCALES: readonly Locale[] = ['en', 'de'];

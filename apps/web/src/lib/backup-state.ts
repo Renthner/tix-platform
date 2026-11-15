@@ -15,6 +15,7 @@ export type BackupActionState =
         | 'password'
         | 'twoFactorRequired'
         | 'twoFactorInvalid'
+        | 'passkeyInvalid'
         | 'acknowledge'
         | 'locked'
         | 'rateLimited'
@@ -34,7 +35,10 @@ export const BACKUP_IDLE: BackupActionState = { status: 'idle' };
 export interface RestorePreview {
   backupCreatedAt: string;
   loss: { orders: number; invoices: number; payments: number; refunds: number };
+  /** The admin has an authenticator app and/or a passkey. */
   twoFactor: boolean;
+  /** The admin can confirm with a passkey (has one and the public URL allows WebAuthn). */
+  passkeys: boolean;
   /** Restore needs 2FA by setting, but this admin has none: the dialog explains and links to the account page. */
   twoFactorSetupRequired: boolean;
 }

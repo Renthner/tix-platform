@@ -110,7 +110,7 @@ export function createMaintenanceProbe(ctx: RedisCtx, ttlMs = 1_500) {
  * Progress of the running / last operation (Redis only, 7 days).
  * ------------------------------------------------------------------------------------- */
 
-export type BackupOperation = 'BACKUP' | 'VERIFY' | 'RESTORE' | 'IMPORT';
+export type BackupOperation = 'BACKUP' | 'VERIFY' | 'RESTORE' | 'IMPORT' | 'PROBE';
 
 export interface BackupStatus {
   operation: BackupOperation;
@@ -166,7 +166,17 @@ export function createProgress(ctx: RedisCtx, operation: BackupOperation, backup
     touch: () => emit('RUNNING', currentStep),
     step: (step: string) => emit('RUNNING', step),
     succeeded: (step = 'DONE') => emit('SUCCEEDED', step),
-    failed: (step: string, detail: string) => emit('FAILED', step, detail),
+    failed: async (step: string, detail: string) => {
+      await emit('FAILED', step, detail);
+      // The status key is shared with verify / probe runs that follow: a failed BACKUP is also
+      // kept in its own key so a later probe result cannot hide the alert.
+      if (operation === 'BACKUP') {
+        await recordBackupFailure(ctx, {
+          at: new Date().toISOString(),
+          message: (detail || step).slice(0, 1_000),
+        }).catch(() => undefined);
+      }
+    },
   };
 }
 export type Progress = ReturnType<typeof createProgress>;

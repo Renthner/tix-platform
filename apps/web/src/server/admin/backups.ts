@@ -2,6 +2,12 @@
 
 import {
   DomainError,
+  type PublicKeyCredentialRequestOptionsJSON,
+  beginPasskeyReauth,
+  bindFromSecret,
+  countAdminPasskeys,
+  passkeysAvailable,
+  verifyPasskeyAuthentication,
   checkAdminPassword,
   clearSecretSetting,
   assertBackupIdle,
@@ -11,6 +17,7 @@ import {
   getSetting,
   hasSecretSetting,
   requestBackup,
+  requestProbe,
   requestRestore,
   requestVerify,
   saveSecretSetting,
@@ -82,6 +89,10 @@ function readSettings(fd: FormData, errors: Errors): Record<string, unknown> {
     frequency: text(fd, 'frequency'),
     weekday: intField(fd, 'weekday', errors),
     time: text(fd, 'time'),
+    probeEnabled: flag(fd, 'probeEnabled'),
+    probeFrequency: text(fd, 'probeFrequency'),
+    probeWeekday: intField(fd, 'probeWeekday', errors),
+    probeTime: text(fd, 'probeTime'),
     keepScheduled: intField(fd, 'keepScheduled', errors),
     manualMaxAgeDays: intField(fd, 'manualMaxAgeDays', errors),
     maxUploadMb: intField(fd, 'maxUploadMb', errors),
@@ -207,6 +218,18 @@ export async function backupNowAction(): Promise<BackupActionState> {
   });
 }
 
+/** "Run probe now": restores the newest backup into a throwaway database (worker). */
+export async function probeNowAction(): Promise<BackupActionState> {
+  const session = await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
+  return guarded(async () => {
+    const core = getCore();
+    await requestProbe(core, session.userId);
+    await audit(core.db, session, 'backup.probe.requested', 'backup', null);
+    revalidatePath('/admin/backups');
+    return queued();
+  });
+}
+
 export async function verifyBackupAction(id: string): Promise<BackupActionState> {
   const session = await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
   return guarded(async () => {
@@ -248,21 +271,48 @@ export async function previewRestoreAction(id: string): Promise<RestorePreview |
   const core = getCore();
   const entry = await findBackup(getBackupBuckets().backups, uuidParam.parse(id));
   if (!entry) return null;
-  const [loss, account] = await Promise.all([
+  const [loss, account, passkeyCount] = await Promise.all([
     countRestoreLoss(core, entry.manifest.createdAt),
     core.db.query.adminUsers.findFirst({
       columns: { totpSecretEncrypted: true },
       where: (u, { eq }) => eq(u.id, session.userId),
     }),
+    countAdminPasskeys(core, session.userId),
   ]);
   const settings = await getSetting(core, 'backup');
-  const twoFactor = Boolean(account?.totpSecretEncrypted);
+  // An authenticator app or a registered passkey is a second factor (like at sign-in).
+  const twoFactor = Boolean(account?.totpSecretEncrypted) || passkeyCount > 0;
   return {
     backupCreatedAt: entry.manifest.createdAt,
     loss,
     twoFactor,
+    passkeys: passkeyCount > 0 && passkeysAvailable(core),
     twoFactorSetupRequired: settings.restoreRequiresTwoFactor && !twoFactor,
   };
+}
+
+/** Binds a restore passkey challenge to this restore confirmation (action + backup). */
+const restoreBind = (backupId: string) => bindFromSecret(`restore:${backupId}`);
+
+export type RestorePasskeyOptions =
+  | { ok: true; options: PublicKeyCredentialRequestOptionsJSON; challengeId: string }
+  | { ok: false; error: 'failed' | 'rateLimited' | 'locked' };
+
+/** Step 1 of confirming a restore with a passkey: single-use challenge for this backup. */
+export async function restorePasskeyOptionsAction(id: string): Promise<RestorePasskeyOptions> {
+  const session = await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
+  const core = getCore();
+  try {
+    const backupId = uuidParam.parse(id);
+    await enforceRateLimit('backup-restore-options', session.userId, 20, 15 * 60_000);
+    return { ok: true, ...(await beginPasskeyReauth(core, session.userId, restoreBind(backupId))) };
+  } catch (err) {
+    if (err instanceof DomainError) {
+      return { ok: false, error: err.code === 'RATE_LIMITED' ? 'rateLimited' : 'failed' };
+    }
+    if (err instanceof z.ZodError) return { ok: false, error: 'failed' };
+    throw err;
+  }
 }
 
 /**
@@ -295,15 +345,44 @@ export async function restoreBackupAction(
       return fail('twoFactorSetupRequired');
     }
     if (check.twoFactor) {
+      // Either a fresh passkey assertion (challenge bound to this restore, single use) or a
+      // TOTP / recovery code.
+      const passkeyResponse = text(fd, 'passkeyResponse');
       const code = text(fd, 'code');
-      if (!code) return fail('twoFactorRequired');
-      try {
-        await verifyAdminSecondFactor(core, session.userId, code);
-      } catch (err) {
-        if (err instanceof DomainError) {
-          return fail(err.code === 'ACCOUNT_LOCKED' ? 'locked' : 'twoFactorInvalid');
+      if (passkeyResponse) {
+        let response: unknown;
+        try {
+          response = JSON.parse(passkeyResponse);
+        } catch {
+          return fail('passkeyInvalid');
         }
-        throw err;
+        const ip = await clientIp();
+        try {
+          const { userId } = await verifyPasskeyAuthentication(core, {
+            purpose: 'restore',
+            challengeId: text(fd, 'passkeyChallengeId'),
+            response,
+            bind: restoreBind(backupId),
+            expectedUserId: session.userId,
+            ipAddress: ip === '0.0.0.0' ? null : ip,
+          });
+          if (userId !== session.userId) return fail('passkeyInvalid');
+        } catch (err) {
+          if (err instanceof DomainError) {
+            return fail(err.code === 'ACCOUNT_LOCKED' ? 'locked' : 'passkeyInvalid');
+          }
+          throw err;
+        }
+      } else {
+        if (!code) return fail('twoFactorRequired');
+        try {
+          await verifyAdminSecondFactor(core, session.userId, code);
+        } catch (err) {
+          if (err instanceof DomainError) {
+            return fail(err.code === 'ACCOUNT_LOCKED' ? 'locked' : 'twoFactorInvalid');
+          }
+          throw err;
+        }
       }
     }
 

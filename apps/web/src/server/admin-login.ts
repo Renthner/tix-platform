@@ -3,6 +3,7 @@ import 'server-only';
 import {
   adminNeedsTwoFactorSetup,
   completeAdminLogin,
+  getAdminLoginBinding,
   isLinkedPair,
   linkCustomerForAdmin,
   writeAdminAudit,
@@ -12,9 +13,12 @@ import { hashToken } from '@tix/shared/server';
 import { getLocale } from 'next-intl/server';
 import { redirect } from '@/i18n/navigation';
 import {
+  clearPendingAdminLogin,
   createAdminSession,
   destroyAdminSession,
   getAdminSession,
+  pendingAdminLoginActive,
+  readPendingAdminLogin,
   setPendingAdminLogin,
   type AdminSession,
 } from './auth';
@@ -78,6 +82,30 @@ export async function continueAdminLogin(
   return finishAdminLogin(admin.userId, 'password', returnTo, via);
 }
 
+export type PendingLoginCheck =
+  { status: 'ok'; userId: string; nonce: string } | { status: 'expired' } | { status: 'locked' };
+
+/**
+ * Validates the pending-login cookie of the second step (signature, nonce still unused, account
+ * active, password unchanged since the password step). Clears the cookie when it is no longer usable.
+ */
+export async function checkPendingLogin(): Promise<PendingLoginCheck> {
+  const pending = await readPendingAdminLogin();
+  if (!pending) return { status: 'expired' };
+  const binding = await getAdminLoginBinding(getCore(), pending.userId);
+  if (
+    !(await pendingAdminLoginActive(pending.nonce, pending.userId)) ||
+    !binding ||
+    !binding.active ||
+    (binding.passwordChangedAt?.getTime() ?? 0) !== pending.passwordChangedAtMs
+  ) {
+    await clearPendingAdminLogin(pending.nonce);
+    return { status: 'expired' };
+  }
+  if (binding.locked) return { status: 'locked' };
+  return { status: 'ok', userId: pending.userId, nonce: pending.nonce };
+}
+
 /**
  * Opens the admin session (and the linked customer session) and leaves for `returnTo`
  * (default: the admin portal; the account page while two-factor setup is still required).
@@ -85,7 +113,7 @@ export async function continueAdminLogin(
  */
 export async function finishAdminLogin(
   userId: string,
-  method: 'password' | 'totp' | 'recovery_code',
+  method: 'password' | 'totp' | 'recovery_code' | 'passkey',
   returnTo: string | null,
   via: LoginVia,
 ): Promise<never> {

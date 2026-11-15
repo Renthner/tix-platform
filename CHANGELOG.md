@@ -8,6 +8,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.24] - 2026-11-15
+
+### Added
+
+- **Passkeys (WebAuthn) for the admin login:** sign in with a passkey (usernameless, user verification
+  required) or use a passkey as the second factor after the password, as an alternative to the
+  authenticator app. Manage passkeys in the account (register, rename, remove); registering and removing
+  need the password, and registering another one also needs an existing second factor. A "passkey added"
+  e-mail is sent. Relying party and origin come only from `APP_URL` (HTTPS or localhost). Passkeys also
+  confirm a backup restore. Reset of two-factor (admin and CLI) removes passkeys. See
+  `docs/ADMIN-SECURITY.md`. Migration 0040 (not deployed).
+- **Mandatory two-factor for super admins:** new security setting (default off); a passkey counts as a
+  second factor.
+- **Automatic probe restore:** the newest backup is restored into a throwaway database on a schedule
+  (default **off**; needs free disk of about twice the database size), checked (migrations, row counts)
+  and dropped again. Result and history on the backups page, "Run probe now", alert on failure. Scratch
+  databases are tagged per stack and cleaned up at worker start.
+- **Audit log** (`/admin/audit`, super admins): search, filters, date range, expandable details with
+  secrets masked, CSV export.
+- **Reports per event:** seating occupancy PDF for the entrance (sold / reserved / blocked / free,
+  optional holder names) and guest list as CSV or PDF, on the Check-in tab.
+
+### Changed
+
+- Shop and admin order pages share one view model and common components.
+- Large admin components (box office, ticket designer, fees, seat plan properties) split into smaller
+  modules; no behaviour change.
+- A failed backup alert is no longer hidden by a later verify or probe result; presale codes are masked
+  in audit entries.
+
 ## [1.0.0-alpha.23] - 2026-11-15
 
 ### Changed

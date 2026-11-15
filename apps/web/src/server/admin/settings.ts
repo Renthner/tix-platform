@@ -434,6 +434,7 @@ async function readInput(
       return {
         input: {
           requireTwoFactor: flag(fd, 'requireTwoFactor'),
+          requireTwoFactorForSuperAdmins: flag(fd, 'requireTwoFactorForSuperAdmins'),
           adminSessionTtlHours: requiredInt(fd, 'adminSessionTtlHours', errors),
           minPasswordLength: requiredInt(fd, 'minPasswordLength', errors),
           maxFailedLogins: requiredInt(fd, 'maxFailedLogins', errors),

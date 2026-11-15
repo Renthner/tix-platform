@@ -1,5 +1,5 @@
 import 'server-only';
-import { getSetting } from '@tix/core';
+import { countAdminPasskeys, getSetting, isTwoFactorRequired } from '@tix/core';
 import { adminSessions, adminUsers } from '@tix/db';
 import type { AdminRole } from '@tix/shared';
 import { generateToken, hashToken, signToken, verifyToken } from '@tix/shared/server';
@@ -60,8 +60,15 @@ export const getAdminSession = cache(async (): Promise<AdminSession | null> => {
       .set({ lastSeenAt: new Date() })
       .where(eq(adminSessions.tokenHash, row.tokenHash));
   }
-  const twoFactorSetupRequired =
-    row.totp === null && (await getSetting(getCore(), 'security')).requireTwoFactor;
+  // A second factor is an authenticator app OR a passkey; the policy (all admins / super admins)
+  // lives in @tix/core. The passkey lookup only runs when the policy applies and no TOTP exists.
+  let twoFactorSetupRequired = false;
+  if (row.totp === null) {
+    const security = await getSetting(getCore(), 'security');
+    twoFactorSetupRequired =
+      isTwoFactorRequired(security, row.roles) &&
+      (await countAdminPasskeys(getCore(), row.userId)) === 0;
+  }
   return {
     userId: row.userId,
     email: row.email,

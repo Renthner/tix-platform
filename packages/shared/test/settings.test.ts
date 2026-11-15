@@ -69,6 +69,7 @@ describe('settings registry', () => {
       adminSessionTtlHours: 8,
       minPasswordLength: 12,
       requireTwoFactor: false,
+      requireTwoFactorForSuperAdmins: false,
       inviteTtlHours: 72,
       passwordResetTtlMinutes: 60,
     });

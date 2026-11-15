@@ -1,0 +1,45 @@
+{
+  "title": "Protokoll",
+  "description": "Unveränderliches Protokoll aller administrativen Änderungen. Geheime Werte sind maskiert.",
+  "searchPlaceholder": "Aktion, Objekt-ID oder Benutzer suchen",
+  "search": "Suchen",
+  "export": "CSV exportieren",
+  "exportHint": "Der CSV-Export enthält den aktuellen Filter, höchstens 10.000 Zeilen, und wird selbst protokolliert.",
+  "empty": "Keine Einträge gefunden.",
+  "total": "{count, plural, one {# Eintrag} other {# Einträge}}",
+  "device": "Gerät",
+  "show": "Anzeigen",
+  "changes": "Änderungen",
+  "metadata": "Metadaten",
+  "filters": {
+    "action": "Aktionsbereich",
+    "anyAction": "Alle Aktionen",
+    "entityType": "Objekttyp",
+    "anyEntity": "Alle Objekte",
+    "actor": "Benutzer",
+    "anyActor": "Alle Benutzer",
+    "from": "Von",
+    "to": "Bis"
+  },
+  "columns": {
+    "time": "Zeit",
+    "actor": "Akteur",
+    "action": "Aktion",
+    "entity": "Objekt",
+    "ip": "IP-Adresse",
+    "details": "Details"
+  },
+  "csv": {
+    "header": [
+      "Zeit (UTC)",
+      "Akteurtyp",
+      "Akteur",
+      "Aktion",
+      "Objekttyp",
+      "Objekt-ID",
+      "IP-Adresse",
+      "Änderungen",
+      "Metadaten"
+    ]
+  }
+}

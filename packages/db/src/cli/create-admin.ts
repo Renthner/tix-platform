@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { createDb } from '../client';
 import { loadRootEnv, requireEnv } from '../env';
 import {
+  adminPasskeys,
   adminRecoveryCodes,
   adminSessions,
   adminTokens,
@@ -25,7 +26,7 @@ import {
  *
  * `--reset` on an existing user keeps the roles unless `--role` is given, and ends everything the
  * old credentials could still use: sessions (incl. linked customer sessions), invitation / reset links and recovery codes (a lost
- * authenticator is cleared as well). The reset is audited as `admin_user.cli_reset`.
+ * authenticator and all passkeys are cleared as well). The reset is audited as `admin_user.cli_reset`.
  */
 
 loadRootEnv();
@@ -101,6 +102,8 @@ async function main(): Promise<void> {
       await tx.delete(customerSessions).where(eq(customerSessions.linkedAdminUserId, existing.id));
       await tx.delete(adminTokens).where(eq(adminTokens.userId, existing.id));
       await tx.delete(adminRecoveryCodes).where(eq(adminRecoveryCodes.userId, existing.id));
+      // Passkeys are second factors too: a lost or stolen device must not survive the reset.
+      await tx.delete(adminPasskeys).where(eq(adminPasskeys.adminUserId, existing.id));
       await tx.insert(auditLogs).values({
         actorType: 'SYSTEM',
         actorUserId: null,

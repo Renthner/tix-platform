@@ -1,0 +1,45 @@
+{
+  "title": "Audit log",
+  "description": "Append-only trail of administrative changes. Secret values are masked.",
+  "searchPlaceholder": "Search action, entity ID or user",
+  "search": "Search",
+  "export": "Export CSV",
+  "exportHint": "The CSV export contains the current filter, at most 10,000 rows, and is itself logged.",
+  "empty": "No entries found.",
+  "total": "{count, plural, one {# entry} other {# entries}}",
+  "device": "Device",
+  "show": "Show",
+  "changes": "Changes",
+  "metadata": "Metadata",
+  "filters": {
+    "action": "Action area",
+    "anyAction": "All actions",
+    "entityType": "Entity type",
+    "anyEntity": "All entities",
+    "actor": "User",
+    "anyActor": "All users",
+    "from": "From",
+    "to": "To"
+  },
+  "columns": {
+    "time": "Time",
+    "actor": "Actor",
+    "action": "Action",
+    "entity": "Entity",
+    "ip": "IP address",
+    "details": "Details"
+  },
+  "csv": {
+    "header": [
+      "Time (UTC)",
+      "Actor type",
+      "Actor",
+      "Action",
+      "Entity type",
+      "Entity ID",
+      "IP address",
+      "Changes",
+      "Metadata"
+    ]
+  }
+}

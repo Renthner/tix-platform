@@ -28,7 +28,7 @@ Die `.env`-Datei enthält nur die wenigen technischen Einstellungen.
 ### 1. Die zwei Dateien herunterladen
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.23
+export TIX_VERSION=1.0.0-alpha.24
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -105,7 +105,7 @@ Scanner-URL und Backups. Dieselbe Liste mit Erklärungen steht unter
 
 ```bash
 cd tix
-export TIX_VERSION=1.0.0-alpha.23
+export TIX_VERSION=1.0.0-alpha.24
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/tix-update.sh
 chmod +x tix-update.sh        # einmalig; das Skript gehört zu jedem Release
 ./tix-update.sh               # aktualisiert auf das neueste Release deines TIX_CHANNEL

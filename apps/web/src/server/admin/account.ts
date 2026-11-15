@@ -2,11 +2,20 @@
 
 import {
   DomainError,
+  type PublicKeyCredentialCreationOptionsJSON,
+  type PublicKeyCredentialRequestOptionsJSON,
+  type SecondFactorProof,
+  beginPasskeyReauth,
+  beginPasskeyRegistration,
   beginTotpSetup,
   changeOwnPassword,
   confirmTotpSetup,
   disableTotp,
+  finishPasskeyRegistration,
   regenerateRecoveryCodes,
+  regenerateRecoveryCodesWithProof,
+  removePasskey,
+  renamePasskey,
   requestAdminEmailVerification,
   resetOwnAlertPreferences,
   saveOwnAlertPreferences,
@@ -174,4 +183,145 @@ export async function resetAlertPreferencesAction(
     await resetOwnAlertPreferences(getCore(), actor);
     return ok({ message: 'alertsReset' });
   });
+}
+
+// ─── Passkeys ─────────────────────────────────────────────────────────────────────────
+
+export type PasskeyBeginResult =
+  | { ok: true; options: PublicKeyCredentialCreationOptionsJSON; challengeId: string }
+  | { ok: false; state: SecurityState };
+
+/** Proof coming from the browser: a code or a passkey assertion (shape checked here, verified in core). */
+function parseProof(raw: unknown): SecondFactorProof | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as { code?: unknown; passkey?: { challengeId?: unknown; response?: unknown } };
+  if (typeof r.code === 'string' && r.code.length <= 64) return { code: r.code };
+  if (r.passkey && typeof r.passkey.challengeId === 'string') {
+    return { passkey: { challengeId: r.passkey.challengeId, response: r.passkey.response } };
+  }
+  return undefined;
+}
+
+export type PasskeyProofOptions =
+  | { ok: true; options: PublicKeyCredentialRequestOptionsJSON; challengeId: string }
+  | { ok: false; state: SecurityState };
+
+/** Challenge for confirming "add a passkey" / "new recovery codes" with an existing passkey. */
+export async function passkeyProofOptionsAction(
+  purpose: 'add-passkey' | 'recovery-codes',
+): Promise<PasskeyProofOptions> {
+  const { actor } = await account();
+  if (purpose !== 'add-passkey' && purpose !== 'recovery-codes') {
+    return { ok: false, state: fail('VALIDATION') };
+  }
+  if (await limited(actor.userId)) return { ok: false, state: fail('RATE_LIMITED') };
+  const bind = await currentAdminTokenHash();
+  if (!bind) return { ok: false, state: fail('GENERIC') };
+  let result: PasskeyProofOptions | null = null;
+  const state = await guarded(async () => {
+    result = { ok: true, ...(await beginPasskeyReauth(getCore(), actor.userId, bind, purpose)) };
+    return ok();
+  });
+  return (result as PasskeyProofOptions | null) ?? { ok: false, state };
+}
+
+/** New recovery codes for users whose second factor is a passkey (password + passkey / recovery code). */
+export async function regenerateRecoveryCodesWithPasskeyAction(
+  password: string,
+  proof: unknown,
+): Promise<SecurityState> {
+  const { actor } = await account();
+  const parsed = parseProof(proof);
+  if (typeof password !== 'string' || password === '' || password.length > 1024 || !parsed) {
+    return fail('VALIDATION');
+  }
+  if (await limited(actor.userId)) return fail('RATE_LIMITED');
+  const bind = await currentAdminTokenHash();
+  if (!bind) return fail('GENERIC');
+  return guarded(async () => {
+    const { recoveryCodes } = await regenerateRecoveryCodesWithProof(
+      getCore(),
+      actor,
+      password,
+      bind,
+      parsed,
+    );
+    return ok({ message: 'recoveryCodesRegenerated', recoveryCodes });
+  });
+}
+
+/** Step 1 of adding a passkey: re-confirms the password (+ second factor), returns the options for the browser. */
+export async function beginPasskeyRegistrationAction(
+  password: string,
+  proof?: unknown,
+): Promise<PasskeyBeginResult> {
+  const { actor } = await account();
+  if (typeof password !== 'string' || password === '' || password.length > 1024) {
+    return { ok: false, state: fail('VALIDATION') };
+  }
+  if (await limited(actor.userId)) return { ok: false, state: fail('RATE_LIMITED') };
+  const bind = await currentAdminTokenHash();
+  if (!bind) return { ok: false, state: fail('GENERIC') };
+  let result: PasskeyBeginResult | null = null;
+  const state = await guarded(async () => {
+    result = {
+      ok: true,
+      ...(await beginPasskeyRegistration(getCore(), actor, password, bind, parseProof(proof))),
+    };
+    return ok();
+  });
+  return (result as PasskeyBeginResult | null) ?? { ok: false, state };
+}
+
+/** Step 2: verifies the authenticator's answer and stores the passkey (recovery codes once if it is the first factor). */
+export async function finishPasskeyRegistrationAction(
+  challengeId: string,
+  response: unknown,
+  name: string,
+): Promise<SecurityState> {
+  const { actor } = await account();
+  const bind = await currentAdminTokenHash();
+  if (!bind) return fail('GENERIC');
+  const result = await guarded(async () => {
+    const { recoveryCodes } = await finishPasskeyRegistration(getCore(), actor, {
+      challengeId,
+      response,
+      name,
+      bind,
+      keepSessionTokenHash: bind,
+    });
+    return ok({ message: 'passkeyAdded', ...(recoveryCodes ? { recoveryCodes } : {}) });
+  });
+  revalidatePath('/', 'layout');
+  return result;
+}
+
+export async function renamePasskeyAction(
+  _prev: SecurityState,
+  fd: FormData,
+): Promise<SecurityState> {
+  const { actor } = await account();
+  const name = str(fd, 'name').trim();
+  if (name === '' || name.length > 80) return fail('VALIDATION');
+  const result = await guarded(async () => {
+    await renamePasskey(getCore(), actor, str(fd, 'id'), name);
+    return ok({ message: 'passkeyRenamed' });
+  });
+  revalidatePath('/', 'layout');
+  return result;
+}
+
+export async function removePasskeyAction(
+  _prev: SecurityState,
+  fd: FormData,
+): Promise<SecurityState> {
+  const { actor } = await account();
+  if (str(fd, 'password') === '') return fail('VALIDATION');
+  if (await limited(actor.userId)) return fail('RATE_LIMITED');
+  const result = await guarded(async () => {
+    await removePasskey(getCore(), actor, str(fd, 'id'), str(fd, 'password'));
+    return ok({ message: 'passkeyRemoved' });
+  });
+  revalidatePath('/', 'layout');
+  return result;
 }

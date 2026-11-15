@@ -18,6 +18,7 @@ import {
 } from 'drizzle-orm';
 import { getBackupFailure, readStatus } from '../backup/state';
 import { listCatalogue } from '../backup/catalogue';
+import { readProbeHistory } from '../backup/probe';
 import type { BackupRuntime } from '../backup/runtime';
 import type { CoreContext } from '../context';
 import { coreLog } from '../log';
@@ -26,6 +27,7 @@ import { getUpdateStatus } from '../updates';
 import {
   checkBackupFailed,
   checkBackupOverdue,
+  checkBackupProbe,
   checkBankSyncFailing,
   checkDiskLow,
   checkEmailDeliveryFailing,
@@ -75,6 +77,17 @@ const readSignal = async <T>(ctx: CoreContext, name: string): Promise<T | null> 
   }
 };
 
+/** The latest probe restore when it failed (the alert closes itself once a later probe passed). */
+async function probeFailure(
+  rt: BackupRuntime,
+  enabled: boolean,
+): Promise<{ at: Date; message: string } | null> {
+  if (!enabled) return null;
+  const [latest] = await readProbeHistory(rt.buckets.backups);
+  if (!latest || latest.status !== 'FAILED') return null;
+  return { at: new Date(latest.finishedAt), message: latest.error ?? 'FAILED' };
+}
+
 async function collectBackupSnapshot(rt: BackupRuntime): Promise<BackupSnapshot> {
   const ctx = rt.ctx;
   const [settings, scheduled, status, catalogue, configured] = await Promise.all([
@@ -106,6 +119,7 @@ async function collectBackupSnapshot(rt: BackupRuntime): Promise<BackupSnapshot>
           }
         : null,
     scheduleConfiguredAt: configured[0]?.at ?? null,
+    probeFailure: await probeFailure(rt, settings.probeEnabled),
   };
 }
 
@@ -210,7 +224,11 @@ export async function collectFindings(
   if (backups) {
     await block('backups', ['BACKUP_FAILED', 'BACKUP_OVERDUE'], async () => {
       const snapshot = await collectBackupSnapshot(backups);
-      return [...checkBackupFailed(snapshot), ...checkBackupOverdue(snapshot, settings, now)];
+      return [
+        ...checkBackupFailed(snapshot),
+        ...checkBackupProbe(snapshot),
+        ...checkBackupOverdue(snapshot, settings, now),
+      ];
     });
   }
 

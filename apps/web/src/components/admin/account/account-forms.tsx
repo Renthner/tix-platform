@@ -16,7 +16,7 @@ import { ADMIN_ALERT_GROUPS, ALERT_TYPE_GROUP, type AdminAlertType } from '@tix/
 type Action = (state: SecurityState, fd: FormData) => Promise<SecurityState>;
 
 /** Toast with the success message of an action state (once per result). */
-function useSuccessToast(state: SecurityState) {
+export function useSuccessToast(state: SecurityState) {
   const t = useTranslations('adminSecurity.messages');
   const last = useRef<number | null>(null);
   useEffect(() => {
@@ -128,7 +128,7 @@ export function PasswordForm({ action, minLength }: { action: Action; minLength:
   );
 }
 
-function RecoveryCodes({ codes }: { codes: string[] }) {
+export function RecoveryCodes({ codes }: { codes: string[] }) {
   const t = useTranslations('adminSecurity.twoFactor');
   return (
     <div className="space-y-3 rounded-md border bg-muted/40 p-4">

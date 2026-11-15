@@ -13,7 +13,7 @@ import {
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { createdAt, id, timestamps, tstz } from './_columns';
+import { bytea, createdAt, id, timestamps, tstz } from './_columns';
 import { actorTypeEnum, adminRoleEnum } from './enums';
 import { scannerDevices } from './checkin';
 
@@ -50,6 +50,40 @@ export const adminUsers = pgTable(
     uniqueIndex('admin_users_email_uq').on(sql`lower(${t.email})`),
     check('admin_users_roles_not_empty', sql`cardinality(${t.roles}) > 0`),
     check('admin_users_failed_login_count_nonneg', sql`${t.failedLoginCount} >= 0`),
+  ],
+);
+
+/**
+ * WebAuthn passkeys of admin users. A passkey with user verification counts as a complete second
+ * factor (and, discoverable, signs in without a password). Only the public key is stored.
+ */
+export const adminPasskeys = pgTable(
+  'admin_passkeys',
+  {
+    id: id(),
+    adminUserId: uuid('admin_user_id')
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: 'cascade' }),
+    /** Credential id, base64url (as delivered by the browser). */
+    credentialId: text('credential_id').notNull(),
+    /** COSE public key. */
+    publicKey: bytea('public_key').notNull(),
+    /** Last signature counter (0 for synced passkeys that do not count). */
+    counter: bigint('counter', { mode: 'number' }).notNull().default(0),
+    transports: text('transports').array(),
+    /** `singleDevice` | `multiDevice`. */
+    deviceType: text('device_type').notNull(),
+    backedUp: boolean('backed_up').notNull().default(false),
+    /** Label chosen by the user ("Laptop", "YubiKey"). */
+    name: text('name').notNull(),
+    createdAt: createdAt(),
+    lastUsedAt: tstz('last_used_at'),
+  },
+  (t) => [
+    uniqueIndex('admin_passkeys_credential_uq').on(t.credentialId),
+    index('admin_passkeys_user_idx').on(t.adminUserId),
+    check('admin_passkeys_counter_nonneg', sql`${t.counter} >= 0`),
+    check('admin_passkeys_name_len', sql`char_length(${t.name}) BETWEEN 1 AND 80`),
   ],
 );
 

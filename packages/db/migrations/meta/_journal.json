@@ -281,6 +281,13 @@
       "when": 1794698230054,
       "tag": "0039_features_round5",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794740194929,
+      "tag": "0040_admin_passkeys",
+      "breakpoints": true
     }
   ]
 }

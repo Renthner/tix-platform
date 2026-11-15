@@ -43,9 +43,14 @@ export const BACKUP_JOBS = {
   import: 'import-backup',
   /** Every minute: starts the scheduled backup when it is due. */
   tick: 'backup-tick',
+  /** `{ userId }` – probe restore of the newest backup now. */
+  probe: 'probe-backup',
+  /** Starts the scheduled probe restore when it is due. */
+  probeTick: 'backup-probe-tick',
 } as const;
 
 export const BACKUP_TICK_INTERVAL_MS = 60_000;
+export const BACKUP_PROBE_TICK_INTERVAL_MS = 10 * 60_000;
 
 /** Enqueued with a single attempt: a restore must never be retried automatically. */
 const SINGLE_ATTEMPT = { attempts: 1, removeOnComplete: 100, removeOnFail: 100 } as const;
@@ -103,6 +108,17 @@ export async function requestVerify(ctx: CoreContext, backupId: string): Promise
     QUEUE_NAMES.backups,
     BACKUP_JOBS.verify,
     { backupId },
+    SINGLE_ATTEMPT,
+  );
+}
+
+/** "Run probe now": restore test of the newest backup in a throwaway database. */
+export async function requestProbe(ctx: CoreContext, userId: string): Promise<void> {
+  await assertBackupIdle(ctx);
+  await requireCapability(ctx, 'jobs').add(
+    QUEUE_NAMES.backups,
+    BACKUP_JOBS.probe,
+    { userId },
     SINGLE_ATTEMPT,
   );
 }

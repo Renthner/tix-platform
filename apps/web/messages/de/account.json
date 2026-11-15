@@ -41,8 +41,10 @@
         "LOCKED": "Zu viele Fehlversuche. Bitte versuche es später erneut.",
         "RATE_LIMITED": "Zu viele Versuche. Bitte warte einige Minuten.",
         "EXPIRED": "Die Anmeldung ist abgelaufen. Bitte gib dein Passwort erneut ein.",
-        "INVALID": "Die E-Mail-Adresse oder das Passwort ist nicht korrekt."
-      }
+        "INVALID": "Die E-Mail-Adresse oder das Passwort ist nicht korrekt.",
+        "PASSKEY_FAILED": "Der Passkey konnte nicht überprüft werden. Bitte versuche es erneut oder nutze einen Code."
+      },
+      "passkey": "Stattdessen Passkey verwenden"
     }
   },
   "register": {

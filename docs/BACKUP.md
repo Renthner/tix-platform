@@ -36,8 +36,54 @@ in the backup). Keep a copy of the key ring outside this system - without it a b
   unless "delete after N days" is set (backups contain personal data - see GDPR below). The newest backup
   with a successful verification is never deleted automatically or by hand.
 - **Verify** decrypts the whole archive, checks the checksum and file counts, restores the dump into a
-  temporary database `tix_verify_<id>`, compares row counts with the manifest and drops the database again.
+  temporary database `tix_verify_<stack tag>_<id>`, compares row counts with the manifest and drops the database again.
   This needs a database role that may create databases (the default Docker setup has one).
+
+### Automatic probe restore
+
+A backup that was never restored is only a hope. Settings -> Backups -> "Automatic probe restore"
+(default **off**; when switched on: weekly, Sunday 05:00 shop time, daily is possible) makes the worker verify the **newest**
+backup (any kind) regularly, using the same code as "Verify" plus extra checks.
+
+> **Enable it deliberately.** A probe restores the whole database into a second one, so the database server
+> needs free disk of about **twice the database size** (plus the role must be allowed to create databases).
+> It is therefore off by default and existing installations do not start a restore on their own. Switch it
+> on once that headroom is confirmed.
+
+
+1. checksum, full decryption pass, file counts (as in Verify);
+2. restore of the dump into a throwaway database `tix_probe_<stack tag>_<random>` and row-count comparison with the
+   manifest;
+3. sanity checks on that copy: the migrations table is present and matches the manifest, the copy is then
+   **migrated to the current structure** (exactly what a real restore does) and must end at the newest
+   migration of the running code, and `events`, `orders`, `tickets` must be readable (counts are recorded).
+   A backup from an older version is therefore expected to be "behind" and is brought up to date; a backup
+   from a *newer* version fails with `MIGRATION_NEWER`.
+
+Safety rules:
+
+- The target database name must match `tix_(verify|probe)_<stack tag>_...` and must never be the live
+  database (refused otherwise). The stack tag is derived from the live database name and the key prefix, so
+  stacks sharing one PostgreSQL server never drop each other's databases. It is dropped afterwards, also after
+  a failure; leftovers of a crashed run (of this stack only) are dropped at worker start and at the start of
+  the next probe, always under the backup operation lock.
+- Single flight through the backup operation lock. A probe does not start while a backup, verify, import
+  or restore runs, while maintenance mode is on, or while a restore request is queued. A busy lock is
+  retried on a later check (every 10 minutes), nothing is paused and no session of the live database is
+  terminated. A late slot is caught up; a failed probe is retried after 6 hours, except permanent errors (`CREATEDB_MISSING`, `MIGRATION_NEWER`),
+  which wait for the next regular slot; the warning stays until a probe passes.
+- The archive is read twice (inspection pass + restore), so a probe costs about the I/O of two downloads
+  plus a restore on the database server; schedule it outside peak hours.
+- Files are checked by their counts inside the archive, not against the live buckets (those change
+  legitimately after the backup).
+
+The result (time, backup, duration, status, error, counts, migrations applied) is shown on Backups
+(last-probe badge, history of the last 10 runs, **Run probe now** for super admins), stored on the backup's
+verification state (so a passing probe protects it like a manual Verify) and in the history file
+`backups/probe-history.json` in the backup bucket (last 50 runs, survives a database restore), and written
+to the audit log (`backup.probe`, actor SYSTEM; `backup.probe.requested` for the manual button). A failed
+probe raises the admin warning "Backup failed" (variant "test restore failed", Notifications settings)
+until a later probe passes; it is not raised while the probe is switched off or no backup exists yet.
 
 ## Pre-update backups
 

@@ -1,5 +1,6 @@
 import {
   BACKUP_JOBS,
+  BACKUP_PROBE_TICK_INTERVAL_MS,
   BACKUP_TICK_INTERVAL_MS,
   RestoreRejectedError,
   createMaintenanceProbe,
@@ -13,6 +14,8 @@ import {
   restoreBackup,
   runBackupJob,
   runBackupTick,
+  runProbe,
+  runProbeTick,
   toolMajorVersion,
   verifyBackup,
   withOperationLock,
@@ -34,6 +37,14 @@ export function createBackupsProcessor(rt: BackupRuntime) {
     switch (job.name) {
       case BACKUP_JOBS.tick:
         return runBackupTick(rt);
+
+      case BACKUP_JOBS.probeTick:
+        return runProbeTick(rt);
+
+      case BACKUP_JOBS.probe: {
+        const data = job.data as { userId?: string | null };
+        return runProbe(rt, { trigger: 'MANUAL', userId: data.userId ?? null });
+      }
 
       case BACKUP_JOBS.create: {
         const data = job.data as { kind?: BackupKind; userId?: string | null };
@@ -148,7 +159,10 @@ export function backupsRegistration(rt: BackupRuntime): ProcessorRegistration {
     queue: QUEUE_NAMES.backups,
     concurrency: 1,
     processor: createBackupsProcessor(rt),
-    schedulers: [{ name: BACKUP_JOBS.tick, everyMs: BACKUP_TICK_INTERVAL_MS }],
+    schedulers: [
+      { name: BACKUP_JOBS.tick, everyMs: BACKUP_TICK_INTERVAL_MS },
+      { name: BACKUP_JOBS.probeTick, everyMs: BACKUP_PROBE_TICK_INTERVAL_MS },
+    ],
   };
 }
 

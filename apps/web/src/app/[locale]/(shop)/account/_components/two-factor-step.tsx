@@ -7,6 +7,7 @@ import {
   twoFactorAction,
   type LoginState,
 } from '@/app/[locale]/admin/login/actions';
+import { PasskeyButton } from '@/components/admin/auth/passkey-button';
 import { ActionForm } from '@/components/admin/form-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,16 @@ export function TwoFactorStep({
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? tFields('submitting') : t('verify')}
       </Button>
+      <PasskeyButton
+        mode="second-factor"
+        label={t('passkey')}
+        disabled={pending}
+        shopNext={next ?? '/'}
+        onError={(passkeyError) => {
+          if (passkeyError === 'EXPIRED') onBack(true);
+          else setError(passkeyError);
+        }}
+      />
       <Button
         type="button"
         variant="ghost"

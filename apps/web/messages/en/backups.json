@@ -32,7 +32,8 @@
     "verify": "Verify",
     "restore": "Restore",
     "delete": "Delete",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "probeNow": "Run probe now"
   },
   "status": {
     "title": "Current operation",
@@ -40,7 +41,8 @@
       "BACKUP": "Backup",
       "VERIFY": "Verification",
       "RESTORE": "Restore",
-      "IMPORT": "Importing uploaded file"
+      "IMPORT": "Importing uploaded file",
+      "PROBE": "Probe restore"
     },
     "state": {
       "RUNNING": "Running",
@@ -77,7 +79,9 @@
       "REJECTED_ARCHIVE_INVALID": "Rejected: the archive is damaged or was modified",
       "REJECTED_CHECKSUM_MISMATCH": "Rejected: the checksum does not match",
       "REJECTED_NOT_FOUND": "Rejected: backup not found",
-      "ERASURE_REPLAY": "Replaying recorded erasures…"
+      "ERASURE_REPLAY": "Replaying recorded erasures…",
+      "SANITY": "Migrating the copy and checking key tables…",
+      "CLEANUP": "Cleaning up old test databases…"
     }
   },
   "list": {
@@ -120,7 +124,10 @@
     "KEY_UNKNOWN": "The encryption key of this backup is not available.",
     "CORRUPT": "The backup is damaged or was modified.",
     "TRUNCATED": "The backup file is incomplete.",
-    "BAD_ARCHIVE": "The archive structure is invalid."
+    "BAD_ARCHIVE": "The archive structure is invalid.",
+    "SANITY_FAILED": "The test restore worked, but the restored copy failed the sanity checks.",
+    "MIGRATION_NEWER": "The backup was made by a newer version of the software than the one running now.",
+    "PROBE_FAILED": "The probe restore could not be completed."
   },
   "restore": {
     "title": "Restore this backup?",
@@ -136,7 +143,10 @@
     "acknowledge": "I understand that data created after the backup is lost and that the system is unavailable during the restore.",
     "submit": "Restore now",
     "submitting": "Starting…",
-    "twoFactorSetup": "Restoring requires two-factor authentication, but your account has none. Set up an authenticator app first.",
+    "twoFactorSetup": "Restoring requires two-factor authentication, but your account has none. Set up an authenticator app or a passkey first.",
+    "passkeyHint": "Instead of a code you can confirm with your passkey.",
+    "passkeySubmit": "Restore with passkey",
+    "passkeyWaiting": "Waiting for passkey…",
     "twoFactorSetupLink": "Open my account"
   },
   "deleteConfirm": {
@@ -193,7 +203,12 @@
     "restoreRequiresTwoFactor": "Restoring requires two-factor authentication (recommended)",
     "allowInsecureEndpoint": "Allow plain http:// endpoints",
     "allowPrivateNetwork": "Allow endpoints in private networks (e.g. a MinIO on your LAN)",
-    "credentialsChangeHint": "Changing endpoint or bucket requires entering the keys again."
+    "credentialsChangeHint": "Changing endpoint or bucket requires entering the keys again.",
+    "probe": {
+      "title": "Automatic probe restore",
+      "enabled": "Regularly test-restore the newest backup",
+      "hint": "Restores into a temporary database, migrates and checks it, then deletes it. A failure is reported on the dashboard and by warning e-mail. The live database is not touched. Off by default: switch it on once the database server has free disk space of at least twice the database size."
+    }
   },
   "feedback": {
     "queued": "Started – see the progress above.",
@@ -203,8 +218,9 @@
     "busy": "Another backup operation is running. Please wait until it has finished.",
     "notFound": "Backup not found.",
     "password": "The password is not correct.",
-    "twoFactorRequired": "Enter the code of your authenticator app (or a recovery code).",
+    "twoFactorRequired": "Enter the code of your authenticator app (or a recovery code), or confirm with a passkey.",
     "twoFactorInvalid": "The code is not correct.",
+    "passkeyInvalid": "The passkey could not be verified. Please try again.",
     "acknowledge": "Please confirm that you understand the consequences.",
     "locked": "The account is temporarily locked.",
     "rateLimited": "Too many attempts. Please wait a few minutes.",
@@ -234,5 +250,32 @@
     "retry": "Run the restore again",
     "safety": "Restore the safety backup",
     "error": "Error: {error}"
+  },
+  "probe": {
+    "title": "Automatic probe restore",
+    "description": "The newest backup is regularly restored into a temporary test database (never the live one), brought to the current database structure and checked. This proves that a backup can really be restored when you need it.",
+    "off": "Probe restore is switched off",
+    "never": "No probe restore has run yet.",
+    "status": {
+      "OK": "Last probe passed {date}",
+      "FAILED": "Last probe failed {date}"
+    },
+    "result": {
+      "OK": "Passed",
+      "FAILED": "Failed"
+    },
+    "trigger": {
+      "SCHEDULED": "Scheduled",
+      "MANUAL": "Manual"
+    },
+    "columns": {
+      "date": "Started",
+      "result": "Result",
+      "backup": "Backup of",
+      "duration": "Duration",
+      "details": "Details"
+    },
+    "seconds": "{seconds} s",
+    "counts": "{events} events, {orders} orders, {tickets} tickets · {migrations} migrations applied"
   }
 }

@@ -131,6 +131,61 @@
     "title": "Einlass",
     "description": "Live-Fortschritt und Scan-Protokoll dieser Veranstaltung.",
     "backToDevices": "Einlass-Geräte",
+    "reports": {
+      "title": "Listen für den Einlass",
+      "description": "Druckbare Listen für den Eingang. Testbestellungen und stornierte Bestellungen sind nicht enthalten.",
+      "generated": "Erstellt {time}",
+      "pageOf": "Seite {page} von {pages}",
+      "columns": {
+        "name": "Name",
+        "orderNumber": "Bestellnr.",
+        "category": "Kategorie",
+        "tariff": "Tarif",
+        "block": "Block",
+        "row": "Reihe",
+        "seat": "Platz",
+        "ticketStatus": "Ticketstatus",
+        "checkIn": "Einlass",
+        "checkInTime": "Einlass-Zeit",
+        "holder": "Name",
+        "status": "Status"
+      },
+      "ticketStatuses": {
+        "VALID": "Gültig",
+        "CANCELLED": "Storniert",
+        "REFUNDED": "Erstattet",
+        "REPLACED": "Ersetzt"
+      },
+      "checkInStates": {
+        "NONE": "Nicht erschienen",
+        "CHECKED_IN": "Drin",
+        "CHECKED_OUT": "Ausgecheckt"
+      },
+      "occupancy": {
+        "title": "Platzbelegung",
+        "description": "Platzübersicht je Block und Reihe (PDF).",
+        "holders": "Namen der Ticketinhaber drucken",
+        "download": "Belegungs-PDF herunterladen",
+        "SOLD": "Verkauft",
+        "RESERVED": "Reserviert (unbezahlt)",
+        "BLOCKED": "Gesperrt",
+        "FREE": "Frei",
+        "standing": "{sold} verkauft, {reserved} reserviert von {capacity}",
+        "totals": "{sold} verkauft, {reserved} reserviert, {blocked} gesperrt, {free} frei",
+        "noOccupied": "Keine belegten Plätze.",
+        "noSeats": "Keine Plätze in diesem Block."
+      },
+      "guestList": {
+        "title": "Gästeliste",
+        "description": "Alle Tickets mit Einlassstatus (CSV für Excel oder PDF).",
+        "count": "{count} Tickets",
+        "sort": "Sortieren nach",
+        "sortName": "Name",
+        "sortSeat": "Platz",
+        "csv": "CSV herunterladen",
+        "pdf": "PDF herunterladen"
+      }
+    },
     "stats": {
       "valid": "Gültige Tickets",
       "checkedIn": "Drinnen",

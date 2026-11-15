@@ -1,4 +1,4 @@
-import { adminUsers, emailMessages, events, seatMaps } from '@tix/db';
+import { adminPasskeys, adminUsers, emailMessages, events, seatMaps } from '@tix/db';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import type { CoreContext } from './context';
 import { paymentAvailabilityForEvents } from './orders/pricing';
@@ -135,13 +135,23 @@ export async function loadSetupFacts(ctx: CoreContext, userId: string): Promise<
         db.select({ id: events.id }).from(events).where(eq(events.status, 'PUBLISHED')).limit(1),
       ),
       getSetting(ctx, 'backup'),
-      exists(
-        db
-          .select({ id: adminUsers.id })
-          .from(adminUsers)
-          .where(and(eq(adminUsers.id, userId), isNotNull(adminUsers.totpSecretEncrypted)))
-          .limit(1),
-      ),
+      // A second factor is an authenticator app OR a passkey.
+      Promise.all([
+        exists(
+          db
+            .select({ id: adminUsers.id })
+            .from(adminUsers)
+            .where(and(eq(adminUsers.id, userId), isNotNull(adminUsers.totpSecretEncrypted)))
+            .limit(1),
+        ),
+        exists(
+          db
+            .select({ id: adminPasskeys.id })
+            .from(adminPasskeys)
+            .where(eq(adminPasskeys.adminUserId, userId))
+            .limit(1),
+        ),
+      ]).then(([totp, passkey]) => totp || passkey),
     ]);
   return {
     organizer,

@@ -13,6 +13,7 @@ import {
   ChartLine,
   Activity,
   ScanLine,
+  ScrollText,
   Percent,
   TicketPercent,
   ReceiptText,
@@ -60,6 +61,7 @@ export const NAV_ITEMS = {
   scanners: { href: '/admin/scanners', icon: ScanLine, exact: false },
   backups: { href: '/admin/backups', icon: DatabaseBackup, exact: false },
   system: { href: '/admin/system', icon: Activity, exact: false },
+  audit: { href: '/admin/audit', icon: ScrollText, exact: false },
   settings: { href: '/admin/settings', icon: Settings, exact: false },
 } satisfies Record<string, { href: string; icon: LucideIcon; exact: boolean }>;
 

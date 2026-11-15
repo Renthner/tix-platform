@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
+import { PasskeyButton } from '@/components/admin/auth/passkey-button';
 import { ActionForm } from '@/components/admin/form-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -13,8 +14,11 @@ import { cancelTwoFactorAction, loginAction, twoFactorAction, type LoginState } 
 export function LoginForm({
   initialStep,
   notice,
+  passkeys,
 }: {
   initialStep: LoginState['step'];
+  /** The public URL allows passkeys: offer "Sign in with passkey". */
+  passkeys: boolean;
   notice?: 'reset' | 'invited' | null;
 }) {
   const t = useTranslations('admin.login');
@@ -59,6 +63,12 @@ export function LoginForm({
         <Button type="submit" className="w-full" disabled={pending}>
           {pending ? t('submitting') : ts('verify')}
         </Button>
+        <PasskeyButton
+          mode="second-factor"
+          label={ts('passkeySecondFactor')}
+          disabled={pending}
+          onError={(error) => setState({ step: 'code', error })}
+        />
         <Button
           type="button"
           variant="ghost"
@@ -103,6 +113,17 @@ export function LoginForm({
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? t('submitting') : t('submit')}
       </Button>
+      {passkeys && (
+        <>
+          <p className="text-center text-xs text-muted-foreground">{ts('or')}</p>
+          <PasskeyButton
+            mode="login"
+            label={ts('passkey')}
+            disabled={pending}
+            onError={(error) => setState({ step: 'password', error })}
+          />
+        </>
+      )}
       <p className="text-center text-sm">
         <Link href="/admin/forgot-password" className="text-muted-foreground underline">
           {ts('forgot')}

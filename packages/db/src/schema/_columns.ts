@@ -43,3 +43,8 @@ export const translationsColumn = () =>
 export const xid8 = customType<{ data: string; driverData: string }>({
   dataType: () => 'xid8',
 });
+
+/** PostgreSQL `bytea`; values travel as Node `Buffer`s. */
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => 'bytea',
+});

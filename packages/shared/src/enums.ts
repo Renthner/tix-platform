@@ -378,6 +378,7 @@ export const EMAIL_TEMPLATE_KEYS = values(
   'WAITLIST_CONFIRM',
   'WAITLIST_AVAILABLE',
   'WAITLIST_REMOVED',
+  'ADMIN_PASSKEY_ADDED',
 );
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 

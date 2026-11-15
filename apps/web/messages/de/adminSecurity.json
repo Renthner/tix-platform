@@ -15,8 +15,12 @@
       "LOCKED": "Zu viele Fehlversuche. Das Konto ist vorübergehend gesperrt.",
       "RATE_LIMITED": "Zu viele Versuche. Bitte warte einige Minuten.",
       "INVALID_CODE": "Der Code ist nicht korrekt.",
-      "EXPIRED": "Die Anmeldung ist abgelaufen. Bitte gib dein Passwort erneut ein."
-    }
+      "EXPIRED": "Die Anmeldung ist abgelaufen. Bitte gib dein Passwort erneut ein.",
+      "PASSKEY_FAILED": "Der Passkey konnte nicht überprüft werden. Bitte versuche es erneut oder nutze dein Passwort."
+    },
+    "passkey": "Mit Passkey anmelden",
+    "passkeySecondFactor": "Stattdessen Passkey verwenden",
+    "or": "oder"
   },
   "forgot": {
     "title": "Passwort zurücksetzen",
@@ -47,7 +51,7 @@
     "INVALID_CODE": "Der Code ist nicht korrekt.",
     "WEAK_PASSWORD": "Das Passwort muss mindestens {min} Zeichen haben.",
     "PASSWORD_TOO_LONG": "Das Passwort ist zu lang.",
-    "TWO_FACTOR_REQUIRED": "Die Zwei-Faktor-Authentifizierung ist für alle Admins verpflichtend.",
+    "TWO_FACTOR_REQUIRED": "Die Zwei-Faktor-Authentifizierung ist für dich verpflichtend. Behalte mindestens eine Authenticator-App oder einen Passkey.",
     "TWO_FACTOR_ALREADY_ENABLED": "Die Zwei-Faktor-Authentifizierung ist bereits aktiv.",
     "TWO_FACTOR_NO_SETUP": "Es gibt keine offene Einrichtung. Starte neu.",
     "ACCOUNT_LOCKED": "Zu viele Fehlversuche. Das Konto ist vorübergehend gesperrt.",
@@ -58,7 +62,12 @@
     "CANNOT_DEACTIVATE_SELF": "Du kannst dich nicht selbst deaktivieren.",
     "INVITE_NOT_PENDING": "Dieser Benutzer hat die Einladung bereits angenommen.",
     "USER_HAS_SIGNED_IN": "Nur nie angenommene Einladungen können gelöscht werden.",
-    "ADMIN_USER_NOT_FOUND": "Benutzer nicht gefunden."
+    "ADMIN_USER_NOT_FOUND": "Benutzer nicht gefunden.",
+    "PASSKEY_INVALID": "Der Passkey konnte nicht überprüft werden. Bitte versuche es erneut.",
+    "PASSKEY_LIMIT": "Die maximale Anzahl an Passkeys ist erreicht. Entferne zuerst einen.",
+    "PASSKEY_EXISTS": "Dieser Passkey ist bereits registriert.",
+    "PASSKEY_NOT_FOUND": "Passkey nicht gefunden.",
+    "PASSKEYS_UNAVAILABLE": "Passkeys brauchen eine öffentliche Adresse dieses Shops mit https:// (oder localhost) und Domainnamen."
   },
   "messages": {
     "invited": "Einladung gesendet.",
@@ -78,12 +87,15 @@
     "verificationSent": "Bestätigungslink gesendet. Bitte prüfe dein Postfach.",
     "alreadyVerified": "Deine E-Mail-Adresse ist bereits bestätigt.",
     "alertsSaved": "Einstellungen der Warn-E-Mails gespeichert.",
-    "alertsReset": "Zurück auf die Standardwerte deiner Rolle."
+    "alertsReset": "Zurück auf die Standardwerte deiner Rolle.",
+    "passkeyAdded": "Passkey hinzugefügt.",
+    "passkeyRenamed": "Passkey umbenannt.",
+    "passkeyRemoved": "Passkey entfernt."
   },
   "account": {
     "title": "Mein Konto",
     "description": "Dein Profil, Passwort und die Zwei-Faktor-Authentifizierung.",
-    "setupRequired": "Die Zwei-Faktor-Authentifizierung ist verpflichtend. Richte sie mit einer Authenticator-App ein, um fortzufahren.",
+    "setupRequired": "Die Zwei-Faktor-Authentifizierung ist für dich verpflichtend. Richte sie mit einer Authenticator-App oder einem Passkey ein, um fortzufahren.",
     "twoFactor": {
       "title": "Zwei-Faktor-Authentifizierung",
       "description": "Schütze deine Anmeldung mit einem Code aus einer Authenticator-App."
@@ -111,6 +123,10 @@
       "verified": "Deine E-Mail-Adresse ist bestätigt.",
       "unverified": "Deine E-Mail-Adresse ({email}) ist noch nicht bestätigt.",
       "send": "Bestätigungslink senden"
+    },
+    "passkeys": {
+      "title": "Passkeys",
+      "description": "Melde dich mit Fingerabdruck, Gesicht, Geräte-PIN oder Sicherheitsschlüssel statt mit Passwort an. Ein Passkey zählt als dein zweiter Faktor."
     }
   },
   "twoFactor": {
@@ -133,7 +149,7 @@
     "verifying": "Prüfe…",
     "enable": "Einschalten",
     "onStatus": "Die Zwei-Faktor-Authentifizierung ist aktiv. Unbenutzte Wiederherstellungscodes: {count}.",
-    "requiredNote": "Sie ist für alle Admins verpflichtend und kann nicht ausgeschaltet werden.",
+    "requiredNote": "Sie ist für dich verpflichtend und kann nicht ausgeschaltet werden, solange sie dein einziger zweiter Faktor ist.",
     "regenerateTitle": "Neue Wiederherstellungscodes",
     "regenerateHint": "Erstellt 10 neue Codes; die alten werden ungültig.",
     "regenerate": "Neue Codes erstellen",
@@ -206,7 +222,9 @@
       "title": "Sicherheit",
       "description": "Sitzungen, Sperre, Passwörter und Zwei-Faktor-Authentifizierung der Admin-Benutzer.",
       "requireTwoFactor": "Zwei-Faktor-Authentifizierung verpflichtend",
-      "requireTwoFactorHint": "Jeder Admin muss eine Authenticator-App nutzen. Wer keine hat, wird direkt nach der Anmeldung zur Einrichtung geleitet.",
+      "requireTwoFactorHint": "Jeder Admin muss eine Authenticator-App oder einen Passkey nutzen. Wer keinen zweiten Faktor hat, wird direkt nach der Anmeldung zur Einrichtung geleitet.",
+      "requireTwoFactorForSuperAdmins": "Zwei-Faktor-Authentifizierung für Super-Admins verpflichtend",
+      "requireTwoFactorForSuperAdminsHint": "Benutzer mit der Rolle Super-Admin müssen eine Authenticator-App oder einen Passkey nutzen, auch wenn es nicht für alle verpflichtend ist. Standardmäßig aus: Schalte es erst ein, wenn jeder Super-Admin einen zweiten Faktor hat (sonst werden sie bei der nächsten Anmeldung zur Einrichtung geleitet).",
       "adminSessionTtlHours": "Sitzungsdauer (Stunden)",
       "adminSessionTtlHoursHint": "Gilt für neue Anmeldungen.",
       "minPasswordLength": "Mindestlänge des Passworts",
@@ -277,5 +295,39 @@
     "done": "Deine E-Mail-Adresse ist bestätigt. Bei deiner nächsten Anmeldung im Shop wird „Mein Konto“ verknüpft.",
     "invalid": "Dieser Link ist ungültig oder abgelaufen. Du kannst in deinen Kontoeinstellungen einen neuen anfordern.",
     "backToLogin": "Zur Anmeldung"
+  },
+  "passkeys": {
+    "none": "Noch kein Passkey.",
+    "add": "Passkey hinzufügen",
+    "create": "Passkey erstellen",
+    "adding": "Warte auf dein Gerät…",
+    "cancel": "Abbrechen",
+    "name": "Name",
+    "nameHint": "Hilft dir, ihn später wiederzuerkennen, z. B. „Arbeitslaptop“ oder „YubiKey“.",
+    "defaultName": "Passkey",
+    "password": "Aktuelles Passwort",
+    "addHint": "Bestätige dein Passwort und folge dann der Aufforderung deines Geräts.",
+    "added": "Hinzugefügt am {date}",
+    "lastUsed": "zuletzt genutzt am {date}",
+    "neverUsed": "noch nie genutzt",
+    "synced": "geräteübergreifend synchronisiert",
+    "rename": "Umbenennen",
+    "remove": "Entfernen",
+    "removeConfirm": "Passkey entfernen",
+    "removeHint": "Bestätige mit deinem Passwort. Der Passkey funktioniert sofort nicht mehr.",
+    "removeLocked": "Die Zwei-Faktor-Authentifizierung ist verpflichtend und das ist dein einziger zweiter Faktor.",
+    "save": "Speichern",
+    "addedNow": "Passkey hinzugefügt. Sichere jetzt deine Wiederherstellungscodes.",
+    "addedToast": "Passkey hinzugefügt.",
+    "unavailable": "Passkeys sind nicht verfügbar: Die öffentliche Adresse dieser Installation muss https:// (oder localhost) mit Domainnamen sein.",
+    "unsupported": "Dieser Browser unterstützt keine Passkeys.",
+    "proofCode": "Authenticator- oder Wiederherstellungscode",
+    "proofHint": "Zum Hinzufügen eines Passkeys brauchst du einen Nachweis deines bisherigen zweiten Faktors.",
+    "proofHintOptional": "Leer lassen, um stattdessen mit einem deiner vorhandenen Passkeys zu bestätigen.",
+    "regenerateTitle": "Neue Wiederherstellungscodes",
+    "regenerateHint": "Erzeugt neue Wiederherstellungscodes; die alten werden ungültig.",
+    "regenerate": "Neue Wiederherstellungscodes erzeugen",
+    "regenerateConfirm": "Codes erzeugen",
+    "regenerated": "Neue Wiederherstellungscodes erstellt."
   }
 }

@@ -25,3 +25,8 @@ before you publish details.
 Releases are built by a GitHub workflow; images are signed with cosign, the APK, compose file and
 deploy bundle carry build attestations. See
 [docs/RELEASES.md](docs/RELEASES.md#verifying-releases).
+
+## Admin sign-in
+
+Passkeys, mandatory two-factor authentication and the recovery paths are described in
+[docs/ADMIN-SECURITY.md](docs/ADMIN-SECURITY.md).

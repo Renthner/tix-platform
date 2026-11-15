@@ -1,10 +1,22 @@
-import { getOwnAccount, getOwnAlertPreferences, getSetting } from '@tix/core';
+import {
+  getOwnAccount,
+  getOwnAlertPreferences,
+  getSetting,
+  listOwnPasskeys,
+  passkeysAvailable,
+} from '@tix/core';
 import { getTranslations } from 'next-intl/server';
 import { SettingsSection } from '@/components/admin/settings-forms';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getCore } from '@/server/core';
 import {
+  beginPasskeyRegistrationAction,
+  passkeyProofOptionsAction,
+  regenerateRecoveryCodesWithPasskeyAction,
   changePasswordAction,
+  finishPasskeyRegistrationAction,
+  removePasskeyAction,
+  renamePasskeyAction,
   resetAlertPreferencesAction,
   saveAlertPreferencesAction,
   confirmTwoFactorAction,
@@ -21,6 +33,7 @@ import {
   ProfileForm,
   TwoFactorPanel,
 } from './account-forms';
+import { PasskeyPanel } from './passkey-panel';
 
 /** Body of the own-account page (also shown in place of the panel while 2FA setup is enforced). */
 export async function AccountContent({
@@ -31,12 +44,13 @@ export async function AccountContent({
   setupRequired: boolean;
 }) {
   const core = getCore();
-  const [t, account, security, alertPrefs, alertSettings] = await Promise.all([
+  const [t, account, security, alertPrefs, alertSettings, passkeys] = await Promise.all([
     getTranslations('adminSecurity.account'),
     getOwnAccount(core, userId),
     getSetting(core, 'security'),
     getOwnAlertPreferences(core, userId),
     getSetting(core, 'alerts'),
+    listOwnPasskeys(core, userId),
   ]);
   const ta = await getTranslations('system.alerts');
   return (
@@ -53,12 +67,41 @@ export async function AccountContent({
       >
         <TwoFactorPanel
           enabled={account.twoFactorEnabled}
-          required={account.twoFactorRequired}
+          // The authenticator app can only be dropped while it is not the last mandatory factor.
+          required={account.twoFactorRequired && account.passkeyCount === 0}
           recoveryCodesLeft={account.recoveryCodesLeft}
           startSetup={startTwoFactorSetupAction}
           confirmAction={confirmTwoFactorAction}
           disableAction={disableTwoFactorAction}
           regenerateAction={regenerateRecoveryCodesAction}
+        />
+      </SettingsSection>
+      <SettingsSection
+        id="passkeys"
+        title={t('passkeys.title')}
+        description={t('passkeys.description')}
+      >
+        <PasskeyPanel
+          available={passkeysAvailable(core)}
+          passkeys={passkeys.map((p) => ({
+            id: p.id,
+            name: p.name,
+            createdAt: p.createdAt.toISOString(),
+            lastUsedAt: p.lastUsedAt?.toISOString() ?? null,
+            backedUp: p.backedUp,
+          }))}
+          // Only the last second factor of a mandatory policy cannot go (same rule as the server).
+          removeLocked={
+            account.twoFactorRequired && !account.twoFactorEnabled && passkeys.length <= 1
+          }
+          hasSecondFactor={account.twoFactorEnabled || passkeys.length > 0}
+          hasTotp={account.twoFactorEnabled}
+          proofOptionsAction={passkeyProofOptionsAction}
+          regenerateAction={regenerateRecoveryCodesWithPasskeyAction}
+          beginAction={beginPasskeyRegistrationAction}
+          finishAction={finishPasskeyRegistrationAction}
+          renameAction={renamePasskeyAction}
+          removeAction={removePasskeyAction}
         />
       </SettingsSection>
       {!setupRequired && (

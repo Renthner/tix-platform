@@ -160,7 +160,7 @@
     "types": {
       "BACKUP_FAILED": {
         "name": "Sicherung fehlgeschlagen",
-        "description": "Eine geplante oder manuelle Sicherung oder der Upload zum externen Ziel ist fehlgeschlagen."
+        "description": "Eine geplante oder manuelle Sicherung oder der Upload zum externen Ziel ist fehlgeschlagen, oder die automatische Probe-Wiederherstellung der neuesten Sicherung ist fehlgeschlagen."
       },
       "BACKUP_OVERDUE": {
         "name": "Sicherung überfällig",
