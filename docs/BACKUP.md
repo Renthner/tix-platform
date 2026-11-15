@@ -50,7 +50,6 @@ backup (any kind) regularly, using the same code as "Verify" plus extra checks.
 > It is therefore off by default and existing installations do not start a restore on their own. Switch it
 > on once that headroom is confirmed.
 
-
 1. checksum, full decryption pass, file counts (as in Verify);
 2. restore of the dump into a throwaway database `tix_probe_<stack tag>_<random>` and row-count comparison with the
    manifest;
@@ -58,7 +57,7 @@ backup (any kind) regularly, using the same code as "Verify" plus extra checks.
    **migrated to the current structure** (exactly what a real restore does) and must end at the newest
    migration of the running code, and `events`, `orders`, `tickets` must be readable (counts are recorded).
    A backup from an older version is therefore expected to be "behind" and is brought up to date; a backup
-   from a *newer* version fails with `MIGRATION_NEWER`.
+   from a _newer_ version fails with `MIGRATION_NEWER`.
 
 Safety rules:
 

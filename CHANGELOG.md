@@ -8,7 +8,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
-## [1.0.0-alpha.24] - 2026-11-15
+## [1.0.0-alpha.25] - 2026-11-15
 
 ### Added
 
