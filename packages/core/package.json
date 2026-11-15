@@ -14,13 +14,13 @@
     "db:demo": "tsx src/cli/demo.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1166.0",
+    "@aws-sdk/client-s3": "^3.1167.0",
     "@pdf-lib/fontkit": "^1.1.1",
     "@simplewebauthn/server": "14.1.0",
     "@tix/db": "workspace:*",
     "@tix/redis": "workspace:*",
     "@tix/shared": "workspace:*",
-    "bullmq": "^6.7.4",
+    "bullmq": "^6.7.5",
     "drizzle-orm": "^0.45.4",
     "fast-xml-parser": "^5.12.0",
     "imapflow": "^2.11.0",
@@ -31,7 +31,7 @@
     "nodemailer": "^10.5.0",
     "pdf-lib": "^1.17.1",
     "qrcode-generator": "^2.0.4",
-    "sanitize-html": "^2.18.1",
+    "sanitize-html": "^2.18.2",
     "sharp": "^0.35.5",
     "zod": "^4.6.7"
   },
