@@ -32,7 +32,7 @@ const names = (
   kind: 'text' | 'html' = 'text',
 ) => list.map((name): EmailVariableInfo => ({ name, group, kind }));
 
-const SHOP = names('shop', [
+const SHOP_TEXT = names('shop', [
   'shopName',
   'shopUrl',
   'supportEmail',
@@ -51,6 +51,8 @@ const SHOP = names('shop', [
   'organizerVatId',
   'recipientEmail',
 ]);
+/** `shopHeader`: header band content (shop name, plus the logo when configured). */
+const SHOP = [...SHOP_TEXT, ...names('shop', ['shopHeader'], 'html')];
 
 const CUSTOMER = names('customer', ['firstName', 'lastName', 'fullName', 'email']);
 

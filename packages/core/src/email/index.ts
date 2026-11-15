@@ -11,6 +11,7 @@ export * from './error-kind';
 export * from './sanitize';
 export * from './editor';
 export * from './template-admin';
+export * from './header';
 export { EMAIL_VARIABLES } from './variables';
 
 /**

@@ -23,6 +23,7 @@ import { getSetting } from '../settings';
 import { calendarVariables } from '../calendar/email';
 import { ticketLinksVariable } from '../tickets/email-links';
 import { walletLinksVariable } from '../wallet/links';
+import { buildShopHeader, loadEmailLogo } from './header';
 import { escapeHtml, trustedHtml, type TemplateVariables } from './template';
 
 /**
@@ -37,6 +38,8 @@ export const EMAIL_VARIABLES = {
     'brandColor',
     // Black or white, whichever reads better on the brand colour (button / banner text).
     'brandForegroundColor',
+    // Header band content: shop name, with the logo in front of it when configured (generated HTML).
+    'shopHeader',
     // Aliases of brandColor (the shop has one brand colour); kept so edited templates still render.
     'primaryColor',
     'accentColor',
@@ -186,6 +189,11 @@ export async function shopVariables(
       supportEmail: general.supportEmail ?? organizer.email ?? null,
       brandColor: branding.brandColor,
       brandForegroundColor: foregroundOn(branding.brandColor),
+      shopHeader: buildShopHeader({
+        shopName: general.shopName,
+        foreground: foregroundOn(branding.brandColor),
+        logo: await loadEmailLogo(ctx, branding.logoAssetId, branding.logoHeight),
+      }),
       primaryColor: branding.brandColor,
       accentColor: branding.brandColor,
       imprintUrl: branding.imprintUrl ?? null,

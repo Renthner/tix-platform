@@ -21,8 +21,8 @@ export function emailTemplateFingerprint(t: {
     .digest('hex');
 }
 
-/** `key|locale` → fingerprints of earlier defaults. */
-export const PREVIOUS_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly string[]>> = {
+/** `key|locale` → fingerprints of earlier defaults (before the header-logo change). */
+const EARLIER_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly string[]>> = {
   // Phase 3 text: "your tickets will be sent separately" (replaced when ticket PDFs were attached).
   'PAYMENT_RECEIVED_TICKETS|en': [
     // Before the calendar / directions block.
@@ -174,5 +174,119 @@ export const PREVIOUS_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly str
   'ADMIN_PASSWORD_RESET|en': ['561ae749c806e61da1e771978ba7904464b020db3c8459c453dc31b477a03b89'],
   'ADMIN_PASSWORD_RESET|de': ['1f96fa2bce728d09903e04a78c82f21ccaf5b32676e2522696d69f6f5d379ba3'],
 };
+
+/**
+ * Defaults shipped before the header band got the shop logo (`{{shopHeader}}` instead of
+ * `{{shopName}}`), one fingerprint per template; unedited rows upgrade to the current default.
+ */
+const BEFORE_HEADER_LOGO: Readonly<Record<string, readonly string[]>> = {
+  'ORDER_CONFIRMATION_BANK_TRANSFER|en': [
+    '1cf35c8b9b08ee261c51a75cafdd5857eefc08fd264472b3f4f75b080f45089b',
+  ],
+  'ORDER_CONFIRMATION_BANK_TRANSFER|de': [
+    '261f77cefc78666ecab85813d024fe1d77258e49e5dcd80f094222f73eea0bde',
+  ],
+  'PAYMENT_RECEIVED_TICKETS|en': [
+    'fbfb6d3f2b5a375fef1bcbcf754647dbfb0e1dcebdbde5e27373f3877682979c',
+  ],
+  'PAYMENT_RECEIVED_TICKETS|de': [
+    '0f516a78130215cb5e416cdb1dc8b5817853db695100c74e1ad71743586bbb9b',
+  ],
+  'PAYMENT_REMINDER|en': ['acb0653bce5eecc0bf6893ba9ccb9f212bd19e7b7a654bc80d4f9b9109eec755'],
+  'PAYMENT_REMINDER|de': ['e9eafd819ae0936b74724a0eef88ae286440567cda90635e3e56d56c5be84f0c'],
+  'ORDER_CANCELLED|en': ['4ad6afe6797350942d0c263b8457eeb42e29dc0c2a80bfcffc7e27627706442d'],
+  'ORDER_CANCELLED|de': ['28e23fd6b1501296e4f6c759f2630614364fdac68100c90c2646b516bade45cc'],
+  'REFUND_CONFIRMATION|en': ['5fc5180ce0f1cac8929f5b9cb70335eb9be8681e2f151286ba55bdcf2ca69e0d'],
+  'REFUND_CONFIRMATION|de': ['6d76cc3a1796d62ee72612ccc3204d8885cefb0f42efc81d4d16ebe4984b1a76'],
+  'ADDITIONAL_PAYMENT_REQUEST|en': [
+    '3d8610a2355f8d4f6e7675e4eb2cb4b641ba442fd35204eeceb982606e81e704',
+  ],
+  'ADDITIONAL_PAYMENT_REQUEST|de': [
+    '8eb3e970b95d9e061493caf71630d128dbadbf92a4f70002a80ea324b261206e',
+  ],
+  'ADDITIONAL_PAYMENT_REMINDER|en': [
+    'bcf8020b0c14086da37d323cb2b8aa3ca9eed95b50df07bb4998fef3585b6556',
+  ],
+  'ADDITIONAL_PAYMENT_REMINDER|de': [
+    '8f097bb765e57830ff2f20e8a1dfff66207eb6d847909a1bb0df5df1224c4c7e',
+  ],
+  'ADDITIONAL_PAYMENT_CANCELLED|en': [
+    'efa0e11065b8227977ae50f649028e750637d958856706414ac597cbefc93e93',
+  ],
+  'ADDITIONAL_PAYMENT_CANCELLED|de': [
+    'd84c13a910d987bfcaf824fa5994e93b467429aedfad1016b4e451f7fa22cc34',
+  ],
+  'ADDITIONAL_PAYMENT_RECEIVED|en': [
+    '1b1c816c328a55a96b706f037901da5d49218eded71dd5fe479f8b0f87e6d813',
+  ],
+  'ADDITIONAL_PAYMENT_RECEIVED|de': [
+    'fb410069237885ced297eb020e4476c13dd5381a814618ce6d2981191d0d5fce',
+  ],
+  'ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT|en': [
+    '76800a99b32aa257e7289e0fcf8e5bf17a631e8e95b3b408fcf75d3cfc741574',
+  ],
+  'ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT|de': [
+    'bcc5a23c2d1e5ebdff4941a4ba76b16d5ce230b4a2c85020c8dbf7ef80f6a774',
+  ],
+  'TICKETS_RESENT|en': ['5fe258ca6aee75fa84497f1a3e01fd2bc52fac3c8d009d334ff8b1818afdb8d2'],
+  'TICKETS_RESENT|de': ['49ce3428fbc79a2694628fc7e55c5070b67f8ca331f688ff2e1ffad6245413d7'],
+  'TICKET_TRANSFER_RECEIVED|en': [
+    'e70389f9720d9868dc0d1ceb32fd946888edb5a86ba68e544c20cd83d31e34e6',
+  ],
+  'TICKET_TRANSFER_RECEIVED|de': [
+    'ec2a33c1b8a4c7e9ca7259044a7d46d97325605812cb80c34baa58332e0193d7',
+  ],
+  'TICKET_TRANSFER_SENT|en': ['9ff8f827449701316fce1ce5e0de9abac936b198aa29e4088636f46ff68bbfe6'],
+  'TICKET_TRANSFER_SENT|de': ['fd8143d54574659e8e1e24e6ab230ad9064594600e8a98828a051560515e5f6d'],
+  'TICKET_HOLDER_UPDATED|en': ['0bb72f1c3812083366845f726a45fc04ab501f08f04395e0efe51b99368a6411'],
+  'TICKET_HOLDER_UPDATED|de': ['d31895a7b8c2590d1e5105e67975fdb28953d9eadc6a1e0886359c0a779f7993'],
+  'TICKET_HOLDER_CANCELLED|en': [
+    '83f11985c5489128ae2ff3ac6369e9d88185ddbe4a42c025f02cb5edc9552631',
+  ],
+  'TICKET_HOLDER_CANCELLED|de': [
+    '2422442787947730d172ea14f3e64f2f1fe08fa1b0bc97bc2cbf3f6d7f574026',
+  ],
+  'CUSTOMER_EMAIL_VERIFICATION|en': [
+    '92d398876a2f0ba0b45b5bdee274abf30cbd7b5f77bffdb478c2158082482ecd',
+  ],
+  'CUSTOMER_EMAIL_VERIFICATION|de': [
+    '960aa2d6cc97cc04fdf6440df4f0aff0313349f635d835801ecc2cb8c4e3660d',
+  ],
+  'CUSTOMER_PASSWORD_RESET|en': [
+    'fc46faa21fb2b45e7417eeaabfe0fae12b70f3dcebd1d74e9becb525a2ee7dd0',
+  ],
+  'CUSTOMER_PASSWORD_RESET|de': [
+    'f89c820056034bb225f39f6b106e7ec6810c604b950a4b951222450c98478c25',
+  ],
+  'CUSTOMER_LOGIN_LINK|en': ['17b13788a0295fcc16db798ff1fe34bee63c486263daf92244e1d017f7ca4b14'],
+  'CUSTOMER_LOGIN_LINK|de': ['1252d01c15e2915e6c4284eaeb830e55b83d99ebce55897a27223a3d8537f069'],
+  'SMTP_TEST|en': ['c627f74ffb20bca0056b5eab9704dba3e47e2555518b583beeb0ccf4742ffea0'],
+  'SMTP_TEST|de': ['4dc83ebac5885654621d76e5f45a63dea3e8128a4488c410e1bcc9d4c9bddc7f'],
+  'ADMIN_INVITE|en': ['b9d1d20bf6132cd37751b047be912f3f39ba8232f19e01523d39650aa27bc603'],
+  'ADMIN_INVITE|de': ['2de41c09986946a70572755c629dce99d34089c2dacb3c70a788a6829692d442'],
+  'ADMIN_PASSWORD_RESET|en': ['45cf622ae6728de003ae6888953e52e8ab707f157e93a6b9ed1730c274db7606'],
+  'ADMIN_PASSWORD_RESET|de': ['3f1b43792d5756c9271466755d12aeb33e675980ddc2311f1ea61c58e67de4a7'],
+  'ADMIN_ALERT|en': ['3d548960e4603c69f680e4c456d44479da750d7582a68cd41c278fa879e0dd30'],
+  'ADMIN_ALERT|de': ['f9540c68203978e8223a9a321c2d7b8f2c9b77913ab25152fcad6d9f032ba632'],
+  'ADMIN_ALERT_RESOLVED|en': ['82234775e38ebafcb1a6c65bdb1ec2cbedbafa17af08b94b49962e00ee8b2fc4'],
+  'ADMIN_ALERT_RESOLVED|de': ['2cbb43c8b200c8b2a0470a3cb18fa65d160ccd6f41246625464d6500460fb6d0'],
+  'WAITLIST_CONFIRM|en': ['c6165a63656cb58ac2885a2a3bd2e09c69bf8980985d2f7460386a0a076022d8'],
+  'WAITLIST_CONFIRM|de': ['b496150fc3f49abfcd663ccf447288c856d28a78b2c76bd98f9e1f04fb065322'],
+  'WAITLIST_AVAILABLE|en': ['3823ec4b23e8f4d58665153abe9d965489c26f3c6ebea4e34a99c5ca4276ac5e'],
+  'WAITLIST_AVAILABLE|de': ['33e212a45ac9a5ee31c955433fca0a57aa3352562f3906f8153ccb5117971527'],
+  'WAITLIST_REMOVED|en': ['1b1438eb6fa5220362bd9ca66ae8985e72a6ef0711c34cc8c44e6ba64e32aaab'],
+  'WAITLIST_REMOVED|de': ['b385a758b40dd79db81c19b08fac215906f26abc64a19a5a78037b04ca5aafe8'],
+  'ADMIN_PASSKEY_ADDED|en': ['b01b4492fe49e9336aceb721e8b9a87015def4738cdfb91be8febedb436ded7a'],
+  'ADMIN_PASSKEY_ADDED|de': ['9ef9c47bc4ff130bf7bd9d26b4ac1183ce9574a4e1671046da50a04d6f96153c'],
+};
+
+/** `key|locale` → fingerprints of every earlier default. */
+export const PREVIOUS_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly string[]>> = (() => {
+  const merged: Record<string, string[]> = {};
+  for (const source of [EARLIER_DEFAULT_FINGERPRINTS, BEFORE_HEADER_LOGO]) {
+    for (const [slot, list] of Object.entries(source)) (merged[slot] ??= []).push(...list);
+  }
+  return merged;
+})();
 
 export const templateSlot = (key: EmailTemplateKey, locale: string) => `${key}|${locale}`;
