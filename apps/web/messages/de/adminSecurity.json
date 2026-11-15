@@ -76,7 +76,9 @@
     "resetRequested": "Link angefordert.",
     "unlocked": "Benutzer entsperrt.",
     "verificationSent": "Bestätigungslink gesendet. Bitte prüfe dein Postfach.",
-    "alreadyVerified": "Deine E-Mail-Adresse ist bereits bestätigt."
+    "alreadyVerified": "Deine E-Mail-Adresse ist bereits bestätigt.",
+    "alertsSaved": "Einstellungen der Warn-E-Mails gespeichert.",
+    "alertsReset": "Zurück auf die Standardwerte deiner Rolle."
   },
   "account": {
     "title": "Mein Konto",

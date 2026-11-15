@@ -198,7 +198,28 @@ export function usePanZoom(
     if (pointers.current.size < 2) gesture.current.pinchDist = null;
   }, []);
 
+  /**
+   * Keeps a point (a keyboard-focused seat) inside the view with some margin (also clear of the
+   * zoom buttons at the right edge). Pans only; the change is instant, so it needs no
+   * reduced-motion handling.
+   */
+  const ensureVisible = useCallback((x: number, y: number, margin: number) => {
+    setView((v) => {
+      const mx = Math.min(margin, v.w / 3);
+      const my = Math.min(margin, v.h / 3);
+      // Extra room on the right for the zoom buttons.
+      const mxRight = Math.min(margin * 3, v.w / 3);
+      let { x: vx, y: vy } = v;
+      if (x < vx + mx) vx = x - mx;
+      else if (x > vx + v.w - mxRight) vx = x - v.w + mxRight;
+      if (y < vy + my) vy = y - my;
+      else if (y > vy + v.h - my) vy = y - v.h + my;
+      return vx === v.x && vy === v.y ? v : { ...v, x: vx, y: vy };
+    });
+  }, []);
+
   return {
+    ensureVisible,
     viewBox: `${view.x} ${view.y} ${view.w} ${view.h}`,
     /** Zoom level relative to the fitted view (1 = fit). */
     zoom: bounds.w / view.w,

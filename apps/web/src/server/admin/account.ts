@@ -8,6 +8,8 @@ import {
   disableTotp,
   regenerateRecoveryCodes,
   requestAdminEmailVerification,
+  resetOwnAlertPreferences,
+  saveOwnAlertPreferences,
   updateOwnProfile,
 } from '@tix/core';
 import { SUPPORTED_LOCALES, type AppLocale } from '@tix/shared';
@@ -147,5 +149,29 @@ export async function regenerateRecoveryCodesAction(
       str(fd, 'code'),
     );
     return ok({ message: 'recoveryCodesRegenerated', recoveryCodes });
+  });
+}
+
+/** Saves which warning e-mails the signed-in admin wants (types outside the roles are rejected). */
+export async function saveAlertPreferencesAction(
+  _prev: SecurityState,
+  fd: FormData,
+): Promise<SecurityState> {
+  const { actor } = await account();
+  const types = fd.getAll('types').filter((v): v is string => typeof v === 'string');
+  return guarded(async () => {
+    await saveOwnAlertPreferences(getCore(), actor, types);
+    return ok({ message: 'alertsSaved' });
+  });
+}
+
+export async function resetAlertPreferencesAction(
+  _prev: SecurityState,
+  _fd: FormData,
+): Promise<SecurityState> {
+  const { actor } = await account();
+  return guarded(async () => {
+    await resetOwnAlertPreferences(getCore(), actor);
+    return ok({ message: 'alertsReset' });
   });
 }

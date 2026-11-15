@@ -1,4 +1,12 @@
-import { events, orderFees, orderItems, orders, venues, type Executor } from '@tix/db';
+import {
+  events,
+  orderDiscounts,
+  orderFees,
+  orderItems,
+  orders,
+  venues,
+  type Executor,
+} from '@tix/db';
 import { localized, normalizeLocale } from '@tix/shared';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { getSetting } from '../settings';
@@ -12,6 +20,7 @@ import type { MailTranslator } from '../i18n/mail-messages';
 export type OrderRow = typeof orders.$inferSelect;
 export type OrderItemRow = typeof orderItems.$inferSelect;
 export type OrderFeeRow = typeof orderFees.$inferSelect;
+export type OrderDiscountRow = typeof orderDiscounts.$inferSelect;
 
 export interface DocumentEvent {
   id: string;
@@ -30,6 +39,8 @@ export interface OrderDocumentData {
   order: OrderRow;
   items: OrderItemRow[];
   fees: OrderFeeRow[];
+  /** Discount codes used by the order, in the order they were applied. */
+  discounts: OrderDiscountRow[];
   /** Events of the order, chronologically. */
   events: DocumentEvent[];
   eventById: Map<string, DocumentEvent>;
@@ -43,9 +54,14 @@ export async function loadOrderDocumentData(
 ): Promise<OrderDocumentData | null> {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
   if (!order) return null;
-  const [items, fees] = await Promise.all([
+  const [items, fees, discounts] = await Promise.all([
     db.select().from(orderItems).where(eq(orderItems.orderId, orderId)).orderBy(asc(orderItems.id)),
     db.select().from(orderFees).where(eq(orderFees.orderId, orderId)).orderBy(asc(orderFees.id)),
+    db
+      .select()
+      .from(orderDiscounts)
+      .where(eq(orderDiscounts.orderId, orderId))
+      .orderBy(asc(orderDiscounts.position)),
   ]);
   const eventIds = [
     ...new Set([...items.map((i) => i.eventId), ...fees.flatMap((f) => f.eventId ?? [])]),
@@ -110,6 +126,7 @@ export async function loadOrderDocumentData(
     order,
     items,
     fees,
+    discounts,
     events: documentEvents,
     eventById: new Map(documentEvents.map((e) => [e.id, e])),
   };

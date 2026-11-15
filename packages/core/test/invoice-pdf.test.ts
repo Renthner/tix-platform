@@ -35,6 +35,8 @@ function item(n: number, overrides: Partial<OrderItemRow> = {}): OrderItemRow {
     ticketTypeName: 'Normal',
     unitPriceGross: 3210,
     discountAmount: 0,
+    codeDiscountAmount: 0,
+    codeDiscountCodes: [],
     priceGross: 3210,
     taxRateBasisPoints: 700,
     priceNet: 3000,
@@ -62,13 +64,19 @@ function fee(overrides: Partial<OrderFeeRow> = {}): OrderFeeRow {
     taxRateBasisPoints: 1900,
     totalNet: 100,
     totalTax: 19,
+    codeDiscountAmount: 0,
     isRefunded: false,
     createdAt: new Date(),
     ...overrides,
   };
 }
 
-function data(items: OrderItemRow[], fees: OrderFeeRow[], totalGross?: number): OrderDocumentData {
+function data(
+  items: OrderItemRow[],
+  fees: OrderFeeRow[],
+  totalGross?: number,
+  discounts: OrderDocumentData['discounts'] = [],
+): OrderDocumentData {
   const total =
     totalGross ??
     [...items.map((i) => i.priceGross), ...fees.map((f) => f.totalGross)].reduce(
@@ -91,6 +99,7 @@ function data(items: OrderItemRow[], fees: OrderFeeRow[], totalGross?: number): 
     order: { totalGross: total, status: 'PAID', currency: 'EUR' } as OrderRow,
     items,
     fees,
+    discounts,
     events: [event],
     eventById: new Map([[event.id, event]]),
   };
@@ -126,6 +135,94 @@ describe('invoice calculation', () => {
       { rateBasisPoints: 1900, net: 100, tax: 19, gross: 119 },
       { rateBasisPoints: 700, net: 6000, tax: 420, gross: 6420, note: 'Note 7 %' },
     ]);
+  });
+
+  it('invoices discounted tickets at the price before the code plus a negative discount line', () => {
+    // 3210 gross at 7 % with a 321 code share: stored (reduced) price 2889 = 2700 net + 189 tax.
+    const discounted = item(1, {
+      unitPriceGross: 3210,
+      codeDiscountAmount: 321,
+      codeDiscountCodes: ['SPRING10'],
+      priceGross: 2889,
+      priceNet: 2700,
+      taxAmount: 189,
+    });
+    const draft = buildInvoiceDraft(
+      data([discounted, item(2)], [], 2889 + 3210, [
+        {
+          id: 'd1',
+          orderId: 'order-1',
+          discountCodeId: 'c1',
+          code: 'SPRING10',
+          type: 'PERCENT',
+          value: 1000,
+          amount: 321,
+          feeAmount: 0,
+          position: 1,
+          createdAt: new Date(),
+        },
+        // a second code of the order that did not touch this ticket: not named on its line
+        {
+          id: 'd2',
+          orderId: 'order-1',
+          discountCodeId: 'c2',
+          code: 'OTHERCODE',
+          type: 'FIXED',
+          value: 100,
+          amount: 100,
+          feeAmount: 0,
+          position: 2,
+          createdAt: new Date(),
+        },
+      ]),
+      t,
+    );
+    expect(draft.lines.map((l) => [l.orderItemId, l.totalGross])).toEqual([
+      ['item-1', 3210],
+      ['item-1', -321],
+      ['item-2', 3210],
+    ]);
+    expect(draft.lines[1]).toMatchObject({
+      description: 'Rabattcode SPRING10',
+      taxRateBasisPoints: 700,
+    });
+    // item line + discount line = stored reduced amounts, net and tax separately
+    expect(draft.lines[0]!.totalNet + draft.lines[1]!.totalNet).toBe(2700);
+    expect(draft.lines[0]!.totalTax + draft.lines[1]!.totalTax).toBe(189);
+    expect(draft.totalGross).toBe(2889 + 3210);
+    expect(draft.totalNet + draft.totalTax).toBe(draft.totalGross);
+    expect(draft.taxBreakdown).toEqual([
+      { rateBasisPoints: 700, net: 2700 + 3000, tax: 189 + 210, gross: 2889 + 3210 },
+    ]);
+  });
+
+  it('invoices a reduced fee with quantity > 1 as one line so that unit x quantity = total', () => {
+    // 3 x 119 = 357 gross, 57 taken off by a code: 300 gross at 19 % = 252 net + 48 tax
+    const reduced = fee({
+      quantity: 3,
+      unitAmountGross: 100,
+      totalGross: 300,
+      totalNet: 252,
+      totalTax: 48,
+      codeDiscountAmount: 57,
+    });
+    const draft = buildInvoiceDraft(data([item(1)], [reduced]), t);
+    const line = draft.lines.find((l) => l.orderFeeId === 'fee-1')!;
+    expect(line.quantity).toBe(1);
+    expect(line.unitPriceGross * line.quantity).toBe(line.totalGross);
+    expect(line.totalGross).toBe(300);
+    expect(line.description).toContain('Service fee');
+    expect(line.description).toContain('3');
+    // an untouched fee keeps its quantity
+    const plain = buildInvoiceDraft(
+      data(
+        [item(1)],
+        [fee({ quantity: 2, unitAmountGross: 119, totalGross: 238, totalNet: 200, totalTax: 38 })],
+      ),
+      t,
+    );
+    const plainLine = plain.lines.find((l) => l.orderFeeId === 'fee-1')!;
+    expect(plainLine.quantity).toBe(2);
   });
 
   it('refuses to invoice when the lines do not add up to the order total', () => {

@@ -83,6 +83,42 @@
     "ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT": {
       "name": "Tarif geändert – mit Guthaben verrechnet",
       "description": "Wird gesendet, wenn eine Tarifänderung vollständig mit einer bereits geleisteten Überzahlung verrechnet wird: nichts zu zahlen, alter und neuer Tarif pro Ticket, Rechnungskorrektur und neue Tickets im Anhang."
+    },
+    "ADMIN_ALERT": {
+      "name": "Admin-Warnung",
+      "description": "Warn-E-Mail an Admins, wenn etwas Aufmerksamkeit braucht (Sicherung, Speicher, fehlgeschlagene Jobs, Bank …)."
+    },
+    "ADMIN_ALERT_RESOLVED": {
+      "name": "Admin-Warnung: behoben",
+      "description": "Kurzer Hinweis, dass sich eine Warnung von selbst erledigt hat."
+    },
+    "WAITLIST_CONFIRM": {
+      "name": "Warteliste: E-Mail bestätigen",
+      "description": "Double-Opt-in: Link zum Bestätigen eines Wartelisten-Eintrags."
+    },
+    "WAITLIST_AVAILABLE": {
+      "name": "Warteliste: Tickets verfügbar",
+      "description": "Geht an alle auf der Warteliste, wenn wieder Tickets verfügbar sind."
+    },
+    "WAITLIST_REMOVED": {
+      "name": "Warteliste: entfernt",
+      "description": "Wird gesendet, wenn ein Admin jemanden von der Warteliste entfernt."
+    },
+    "TICKET_TRANSFER_RECEIVED": {
+      "name": "Ticket an dich weitergegeben",
+      "description": "Geht an die Empfängerin / den Empfänger eines weitergegebenen Tickets: Ticketseite, PDF- und Wallet-Links, optionale Nachricht. Enthält keine Bestelldaten."
+    },
+    "TICKET_TRANSFER_SENT": {
+      "name": "Ticket weitergegeben – Bestätigung",
+      "description": "Geht an den Käufer, nachdem er ein Ticket weitergegeben hat: wer es bekommen hat und dass der alte QR-Code nicht mehr gilt."
+    },
+    "TICKET_HOLDER_UPDATED": {
+      "name": "Ticket aktualisiert (Empfänger)",
+      "description": "Geht an den Inhaber eines weitergegebenen Tickets, wenn sich dessen QR-Code geändert hat (Platz- oder Tarifwechsel, Schlüsselwechsel, erneute Zahlung). Enthält keine Bestelldaten."
+    },
+    "TICKET_HOLDER_CANCELLED": {
+      "name": "Ticket nicht mehr gültig (Empfänger)",
+      "description": "Geht an den Inhaber eines weitergegebenen Tickets, wenn das Ticket storniert, erstattet oder neu vergeben wurde. Enthält keine Bestelldaten."
     }
   },
   "page": {
@@ -145,7 +181,10 @@
       "tickets": "Tickets",
       "account": "Konto-Links",
       "smtpTest": "Test",
-      "adjustment": "Nachzahlung"
+      "adjustment": "Nachzahlung",
+      "alert": "Admin-Warnung",
+      "waitlist": "Warteliste",
+      "transfer": "Ticket-Weitergabe"
     }
   },
   "preview": {

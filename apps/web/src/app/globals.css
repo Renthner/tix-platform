@@ -304,3 +304,28 @@ html.dark[data-area='shop'] {
   color: inherit !important;
   background-color: transparent !important;
 }
+
+/* Seating plan keyboard focus: the plan always sits on a light sheet, so one dark ring with a white
+   halo (>= 3:1 against the sheet and against every seat colour) works in both themes. */
+[data-seat-nav] {
+  outline: none;
+}
+.tix-seat-focus-halo,
+.tix-seat-focus-ring {
+  display: none;
+  fill: none;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+[data-seat-nav]:focus-visible > .tix-seat-focus-halo,
+[data-seat-nav]:focus-visible > .tix-seat-focus-ring {
+  display: inline;
+}
+.tix-seat-focus-halo {
+  stroke: #ffffff;
+  stroke-width: 5px;
+}
+.tix-seat-focus-ring {
+  stroke: #111827;
+  stroke-width: 2.5px;
+}

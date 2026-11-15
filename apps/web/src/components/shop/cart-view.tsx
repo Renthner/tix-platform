@@ -1,6 +1,6 @@
 'use client';
 
-import type { CartEventView, CartItemView } from '@tix/core';
+import type { CartDiscountPreview, CartEventView, CartItemView } from '@tix/core';
 import { Info, Loader2, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -19,6 +19,7 @@ import { Link } from '@/i18n/navigation';
 import { apiFetch, errorCode, errorMessage } from '@/lib/api';
 import { useEventDate, useMoney } from '@/lib/format';
 import { useCart } from './cart-context';
+import { DiscountCodeBox } from './discount-code-box';
 import { CartCountdown } from './header-cart';
 
 /** Multi-event cart: one card per event, tariff chosen per seat / standing spot. */
@@ -26,6 +27,7 @@ export function CartView() {
   const t = useTranslations('cart');
   const { cart, refresh } = useCart();
   const money = useMoney();
+  const [discount, setDiscount] = useState<CartDiscountPreview | null>(null);
 
   if (!cart) {
     return (
@@ -48,6 +50,8 @@ export function CartView() {
   }
 
   const currency = cart.currencies[0] ?? 'EUR';
+  // Ticket share of the discount (the fee share is only known at checkout).
+  const ticketDiscount = (discount?.applied ?? []).reduce((s, d) => s + d.amount - d.feeAmount, 0);
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
@@ -71,9 +75,21 @@ export function CartView() {
               <span>{t('summary.tickets', { count: cart.itemCount })}</span>
               <span className="tabular-nums">{money(cart.totalGross, currency)}</span>
             </div>
+            <DiscountCodeBox onPreview={setDiscount} />
+            {ticketDiscount > 0 && (
+              <div
+                className="flex items-center justify-between text-sm"
+                data-testid="cart-discount"
+              >
+                <span>{t('summary.discount')}</span>
+                <span className="tabular-nums">−{money(ticketDiscount, currency)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between border-t pt-3 font-semibold">
               <span>{t('summary.total')}</span>
-              <span className="tabular-nums">{money(cart.totalGross, currency)}</span>
+              <span className="tabular-nums">
+                {money(cart.totalGross - ticketDiscount, currency)}
+              </span>
             </div>
             <p className="text-xs text-muted-foreground">{t('summary.feesNote')}</p>
             {cart.currencies.length > 1 ? (

@@ -30,14 +30,14 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'shop',
-      testMatch: /(shop|not-found|fonts|cookies|seo|theme)\.spec\.ts/,
+      testMatch: /(shop|not-found|fonts|cookies|seo|theme|seat-accessibility)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
       dependencies: ['setup'],
     },
     {
       name: 'admin',
       testMatch:
-        /(admin|admin-cleanup|admin-test-purchase|branding|csp|media|statistics|live-data|theme)\.spec\.ts/,
+        /(admin|admin-cleanup|admin-test-purchase|discounts|ticket-self-service|waitlist|branding|csp|media|statistics|live-data|theme|admin-alerts)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },

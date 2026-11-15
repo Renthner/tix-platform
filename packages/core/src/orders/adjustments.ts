@@ -30,6 +30,7 @@ import { getEventCached } from '../events';
 import { enqueueInvoiceRender, findActiveInvoice, issueInvoiceInTransaction } from '../invoices';
 import { getSeatMapForChannel } from '../seatmaps/public';
 import { getSetting } from '../settings';
+import { dispatchMessages } from '../tickets/holder-mail';
 import { lockOrderTickets, reissueTicketInTransaction } from '../tickets/issue';
 import {
   OPEN_ADJUSTMENT_STATUSES,
@@ -186,6 +187,15 @@ export async function proposeTariffChange(
     if (item.status !== 'CONFIRMED') {
       throw new DomainError('ITEM_NOT_ACTIVE', 'Only active tickets can be changed', 409);
     }
+    if (item.codeDiscountAmount > 0) {
+      // The code share is allocated at order time; re-pricing such a ticket is not defined.
+      throw new DomainError(
+        'ITEM_DISCOUNTED',
+        'Tickets bought with a discount code cannot be moved to another tariff',
+        422,
+        { orderItemId: item.id },
+      );
+    }
     if (item.ticketTypeId === change.newTicketTypeId) {
       throw new DomainError('INVALID_REQUEST', 'The ticket already has this tariff', 422);
     }
@@ -340,6 +350,7 @@ export async function proposeTariffChange(
           adjustmentId: adjustment!.id,
           reference,
           messageId: applied.messageId,
+          holderMessageIds: applied.holderMessageIds,
           amount,
           creditApplied,
           renders: applied.renders,
@@ -636,8 +647,9 @@ async function applyAdjustmentInTransaction(
   ctx: CoreContext,
   tx: Transaction,
   p: ApplyAdjustmentParams,
-): Promise<{ renders: string[]; messageId: string | null }> {
+): Promise<{ renders: string[]; messageId: string | null; holderMessageIds: string[] }> {
   const { order, adjustment, itemById } = p;
+  const holderMessageIds: string[] = [];
   const orderId = order.id;
   const now = new Date();
   const difference = adjustment.items.reduce((s, i) => s + (i.toPriceGross - i.fromPriceGross), 0);
@@ -761,7 +773,12 @@ async function applyAdjustmentInTransaction(
         eq(tickets.status, 'VALID'),
       ),
     );
-  for (const t of valid) await reissueTicketInTransaction(ctx, tx, t.id);
+  // Holders of handed-over tickets get a "your ticket was updated" mail (new QR code).
+  for (const t of valid) {
+    await reissueTicketInTransaction(ctx, tx, t.id, {
+      onMail: (id) => holderMessageIds.push(id),
+    });
+  }
 
   if (adjustment.status === 'PROPOSED' && p.paymentId) {
     // Money counts as confirmation (bank transfer sent straight away).
@@ -830,14 +847,16 @@ async function applyAdjustmentInTransaction(
       (id): id is string => Boolean(id),
     ),
     messageId,
+    holderMessageIds,
   };
 }
 
 /** After the commit: invoice PDFs and the customer e-mail (both retried by sweepers on failure). */
 async function afterAdjustmentCommit(
   ctx: CoreContext,
-  outcome: { renders?: string[]; messageId?: string | null },
+  outcome: { renders?: string[]; messageId?: string | null; holderMessageIds?: string[] },
 ): Promise<void> {
+  await dispatchMessages(ctx, outcome.holderMessageIds ?? []);
   for (const invoiceId of outcome.renders ?? []) {
     await enqueueInvoiceRender(ctx, invoiceId).catch((err: unknown) =>
       coreLog.error({ err }, '[adjustments] invoice PDF not queued (rendered on first download)'),
@@ -1025,6 +1044,7 @@ export async function completeAdjustment(
       } as const,
       renders: applied.renders,
       messageId: applied.messageId,
+      holderMessageIds: applied.holderMessageIds,
     };
   });
 

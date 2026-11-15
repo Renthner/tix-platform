@@ -74,7 +74,9 @@
       "refunds": "Refunds",
       "backups": "Backups",
       "privacy": "Data protection",
-      "media": "Image variants"
+      "media": "Image variants",
+      "alerts": "Admin alerts",
+      "waitlist": "Waiting list"
     }
   },
   "failedJobs": {
@@ -153,5 +155,102 @@
     "copy": "Copy",
     "copied": "Copied",
     "failed": "The token could not be saved."
+  },
+  "alerts": {
+    "types": {
+      "BACKUP_FAILED": {
+        "name": "Backup failed",
+        "description": "A scheduled or manual backup failed, or the upload to the external target failed."
+      },
+      "BACKUP_OVERDUE": {
+        "name": "Backup overdue",
+        "description": "No successful backup within the expected time although scheduled backups are on."
+      },
+      "DISK_LOW": {
+        "name": "Storage running low",
+        "description": "Disk space of the worker container or the database + file storage is above the threshold."
+      },
+      "JOBS_FAILING": {
+        "name": "Background jobs failing",
+        "description": "Many background jobs failed in the last hour, or jobs are waiting for too long."
+      },
+      "EMAIL_DELIVERY_FAILING": {
+        "name": "E-mail delivery failing",
+        "description": "E-mails failed permanently (e.g. SMTP settings wrong)."
+      },
+      "REVIEW_CASES_OPEN": {
+        "name": "Bank review cases open (daily digest)",
+        "description": "Bank transactions waiting in the review list (Klärfälle) for several days."
+      },
+      "BANK_SYNC_FAILING": {
+        "name": "Bank sync failing",
+        "description": "A bank connection could not be synchronised, or a TAN has been pending, for several hours."
+      },
+      "PAYMENT_PROVIDER_ERRORS": {
+        "name": "Payment provider errors",
+        "description": "PayPal rejects the credentials, or automatic refunds failed."
+      },
+      "REFUNDS_OPEN": {
+        "name": "Manual refunds open (daily digest)",
+        "description": "Manual refunds waiting for a transfer for several days."
+      },
+      "UPDATE_AVAILABLE": {
+        "name": "Update available",
+        "description": "A newer version is available for your update channel."
+      }
+    },
+    "groups": {
+      "SYSTEM": "System",
+      "FINANCE": "Payments & bank"
+    },
+    "account": {
+      "title": "Warning e-mails",
+      "description": "Choose which warnings you receive by e-mail at your account address. Which warnings are offered depends on your role.",
+      "none": "There are no warnings for your role.",
+      "defaultHint": "You have not changed anything yet: the defaults of your role apply.",
+      "customHint": "Your own selection applies.",
+      "globalOff": "Warning e-mails are switched off for the whole installation (Settings → Notifications).",
+      "save": "Save",
+      "reset": "Reset to role defaults"
+    },
+    "history": {
+      "title": "Warning history",
+      "description": "The last 50 warnings: when a problem was first noticed, when it was last mailed and whether it is resolved.",
+      "empty": "No warnings so far.",
+      "type": "Warning",
+      "firstSeen": "First noticed",
+      "lastSent": "Last mailed",
+      "status": "Status",
+      "open": "Open",
+      "resolved": "Resolved {time}",
+      "neverSent": "not mailed",
+      "times": "{count, plural, one {# mail} other {# mails}}"
+    },
+    "settings": {
+      "title": "Warning e-mails",
+      "description": "Admins get an e-mail when something needs attention. Each admin chooses the warnings on the own account page; the texts can be edited under E-mail templates.",
+      "enabled": "Send warning e-mails",
+      "enabledHint": "Master switch: when off, nothing is checked or mailed.",
+      "sendResolved": "Send a short note when a warning clears",
+      "cooldownHours": "Repeat a persisting warning after (hours)",
+      "maxMailsPerHour": "Maximum warning e-mails per hour",
+      "maxMailsPerHourHint": "All recipients together. Held-back warnings are sent later.",
+      "digestTime": "Time of the daily digests",
+      "digestTimeHint": "Shop time zone. Used for open review cases and open manual refunds.",
+      "diskUsedPercent": "Storage warning from (% used)",
+      "storageCapacityGb": "Capacity for database + files (GB)",
+      "storageCapacityGbHint": "0 = do not check this. The disk of the database server itself is not visible to the worker – enter the space you have reserved.",
+      "diskPaths": "Directories of the worker container to check",
+      "diskPathsHint": "Comma separated. Directories that are not mounted are skipped.",
+      "failedJobsPerHour": "Failed background jobs per hour",
+      "queueBacklogMinutes": "Oldest waiting job (minutes)",
+      "failedEmailsPer24h": "Permanently failed e-mails in 24 hours",
+      "backupOverdueFactor": "Backup overdue after (× schedule interval)",
+      "reviewCaseDays": "Review cases open for (days)",
+      "bankSyncHours": "Bank sync failing for (hours)",
+      "paymentErrorHours": "PayPal credential errors count for (hours)",
+      "refundOpenDays": "Manual refunds open for (days)",
+      "thresholds": "Thresholds"
+    }
   }
 }

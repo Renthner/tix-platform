@@ -3,15 +3,27 @@
 import {
   SEAT_FLAG,
   contrastText,
+  createSeatNavigator,
   seatPlanLabel,
   type PublicSeat,
+  type SeatNavKey,
   type PublicSeatMap,
   type SeatMapSettingsInput,
   type SeatSelectionStyle,
 } from '@tix/shared';
 import { Maximize2, Minus, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { memo, useCallback, useMemo, useRef, type PointerEvent } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  type KeyboardEvent,
+  type FocusEvent,
+  type PointerEvent,
+} from 'react';
 import { Button } from '@/components/ui/button';
 import {
   ElementLayer,
@@ -65,7 +77,35 @@ export interface SeatChartProps {
   seatTitle: (seat: PublicSeat) => string;
   /** Box office: blocked seats (with a category) can be selected; they keep their cross mark. */
   sellBlocked?: boolean;
+  /**
+   * Accessible name of a seat from its availability. Passing it makes the chart a keyboard widget
+   * (roving tabindex over the seats, arrow keys, Enter / Space); without it the chart stays a
+   * plain image (admin editors).
+   */
+  seatLabel?: (seat: PublicSeat, availability: SeatAvailability) => string;
+  /** Keyboard instructions (read by screen readers when the chart gets focus). */
+  keyboardHelp?: string;
+  /** Enter / Space on a seat that cannot be selected (sold, in another cart, blocked). */
+  onUnavailableSeat?: (seat: PublicSeat) => void;
+  /** The focused seat changed (null = focus left the chart). */
+  onFocusSeat?: (seatId: string | null) => void;
+  /** Escape pressed inside the chart. */
+  onEscape?: () => void;
 }
+
+/** What a screen reader user needs to know about a seat. */
+export type SeatAvailability = 'available' | 'selected' | 'unavailable';
+
+const KEY_MAP: Record<string, SeatNavKey> = {
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  Home: 'home',
+  End: 'end',
+  PageUp: 'pageUp',
+  PageDown: 'pageDown',
+};
 
 const ORPHAN_COLOR = '#dc2626';
 
@@ -95,6 +135,7 @@ export function SeatMark({
   isHighlighted = false,
   title,
   sellBlocked,
+  label,
 }: {
   seat: PublicSeat;
   radius: number;
@@ -109,6 +150,8 @@ export function SeatMark({
   isHighlighted?: boolean;
   title?: string;
   sellBlocked?: boolean;
+  /** Accessible name builder: makes the seat a focusable, named button (keyboard widget). */
+  label?: (seat: PublicSeat, availability: SeatAvailability) => string;
 }) {
   const cross = (x: number, y: number) =>
     `M${x - radius * 0.5},${y - radius * 0.5}L${x + radius * 0.5},${y + radius * 0.5}M${x + radius * 0.5},${y - radius * 0.5}L${x - radius * 0.5},${y + radius * 0.5}`;
@@ -156,13 +199,34 @@ export function SeatMark({
     planLabel && (planLabel.kind === 'MARKER' ? showMarkers : showNumbers) ? planLabel.text : null;
   const symbolId = seat.m && symbolIds.has(seat.m) ? seat.m : defaultSymbolId;
   const clickable = free || mine || !!changeColor;
+  const availability: SeatAvailability = mine ? 'selected' : free ? 'available' : 'unavailable';
+  // Seats without a price category are not for sale and not part of the keyboard navigation.
+  const a11y = label && seat.c;
   return (
     <g
       key={seat.i}
       data-seat={clickable ? seat.i : undefined}
+      data-seat-nav={a11y ? seat.i : undefined}
       className={clickable ? 'cursor-pointer' : undefined}
+      {...(a11y
+        ? {
+            role: 'button',
+            tabIndex: -1,
+            'aria-label': label(seat, availability),
+            'aria-pressed': mine,
+            'aria-disabled': !clickable,
+          }
+        : {})}
     >
       {title && <title>{title}</title>}
+      {a11y && (
+        // Keyboard focus ring (shown by CSS on :focus-visible): white halo + dark ring, readable on
+        // the light sheet and on every seat colour.
+        <>
+          <circle cx={seat.x} cy={seat.y} r={radius * 1.55} className="tix-seat-focus-halo" />
+          <circle cx={seat.x} cy={seat.y} r={radius * 1.55} className="tix-seat-focus-ring" />
+        </>
+      )}
       {symbolId ? (
         <>
           <use
@@ -241,6 +305,7 @@ const SeatLayer = memo(function SeatLayer({
   highlighted,
   seatTitle,
   sellBlocked,
+  seatLabel,
 }: {
   seats: PublicSeat[];
   radius: number;
@@ -256,6 +321,7 @@ const SeatLayer = memo(function SeatLayer({
   highlighted: ReadonlySet<string>;
   seatTitle: (seat: PublicSeat) => string;
   sellBlocked?: boolean;
+  seatLabel?: SeatChartProps['seatLabel'];
 }) {
   return (
     <g>
@@ -275,6 +341,7 @@ const SeatLayer = memo(function SeatLayer({
           isHighlighted={highlighted.has(seat.i)}
           title={seatTitle(seat)}
           sellBlocked={sellBlocked}
+          label={seatLabel}
         />
       ))}
     </g>
@@ -346,8 +413,117 @@ export function SeatChart(props: SeatChartProps) {
     if (sectionId) props.onSectionClick(sectionId);
   };
 
+  // ── Keyboard widget ──────────────────────────────────────────────────────
+  // Roving tabindex managed on the DOM (re-rendering thousands of seats per arrow key would be
+  // slow): exactly one seat has tabindex 0 – the last focused one, initially the first available.
+  const accessible = !!props.seatLabel;
+  const helpId = useId();
+  const navigator = useMemo(
+    () =>
+      createSeatNavigator(
+        map.seats.filter((s) => s.c),
+        map.sections.map((s) => s.id),
+      ),
+    [map.seats, map.sections],
+  );
+  const tabStop = useRef<string | null>(null);
+  const seatEl = useCallback(
+    (id: string) =>
+      svgRef.current?.querySelector<SVGGElement>(`[data-seat-nav="${id.replace(/"/g, '')}"]`) ??
+      null,
+    [],
+  );
+  const setTabStop = useCallback(
+    (id: string) => {
+      const svg = svgRef.current;
+      if (!svg) return;
+      for (const el of svg.querySelectorAll('[data-seat-nav][tabindex="0"]')) {
+        if (el.getAttribute('data-seat-nav') !== id) el.setAttribute('tabindex', '-1');
+      }
+      seatEl(id)?.setAttribute('tabindex', '0');
+      tabStop.current = id;
+    },
+    [seatEl],
+  );
+  const focusSeat = useCallback(
+    (id: string) => {
+      const seat = seatById.get(id);
+      const el = seatEl(id);
+      if (!seat || !el) return;
+      setTabStop(id);
+      el.focus({ preventScroll: true });
+      pan.ensureVisible(seat.x, seat.y, radius * 4);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pan.ensureVisible, radius, seatById, seatEl, setTabStop],
+  );
+  // Keep a valid tab stop after the plan or the seat states changed.
+  const { statusVersion } = props;
+  useEffect(() => {
+    if (!accessible) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const current = tabStop.current;
+    if (current && seatEl(current)) {
+      seatEl(current)?.setAttribute('tabindex', '0');
+      return;
+    }
+    const first =
+      svg.querySelector('[data-seat-nav][data-seat]') ?? svg.querySelector('[data-seat-nav]');
+    const id = first?.getAttribute('data-seat-nav');
+    if (id) setTabStop(id);
+  }, [accessible, map, statusVersion, seatEl, setTabStop]);
+
+  const { onFocusSeat, onEscape, onUnavailableSeat, onSeatClick, interactive } = props;
+  const onKeyDown = (e: KeyboardEvent<SVGSVGElement>) => {
+    if (!accessible || e.altKey || e.ctrlKey || e.metaKey) return;
+    const el = (e.target as Element).closest?.('[data-seat-nav]');
+    const id = el?.getAttribute('data-seat-nav');
+    if (!el || !id) return;
+    const navKey = KEY_MAP[e.key];
+    if (navKey) {
+      e.preventDefault();
+      const next = navigator.move(id, navKey);
+      if (next) focusSeat(next);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const seat = seatById.get(id);
+      if (!seat || !interactive) return;
+      if (el.hasAttribute('data-seat')) onSeatClick(seat);
+      else onUnavailableSeat?.(seat);
+    } else if (e.key === 'Escape') {
+      onEscape?.();
+    } else if (e.key === '+' || e.key === '=') {
+      pan.zoomIn();
+    } else if (e.key === '-') {
+      pan.zoomOut();
+    }
+  };
+  const onFocus = (e: FocusEvent<SVGSVGElement>) => {
+    if (!accessible) return;
+    const el = (e.target as Element).closest?.('[data-seat-nav]');
+    const id = el?.getAttribute('data-seat-nav');
+    if (!el || !id) return;
+    setTabStop(id);
+    // Tab entry / Shift+Tab into a seat that is off screen: bring it into view.
+    if (el.matches(':focus-visible')) {
+      const seat = seatById.get(id);
+      if (seat) pan.ensureVisible(seat.x, seat.y, radius * 4);
+    }
+    onFocusSeat?.(id);
+  };
+  const onBlur = (e: FocusEvent<SVGSVGElement>) => {
+    if (!accessible) return;
+    if (!svgRef.current?.contains(e.relatedTarget as Node | null)) onFocusSeat?.(null);
+  };
+
   return (
     <div className="relative h-[65vh] min-h-[360px] w-full overflow-hidden rounded-lg border bg-paper">
+      {accessible && props.keyboardHelp && (
+        <p id={helpId} className="sr-only">
+          {props.keyboardHelp}
+        </p>
+      )}
       <div className="absolute right-3 top-3 z-10 flex flex-col gap-1">
         <Button size="icon" variant="secondary" aria-label={t('zoomIn')} onClick={pan.zoomIn}>
           <Plus />
@@ -364,24 +540,31 @@ export function SeatChart(props: SeatChartProps) {
         viewBox={pan.viewBox}
         preserveAspectRatio="xMidYMid meet"
         className="h-full w-full cursor-grab touch-none select-none text-paper-foreground active:cursor-grabbing"
-        role="img"
+        role={accessible ? 'group' : 'img'}
         aria-label={t('ariaLabel')}
+        aria-describedby={accessible && props.keyboardHelp ? helpId : undefined}
+        onKeyDown={onKeyDown}
+        onFocus={onFocus}
+        onBlur={onBlur}
         onPointerDown={pan.handlers.onPointerDown}
         onPointerMove={pan.handlers.onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={pan.handlers.onPointerCancel}
       >
         <SymbolDefs symbols={map.symbols} />
-        <SectionLayer
-          sections={map.sections}
-          categoryColor={colorOf}
-          gaRemaining={props.gaRemaining}
-          gaMine={props.gaMine}
-          remainingLabel={(count) => t('remaining', { count })}
-        />
-        <ElementLayer elements={elementsBelow} />
-        <EntranceLayer entrances={map.entrances} radius={radius} />
-        <RowLabelLayer rows={map.rows} seatsByRow={seatsByRow} radius={radius} />
+        {/* Decorative: the seats carry their section / row / category in their own names. */}
+        <g aria-hidden="true">
+          <SectionLayer
+            sections={map.sections}
+            categoryColor={colorOf}
+            gaRemaining={props.gaRemaining}
+            gaMine={props.gaMine}
+            remainingLabel={(count) => t('remaining', { count })}
+          />
+          <ElementLayer elements={elementsBelow} />
+          <EntranceLayer entrances={map.entrances} radius={radius} />
+          <RowLabelLayer rows={map.rows} seatsByRow={seatsByRow} radius={radius} />
+        </g>
         <SeatLayer
           seats={map.seats}
           radius={radius}
@@ -400,8 +583,11 @@ export function SeatChart(props: SeatChartProps) {
           highlighted={props.highlighted}
           seatTitle={props.seatTitle}
           sellBlocked={props.sellBlocked}
+          seatLabel={props.seatLabel}
         />
-        <ElementLayer elements={textElements} />
+        <g aria-hidden="true">
+          <ElementLayer elements={textElements} />
+        </g>
       </svg>
     </div>
   );

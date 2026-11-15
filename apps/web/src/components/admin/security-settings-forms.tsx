@@ -367,3 +367,102 @@ export function ScannerSettingsForm({
     </ActionForm>
   );
 }
+
+export interface AlertSettingsValues {
+  enabled: boolean;
+  sendResolved: boolean;
+  cooldownHours: number;
+  maxMailsPerHour: number;
+  digestTime: string;
+  diskUsedPercent: number;
+  storageCapacityGb: number;
+  diskPaths: string;
+  failedJobsPerHour: number;
+  queueBacklogMinutes: number;
+  failedEmailsPer24h: number;
+  backupOverdueFactor: number;
+  reviewCaseDays: number;
+  bankSyncHours: number;
+  paymentErrorHours: number;
+  refundOpenDays: number;
+}
+
+/** Settings tab "Notifications": switch, rate limit and thresholds of the admin warning e-mails. */
+export function AlertSettingsForm({
+  action,
+  initial,
+}: {
+  action: Action;
+  initial: AlertSettingsValues;
+}) {
+  const t = useTranslations('system.alerts.settings');
+  const tc = useTranslations('common.actions');
+  const { state, formAction, err } = useSettingsForm(action);
+  const num = (name: keyof AlertSettingsValues, min: number, max: number, hint?: string) => (
+    <NumberField
+      name={name}
+      label={t(name)}
+      hint={hint}
+      defaultValue={initial[name] as number}
+      min={min}
+      max={max}
+      error={err(name)}
+    />
+  );
+  return (
+    <ActionForm action={formAction} className="space-y-5" unsavedGuard={state}>
+      <ActionFeedback state={state} />
+      <SwitchRow
+        name="enabled"
+        defaultChecked={initial.enabled}
+        label={t('enabled')}
+        hint={t('enabledHint')}
+      />
+      <SwitchRow
+        name="sendResolved"
+        defaultChecked={initial.sendResolved}
+        label={t('sendResolved')}
+      />
+      <div className="grid gap-4 md:grid-cols-2">
+        {num('cooldownHours', 1, 168)}
+        {num('maxMailsPerHour', 1, 500, t('maxMailsPerHourHint'))}
+        <Field
+          label={t('digestTime')}
+          htmlFor="digestTime"
+          error={err('digestTime')}
+          hint={t('digestTimeHint')}
+        >
+          <Input
+            id="digestTime"
+            name="digestTime"
+            type="time"
+            defaultValue={initial.digestTime}
+            required
+          />
+        </Field>
+      </div>
+      <h3 className="text-sm font-semibold">{t('thresholds')}</h3>
+      <div className="grid gap-4 md:grid-cols-2">
+        {num('diskUsedPercent', 50, 99)}
+        {num('storageCapacityGb', 0, 1_000_000, t('storageCapacityGbHint'))}
+        <Field
+          label={t('diskPaths')}
+          htmlFor="diskPaths"
+          error={err('diskPaths')}
+          hint={t('diskPathsHint')}
+        >
+          <Input id="diskPaths" name="diskPaths" defaultValue={initial.diskPaths} maxLength={500} />
+        </Field>
+        {num('failedJobsPerHour', 1, 10_000)}
+        {num('queueBacklogMinutes', 1, 10_080)}
+        {num('failedEmailsPer24h', 1, 10_000)}
+        {num('backupOverdueFactor', 1, 10)}
+        {num('reviewCaseDays', 1, 365)}
+        {num('bankSyncHours', 1, 720)}
+        {num('paymentErrorHours', 1, 168)}
+        {num('refundOpenDays', 1, 365)}
+      </div>
+      <SubmitButton>{tc('save')}</SubmitButton>
+    </ActionForm>
+  );
+}

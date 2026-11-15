@@ -13,10 +13,17 @@ import {
 import { QUEUE_NAMES } from '@tix/redis';
 import { buildTicketPayload, ticketSeatInfo } from '@tix/shared';
 import { generateHumanCode } from '@tix/shared/server';
-import { and, asc, eq, inArray, notExists, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, notExists, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
 import { currentPaidCycle, hasPaymentMailForCycle, orderPaidJobId } from '../orders/paid-cycle';
+import {
+  holderRef,
+  dispatchMessages,
+  queueHolderUpdatedMail,
+  type HolderTicketRef,
+} from './holder-mail';
+import { deactivateGoogleWalletObjects } from '../wallet/google';
 import { placeOrderBy } from './order';
 import { ensureEventSigningKeyTx, type TicketSigningKey } from './keys';
 
@@ -114,9 +121,24 @@ async function insertTicket(
   throw new Error('Could not allocate a unique ticket code');
 }
 
-/** VALID tickets of an order, in issuance order (read only). */
+/**
+ * VALID tickets the buyer holds, in issuance order (read only). Tickets handed over to someone
+ * else (`holder_email` set) are not part of it: their QR code belongs to the recipient.
+ */
 export async function listOrderTickets(ctx: CoreContext, orderId: string): Promise<TicketRow[]> {
   return validTicketsInPlaceOrder(ctx.db, orderId);
+}
+
+/**
+ * All VALID tickets of an order, including the ones handed over to someone else (what exists, as
+ * opposed to `listOrderTickets`, which is what the buyer holds).
+ */
+export async function countValidOrderTickets(db: Executor, orderId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(tickets)
+    .where(and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID')));
+  return row?.n ?? 0;
 }
 
 async function validTicketsInPlaceOrder(db: Executor, orderId: string): Promise<TicketRow[]> {
@@ -125,7 +147,9 @@ async function validTicketsInPlaceOrder(db: Executor, orderId: string): Promise<
     .from(tickets)
     .innerJoin(orderItems, eq(orderItems.id, tickets.orderItemId))
     .innerJoin(events, eq(events.id, tickets.eventId))
-    .where(and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID')))
+    .where(
+      and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID'), isNull(tickets.holderEmail)),
+    )
     .orderBy(...placeOrderBy());
   return rows.map((r) => r.ticket);
 }
@@ -142,7 +166,8 @@ async function validTicketsInPlaceOrder(db: Executor, orderId: string): Promise<
  * serialise with issuance.
  */
 export async function ensureOrderTickets(ctx: CoreContext, orderId: string): Promise<TicketRow[]> {
-  return withTransaction(ctx.db, async (tx) => {
+  const mailIds: string[] = [];
+  const result = await withTransaction(ctx.db, async (tx) => {
     await tx.execute(orderLockSql(orderId));
     const [order] = await tx
       .select({
@@ -183,22 +208,57 @@ export async function ensureOrderTickets(ctx: CoreContext, orderId: string): Pro
     for (const eventId of [...new Set(missing.map((item) => item.eventId))].sort()) {
       keys.set(eventId, await ensureEventSigningKeyTx(ctx, tx, eventId));
     }
+    // An item whose payment was reversed and came back gets its holder (transfer) and attendee
+    // name (name change) again: the latest earlier ticket of the item carries them.
+    const earlier = new Map<string, TicketRow>();
+    if (missing.length > 0) {
+      const previous = await tx
+        .select()
+        .from(tickets)
+        .where(
+          inArray(
+            tickets.orderItemId,
+            missing.map((m) => m.id),
+          ),
+        )
+        .orderBy(desc(tickets.createdAt), desc(tickets.id));
+      for (const row of previous)
+        if (!earlier.has(row.orderItemId)) earlier.set(row.orderItemId, row);
+    }
     for (const item of missing) {
-      await insertTicket(
+      const before = earlier.get(item.id);
+      const created = await insertTicket(
         tx,
         orderId,
         item,
         keys.get(item.eventId)!,
-        item.attendeeName?.trim() || buyerName,
+        before?.attendeeName ?? (item.attendeeName?.trim() || buyerName),
+        before?.holderEmail ? { holderEmail: before.holderEmail } : {},
       );
+      if (created?.holderEmail) {
+        const id = await queueHolderUpdatedMail(ctx, tx, holderRef(created));
+        if (id) mailIds.push(id);
+      }
     }
     return validTicketsInPlaceOrder(tx, orderId);
   });
+  await dispatchMessages(ctx, mailIds);
+  return result;
 }
 
 export interface ReissueOptions {
   /** New attendee name; omitted keeps the old one. */
   attendeeName?: string | null;
+  /** Holder e-mail of the new ticket (transfer); omitted keeps the old one, null hands it back to the buyer. */
+  holderEmail?: string | null;
+  /**
+   * Tell the holder of a handed-over ticket that the ticket changed (default true; only sent when
+   * the holder stays the same - a transfer sends its own mail). The outbox row is created in the
+   * caller's transaction; `onMail` receives its id so the caller can dispatch it after the commit
+   * (the outbox sweeper picks it up otherwise).
+   */
+  notifyHolder?: boolean;
+  onMail?: (messageId: string) => void;
 }
 
 /**
@@ -213,15 +273,24 @@ export async function reissueTicket(
   ticketId: string,
   options: ReissueOptions = {},
 ): Promise<TicketRow> {
-  return withTransaction(ctx.db, async (tx) => {
+  const mailIds: string[] = [];
+  const created = await withTransaction(ctx.db, async (tx) => {
     const [head] = await tx
       .select({ orderId: tickets.orderId })
       .from(tickets)
       .where(eq(tickets.id, ticketId));
     if (!head) throw new DomainError('TICKET_NOT_FOUND', 'Ticket not found', 404);
     await tx.execute(orderLockSql(head.orderId));
-    return reissueTicketInTransaction(ctx, tx, ticketId, options);
+    return reissueTicketInTransaction(ctx, tx, ticketId, {
+      ...options,
+      onMail: (id) => {
+        mailIds.push(id);
+        options.onMail?.(id);
+      },
+    });
   });
+  await dispatchMessages(ctx, mailIds);
+  return created;
 }
 
 /**
@@ -258,6 +327,7 @@ export async function reissueTicketInTransaction(
     key,
     options.attendeeName === undefined ? old.attendeeName : options.attendeeName,
     {
+      holderEmail: options.holderEmail === undefined ? old.holderEmail : options.holderEmail,
       checkInState: old.checkInState,
       firstCheckedInAt: old.firstCheckedInAt,
       firstCheckedInDeviceId: old.firstCheckedInDeviceId,
@@ -267,6 +337,14 @@ export async function reissueTicketInTransaction(
   );
   if (!created) throw new DomainError('TICKET_CONFLICT', 'Concurrent ticket change', 409);
   await tx.update(tickets).set({ replacedByTicketId: created.id }).where(eq(tickets.id, old.id));
+  if (
+    created.holderEmail &&
+    created.holderEmail === old.holderEmail &&
+    options.notifyHolder !== false
+  ) {
+    const id = await queueHolderUpdatedMail(ctx, tx, holderRef(created));
+    if (id) options.onMail?.(id);
+  }
   return created;
 }
 
@@ -323,22 +401,32 @@ export async function reissueTicketsOfRevokedKeys(
   return { reissued, orderIds: [...orderIds] };
 }
 
+export interface VoidedTickets {
+  count: number;
+  /** Tickets that were handed over to someone else: their holders must be told (see holder-mail). */
+  holders: HolderTicketRef[];
+}
+
 /**
  * Voids the VALID tickets of the given order items (cancellation / refund). Runs inside the
- * caller's transaction so item and ticket state change atomically.
+ * caller's transaction so item and ticket state change atomically. Refunds always go to the buyer;
+ * the holder of a handed-over ticket only loses the ticket (`holders` lists them for the mail).
  */
 export async function voidTicketsForItems(
   tx: Transaction,
   orderItemIds: string[],
   status: 'CANCELLED' | 'REFUNDED',
-): Promise<number> {
-  if (orderItemIds.length === 0) return 0;
+): Promise<VoidedTickets> {
+  if (orderItemIds.length === 0) return { count: 0, holders: [] };
   const rows = await tx
     .update(tickets)
     .set({ status, voidedAt: sql`now()` })
     .where(and(inArray(tickets.orderItemId, orderItemIds), eq(tickets.status, 'VALID')))
-    .returning({ id: tickets.id });
-  return rows.length;
+    .returning();
+  return {
+    count: rows.length,
+    holders: rows.filter((r) => r.holderEmail !== null).map(holderRef),
+  };
 }
 
 export interface BackfillResult {
@@ -432,5 +520,7 @@ export async function backfillMissingTickets(
       options.log?.('revoked-key re-issue failed', { eventId, error: String(err) });
     }
   }
+  // Old Google Wallet objects of replaced / cancelled tickets (best effort, never fails the run).
+  await deactivateGoogleWalletObjects(ctx, { limit });
   return result;
 }

@@ -4,7 +4,8 @@
     "BANK_TRANSFER": "Überweisung (Vorkasse)",
     "CASH": "Barzahlung",
     "CARD": "Kartenzahlung",
-    "COMPLIMENTARY": "Freikarte"
+    "COMPLIMENTARY": "Freikarte",
+    "FREE": "Keine Zahlung nötig"
   },
   "items": {
     "seat": "Block {section} · Reihe {row} · Platz {seat}",
@@ -20,7 +21,8 @@
     "priceDifference": "Preisdifferenz",
     "creditApplied": "Verrechnet mit deiner bisherigen Zahlung",
     "remainingToPay": "Noch zu zahlen",
-    "doorsOpen": "Einlass {time}"
+    "doorsOpen": "Einlass {time}",
+    "discount": "Rabattcode {codes}"
   },
   "invoice": {
     "title": "Rechnung",
@@ -63,7 +65,8 @@
     },
     "fileName": "Rechnung-{number}.pdf",
     "creditNoteFileName": "Rechnungskorrektur-{number}.pdf",
-    "anonymousBuyer": "Laufkundschaft"
+    "anonymousBuyer": "Laufkundschaft",
+    "discountLine": "Rabattcode {codes}"
   },
   "ticket": {
     "date": "Datum",
@@ -109,5 +112,100 @@
     "subjectPrefix": "[TEST]",
     "notice": "TESTBESTELLUNG – diese E-Mail gehört zu einer Testbestellung, die ein Administrator aufgegeben hat. Es handelt sich nicht um einen echten Kauf.",
     "watermark": "TESTBESTELLUNG"
+  },
+  "alerts": {
+    "BACKUP_FAILED": {
+      "failed": {
+        "title": "Sicherung fehlgeschlagen",
+        "summary": "Die letzte Sicherung konnte nicht abgeschlossen werden: {reason}. Bis eine Sicherung gelingt, sind neuere Änderungen nicht geschützt."
+      },
+      "external": {
+        "title": "Upload der Sicherung zum externen Ziel fehlgeschlagen",
+        "summary": "Die Sicherung wurde lokal erstellt, konnte aber nicht zum externen Ziel hochgeladen werden: {reason}"
+      }
+    },
+    "BACKUP_OVERDUE": {
+      "last": {
+        "title": "Keine aktuelle Sicherung",
+        "summary": "Die letzte erfolgreiche Sicherung stammt vom {lastBackup}. Eine geplante Sicherung hätte innerhalb von {hours} Stunden laufen müssen."
+      },
+      "never": {
+        "title": "Noch keine Sicherung",
+        "summary": "Geplante Sicherungen sind eingeschaltet, aber innerhalb von {hours} Stunden wurde keine Sicherung erstellt."
+      }
+    },
+    "DISK_LOW": {
+      "filesystem": {
+        "title": "Speicherplatz wird knapp ({path})",
+        "summary": "{usedPercent} % von {path} sind belegt ({used} von {total}, {free} frei) im Worker-Container."
+      },
+      "storage": {
+        "title": "Speicher ist fast voll",
+        "summary": "Datenbank und Dateien belegen {usedPercent} % der eingestellten Kapazität ({used} von {total}; Datenbank {database}, Dateien {files})."
+      }
+    },
+    "JOBS_FAILING": {
+      "failed": {
+        "title": "Hintergrundaufgaben schlagen fehl",
+        "summary": "In der letzten Stunde sind {count} Hintergrundaufgaben fehlgeschlagen, die meisten in der Warteschlange „{queue}“. Letzter Fehler: {reason}"
+      },
+      "backlog": {
+        "title": "Hintergrundaufgaben stauen sich",
+        "summary": "In der Warteschlange „{queue}“ wartet die älteste Aufgabe seit {minutes} Minuten. Möglicherweise ist der Worker gestoppt oder überlastet."
+      }
+    },
+    "EMAIL_DELIVERY_FAILING": {
+      "default": {
+        "title": "E-Mails können nicht zugestellt werden",
+        "summary": "In den letzten 24 Stunden sind {count} E-Mails endgültig fehlgeschlagen. Letzter Fehler: {reason}. Prüfe die E-Mail-Einstellungen und sende eine Test-E-Mail."
+      }
+    },
+    "REVIEW_CASES_OPEN": {
+      "default": {
+        "title": "Banktransaktionen warten auf deine Prüfung",
+        "summary": "{count} Banktransaktionen liegen seit mehreren Tagen in der Klärfall-Liste."
+      }
+    },
+    "BANK_SYNC_FAILING": {
+      "failed": {
+        "title": "Bankabruf schlägt fehl ({connection})",
+        "summary": "Die Verbindung „{connection}“ konnte seit mehreren Stunden nicht abgerufen werden. Letzter Fehler: {reason}"
+      },
+      "tan": {
+        "title": "Bankabruf wartet auf eine TAN ({connection})",
+        "summary": "Die Verbindung „{connection}“ wartet seit mehreren Stunden auf eine TAN, deshalb werden keine neuen Zahlungen importiert."
+      }
+    },
+    "PAYMENT_PROVIDER_ERRORS": {
+      "credentials": {
+        "title": "PayPal lehnt die hinterlegten Zugangsdaten ab",
+        "summary": "PayPal ({environment}) hat die Client-ID / das Secret abgelehnt. Zahlungen und Erstattungen über PayPal funktionieren erst wieder, wenn die Zugangsdaten unter Einstellungen → Zahlungen korrigiert sind."
+      },
+      "refunds": {
+        "title": "Automatische Erstattungen fehlgeschlagen",
+        "summary": "{count} PayPal-Erstattungen sind fehlgeschlagen. Letzter Fehler: {reason}. Öffne die Erstattungsliste, um sie erneut zu versuchen oder manuell zu erledigen."
+      }
+    },
+    "REFUNDS_OPEN": {
+      "default": {
+        "title": "Erstattungen warten auf eine Überweisung",
+        "summary": "{count} manuelle Erstattungen sind seit mehreren Tagen offen. Überweise das Geld und markiere sie als erledigt."
+      }
+    },
+    "UPDATE_AVAILABLE": {
+      "default": {
+        "title": "Update verfügbar: {latest}",
+        "summary": "Version {latest} ist verfügbar (installiert: {current})."
+      }
+    }
+  },
+  "calendar": {
+    "title": "In deinen Kalender eintragen",
+    "ics": "Zum Kalender hinzufügen (.ics)",
+    "google": "Google Kalender",
+    "directions": "Anfahrt",
+    "doors": "Einlass {time}",
+    "organizer": "Veranstalter: {name}",
+    "eventPage": "Veranstaltungsseite"
   }
 }

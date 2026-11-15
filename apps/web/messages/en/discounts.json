@@ -1,0 +1,120 @@
+{
+  "title": "Discount codes",
+  "description": "Codes customers enter in the cart. They reduce the ticket prices (and optionally the fees); presale / VIP access codes are managed per event.",
+  "modes": {
+    "single": "Single code",
+    "bulk": "Generate single-use codes"
+  },
+  "createTitle": "New discount code",
+  "createSingle": "Create code",
+  "createBulk": "Generate codes",
+  "save": "Save changes",
+  "listTitle": "Codes ({count})",
+  "empty": "No discount codes yet.",
+  "search": "Search code or note",
+  "batchTitle": "Generated batch",
+  "batchHint": "Showing the codes of one generated batch.",
+  "clearBatch": "Show all codes",
+  "exportCsv": "Export CSV",
+  "exportBatch": "Export this batch (CSV)",
+  "detail": "Details",
+  "back": "Back to codes",
+  "fields": {
+    "code": "Code",
+    "count": "Number of codes",
+    "prefix": "Prefix (optional)",
+    "type": "Type",
+    "valuePercent": "Discount (%)",
+    "valueFixed": "Discount per order ({currency})",
+    "validFrom": "Valid from",
+    "validUntil": "Valid until",
+    "maxTotalUses": "Max. total uses",
+    "maxUsesPerEmail": "Max. uses per customer e-mail",
+    "minOrderValue": "Min. value of eligible tickets ({currency})",
+    "discountFees": "Also discount the fees",
+    "stackable": "Can be combined with other codes",
+    "isActive": "Active",
+    "note": "Internal note"
+  },
+  "hints": {
+    "code": "Letters, digits, - and _ (3-40 characters). Customers can type it in any case.",
+    "count": "Up to {max} codes at once.",
+    "prefix": "e.g. SPRING – codes look like SPRING-K7Q2M9XD.",
+    "fixed": "Taken off the order once; never more than the eligible tickets cost.",
+    "zone": "Times are in the shop time zone ({timeZone}).",
+    "unlimited": "Empty = unlimited.",
+    "minOrderValue": "Empty = no minimum. Counts the eligible tickets only.",
+    "bulkSingleUse": "Generated codes can be used exactly once each.",
+    "note": "Never shown to customers."
+  },
+  "types": {
+    "PERCENT": "Percent of eligible ticket prices",
+    "FIXED": "Fixed amount per order"
+  },
+  "scope": {
+    "title": "Where the code applies",
+    "all": "All events",
+    "selected": "Selected events",
+    "events": "Events",
+    "categories": "Price categories",
+    "tariffs": "Tariffs",
+    "restrictHint": "Nothing ticked = no restriction."
+  },
+  "columns": {
+    "code": "Code",
+    "discount": "Discount",
+    "scope": "Scope",
+    "validity": "Validity",
+    "uses": "Uses",
+    "total": "Discount given",
+    "status": "Status"
+  },
+  "scopeAll": "All events",
+  "scopeSome": "{count, plural, one {# event} other {# events}}",
+  "status": {
+    "ACTIVE": "Active",
+    "INACTIVE": "Inactive",
+    "EXPIRED": "Expired",
+    "SCHEDULED": "Scheduled",
+    "EXHAUSTED": "Used up"
+  },
+  "deactivate": "Deactivate",
+  "activate": "Activate",
+  "deactivateTitle": "Deactivate this code?",
+  "activateTitle": "Activate this code?",
+  "delete": "Delete",
+  "deleteTitle": "Delete this code?",
+  "deleteHint": "Only codes that were never used can be deleted.",
+  "usage": {
+    "title": "Usage",
+    "empty": "This code was not used yet.",
+    "order": "Order",
+    "customer": "E-mail",
+    "status": "Order status",
+    "discount": "Discount",
+    "date": "Date",
+    "test": "Test order",
+    "notCounted": "does not count (cancelled, expired or test)",
+    "stats": "{uses} active uses · {amount} discount given"
+  },
+  "csv": {
+    "header": [
+      "Code",
+      "Type",
+      "Value",
+      "Valid from",
+      "Valid until",
+      "Max. total uses",
+      "Max. uses per e-mail",
+      "Min. value",
+      "Discounts fees",
+      "Stackable",
+      "Uses",
+      "Discount given",
+      "Status",
+      "Note"
+    ],
+    "yes": "yes",
+    "no": "no"
+  }
+}

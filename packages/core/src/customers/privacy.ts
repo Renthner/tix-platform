@@ -16,7 +16,9 @@ import {
   orders,
   payments,
   refunds,
+  ticketChanges,
   tickets,
+  waitlistEntries,
   withTransaction,
   type Executor,
 } from '@tix/db';
@@ -26,6 +28,7 @@ import { DomainError, type CoreContext } from '../context';
 import { EMAIL_VARIABLES_CONTEXT, parseStoredEmailRequest } from '../email/request';
 import { getSetting } from '../settings';
 import { orderTicketsObjectKey } from '../tickets/render';
+import { eraseWaitlistForEmails, purgeWaitlist, replayWaitlistRemovals } from '../waitlist/service';
 import { writeCustomerAudit } from './admin';
 
 /**
@@ -238,6 +241,8 @@ export async function exportCustomerData(ctx: CoreContext, customerId: string) {
               status: tickets.status,
               event: events.title,
               attendeeName: tickets.attendeeName,
+              /** Recipient of a transferred ticket. */
+              holderEmail: tickets.holderEmail,
               issuedAt: tickets.issuedAt,
               checkInState: tickets.checkInState,
               firstCheckedInAt: tickets.firstCheckedInAt,
@@ -308,6 +313,21 @@ export async function exportCustomerData(ctx: CoreContext, customerId: string) {
 
   const addresses = new Set([customer.email.toLowerCase()]);
   for (const o of orderRows) if (o.email) addresses.add(o.email.toLowerCase());
+  const waitlistRows = await ctx.db
+    .select({
+      eventId: waitlistEntries.eventId,
+      email: waitlistEntries.email,
+      firstName: waitlistEntries.firstName,
+      quantity: waitlistEntries.quantity,
+      locale: waitlistEntries.locale,
+      createdAt: waitlistEntries.createdAt,
+      confirmedAt: waitlistEntries.confirmedAt,
+      lastNotifiedAt: waitlistEntries.lastNotifiedAt,
+      notifiedCount: waitlistEntries.notifiedCount,
+    })
+    .from(waitlistEntries)
+    .where(inArray(sql`lower(${waitlistEntries.email})`, [...addresses]))
+    .orderBy(asc(waitlistEntries.createdAt));
   const mailRows = await ctx.db
     .select({
       id: emailMessages.id,
@@ -354,7 +374,25 @@ export async function exportCustomerData(ctx: CoreContext, customerId: string) {
     };
   });
 
+  const changeRows =
+    orderIds.length === 0
+      ? []
+      : await ctx.db
+          .select({
+            orderId: ticketChanges.orderId,
+            kind: ticketChanges.kind,
+            actor: ticketChanges.actor,
+            oldName: ticketChanges.oldName,
+            newName: ticketChanges.newName,
+            recipientEmail: ticketChanges.recipientEmail,
+            message: ticketChanges.message,
+            createdAt: ticketChanges.createdAt,
+          })
+          .from(ticketChanges)
+          .where(inArray(ticketChanges.orderId, orderIds))
+          .orderBy(asc(ticketChanges.createdAt), asc(ticketChanges.id));
   const itemsBy = byOrder(items);
+  const ticketChangesBy = byOrder(changeRows);
   const ticketsBy = byOrder(ticketRows);
   const paymentsBy = byOrder(paymentRows);
   const refundsBy = byOrder(refundRows);
@@ -420,6 +458,10 @@ export async function exportCustomerData(ctx: CoreContext, customerId: string) {
         issuedAt: iso(r.issuedAt),
         firstCheckedInAt: iso(r.firstCheckedInAt),
       })),
+      ticketChanges: (ticketChangesBy.get(o.id) ?? []).map((r) => ({
+        ...strip(r),
+        createdAt: iso(r.createdAt),
+      })),
       payments: (paymentsBy.get(o.id) ?? []).map((r) => ({
         ...strip(r),
         capturedAt: iso(r.capturedAt),
@@ -439,6 +481,12 @@ export async function exportCustomerData(ctx: CoreContext, customerId: string) {
       redeemedAt: iso(r.redeemedAt),
     })),
     emails: mails,
+    waitingList: waitlistRows.map((w) => ({
+      ...w,
+      createdAt: iso(w.createdAt),
+      confirmedAt: iso(w.confirmedAt),
+      lastNotifiedAt: iso(w.lastNotifiedAt),
+    })),
   };
 }
 
@@ -549,10 +597,18 @@ export async function anonymizeCustomer(
         or(
           orderIds.length ? inArray(emailMessages.orderId, orderIds) : undefined,
           inArray(sql`lower(${emailMessages.toEmail})`, addressList),
+          // Mails to ticket holders (transfer / update / cancellation) carry the buyer's name but no
+          // order link: they are tied to the order through the mail envelope.
+          orderIds.length
+            ? inArray(sql`${emailMessages.attachments}->>'sourceOrderId'`, orderIds)
+            : undefined,
           sql`${emailMessages.attachments}->>'customerId' = ${customerId}`,
         ),
       )
       .returning({ id: emailMessages.id });
+
+    // ── Waiting list entries of these addresses (ids stay in the retained ledger) ──
+    await eraseWaitlistForEmails(tx, addressList);
 
     // ── Access code redemptions ──
     await tx
@@ -582,6 +638,8 @@ export async function anonymizeCustomer(
         .update(tickets)
         .set({
           attendeeName: null,
+          // Holders of tickets that are still valid are third parties who keep their ticket.
+          holderEmail: sql`CASE WHEN ${tickets.status} <> 'VALID' THEN NULL ELSE ${tickets.holderEmail} END`,
           pdfObjectKey: null,
           pkpassObjectKey: null,
           googleWalletObjectId: null,
@@ -593,6 +651,11 @@ export async function anonymizeCustomer(
         .update(orderItems)
         .set({ attendeeName: null })
         .where(and(inArray(orderItems.orderId, orderIds), isNotNull(orderItems.attendeeName)));
+      // Name changes / transfers: names, recipient e-mails and the sender's message.
+      await tx
+        .update(ticketChanges)
+        .set({ oldName: null, newName: null, recipientEmail: null, message: null })
+        .where(inArray(ticketChanges.orderId, orderIds));
 
       // ── Refund payer account (the refund itself is done: finished refunds only) ──
       const refundRows = await tx
@@ -863,6 +926,9 @@ export async function runPrivacyRetention(
     )
     .returning({ id: orders.id });
 
+  // Waiting list entries of events that have started.
+  await purgeWaitlist(ctx);
+
   let webhooksScrubbed = 0;
   if (settings.webhookRetentionDays > 0) {
     const old = await ctx.db
@@ -888,6 +954,7 @@ export async function runPrivacyRetention(
 export async function replayErasureLedger(
   ctx: CoreContext,
 ): Promise<{ replayed: number; skipped: number }> {
+  await replayWaitlistRemovals(ctx);
   const rows = await ctx.db.select({ customerId: erasures.customerId }).from(erasures);
   let replayed = 0;
   let skipped = 0;

@@ -76,7 +76,9 @@
     "resetRequested": "Reset link requested.",
     "unlocked": "User unlocked.",
     "verificationSent": "Confirmation link sent. Please check your inbox.",
-    "alreadyVerified": "Your e-mail address is already confirmed."
+    "alreadyVerified": "Your e-mail address is already confirmed.",
+    "alertsSaved": "Warning e-mail settings saved.",
+    "alertsReset": "Back to the defaults of your role."
   },
   "account": {
     "title": "My account",

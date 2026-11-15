@@ -17,6 +17,8 @@ import { createEmailMessage, dispatchEmailMessage } from '../email';
 import { getEventCached } from '../events';
 import { ensureInventory } from '../inventory';
 import { getSeatMapForChannel } from '../seatmaps/public';
+import { deactivateGoogleWalletObjects } from '../wallet/google';
+import { dispatchMessages } from '../tickets/holder-mail';
 import { lockOrderTickets, reissueTicketInTransaction } from '../tickets/issue';
 import { openAdjustmentItemIds } from './adjustment-state';
 import { assertSellable, releaseSessionHold } from './box-office';
@@ -93,6 +95,7 @@ interface Resolved {
     unitPriceGross: number;
   };
   priceGross: number;
+  codeDiscountAmount: number;
   blocked: boolean;
 }
 
@@ -210,14 +213,16 @@ export async function changeOrderSeats(
       });
     }
     const expected = order.paymentMethod === 'COMPLIMENTARY' ? 0 : tariff.prices[target.seat.c!];
+    // Price of the ticket before a discount code (the code share stays with the ticket).
+    const listPaid = item.priceGross + item.codeDiscountAmount;
     // Same category + same tariff keeps the price paid (even after price-table changes or a
     // box-office override); another category needs the same current price.
-    if (item.priceCategoryId !== target.category.id && expected !== item.priceGross) {
+    if (item.priceCategoryId !== target.category.id && expected !== listPaid) {
       throw new DomainError(
         'SEAT_PRICE_DIFFERS',
         'The new seat has a different price; cancel the ticket and sell a new one',
         409,
-        { seatId: change.newSeatId, expected: expected ?? null, current: item.priceGross },
+        { seatId: change.newSeatId, expected: expected ?? null, current: listPaid },
       );
     }
     return {
@@ -237,12 +242,13 @@ export async function changeOrderSeats(
         sectionId: target.section.id,
         categoryId: target.category.id,
         categoryName: target.category.name,
-        unitPriceGross: Math.max(target.category.basePrice, item.priceGross),
+        unitPriceGross: Math.max(target.category.basePrice, listPaid),
         sectionLabel: target.section.ticketLabel || target.section.name,
         rowLabel: target.rowLabel,
         seatLabel: target.seat.l,
       },
       priceGross: item.priceGross,
+      codeDiscountAmount: item.codeDiscountAmount,
       blocked,
     };
   });
@@ -288,7 +294,11 @@ export async function changeOrderSeats(
   }
 
   // ── Transaction ───────────────────────────────────────────────────────────────
-  let outcome: { reissued: Map<string, string>; messageId: string | null };
+  let outcome: {
+    reissued: Map<string, string>;
+    messageId: string | null;
+    holderMessageIds: string[];
+  };
   try {
     outcome = await withTransaction(ctx.db, async (tx) => {
       await lockOrderTickets(tx, orderId);
@@ -345,7 +355,7 @@ export async function changeOrderSeats(
             priceCategoryId: r.to.categoryId,
             categoryName: r.to.categoryName,
             unitPriceGross: r.to.unitPriceGross,
-            discountAmount: r.to.unitPriceGross - r.priceGross,
+            discountAmount: r.to.unitPriceGross - r.priceGross - r.codeDiscountAmount,
             sectionLabel: r.to.sectionLabel,
             rowLabel: r.to.rowLabel,
             seatLabel: r.to.seatLabel,
@@ -359,6 +369,7 @@ export async function changeOrderSeats(
 
       // New tickets for confirmed items (built from the updated item snapshot).
       const reissued = new Map<string, string>();
+      const holderMessageIds: string[] = [];
       const confirmed = resolved.filter((r) => r.status === 'CONFIRMED');
       if (confirmed.length > 0) {
         const valid = await tx
@@ -374,7 +385,12 @@ export async function changeOrderSeats(
             ),
           );
         for (const t of valid) {
-          const created = await reissueTicketInTransaction(ctx, tx, t.id);
+          // The holder of a handed-over ticket hears about the new seat unless the admin chose
+          // not to notify.
+          const created = await reissueTicketInTransaction(ctx, tx, t.id, {
+            notifyHolder: params.notify,
+            onMail: (id) => holderMessageIds.push(id),
+          });
           reissued.set(t.orderItemId, created.id);
         }
       }
@@ -406,7 +422,7 @@ export async function changeOrderSeats(
       if (params.notify && locked.email && reissued.size > 0) {
         messageId = await createEmailMessage(ctx, tx, { key: 'TICKETS_RESENT', orderId });
       }
-      return { reissued, messageId };
+      return { reissued, messageId, holderMessageIds };
     });
   } catch (err) {
     if (isUniqueViolation(err, 'order_items_active_seat_uq')) {
@@ -472,6 +488,10 @@ export async function changeOrderSeats(
     await safe('hold release', () => releaseSessionHold(ctx, params.holdSessionId, eventId));
   }
   await safe('cart cleanup', () => clearCartAfterOrder(ctx, params.holdSessionId, eventIds));
+  await safe('holder e-mails (the outbox retries)', () =>
+    dispatchMessages(ctx, outcome.holderMessageIds),
+  );
+  await safe('Google Wallet cleanup', () => deactivateGoogleWalletObjects(ctx, { orderId }));
   const messageId = outcome.messageId;
   if (messageId) {
     await safe('e-mail dispatch (the outbox retries)', () => dispatchEmailMessage(ctx, messageId));

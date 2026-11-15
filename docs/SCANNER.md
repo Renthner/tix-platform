@@ -456,6 +456,14 @@ black or white by luminance.
 
 Check-out is allowed when `scanner.allowCheckOut` AND the device's `allow_check_out` for the event.
 
+### Ticket transfers and name changes
+
+A transferred ticket is delivered by sync as a tombstone (`status: REPLACED`, decision
+`REJECTED_TICKET_VOID`, RED) and the new ticket id as a new VALID row. An offline device keeps
+accepting the old QR until its next successful sync (or LAN update); that window is the
+maximum time a transferred ticket can still be scanned. A name change only updates
+`attendeeName` of the same ticket (delta sync); the QR does not change.
+
 ## Offline merge rules
 
 Offline scans are uploaded with `POST /scans/batch` (`wasOffline = true` in the journal) whenever the server is

@@ -50,7 +50,8 @@
     "reservedFor": "Reserved for",
     "total": "Total",
     "vat": "incl. {rate}% VAT",
-    "graceNote": "Your reservation was extended once by {minutes} minutes for checking out."
+    "graceNote": "Your reservation was extended once by {minutes} minutes for checking out.",
+    "discount": "Discount code {codes}"
   },
   "terms": "I accept the <terms>terms and conditions</terms> and have read the <privacy>privacy policy</privacy>.",
   "submit": "Place binding order",
@@ -135,7 +136,8 @@
       "vat": "incl. {rate}% VAT",
       "paid": "Paid",
       "refundedItem": "refunded",
-      "refunded": "Refunded"
+      "refunded": "Refunded",
+      "discount": "Discount code {codes}"
     },
     "documents": {
       "title": "Documents",
@@ -189,7 +191,49 @@
       "rest": "Remaining amount"
     },
     "testBadge": "TEST",
-    "testNotice": "This is a test order placed by an administrator on an unpublished event. It is not a real purchase."
+    "testNotice": "This is a test order placed by an administrator on an unpublished event. It is not a real purchase.",
+    "calendar": {
+      "title": "Calendar and directions",
+      "intro": "Save the date in your calendar and find your way to the venue.",
+      "ics": "Add to calendar (.ics)",
+      "google": "Google Calendar",
+      "directions": "Directions"
+    },
+    "selfService": {
+      "changeName": "Change name",
+      "transfer": "Pass on",
+      "nameTitle": "Change name on ticket {code}",
+      "nameText": "The name is printed on the ticket and shown at the entrance. The QR code stays the same.",
+      "nameLabel": "Name on the ticket",
+      "nameSaved": "The name was changed.",
+      "cancel": "Cancel",
+      "save": "Save",
+      "transferTitle": "Pass on ticket {code}",
+      "transferText": "The recipient gets this ticket by e-mail, with a new QR code. You can no longer use the ticket yourself.",
+      "recipientName": "Name of the recipient",
+      "recipientEmail": "E-mail of the recipient",
+      "message": "Message (optional)",
+      "transferWarning": "The current QR code becomes invalid immediately and is rejected at the entrance. Your order and invoice stay unchanged.",
+      "transferConfirm": "Pass on ticket",
+      "transferred": "The ticket was passed on. The recipient receives an e-mail.",
+      "handBackHint": "To hand the ticket back to the buyer, enter the buyer's e-mail address. The recipient of the previous hand-over is told that the ticket is gone.",
+      "heldBy": "Passed on to {email}",
+      "resend": "Resend to recipient",
+      "resent": "The recipient e-mail was sent again."
+    },
+    "holder": {
+      "metaTitle": "Your ticket",
+      "seat": "Seat",
+      "name": "Name",
+      "code": "Ticket code",
+      "intro": "Show the QR code of the ticket at the entrance – as PDF on your phone or printed.",
+      "pdf": "Ticket PDF",
+      "apple": "Add to Apple Wallet",
+      "google": "Add to Google Wallet",
+      "passOnUntil": "You can pass this ticket on to someone else until {date}.",
+      "transferred": "This ticket was passed on to someone else and is no longer valid.",
+      "void": "This ticket is no longer valid."
+    }
   },
   "account": {
     "title": "Order faster with a customer account",

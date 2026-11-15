@@ -407,7 +407,7 @@ describe.skipIf(!adminUrl || !redisUrl)('ticket issuance & signing keys (integra
     const { order, items } = await insertOrder({ items: [{}, {}] });
     await ensureOrderTickets(ctx, order.id);
     await handle.db.transaction(async (tx) => {
-      expect(await voidTicketsForItems(tx, [items[0]!.id], 'REFUNDED')).toBe(1);
+      expect((await voidTicketsForItems(tx, [items[0]!.id], 'REFUNDED')).count).toBe(1);
       await tx
         .update(orderItems)
         .set({ status: 'REFUNDED', refundedAt: new Date() })

@@ -24,7 +24,8 @@
     "scanners": "Einlass-Geräte",
     "statistics": "Statistiken",
     "system": "System",
-    "menu": "Menü"
+    "menu": "Menü",
+    "discounts": "Rabattcodes"
   },
   "login": {
     "title": "Admin-Anmeldung",
@@ -503,7 +504,20 @@
       "searchEngines": "Suchmaschinen",
       "searchEnginesHint": "Der Schalter für den gesamten Shop liegt unter Einstellungen → SEO.",
       "seoNoindex": "Diese Veranstaltung von Suchmaschinen ausschließen",
-      "seoNoindexHint": "Die Veranstaltungsseite wird mit noindex markiert, nicht in die Sitemap aufgenommen und enthält keine strukturierten Daten. Wer den Link kennt, kann sie weiterhin öffnen."
+      "seoNoindexHint": "Die Veranstaltungsseite wird mit noindex markiert, nicht in die Sitemap aufgenommen und enthält keine strukturierten Daten. Wer den Link kennt, kann sie weiterhin öffnen.",
+      "waitlist": "Warteliste",
+      "waitlistHint": "Besucher können sich benachrichtigen lassen, wenn diese Veranstaltung ausverkauft ist. Die Einträge stehen unter diesem Formular.",
+      "waitlistEnabled": "Warteliste bei Ausverkauf",
+      "selfService": {
+        "title": "Ticket-Änderungen durch Kunden",
+        "hint": "Namensänderung und Weitergabe auf der Bestellseite. „Eigene Werte“ schaltet die Funktion für diese Veranstaltung mit den Werten unten ein (leer = globaler Wert).",
+        "mode": "Kunden-Selbstbedienung",
+        "own": "An (eigene Werte)",
+        "allowNameChange": "Namen auf dem Ticket ändern",
+        "allowTransfer": "An jemand anderen weitergeben",
+        "deadlineHours": "Erlaubt bis (Stunden vor Beginn)",
+        "maxChanges": "Max. Änderungen pro Platz (0 = unbegrenzt)"
+      }
     },
     "deletedNotice": "Die Veranstaltung wurde endgültig gelöscht.",
     "duplicate": {
@@ -937,7 +951,9 @@
         "enabledHint": "Der Server fragt höchstens alle 6 Stunden die GitHub-Releases-API nach dem neuesten Release deines Kanals (TIX_CHANNEL) und zeigt einen Hinweis im Dashboard. Gesendet wird nur der Repository-Name; schalte es aus, um keine ausgehende Anfrage zu machen.",
         "repository": "GitHub-Repository",
         "repositoryHint": "owner/name. Leer lassen, um das Repository zu verwenden, aus dem dieses Release gebaut wurde."
-      }
+      },
+      "defaultEventDurationMinutes": "Länge des Kalendereintrags (Minuten)",
+      "defaultEventDurationMinutesHint": "Wird bei „Zum Kalender hinzufügen“ verwendet, wenn eine Veranstaltung keine Endzeit hat."
     },
     "branding": {
       "title": "Erscheinungsbild",
@@ -1353,7 +1369,36 @@
       "accounts": "Kundenkonten",
       "wallet": "Wallet",
       "security": "Sicherheit",
-      "scanner": "Scanner"
+      "scanner": "Scanner",
+      "notifications": "Benachrichtigungen"
+    },
+    "waitlist": {
+      "title": "Warteliste",
+      "description": "Besucher können sich per E-Mail benachrichtigen lassen, wenn bei einer ausverkauften Veranstaltung wieder Tickets frei werden. Pro Veranstaltung lässt sich das im Tab „Verkauf“ ein- oder ausschalten.",
+      "enabled": "Warteliste für ausverkaufte Veranstaltungen anbieten",
+      "enabledHint": "Besucher bestätigen ihre E-Mail-Adresse (Double-Opt-in), bevor sie auf der Liste stehen. Alle auf der Liste werden gleichzeitig benachrichtigt – wer zuerst bucht, bekommt die Tickets; es werden keine Plätze reserviert.",
+      "evaluateIntervalMinutes": "Prüfintervall (Minuten)",
+      "evaluateIntervalMinutesHint": "Wie oft der Worker bei Veranstaltungen mit Warteliste nach frei gewordenen Tickets sucht.",
+      "renotifyAfterHours": "Pause vor erneuter Benachrichtigung (Stunden)",
+      "renotifyAfterHoursHint": "Wer benachrichtigt wurde und nicht gekauft hat, wird erneut benachrichtigt, nachdem die Tickets wieder ausverkauft waren und erneut frei werden – frühestens nach dieser Pause. 0 = keine Pause.",
+      "confirmationTtlHours": "Bestätigungslink gültig für (Stunden)",
+      "confirmationTtlHoursHint": "Unbestätigte Einträge werden danach gelöscht.",
+      "maxTicketsPerEntry": "Höchstzahl Tickets pro Eintrag",
+      "maxEntriesPerEvent": "Höchstzahl Einträge pro Veranstaltung",
+      "maxEntriesPerEventHint": "Schutz vor Missbrauch; zählt bestätigte und unbestätigte Einträge."
+    },
+    "ticketSelfService": {
+      "title": "Ticket-Änderungen durch Kunden",
+      "description": "Kunden ändern den Namen auf einem Ticket oder geben es an jemand anderen weiter.",
+      "enabled": "Kunden dürfen Tickets ändern",
+      "enabledHint": "Zeigt „Name ändern“ und „Weitergeben“ auf der Bestellseite bezahlter Bestellungen. Einzelne Veranstaltungen können das im Tab „Verkauf“ überschreiben. Admins können Tickets immer ändern.",
+      "allowNameChange": "Namen auf dem Ticket ändern",
+      "allowNameChangeHint": "Der QR-Code bleibt gleich.",
+      "allowTransfer": "An jemand anderen weitergeben",
+      "allowTransferHint": "Das Ticket bekommt einen neuen QR-Code und Ticketcode; der alte QR-Code wird am Einlass abgewiesen. Bestellung und Rechnung bleiben beim Käufer.",
+      "deadlineHoursBeforeStart": "Erlaubt bis (Stunden vor Veranstaltungsbeginn)",
+      "maxChangesPerTicket": "Höchstens Änderungen pro Platz (leer = unbegrenzt)",
+      "note": "Apple-Wallet-Pässe lassen sich nicht aus der Ferne aktualisieren: Nach einer Namensänderung behält ein vorhandener Apple-Pass den alten Namen, bis er neu hinzugefügt wird. Google-Wallet-Pässe werden aktualisiert."
     }
   },
   "mediaLibrary": {
@@ -1595,5 +1640,29 @@
         "stripHint": "PNG, z. B. 750 x 196 px, Banner hinter dem Veranstaltungstitel."
       }
     }
+  },
+  "waitlistAdmin": {
+    "title": "Warteliste",
+    "description": "Bestätigte Einträge werden gemeinsam benachrichtigt, sobald wieder Tickets verfügbar sind; unbestätigte werden nach Ablauf der Bestätigungsfrist gelöscht. Alle Einträge werden nach Beginn der Veranstaltung automatisch gelöscht.",
+    "empty": "Noch niemand steht auf der Warteliste.",
+    "count": "{confirmed} bestätigt, {pending} warten auf Bestätigung",
+    "export": "CSV exportieren",
+    "notifyNow": "Jetzt benachrichtigen",
+    "notifyHint": "Sendet die E-Mail „Tickets verfügbar“ an jeden bestätigten Eintrag, der mit den aktuell verfügbaren Tickets bedient werden kann – unabhängig von der Pause.",
+    "colEmail": "E-Mail",
+    "colName": "Name",
+    "colTickets": "Tickets",
+    "colCategory": "Kategorie",
+    "colStatus": "Status",
+    "colSignedUp": "Eingetragen",
+    "colNotified": "Benachrichtigt",
+    "confirmed": "Bestätigt",
+    "pending": "Wartet auf Bestätigung",
+    "anyCategory": "Beliebig",
+    "never": "Nie",
+    "times": "{count}×",
+    "remove": "Entfernen",
+    "removeNotify": "Per E-Mail informieren",
+    "removeConfirm": "Entfernen"
   }
 }

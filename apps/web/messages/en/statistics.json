@@ -41,7 +41,8 @@
     "BANK_TRANSFER": "Bank transfer",
     "CASH": "Cash",
     "CARD": "Card",
-    "COMPLIMENTARY": "Complimentary"
+    "COMPLIMENTARY": "Complimentary",
+    "FREE": "No payment due"
   },
   "summary": {
     "period": "{from} – {to} ({days, plural, one {# day} other {# days}}), time zone {zone}",

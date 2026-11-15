@@ -140,7 +140,8 @@
     "BANK_TRANSFER": "Vorkasse (Überweisung)",
     "CASH": "Bar",
     "CARD": "Karte",
-    "COMPLIMENTARY": "Freikarte"
+    "COMPLIMENTARY": "Freikarte",
+    "FREE": "Keine Zahlung nötig"
   },
   "channelNames": {
     "ONLINE": "Online-Shop",

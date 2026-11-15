@@ -25,6 +25,10 @@ import {
  * - Revenue (gross) = price of those tickets + the service fees of the order. With an event
  *   filter only items of the chosen events and fees booked to them (per-order fees cannot be
  *   attributed to an event and are left out). Tariff upgrades stay on the original payment date.
+ * - Revenue is net of discount codes (item and fee prices already carry the code share). The
+ *   discount figures show what the codes took off: `total` = Σ code share of the counted tickets
+ *   and fee lines (event filter respected), `byCode` = the whole discount per code of the counted
+ *   orders (left empty with an event filter, where an order's discount cannot be split by event).
  * - Refunds = successful refunds (not pure overpayment refunds) on their processing date; with
  *   an event filter only the share that pays back tickets / fees of those events.
  *   Net revenue = gross revenue - refunds.
@@ -72,6 +76,14 @@ export interface KeyedBreakdown {
   revenue: number;
 }
 
+export interface DiscountStatistics {
+  /** Discount given on the counted tickets and fee lines (cents). */
+  total: number;
+  /** Orders that used at least one code. */
+  orders: number;
+  byCode: { code: string; orders: number; amount: number }[];
+}
+
 export interface SalesCurveEvent {
   eventId: string;
   title: string;
@@ -114,6 +126,7 @@ export interface SalesStatistics {
   leadTime: { bucket: LeadTimeBucket; tickets: number }[];
   averageLeadDays: number;
   customers: { total: number; returning: number; multiEvent: number };
+  discounts: DiscountStatistics;
 }
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
@@ -475,6 +488,34 @@ async function loadCustomers(db: Database, scope: Scope, w: Window) {
   return { total: num(r.total), returning: num(r.returning), multiEvent: num(r.multi_event) };
 }
 
+/** Code discounts of the window: total, orders using a code and the ten biggest codes. */
+async function loadDiscounts(db: Database, scope: Scope, w: Window): Promise<DiscountStatistics> {
+  const f = scope.filter;
+  const [sums] = await run<Record<string, unknown>>(
+    db,
+    sql`WITH ${ordCte(scope, w)}
+      SELECT
+        (SELECT COALESCE(sum(oi.code_discount_amount), 0) FROM order_items oi
+          JOIN ord ON ord.id = oi.order_id
+          WHERE oi.status IN ${SOLD} ${eventFilter(f, 'oi')})::bigint
+        + (SELECT COALESCE(sum(ofee.code_discount_amount), 0) FROM order_fees ofee
+          JOIN ord ON ord.id = ofee.order_id WHERE true ${eventFilter(f, 'ofee')})::bigint AS total,
+        (SELECT count(DISTINCT od.order_id) FROM order_discounts od JOIN ord ON ord.id = od.order_id)::int AS orders`,
+  );
+  const byCode = f.eventIds.length
+    ? []
+    : (
+        await run<Record<string, unknown>>(
+          db,
+          sql`WITH ${ordCte(scope, w)}
+            SELECT od.code, count(*)::int AS orders, sum(od.amount)::bigint AS amount
+            FROM order_discounts od JOIN ord ON ord.id = od.order_id
+            GROUP BY od.code ORDER BY amount DESC, od.code LIMIT 10`,
+        )
+      ).map((r) => ({ code: String(r.code), orders: num(r.orders), amount: num(r.amount) }));
+  return { total: num(sums?.total), orders: num(sums?.orders), byCode };
+}
+
 /** Cumulative-ready sales per event by days before the event (all-time sales of the event). */
 async function loadSalesCurve(db: Database, scope: Scope, w: Window): Promise<SalesCurveEvent[]> {
   const f = scope.filter;
@@ -552,11 +593,12 @@ async function compute(db: Database, scope: Scope, now: Date): Promise<SalesStat
       loadKeyed(db, scope, cur, 'method'),
       loadKeyed(db, scope, cur, 'channel'),
     ]);
-  const [heatmap, lead, customers, salesCurve] = await Promise.all([
+  const [heatmap, lead, customers, salesCurve, discounts] = await Promise.all([
     loadHeatmap(db, scope, cur),
     loadLeadTime(db, scope, cur),
     loadCustomers(db, scope, cur),
     loadSalesCurve(db, scope, cur),
+    loadDiscounts(db, scope, cur),
   ]);
 
   return {
@@ -579,6 +621,7 @@ async function compute(db: Database, scope: Scope, now: Date): Promise<SalesStat
     leadTime: lead.leadTime,
     averageLeadDays: lead.averageLeadDays,
     customers,
+    discounts,
   };
 }
 

@@ -109,6 +109,7 @@ export interface GeneralValues {
   defaultCurrency: string;
   defaultTimeZone: string;
   supportEmail?: string;
+  defaultEventDurationMinutes: number;
   updateCheckEnabled: boolean;
   updateRepository: string;
 }
@@ -197,6 +198,22 @@ export function GeneralSettingsForm({
             name="defaultTimeZone"
             list="tz-list"
             defaultValue={initial.defaultTimeZone}
+            required
+          />
+        </Field>
+        <Field
+          label={t('defaultEventDurationMinutes')}
+          htmlFor="defaultEventDurationMinutes"
+          error={err('defaultEventDurationMinutes')}
+          hint={t('defaultEventDurationMinutesHint')}
+        >
+          <Input
+            id="defaultEventDurationMinutes"
+            name="defaultEventDurationMinutes"
+            type="number"
+            min={15}
+            max={1440}
+            defaultValue={initial.defaultEventDurationMinutes}
             required
           />
         </Field>

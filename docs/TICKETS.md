@@ -141,6 +141,69 @@ Table `event_signing_keys` (one row per key, exactly one ACTIVE per event):
     historic orders are never mailed unexpectedly;
   - VALID tickets whose signing key is REVOKED are re-issued (with the `TICKETS_RESENT` mails above).
 
+## Self-service (name change, transfer)
+
+Code: `packages/core/src/tickets/self-service.ts`; settings `ticketSelfService` (global, Settings →
+Customer accounts) with a per-event override (event tab "Sales": inherit / own values / off).
+Switched **off by default**. Customers act on the order page (order access token or signed-in
+owner); admins can do both without any policy from the admin order page. Every change is stored
+in `ticket_changes`, written to the order history and (admin) the audit log, and rate limited.
+
+- **Policy:** enabled, allow name change, allow transfer, deadline (hours before the event start,
+  0 = until the start), optional maximum customer changes per seat (counted over the whole
+  re-issue chain of an order item; an event can inherit the global value, set its own or "0 =
+  unlimited" to switch a global limit off for that event). Blocked for unpaid / cancelled / refunded tickets and for
+  tickets that were already checked in. Test orders and box-office orders follow the same
+  policy (box-office complimentary tickets are not excluded; switch the feature off per event if
+  they should be).
+- **Name change:** only `tickets.attendee_name` changes. The name is **not** part of the signed QR
+  payload (`tix://v1/{keyId}.{eventId}.{ticketId}.{seatInfo}.{sig}`), so ticket id and QR stay.
+  The tickets trigger bumps `sync_version` / `sync_xid`: scanners show the new name after their
+  next sync. Stored order PDFs and the cached Apple pass are discarded and rendered again on
+  demand; an existing Google Wallet object is updated in place. Apple passes cannot be pushed
+  without APNs: an already added Apple pass keeps the old name until it is added again.
+- **Transfer:** the old ticket becomes `REPLACED` (scanner decision `REJECTED_TICKET_VOID`, RED), a
+  new ticket (new id, code, signature) for the same order item is created with the recipient as
+  attendee and `holder_email` set. Order, invoice and payments stay with the buyer. The buyer's
+  order PDF / wallet buttons / e-mails no longer contain the ticket.
+- **Who may change a handed-over ticket (client decision):** once a ticket has been transferred
+  the original **buyer can no longer change it** (no rename, no re-transfer; the order page only
+  shows "passed on to ..."). Only the current **holder** may pass it on, on their ticket page
+  (`/tickets/{id}?t=...`, `POST /api/tickets/{id}/transfer`) under the same deadline, limits and
+  policy; the holder cannot rename it (the name is the one the transferer gave). **Admins can always
+  intervene**, including **handing the ticket back to the buyer**: an admin "transfer" to the buyer's
+  own address (order e-mail or the owning customer account's e-mail) un-hands the ticket - no
+  `holder_email`, attendee = buyer name, the previous holder is told the ticket is gone and the buyer
+  receives the tickets again (`TICKETS_RESENT`). For customers the buyer's addresses are refused
+  (`SELF_TRANSFER`).
+- **Hard caps against use as an e-mail relay** (customers only, independent of the settings,
+  "unlimited" included): at most 10 transfers per seat ever, 20 per order and 5 per recipient address
+  within 24 hours (the latter across all orders). Exceeding them returns `TRANSFER_LIMIT_REACHED`
+  (429) / blocks the button with "limit reached". Admins are not capped. The recipient mail has a
+  neutral subject (no buyer name), the sender's message is HTML-escaped and shown with its line
+  breaks, and names in the body are shortened.
+- **Holder notifications:** the holder of a handed-over ticket gets `TICKET_HOLDER_UPDATED` when the
+  ticket is re-issued for them (seat or tariff change, signing key rotation, order paid again after a
+  bank allocation reversal; a seat change honours "notify customer") and `TICKET_HOLDER_CANCELLED`
+  when it becomes invalid (cancellation, refund, reversal, admin re-assignment). Both contain the
+  ticket only, never order data. **Refunds always go to the buyer** - the holder is not refunded and
+  is told so. After a bank allocation reversal and a new payment the re-issued ticket keeps the holder
+  and the attendee name (the latest earlier ticket of the seat carries them).
+- **Google Wallet:** the object of a replaced / cancelled / refunded ticket is switched to
+  `INACTIVE` (best effort, retried by the ticket backfill job; errors are logged and never block the
+  change).
+- **Recipient access:** the e-mail `TICKET_TRANSFER_RECEIVED` (no order data) links to
+  `/{locale}/tickets/{ticketId}?t=<holder token>`; `/api/tickets/{id}/{pdf|pkpass|google}` accept only
+  that HMAC token (type `ticket`, bound to the ticket chain; order tokens do not verify). The link
+  follows re-issues for the same holder (seat change, key rotation) and shows "passed on" /
+  "no longer valid" once the ticket was transferred again, cancelled or refunded.
+  `TICKET_TRANSFER_SENT` confirms to the buyer.
+- **Privacy:** recipient name / e-mail / message live in `tickets` and `ticket_changes`; both are
+  part of the GDPR export and are erased with the customer's order data. The mails to holders have no
+  order link, so they carry the order id in the mail envelope (`sourceOrderId`) and are erased with
+  the buyer. The holder address of a ticket that is still **valid** is kept (a third party keeps
+  their ticket); on invalid tickets it is erased.
+
 ## Ticket PDFs and the designer
 
 Code: `packages/core/src/tickets/{pdf,render,template-admin}.ts`, layout schema

@@ -20,6 +20,7 @@ import { withMutex } from '../banking/runs';
 import { DomainError, type CoreContext } from '../context';
 import { enqueueInvoiceRender } from '../invoices';
 import { getSetting } from '../settings';
+import { dispatchMessages, queueHolderCancelledMails } from '../tickets/holder-mail';
 import { lockOrderTickets, voidTicketsForItems } from '../tickets/issue';
 import { findOpenAdjustment } from './adjustment-state';
 import { orderCredit } from './credit';
@@ -281,6 +282,7 @@ export async function reverseBankAllocation(
         order.status === 'PAID' && amountPaid < order.totalGross - (writeOff?.shortfall ?? 0);
       let released: { seatId: string | null; eventId: string }[] = [];
       let ticketsVoided = 0;
+      let holderMessageIds: string[] = [];
       let creditNote: { id: string; number: string } | null = null;
       let newStatus: OrderStatus = order.status;
 
@@ -352,11 +354,15 @@ export async function reverseBankAllocation(
             eventId: orderItems.eventId,
           });
         released = items;
-        ticketsVoided = await voidTicketsForItems(
+        const voided = await voidTicketsForItems(
           tx,
           items.map((i) => i.id),
           'CANCELLED',
         );
+        ticketsVoided = voided.count;
+        // Holders of handed-over tickets lose them for now; when the order is paid again the
+        // re-issued tickets (same holder and name, see ensureOrderTickets) are mailed to them.
+        holderMessageIds = await queueHolderCancelledMails(ctx, tx, voided.holders);
         creditNote = await issueFullCreditNote(ctx, tx, order.id);
         // The confirmation of the undone payment must not be sent any more.
         await tx
@@ -457,11 +463,13 @@ export async function reverseBankAllocation(
           creditNote,
         } satisfies ReverseAllocationResult,
         released,
+        holderMessageIds,
       };
     }),
   );
   if (!locked) throw new DomainError('BUSY', 'The transaction is being processed – try again', 409);
-  const { result, released } = locked.value;
+  const { result, released, holderMessageIds } = locked.value;
+  await dispatchMessages(ctx, holderMessageIds);
 
   // After commit: nothing below may turn the committed reversal into an error.
   if (released.length > 0) {

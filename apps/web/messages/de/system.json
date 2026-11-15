@@ -74,7 +74,9 @@
       "refunds": "Erstattungen",
       "backups": "Backups",
       "privacy": "Datenschutz",
-      "media": "Bildvarianten"
+      "media": "Bildvarianten",
+      "alerts": "Admin-Warnungen",
+      "waitlist": "Warteliste"
     }
   },
   "failedJobs": {
@@ -153,5 +155,102 @@
     "copy": "Kopieren",
     "copied": "Kopiert",
     "failed": "Das Token konnte nicht gespeichert werden."
+  },
+  "alerts": {
+    "types": {
+      "BACKUP_FAILED": {
+        "name": "Sicherung fehlgeschlagen",
+        "description": "Eine geplante oder manuelle Sicherung oder der Upload zum externen Ziel ist fehlgeschlagen."
+      },
+      "BACKUP_OVERDUE": {
+        "name": "Sicherung überfällig",
+        "description": "Keine erfolgreiche Sicherung in der erwarteten Zeit, obwohl geplante Sicherungen eingeschaltet sind."
+      },
+      "DISK_LOW": {
+        "name": "Speicher wird knapp",
+        "description": "Der Speicherplatz des Worker-Containers oder der Datenbank + Dateien liegt über dem Schwellenwert."
+      },
+      "JOBS_FAILING": {
+        "name": "Hintergrundaufgaben fehlerhaft",
+        "description": "Viele Hintergrundaufgaben sind in der letzten Stunde fehlgeschlagen oder warten zu lange."
+      },
+      "EMAIL_DELIVERY_FAILING": {
+        "name": "E-Mail-Versand fehlerhaft",
+        "description": "E-Mails sind endgültig fehlgeschlagen (z. B. falsche SMTP-Einstellungen)."
+      },
+      "REVIEW_CASES_OPEN": {
+        "name": "Offene Klärfälle (Tagesübersicht)",
+        "description": "Banktransaktionen liegen seit mehreren Tagen in der Klärfall-Liste."
+      },
+      "BANK_SYNC_FAILING": {
+        "name": "Bankabruf fehlerhaft",
+        "description": "Eine Bankverbindung ließ sich seit mehreren Stunden nicht abrufen oder wartet auf eine TAN."
+      },
+      "PAYMENT_PROVIDER_ERRORS": {
+        "name": "Fehler beim Zahlungsanbieter",
+        "description": "PayPal lehnt die Zugangsdaten ab oder automatische Erstattungen sind fehlgeschlagen."
+      },
+      "REFUNDS_OPEN": {
+        "name": "Offene manuelle Erstattungen (Tagesübersicht)",
+        "description": "Manuelle Erstattungen warten seit mehreren Tagen auf eine Überweisung."
+      },
+      "UPDATE_AVAILABLE": {
+        "name": "Update verfügbar",
+        "description": "Für deinen Update-Kanal ist eine neuere Version verfügbar."
+      }
+    },
+    "groups": {
+      "SYSTEM": "System",
+      "FINANCE": "Zahlungen & Bank"
+    },
+    "account": {
+      "title": "Warn-E-Mails",
+      "description": "Wähle, welche Warnungen du per E-Mail an deine Konto-Adresse bekommst. Welche Warnungen angeboten werden, hängt von deiner Rolle ab.",
+      "none": "Für deine Rolle gibt es keine Warnungen.",
+      "defaultHint": "Du hast noch nichts geändert: Es gelten die Standardwerte deiner Rolle.",
+      "customHint": "Deine eigene Auswahl gilt.",
+      "globalOff": "Warn-E-Mails sind für die ganze Installation ausgeschaltet (Einstellungen → Benachrichtigungen).",
+      "save": "Speichern",
+      "reset": "Auf Standard der Rolle zurücksetzen"
+    },
+    "history": {
+      "title": "Warnverlauf",
+      "description": "Die letzten 50 Warnungen: wann ein Problem zuerst bemerkt wurde, wann zuletzt gemailt wurde und ob es behoben ist.",
+      "empty": "Bisher keine Warnungen.",
+      "type": "Warnung",
+      "firstSeen": "Zuerst bemerkt",
+      "lastSent": "Zuletzt gemailt",
+      "status": "Status",
+      "open": "Offen",
+      "resolved": "Behoben {time}",
+      "neverSent": "nicht gemailt",
+      "times": "{count, plural, one {# Mail} other {# Mails}}"
+    },
+    "settings": {
+      "title": "Warn-E-Mails",
+      "description": "Admins bekommen eine E-Mail, wenn etwas Aufmerksamkeit braucht. Jeder Admin wählt die Warnungen auf seiner eigenen Kontoseite; die Texte lassen sich unter E-Mail-Vorlagen bearbeiten.",
+      "enabled": "Warn-E-Mails senden",
+      "enabledHint": "Hauptschalter: Ist er aus, wird nichts geprüft oder gesendet.",
+      "sendResolved": "Kurzen Hinweis senden, wenn sich eine Warnung erledigt hat",
+      "cooldownHours": "Bestehende Warnung wiederholen nach (Stunden)",
+      "maxMailsPerHour": "Höchstens Warn-E-Mails pro Stunde",
+      "maxMailsPerHourHint": "Alle Empfänger zusammen. Zurückgehaltene Warnungen werden später gesendet.",
+      "digestTime": "Uhrzeit der Tagesübersichten",
+      "digestTimeHint": "Zeitzone des Shops. Gilt für offene Klärfälle und offene manuelle Erstattungen.",
+      "diskUsedPercent": "Speicherwarnung ab (% belegt)",
+      "storageCapacityGb": "Kapazität für Datenbank + Dateien (GB)",
+      "storageCapacityGbHint": "0 = nicht prüfen. Die Festplatte des Datenbankservers selbst sieht der Worker nicht – trage den Platz ein, den du dafür eingeplant hast.",
+      "diskPaths": "Verzeichnisse des Worker-Containers, die geprüft werden",
+      "diskPathsHint": "Durch Kommas getrennt. Nicht eingebundene Verzeichnisse werden übersprungen.",
+      "failedJobsPerHour": "Fehlgeschlagene Hintergrundaufgaben pro Stunde",
+      "queueBacklogMinutes": "Älteste wartende Aufgabe (Minuten)",
+      "failedEmailsPer24h": "Endgültig fehlgeschlagene E-Mails in 24 Stunden",
+      "backupOverdueFactor": "Sicherung überfällig nach (× Planintervall)",
+      "reviewCaseDays": "Klärfälle offen seit (Tagen)",
+      "bankSyncHours": "Bankabruf fehlerhaft seit (Stunden)",
+      "paymentErrorHours": "PayPal-Zugangsdatenfehler zählen für (Stunden)",
+      "refundOpenDays": "Manuelle Erstattungen offen seit (Tagen)",
+      "thresholds": "Schwellenwerte"
+    }
   }
 }

@@ -1,0 +1,19 @@
+{
+  "title": "Rabattcode",
+  "placeholder": "Code eingeben",
+  "apply": "Einlösen",
+  "remove": "Code {code} entfernen",
+  "line": "Rabattcode {codes}",
+  "errors": {
+    "INVALID": "Dieser Code ist ungültig.",
+    "NOT_STARTED": "Dieser Code ist noch nicht gültig.",
+    "EXPIRED": "Dieser Code ist abgelaufen.",
+    "USAGE_LIMIT": "Dieser Code ist aufgebraucht.",
+    "EMAIL_LIMIT": "Du hast diesen Code bereits so oft wie erlaubt verwendet.",
+    "NOT_STACKABLE": "Dieser Code lässt sich nicht mit einem anderen Code kombinieren.",
+    "NOT_VALID_FOR_ITEMS": "Dieser Code gilt nicht für die Tickets in deinem Warenkorb.",
+    "MIN_ORDER_VALUE": "Der Mindestbestellwert für diesen Code ist nicht erreicht.",
+    "RATE_LIMITED": "Zu viele Versuche. Bitte warte einen Moment.",
+    "GENERIC": "Der Code konnte nicht eingelöst werden."
+  }
+}

@@ -24,7 +24,8 @@
     "scanners": "Check-in devices",
     "statistics": "Statistics",
     "system": "System",
-    "menu": "Menu"
+    "menu": "Menu",
+    "discounts": "Discount codes"
   },
   "login": {
     "title": "Admin sign-in",
@@ -503,7 +504,20 @@
       "searchEngines": "Search engines",
       "searchEnginesHint": "The shop-wide switch is in Settings → SEO.",
       "seoNoindex": "Exclude this event from search engines",
-      "seoNoindexHint": "The event page is marked noindex, left out of the sitemap and carries no structured data. Anyone with the link can still open it."
+      "seoNoindexHint": "The event page is marked noindex, left out of the sitemap and carries no structured data. Anyone with the link can still open it.",
+      "waitlist": "Waiting list",
+      "waitlistHint": "Visitors can ask to be notified when this event is sold out. The entries are listed below this form.",
+      "waitlistEnabled": "Waiting list when sold out",
+      "selfService": {
+        "title": "Ticket changes by customers",
+        "hint": "Name change and transfer on the order page. “Own values” switches the feature on for this event with the values below (empty = global value).",
+        "mode": "Customer self-service",
+        "own": "On (own values)",
+        "allowNameChange": "Change attendee name",
+        "allowTransfer": "Pass on to someone else",
+        "deadlineHours": "Allowed until (hours before start)",
+        "maxChanges": "Max. changes per seat (0 = unlimited)"
+      }
     },
     "deletedNotice": "The event was deleted permanently.",
     "duplicate": {
@@ -937,7 +951,9 @@
         "enabledHint": "At most every 6 hours the server asks the GitHub Releases API for the newest release of your channel (TIX_CHANNEL) and shows a notice on the dashboard. Nothing but the repository name is sent; switch it off to make no outgoing request.",
         "repository": "GitHub repository",
         "repositoryHint": "owner/name. Leave empty to use the repository this release was built from."
-      }
+      },
+      "defaultEventDurationMinutes": "Calendar entry length (minutes)",
+      "defaultEventDurationMinutesHint": "Used for \"Add to calendar\" when an event has no end time."
     },
     "branding": {
       "title": "Branding",
@@ -1353,7 +1369,36 @@
       "accounts": "Customer accounts",
       "wallet": "Wallet",
       "security": "Security",
-      "scanner": "Scanner"
+      "scanner": "Scanner",
+      "notifications": "Notifications"
+    },
+    "waitlist": {
+      "title": "Waiting list",
+      "description": "Visitors can ask to be notified by e-mail when tickets for a sold-out event become available again. An event can switch this off or on in its tab \"Sales\".",
+      "enabled": "Offer a waiting list for sold-out events",
+      "enabledHint": "Visitors confirm their e-mail address (double opt-in) before they are on the list. Everybody on the list is notified at the same time, first come first served; no seats are reserved.",
+      "evaluateIntervalMinutes": "Availability check interval (minutes)",
+      "evaluateIntervalMinutesHint": "How often the worker looks for freed tickets of events that have a waiting list.",
+      "renotifyAfterHours": "Pause before notifying again (hours)",
+      "renotifyAfterHoursHint": "Somebody who was notified and did not buy is notified again after the tickets sold out and became available again – but not sooner than this. 0 = no pause.",
+      "confirmationTtlHours": "Confirmation link valid for (hours)",
+      "confirmationTtlHoursHint": "Unconfirmed entries are deleted after this time.",
+      "maxTicketsPerEntry": "Most tickets per entry",
+      "maxEntriesPerEvent": "Most entries per event",
+      "maxEntriesPerEventHint": "Protection against abuse; counts confirmed and unconfirmed entries."
+    },
+    "ticketSelfService": {
+      "title": "Ticket changes by customers",
+      "description": "Customers change the name on a ticket or pass it on to someone else.",
+      "enabled": "Allow customers to change tickets",
+      "enabledHint": "Shows “Change name” and “Pass on” on the order page of paid orders. Single events can override this in their “Sales” tab. Admins can always change tickets.",
+      "allowNameChange": "Change attendee name",
+      "allowNameChangeHint": "The QR code stays the same.",
+      "allowTransfer": "Pass on to someone else",
+      "allowTransferHint": "The ticket gets a new QR code and ticket code; the old QR code is rejected at the entrance. The order and invoice stay with the buyer.",
+      "deadlineHoursBeforeStart": "Allowed until (hours before the event starts)",
+      "maxChangesPerTicket": "Maximum changes per seat (empty = unlimited)",
+      "note": "Apple Wallet passes cannot be updated remotely: after a name change an existing Apple pass keeps the old name until it is added again. Google Wallet passes are updated."
     }
   },
   "mediaLibrary": {
@@ -1595,5 +1640,29 @@
         "stripHint": "PNG, e.g. 750 x 196 px banner behind the event title."
       }
     }
+  },
+  "waitlistAdmin": {
+    "title": "Waiting list",
+    "description": "Confirmed entries are notified together when tickets become available again; unconfirmed ones are deleted after the confirmation period. All entries are deleted automatically after the event started.",
+    "empty": "Nobody is on the waiting list yet.",
+    "count": "{confirmed} confirmed, {pending} awaiting confirmation",
+    "export": "Export CSV",
+    "notifyNow": "Notify now",
+    "notifyHint": "Sends the \"tickets available\" e-mail to every confirmed entry that can be served by the tickets available right now – regardless of the pause.",
+    "colEmail": "E-mail",
+    "colName": "Name",
+    "colTickets": "Tickets",
+    "colCategory": "Category",
+    "colStatus": "Status",
+    "colSignedUp": "Signed up",
+    "colNotified": "Notified",
+    "confirmed": "Confirmed",
+    "pending": "Awaiting confirmation",
+    "anyCategory": "Any",
+    "never": "Never",
+    "times": "{count}×",
+    "remove": "Remove",
+    "removeNotify": "Tell them by e-mail",
+    "removeConfirm": "Remove"
   }
 }

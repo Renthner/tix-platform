@@ -3,6 +3,7 @@ import type { Database } from '@tix/db';
 import { QUEUE_NAMES, type QueueName } from '@tix/redis';
 import type { Job } from 'bullmq';
 import type { Logger } from '../logger';
+import { alertsRegistration } from './alerts';
 import { backupsRegistration, withMaintenancePause } from './backups';
 import { bankSyncRegistration } from './bank-sync';
 import { documentsRegistration } from './documents';
@@ -11,6 +12,7 @@ import { emailRegistration } from './email';
 import { mediaRegistration } from './media';
 import { privacyRegistration } from './privacy';
 import { refundsRegistration } from './refunds';
+import { waitlistRegistration } from './waitlist';
 import { MAINTENANCE_JOBS, PURGE_INTERVAL_MS, createMaintenanceProcessor } from './maintenance';
 
 export interface WorkerDeps {
@@ -55,6 +57,8 @@ export function processorRegistrations(deps: WorkerDeps): ProcessorRegistration[
     refundsRegistration(deps),
     privacyRegistration(deps),
     mediaRegistration(deps),
+    alertsRegistration(deps),
+    waitlistRegistration(deps),
     backupsRegistration(deps.backups),
   ]);
 }

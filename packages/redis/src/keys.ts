@@ -136,6 +136,10 @@ export function createKeyspace(prefix: string) {
     /** STRING token (NX, PX): single flight of the reconciliation pass. */
     refundReconcileLock: () => `${prefix}:refunds:reconcile-lock`,
 
+    // ── Admin alerts ─────────────────────────────────────────────────────
+    /** STRING JSON signal written by the code that detects a problem (e.g. `paypal-credentials`), read by the alert checks. */
+    alertSignal: (name: string) => `${prefix}:alert-signal:${seg(name, 'name')}`,
+
     // ── Infrastructure ───────────────────────────────────────────────────
     /** ZSET workerId → last heartbeat (epoch ms). */
     workerHeartbeats: () => `${prefix}:workers:heartbeats`,

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   FEE_CALCULATIONS,
   FEE_SCOPES,
-  PAYMENT_METHODS,
+  FEE_PAYMENT_METHODS,
   SALES_CHANNELS,
   type FeeCalculation,
   type FeeScope,
@@ -157,7 +157,7 @@ const feeInputObject = z.object({
   /** null = the event's tax rate (required for PER_ORDER). */
   taxRateId: z.uuid().nullable(),
   /** null = every payment method. */
-  paymentMethods: z.array(z.enum(PAYMENT_METHODS)).min(1).transform(uniqueList).nullable(),
+  paymentMethods: z.array(z.enum(FEE_PAYMENT_METHODS)).min(1).transform(uniqueList).nullable(),
   /** null / empty = online only; the box office needs an explicit entry. */
   channels: z.array(z.enum(SALES_CHANNELS)).min(1).transform(uniqueList).nullable(),
   isActive: z.boolean(),
@@ -195,7 +195,7 @@ function feeFormSchema(target: FeeTarget) {
         .transform((v) => (v ? v : null))
         .pipe(z.uuid('invalid').nullable()),
       /** Ticked checkboxes; all ticked = every option (stored as null). */
-      paymentMethods: z.array(z.enum(PAYMENT_METHODS)).min(1, 'required'),
+      paymentMethods: z.array(z.enum(FEE_PAYMENT_METHODS)).min(1, 'required'),
       channels: z.array(z.enum(SALES_CHANNELS)).min(1, 'required'),
       isActive: z.boolean(),
       sortOrder: sortOrderField,
@@ -216,7 +216,7 @@ function feeFormSchema(target: FeeTarget) {
       calculation: v.calculation,
       value: feeValue(v.calculation, v.value)!,
       taxRateId: v.taxRateId,
-      paymentMethods: allOrList(v.paymentMethods, PAYMENT_METHODS),
+      paymentMethods: allOrList(v.paymentMethods, FEE_PAYMENT_METHODS),
       channels: [...new Set(v.channels)],
       isActive: v.isActive,
       ...(v.sortOrder === undefined ? {} : { sortOrder: v.sortOrder }),

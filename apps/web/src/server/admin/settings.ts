@@ -51,7 +51,10 @@ export type EditableSettingKey =
   | 'paypal'
   | 'smtp'
   | 'customerAccounts'
+  | 'waitlist'
+  | 'ticketSelfService'
   | 'security'
+  | 'alerts'
   | 'scanner';
 
 type Errors = Partial<Record<string, FieldErrorCode>>;
@@ -139,6 +142,7 @@ async function readInput(
           defaultCurrency: text(fd, 'defaultCurrency')?.toUpperCase(),
           defaultTimeZone: text(fd, 'defaultTimeZone'),
           supportEmail: text(fd, 'supportEmail'),
+          defaultEventDurationMinutes: requiredInt(fd, 'defaultEventDurationMinutes', errors),
           updateCheckEnabled: flag(fd, 'updateCheckEnabled'),
           updateRepository: text(fd, 'updateRepository') ?? '',
         },
@@ -438,6 +442,27 @@ async function readInput(
           passwordResetTtlMinutes: requiredInt(fd, 'passwordResetTtlMinutes', errors),
         },
       };
+    case 'alerts':
+      return {
+        input: {
+          enabled: flag(fd, 'enabled'),
+          sendResolved: flag(fd, 'sendResolved'),
+          cooldownHours: requiredInt(fd, 'cooldownHours', errors),
+          maxMailsPerHour: requiredInt(fd, 'maxMailsPerHour', errors),
+          digestTime: text(fd, 'digestTime'),
+          diskUsedPercent: requiredInt(fd, 'diskUsedPercent', errors),
+          storageCapacityGb: requiredInt(fd, 'storageCapacityGb', errors),
+          diskPaths: text(fd, 'diskPaths') ?? '',
+          failedJobsPerHour: requiredInt(fd, 'failedJobsPerHour', errors),
+          queueBacklogMinutes: requiredInt(fd, 'queueBacklogMinutes', errors),
+          failedEmailsPer24h: requiredInt(fd, 'failedEmailsPer24h', errors),
+          backupOverdueFactor: requiredInt(fd, 'backupOverdueFactor', errors),
+          reviewCaseDays: requiredInt(fd, 'reviewCaseDays', errors),
+          bankSyncHours: requiredInt(fd, 'bankSyncHours', errors),
+          paymentErrorHours: requiredInt(fd, 'paymentErrorHours', errors),
+          refundOpenDays: requiredInt(fd, 'refundOpenDays', errors),
+        },
+      };
     case 'scanner':
       return {
         input: {
@@ -454,6 +479,27 @@ async function readInput(
           resultColors: Object.fromEntries(
             SCAN_RESULT_COLOR_KEYS.map((k) => [k, text(fd, `resultColors.${k}`)]),
           ),
+        },
+      };
+    case 'waitlist':
+      return {
+        input: {
+          enabled: flag(fd, 'enabled'),
+          evaluateIntervalMinutes: requiredInt(fd, 'evaluateIntervalMinutes', errors),
+          renotifyAfterHours: requiredInt(fd, 'renotifyAfterHours', errors),
+          confirmationTtlHours: requiredInt(fd, 'confirmationTtlHours', errors),
+          maxEntriesPerEvent: requiredInt(fd, 'maxEntriesPerEvent', errors),
+          maxTicketsPerEntry: requiredInt(fd, 'maxTicketsPerEntry', errors),
+        },
+      };
+    case 'ticketSelfService':
+      return {
+        input: {
+          enabled: flag(fd, 'enabled'),
+          allowNameChange: flag(fd, 'allowNameChange'),
+          allowTransfer: flag(fd, 'allowTransfer'),
+          deadlineHoursBeforeStart: requiredInt(fd, 'deadlineHoursBeforeStart', errors),
+          maxChangesPerTicket: optionalIntOrNull(fd, 'maxChangesPerTicket', errors),
         },
       };
     case 'customerAccounts':

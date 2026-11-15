@@ -29,7 +29,7 @@ import { nextNumber } from '../numbering';
 import { publishSeatDelta } from '../realtime';
 import { getPublicSeatMap, getSeatMapForChannel } from '../seatmaps/public';
 import { getSetting } from '../settings';
-import { ensureOrderTickets } from '../tickets/issue';
+import { countValidOrderTickets, ensureOrderTickets } from '../tickets/issue';
 import { claimStandingCapacity, upsertCustomer } from './checkout';
 import { withMutex } from '../banking/runs';
 import { mirrorSeats } from './fulfillment';
@@ -537,7 +537,8 @@ async function createBoxOfficeOrderLocked(
   let ticketCount = 0;
   let ticketsReady = true;
   try {
-    ticketCount = (await ensureOrderTickets(ctx, created.orderId)).length;
+    await ensureOrderTickets(ctx, created.orderId);
+    ticketCount = await countValidOrderTickets(ctx.db, created.orderId);
   } catch (err) {
     ticketsReady = false;
     coreLog.error({ err }, '[box-office] tickets could not be issued (the worker retries)');

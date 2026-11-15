@@ -185,6 +185,29 @@ export async function requestPayPalToken(
   return { token: body.access_token, expiresIn: body.expires_in ?? 3600 };
 }
 
+/** Remember (for the admin alert "payment provider errors") that PayPal rejected / accepted the credentials. Never throws. */
+async function signalPayPalCredentials(
+  ctx: CoreContext,
+  config: PayPalConfig,
+  rejected: boolean,
+): Promise<void> {
+  try {
+    const key = ctx.keys.alertSignal('paypal-credentials');
+    if (rejected) {
+      await ctx.redis.set(
+        key,
+        JSON.stringify({ at: new Date().toISOString(), environment: config.environment }),
+        'EX',
+        7 * 24 * 3600,
+      );
+    } else {
+      await ctx.redis.del(key);
+    }
+  } catch {
+    // The signal is a hint for the alert e-mail only.
+  }
+}
+
 async function accessToken(ctx: CoreContext, config: PayPalConfig, fresh = false): Promise<string> {
   const cacheKey = tokenCacheKey(ctx, config);
   if (!fresh) {
@@ -192,8 +215,16 @@ async function accessToken(ctx: CoreContext, config: PayPalConfig, fresh = false
     if (cached) return cached;
   }
   // A rejected request throws before anything is cached.
-  const { token, expiresIn } = await requestPayPalToken(config);
+  let result: { token: string; expiresIn: number };
+  try {
+    result = await requestPayPalToken(config);
+  } catch (err) {
+    if (err instanceof PayPalCredentialsError) await signalPayPalCredentials(ctx, config, true);
+    throw err;
+  }
+  const { token, expiresIn } = result;
   await ctx.redis.set(cacheKey, token, 'EX', Math.max(60, expiresIn - 120));
+  await signalPayPalCredentials(ctx, config, false);
   return token;
 }
 
@@ -220,6 +251,7 @@ export async function testPayPalConnection(ctx: CoreContext): Promise<PayPalConn
   try {
     const { token, expiresIn } = await requestPayPalToken(config, true);
     await ctx.redis.set(tokenCacheKey(ctx, config), token, 'EX', Math.max(60, expiresIn - 120));
+    await signalPayPalCredentials(ctx, config, false);
   } catch (err) {
     if (err instanceof PayPalCredentialsError)
       return { status: 'CREDENTIALS_REJECTED', environment };

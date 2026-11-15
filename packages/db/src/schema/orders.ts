@@ -34,6 +34,8 @@ import {
   refundKindEnum,
   refundStatusEnum,
   salesChannelEnum,
+  ticketChangeActorEnum,
+  ticketChangeKindEnum,
   ticketStatusEnum,
   webhookEventStatusEnum,
 } from './enums';
@@ -182,6 +184,11 @@ export const orders = pgTable(
     /** Σ item list prices before discounts. */
     subtotalGross: cents('subtotal_gross').notNull(),
     discountTotal: cents('discount_total').notNull().default(0),
+    /**
+     * Discount codes, ticket share: Σ order_items.code_discount_amount. The share on fee lines sits
+     * in order_fees.code_discount_amount (the fee lines already carry the reduced amounts).
+     */
+    codeDiscountTotal: cents('code_discount_total').notNull().default(0),
     feeTotal: cents('fee_total').notNull().default(0),
     totalGross: cents('total_gross').notNull(),
     totalNet: cents('total_net').notNull(),
@@ -287,13 +294,13 @@ export const orders = pgTable(
     ),
     check(
       'orders_amounts_nonneg',
-      sql`${t.subtotalGross} >= 0 AND ${t.discountTotal} >= 0 AND ${t.feeTotal} >= 0
+      sql`${t.subtotalGross} >= 0 AND ${t.discountTotal} >= 0 AND ${t.codeDiscountTotal} >= 0 AND ${t.feeTotal} >= 0
         AND ${t.totalGross} >= 0 AND ${t.totalNet} >= 0 AND ${t.totalTax} >= 0
         AND ${t.amountPaid} >= 0 AND ${t.amountRefunded} >= 0`,
     ),
     check(
       'orders_total_consistent',
-      sql`${t.totalGross} = ${t.subtotalGross} - ${t.discountTotal} + ${t.feeTotal}`,
+      sql`${t.totalGross} = ${t.subtotalGross} - ${t.discountTotal} - ${t.codeDiscountTotal} + ${t.feeTotal}`,
     ),
     check('orders_tax_split_consistent', sql`${t.totalGross} = ${t.totalNet} + ${t.totalTax}`),
     check('orders_refund_le_paid', sql`${t.amountRefunded} <= ${t.amountPaid}`),
@@ -360,6 +367,17 @@ export const orderItems = pgTable(
     ticketTypeName: text('ticket_type_name').notNull(),
     unitPriceGross: cents('unit_price_gross').notNull(),
     discountAmount: cents('discount_amount').notNull().default(0),
+    /**
+     * Share of discount codes (cents). `price_gross` is what the customer pays (after tariff
+     * reduction AND code); the invoice shows `price_gross + code_discount_amount` and a separate
+     * discount line.
+     */
+    codeDiscountAmount: cents('code_discount_amount').notNull().default(0),
+    /** Codes that contributed to `code_discount_amount` (named on the invoice's discount line). */
+    codeDiscountCodes: text('code_discount_codes')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     priceGross: cents('price_gross').notNull(),
     taxRateBasisPoints: basisPoints('tax_rate_basis_points').notNull(),
     priceNet: cents('price_net').notNull(),
@@ -384,12 +402,12 @@ export const orderItems = pgTable(
     check('order_items_kind_seat', sql`(${t.kind} = 'SEAT') = (${t.seatId} IS NOT NULL)`),
     check(
       'order_items_amounts_nonneg',
-      sql`${t.unitPriceGross} >= 0 AND ${t.discountAmount} >= 0 AND ${t.priceGross} >= 0
+      sql`${t.unitPriceGross} >= 0 AND ${t.discountAmount} >= 0 AND ${t.codeDiscountAmount} >= 0 AND ${t.priceGross} >= 0
         AND ${t.priceNet} >= 0 AND ${t.taxAmount} >= 0`,
     ),
     check(
       'order_items_price_consistent',
-      sql`${t.priceGross} = ${t.unitPriceGross} - ${t.discountAmount}`,
+      sql`${t.priceGross} = ${t.unitPriceGross} - ${t.discountAmount} - ${t.codeDiscountAmount}`,
     ),
     check('order_items_tax_split', sql`${t.priceGross} = ${t.priceNet} + ${t.taxAmount}`),
     check('order_items_tax_rate_range', sql`${t.taxRateBasisPoints} BETWEEN 0 AND 10000`),
@@ -417,6 +435,8 @@ export const orderFees = pgTable(
     taxRateBasisPoints: basisPoints('tax_rate_basis_points').notNull(),
     totalNet: cents('total_net').notNull(),
     totalTax: cents('total_tax').notNull(),
+    /** Share of discount codes already deducted from `total_gross` (cents; informational). */
+    codeDiscountAmount: cents('code_discount_amount').notNull().default(0),
     isRefunded: boolean('is_refunded').notNull().default(false),
     createdAt: createdAt(),
   },
@@ -426,7 +446,7 @@ export const orderFees = pgTable(
     check('order_fees_event_scope', sql`(${t.scope} = 'PER_ORDER') = (${t.eventId} IS NULL)`),
     check(
       'order_fees_amounts',
-      sql`${t.unitAmountGross} >= 0 AND ${t.totalGross} >= 0 AND ${t.totalNet} >= 0 AND ${t.totalTax} >= 0
+      sql`${t.unitAmountGross} >= 0 AND ${t.codeDiscountAmount} >= 0 AND ${t.totalGross} >= 0 AND ${t.totalNet} >= 0 AND ${t.totalTax} >= 0
         AND ${t.totalGross} = ${t.totalNet} + ${t.totalTax}`,
     ),
   ],
@@ -467,6 +487,12 @@ export const tickets = pgTable(
     /** Full signed QR content, see docs/TICKETS.md (tix://v1/{keyId}.{eventId}.{ticketId}.{seatInfo}.{signature}). */
     qrPayload: text('qr_payload').notNull(),
     attendeeName: text('attendee_name'),
+    /**
+     * Set on a ticket that was handed over to someone else (self-service / admin transfer): the
+     * recipient's e-mail. Such a ticket belongs to its holder, not to the buyer's order page,
+     * PDFs, wallet buttons and e-mails (docs/TICKETS.md "Self-service").
+     */
+    holderEmail: text('holder_email'),
     pdfObjectKey: text('pdf_object_key'),
     pkpassObjectKey: text('pkpass_object_key'),
     googleWalletObjectId: text('google_wallet_object_id'),
@@ -513,6 +539,42 @@ export const tickets = pgTable(
       sql`${t.checkInState} = 'NONE' OR ${t.firstCheckedInAt} IS NOT NULL`,
     ),
     check('tickets_check_in_count_nonneg', sql`${t.checkInCount} >= 0`),
+  ],
+);
+
+/**
+ * History of holder changes of a ticket (name change, transfer). One row per change; keyed by the
+ * order item so the whole re-issue chain of a seat is covered (limit "max changes per seat").
+ */
+export const ticketChanges = pgTable(
+  'ticket_changes',
+  {
+    id: id(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    orderItemId: uuid('order_item_id')
+      .notNull()
+      .references(() => orderItems.id, { onDelete: 'cascade' }),
+    /** Ticket as it was before the change. */
+    ticketId: uuid('ticket_id').notNull(),
+    /** Ticket after the change (equals `ticketId` for a name change, the new ticket for a transfer). */
+    newTicketId: uuid('new_ticket_id').notNull(),
+    kind: ticketChangeKindEnum('kind').notNull(),
+    actor: ticketChangeActorEnum('actor').notNull(),
+    actorUserId: uuid('actor_user_id').references(() => adminUsers.id, { onDelete: 'set null' }),
+    oldName: text('old_name'),
+    newName: text('new_name'),
+    /** Transfer: recipient e-mail and the optional message of the sender. */
+    recipientEmail: text('recipient_email'),
+    message: text('message'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('ticket_changes_order_idx').on(t.orderId, t.createdAt),
+    index('ticket_changes_item_idx').on(t.orderItemId),
+    // Hard transfer caps count by recipient address over the last 24 hours.
+    index('ticket_changes_recipient_idx').on(t.recipientEmail, t.createdAt),
   ],
 );
 

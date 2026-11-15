@@ -94,14 +94,16 @@
   "event": {
     "postponed": "Postponed",
     "doors": "Doors open {time}",
-    "showOnMap": "Show on Google Maps"
+    "showOnMap": "Show on Google Maps",
+    "addToCalendar": "Add to calendar"
   },
   "chart": {
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "reset": "Fit plan",
     "ariaLabel": "Seating plan",
-    "remaining": "{count, plural, =0 {sold out} one {# spot left} other {# spots left}}"
+    "remaining": "{count, plural, =0 {sold out} one {# spot left} other {# spots left}}",
+    "keyboardHelp": "Seating plan. Use the arrow keys to move between seats, Home and End to jump to the ends of a row, Page Up and Page Down to change section, Enter or Space to select or release a seat and Escape to leave the plan. Alternatively choose the list instead of the plan."
   },
   "selection": {
     "maintenanceTitle": "Maintenance in progress",
@@ -154,6 +156,66 @@
       "wheelchair": "Wheelchair space",
       "companion": "Companion seat"
     },
-    "companionOwnerCheck": "The wheelchair space belonging to your companion seat has already been sold. You can book the companion seat if the wheelchair space was booked with the same e-mail address – this is checked at checkout."
+    "companionOwnerCheck": "The wheelchair space belonging to your companion seat has already been sold. You can book the companion seat if the wheelchair space was booked with the same e-mail address – this is checked at checkout.",
+    "state": {
+      "available": "available",
+      "selected": "selected",
+      "unavailable": "not available"
+    },
+    "announce": {
+      "selected": "{seat} selected.",
+      "released": "{seat} released.",
+      "unavailable": "{seat} is not available.",
+      "nowUnavailable": "{seat} is now not available.",
+      "nowAvailable": "{seat} is available again.",
+      "failed": "{seat} could not be selected: {error}"
+    },
+    "view": {
+      "toList": "List instead of plan",
+      "toPlan": "Show plan"
+    },
+    "list": {
+      "title": "Seat list",
+      "filterCategory": "Category",
+      "allCategories": "All categories",
+      "onlySpecial": "Wheelchair and companion seats only",
+      "rowGroup": "Row {label}",
+      "noSeats": "No seats are available with these filters.",
+      "seatsAvailable": "{count, plural, one {# seat available} other {# seats available}}",
+      "standing": "Standing area {name}: {remaining}"
+    }
+  },
+  "waitlist": {
+    "title": "Waiting list",
+    "soldOutTitle": "Sold out – join the waiting list",
+    "categoryTitle": "Sold-out categories – join the waiting list",
+    "intro": "We will send you an e-mail as soon as tickets become available again. Everybody on the list is notified at the same time and no seats are reserved – whoever books first gets them.",
+    "email": "E-mail address",
+    "firstName": "Name (optional)",
+    "quantity": "Number of tickets",
+    "category": "Category",
+    "anyCategory": "Any category",
+    "submit": "Join the waiting list",
+    "privacy": "We use your address only for this notification. You confirm it by e-mail first and can leave the list at any time with the link in each message.",
+    "sentTitle": "Almost done – please check your e-mails",
+    "sent": "We sent a confirmation link to your address. The waiting list entry only counts after you opened it.",
+    "already": "This address is already on the waiting list.",
+    "confirm": {
+      "title": "Waiting list",
+      "confirmed": "Thank you – you are on the waiting list. We will write to you as soon as tickets are available again.",
+      "alreadyConfirmed": "You are already on the waiting list.",
+      "invalid": "This link is invalid or has expired. Please sign up for the waiting list again.",
+      "rateLimited": "Too many attempts. Please try again in a few minutes.",
+      "toShop": "To the shop"
+    },
+    "unsubscribe": {
+      "title": "Leave the waiting list",
+      "question": "Do you want to be removed from the waiting list for this event?",
+      "confirm": "Remove me from the waiting list",
+      "done": "You were removed from the waiting list. You will not receive further notifications for this event.",
+      "invalid": "This link is invalid or has expired.",
+      "rateLimited": "Too many attempts. Please try again in a few minutes.",
+      "toShop": "To the shop"
+    }
   }
 }

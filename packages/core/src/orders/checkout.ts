@@ -5,6 +5,7 @@ import {
   customers,
   events,
   isUniqueViolation,
+  orderDiscounts,
   orderFees,
   orderAdjustments,
   orderHistory,
@@ -23,6 +24,7 @@ import {
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { withMutex } from '../banking/runs';
 import { clearCartAfterOrder, holdCartUntil, validateSelection } from '../cart';
+import { discountRejectionError, lockAndCheckDiscountUsage } from '../discounts/plan';
 import { rebuildInventory } from '../inventory';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
@@ -73,7 +75,8 @@ export interface PlacedOrder {
   orderId: string;
   orderNumber: string;
   status: OrderStatus;
-  method: CheckoutInput['method'];
+  /** The chosen method; `FREE` for an order of 0 EUR (stored as such). */
+  method: CheckoutInput['method'] | 'FREE';
   totalGross: number;
   currency: string;
   paymentReference: string | null;
@@ -134,7 +137,14 @@ async function placeOrderLocked(ctx: CoreContext, params: PlaceOrderParams): Pro
     quote,
     events: eventRows,
     maps,
-  } = await quoteForMethod(ctx, sessionId, input.method, input.locale);
+  } = await quoteForMethod(ctx, sessionId, input.method, input.locale, {
+    email: input.email,
+    excludeCartSessionId: sessionId,
+  });
+  // A code of the cart that no longer applies (expired, limit reached, cart changed): the
+  // customer must see and remove it instead of silently paying a different price.
+  const rejectedCode = quote.rejectedCodes[0];
+  if (rejectedCode) throw discountRejectionError(rejectedCode);
   const accountsOffered = customerAccountsOffered(accountSettings, [...eventRows.values()]);
   if (accountsOffered && !accountSettings.guestCheckoutEnabled && !params.account) {
     throw new DomainError('LOGIN_REQUIRED', 'Please sign in to complete your order', 401);
@@ -546,7 +556,9 @@ async function createOrderRows(
   let paymentDueAt: Date | null = null;
   let nextReminderAt: Date | null = null;
   let autoCancelAt: Date | null = null;
-  if (isBankTransfer) {
+  // Nothing to pay (free tickets, 100 % discount): no payment reference, no payment terms.
+  const free = c.quote.totalGross === 0;
+  if (isBankTransfer && !free) {
     const year = Number(new Intl.DateTimeFormat('en', { timeZone, year: 'numeric' }).format(now));
     // References are unique across orders AND additional payments (order_adjustments).
     for (let n = 0; n < 8; n += 1) {
@@ -568,9 +580,16 @@ async function createOrderRows(
       now,
     }));
   }
-  const free = c.quote.totalGross === 0;
   const status: OrderStatus = free ? 'PAID' : isBankTransfer ? 'AWAITING_PAYMENT' : 'PENDING';
   const itemStatus = free ? 'CONFIRMED' : 'PENDING';
+
+  // Discount codes: lock the code rows and re-check the usage limits on serialised data (one
+  // winner for the last use). Held until commit; the order number below is allocated afterwards.
+  await lockAndCheckDiscountUsage(tx, c.quote.discounts, {
+    email: input.email,
+    isTest: c.isTest,
+    now,
+  });
 
   // Gapless order number – allocated last so the counter row lock is held only briefly.
   // Test orders have their own number series: deleting them must never leave holes in the real one.
@@ -585,7 +604,7 @@ async function createOrderRows(
       status,
       channel: 'ONLINE',
       isTest: c.isTest,
-      paymentMethod: input.method,
+      paymentMethod: free ? 'FREE' : input.method,
       email: input.email,
       firstName: input.firstName,
       lastName: input.lastName,
@@ -596,6 +615,7 @@ async function createOrderRows(
       currency: c.quote.currency,
       subtotalGross: c.quote.subtotalGross,
       discountTotal: c.quote.discountTotal,
+      codeDiscountTotal: c.quote.codeDiscountTotal,
       feeTotal: c.quote.feeTotal,
       totalGross: c.quote.totalGross,
       totalNet: c.quote.totalNet,
@@ -632,6 +652,8 @@ async function createOrderRows(
       ticketTypeName: item.ticketTypeName,
       unitPriceGross: item.unitPriceGross,
       discountAmount: item.discountAmount,
+      codeDiscountAmount: item.codeDiscount,
+      codeDiscountCodes: item.codeDiscountCodes,
       priceGross: item.priceGross,
       taxRateBasisPoints: item.taxRateBasisPoints,
       priceNet: item.priceNet,
@@ -653,6 +675,21 @@ async function createOrderRows(
         taxRateBasisPoints: fee.taxRateBasisPoints,
         totalNet: fee.totalNet,
         totalTax: fee.totalTax,
+        codeDiscountAmount: fee.codeDiscountAmount,
+      })),
+    );
+  }
+  if (c.quote.discounts.length > 0) {
+    await tx.insert(orderDiscounts).values(
+      c.quote.discounts.map((d) => ({
+        orderId,
+        discountCodeId: d.discountCodeId,
+        code: d.code,
+        type: d.type,
+        value: d.value,
+        amount: d.amount,
+        feeAmount: d.feeAmount,
+        position: d.position,
       })),
     );
   }
@@ -662,9 +699,15 @@ async function createOrderRows(
     toStatus: status,
     actorType: 'CUSTOMER',
     data: {
-      method: input.method,
+      method: free ? 'FREE' : input.method,
       totalGross: c.quote.totalGross,
       items: items.length,
+      ...(c.quote.discounts.length > 0
+        ? {
+            discountCodes: c.quote.discounts.map((d) => d.code),
+            codeDiscount: c.quote.discounts.reduce((sum, d) => sum + d.amount, 0),
+          }
+        : {}),
       ...(paymentReference ? { paymentReference } : {}),
     },
   });
@@ -679,7 +722,7 @@ async function createOrderRows(
     orderId,
     orderNumber,
     status,
-    method: input.method,
+    method: free ? 'FREE' : input.method,
     totalGross: c.quote.totalGross,
     currency: c.quote.currency,
     paymentReference,

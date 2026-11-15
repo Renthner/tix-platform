@@ -13,7 +13,8 @@
     "BANK_TRANSFER": "Überweisung",
     "CASH": "Bar",
     "CARD": "Karte",
-    "COMPLIMENTARY": "Freikarte"
+    "COMPLIMENTARY": "Freikarte",
+    "FREE": "Keine Zahlung nötig"
   },
   "paymentStatus": {
     "CREATED": "Gestartet",
@@ -117,7 +118,8 @@
       "reminders": "Erinnerungen",
       "paidAt": "Bezahlt am",
       "reason": "Grund",
-      "refunded": "Erstattet"
+      "refunded": "Erstattet",
+      "discount": "Rabattcodes"
     },
     "items": {
       "title": "Tickets",
@@ -187,7 +189,9 @@
         "adjustment_reminder_sent": "Erinnerung zur Nachzahlung gesendet",
         "invoice_correction_needed": "Rechnung muss korrigiert werden (To-do Finanzen)",
         "invoice_corrected": "Rechnung korrigiert",
-        "overpayment_refund_requested": "Erstattung der Überzahlung angefordert"
+        "overpayment_refund_requested": "Erstattung der Überzahlung angefordert",
+        "ticket_name_changed": "Name auf Ticket geändert",
+        "ticket_transferred": "Ticket weitergegeben"
       },
       "actors": {
         "SYSTEM": "System",
@@ -583,6 +587,14 @@
       "title": "Diese Testbestellung stornieren und ausblenden?",
       "description": "Auf dieser Testbestellung ist echtes Geld eingegangen, deshalb kann sie nicht gelöscht werden (Buchhaltung). Sie wird wie eine normale Bestellung storniert – PayPal-Zahlungen werden automatisch erstattet, Überweisungen erscheinen als offene Erstattung – und aus der Bestellliste ausgeblendet. Zahlungen und Erstattungen bleiben im Buchhaltungsexport, als TEST markiert. Ist sie storniert und ausgeblendet, blockiert sie das Veröffentlichen der Veranstaltung nicht mehr.",
       "confirm": "Stornieren & ausblenden"
+    },
+    "ticketChanges": {
+      "title": "Namensänderungen und Weitergaben",
+      "transfer": "Weitergegeben an {name} ({email})",
+      "name": "Name geändert: {from} → {to}",
+      "byAdmin": "durch einen Admin",
+      "byCustomer": "durch den Kunden",
+      "recipientPage": "Ticketseite des Empfängers"
     }
   },
   "eventPayments": {
@@ -628,7 +640,8 @@
       "title": "Zahlung",
       "CASH": "Bar",
       "CARD": "Karte",
-      "COMPLIMENTARY": "Freikarte"
+      "COMPLIMENTARY": "Freikarte",
+      "FREE": "Keine Zahlung nötig"
     },
     "complimentaryHint": "Freikarten kosten nichts, enthalten keine Gebühren und erhalten keine Rechnung.",
     "buyer": {

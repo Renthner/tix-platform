@@ -1,9 +1,10 @@
-import { orderAdjustments, orderHistory, orders } from '@tix/db';
+import { orderAdjustments, orderHistory, orders, tickets } from '@tix/db';
 import type { EmailTemplateKey } from '@tix/shared';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { enqueueEmail } from '../email';
-import { listOrderTickets } from '../tickets/issue';
+import { countValidOrderTickets, listOrderTickets } from '../tickets/issue';
+import { resendHolderTicketMail } from '../tickets/self-service';
 import { completeAdjustment, type CompleteAdjustmentResult } from './adjustments';
 import { cancelOrder, recordPayment, type RecordPaymentResult } from './fulfillment';
 
@@ -162,26 +163,48 @@ export async function resendOrderEmail(
   return key;
 }
 
-/** Sends the tickets (PDF attached) of a PAID order again (TICKETS_RESENT). */
+/**
+ * Sends the tickets (PDF attached) of a PAID order again (TICKETS_RESENT). Tickets that were handed
+ * over to someone else are not in the buyer's mail: they are re-sent to their holders when
+ * `includeHolders` is set or when the buyer holds none any more.
+ */
 export async function resendOrderTickets(
   ctx: CoreContext,
-  params: { orderId: string; userId: string },
+  params: { orderId: string; userId: string; includeHolders?: boolean },
 ): Promise<void> {
   const order = await loadOrder(ctx, params.orderId);
   if (order.status !== 'PAID' && order.status !== 'PARTIALLY_REFUNDED') {
     throw new DomainError('ORDER_NOT_PAID', 'Tickets exist for paid orders only', 409);
   }
   const issued = await listOrderTickets(ctx, order.id);
-  if (issued.length === 0) {
+  const total = await countValidOrderTickets(ctx.db, order.id);
+  if (total === 0) {
     throw new DomainError('NO_TICKETS', 'The order has no valid tickets yet', 409);
   }
-  await enqueueEmail(ctx, { key: 'TICKETS_RESENT', orderId: order.id });
+  if (issued.length > 0) await enqueueEmail(ctx, { key: 'TICKETS_RESENT', orderId: order.id });
+  let heldByOthers = 0;
+  if (params.includeHolders || issued.length === 0) {
+    const holders = await ctx.db
+      .select({ id: tickets.id })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.orderId, order.id),
+          eq(tickets.status, 'VALID'),
+          isNotNull(tickets.holderEmail),
+        ),
+      );
+    for (const holder of holders) {
+      await resendHolderTicketMail(ctx, { orderId: order.id, ticketId: holder.id });
+      heldByOthers += 1;
+    }
+  }
   await ctx.db.insert(orderHistory).values({
     orderId: order.id,
     type: 'tickets_resent',
     actorType: 'ADMIN',
     actorUserId: params.userId,
-    data: { tickets: issued.length },
+    data: { tickets: issued.length, ...(heldByOthers > 0 ? { holderTickets: heldByOthers } : {}) },
   });
 }
 

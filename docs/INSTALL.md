@@ -28,7 +28,7 @@ area. The `.env` file only holds the few technical settings.
 ### 1. Download the two files
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.22
+export TIX_VERSION=1.0.0-alpha.23
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -102,7 +102,7 @@ explanations is in [First configuration in the admin](#first-configuration-in-th
 
 ```bash
 cd tix
-export TIX_VERSION=1.0.0-alpha.22
+export TIX_VERSION=1.0.0-alpha.23
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/tix-update.sh
 chmod +x tix-update.sh        # once; the script is part of every release
 ./tix-update.sh               # updates to the newest release of your TIX_CHANNEL

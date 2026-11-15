@@ -8,6 +8,8 @@ import type customers from '../../messages/en/customers.json';
 import type cart from '../../messages/en/cart.json';
 import type checkout from '../../messages/en/checkout.json';
 import type common from '../../messages/en/common.json';
+import type discount from '../../messages/en/discount.json';
+import type discounts from '../../messages/en/discounts.json';
 import type editor from '../../messages/en/editor.json';
 import type emailTemplates from '../../messages/en/emailTemplates.json';
 import type fees from '../../messages/en/fees.json';
@@ -48,6 +50,8 @@ declare module 'next-intl' {
       scanners: typeof scanners;
       statistics: typeof statistics;
       system: typeof system;
+      discount: typeof discount;
+      discounts: typeof discounts;
     };
   }
 }

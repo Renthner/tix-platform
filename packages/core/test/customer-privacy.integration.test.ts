@@ -499,6 +499,14 @@ describe.skipIf(!adminUrl || !redisUrl)('customer GDPR (integration)', () => {
       actorType: 'ADMIN',
       data: { reason: 'Anna called us', amount: 3300, nested: { email: emailA, keep: 'x' } },
     });
+    // A mail to the holder of a handed-over ticket has no order link; the envelope ties it to the order.
+    await handle.db.insert(emailMessages).values({
+      templateKey: 'TICKET_TRANSFER_RECEIVED',
+      toEmail: 'holder-of-anna@example.invalid',
+      subject: 'A ticket was passed on to you',
+      status: 'SENT',
+      attachments: { v: 1, attachments: [], sourceOrderId: orderA, variables: 'enc' },
+    });
     invoicesBefore = await handle.db.select().from(invoices).where(eq(invoices.orderId, orderA));
     expect((invoicesBefore as unknown[]).length).toBeGreaterThan(0);
 
@@ -566,6 +574,12 @@ describe.skipIf(!adminUrl || !redisUrl)('customer GDPR (integration)', () => {
       .from(emailMessages)
       .where(eq(emailMessages.toEmail, anonymizedEmail(customerA)));
     expect(mails).toHaveLength(result.emails);
+    expect(
+      await handle.db
+        .select()
+        .from(emailMessages)
+        .where(eq(emailMessages.toEmail, 'holder-of-anna@example.invalid')),
+    ).toHaveLength(0);
     for (const m of mails) {
       expect(JSON.stringify(m)).not.toContain(emailA);
       expect(m.attachments).toMatchObject({ purgedAt: expect.any(String) });

@@ -113,7 +113,8 @@
       "BANK_TRANSFER": "Überweisung (Vorkasse)",
       "CASH": "Bar",
       "CARD": "Karte",
-      "COMPLIMENTARY": "Freikarte"
+      "COMPLIMENTARY": "Freikarte",
+      "FREE": "Keine Zahlung nötig"
     }
   },
   "profile": {

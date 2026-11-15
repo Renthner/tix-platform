@@ -1,10 +1,12 @@
-import { getOwnAccount, getSetting } from '@tix/core';
+import { getOwnAccount, getOwnAlertPreferences, getSetting } from '@tix/core';
 import { getTranslations } from 'next-intl/server';
 import { SettingsSection } from '@/components/admin/settings-forms';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getCore } from '@/server/core';
 import {
   changePasswordAction,
+  resetAlertPreferencesAction,
+  saveAlertPreferencesAction,
   confirmTwoFactorAction,
   disableTwoFactorAction,
   regenerateRecoveryCodesAction,
@@ -12,7 +14,13 @@ import {
   startTwoFactorSetupAction,
   updateProfileAction,
 } from '@/server/admin/account';
-import { EmailVerifyForm, PasswordForm, ProfileForm, TwoFactorPanel } from './account-forms';
+import {
+  AlertPreferencesForm,
+  EmailVerifyForm,
+  PasswordForm,
+  ProfileForm,
+  TwoFactorPanel,
+} from './account-forms';
 
 /** Body of the own-account page (also shown in place of the panel while 2FA setup is enforced). */
 export async function AccountContent({
@@ -23,11 +31,14 @@ export async function AccountContent({
   setupRequired: boolean;
 }) {
   const core = getCore();
-  const [t, account, security] = await Promise.all([
+  const [t, account, security, alertPrefs, alertSettings] = await Promise.all([
     getTranslations('adminSecurity.account'),
     getOwnAccount(core, userId),
     getSetting(core, 'security'),
+    getOwnAlertPreferences(core, userId),
+    getSetting(core, 'alerts'),
   ]);
+  const ta = await getTranslations('system.alerts');
   return (
     <div className="max-w-3xl space-y-6 p-6">
       {setupRequired && (
@@ -72,6 +83,20 @@ export async function AccountContent({
               action={updateProfileAction}
               displayName={account.displayName}
               email={account.email}
+            />
+          </SettingsSection>
+          <SettingsSection
+            id="alerts"
+            title={ta('account.title')}
+            description={ta('account.description')}
+          >
+            <AlertPreferencesForm
+              saveAction={saveAlertPreferencesAction}
+              resetAction={resetAlertPreferencesAction}
+              selectable={alertPrefs.selectable}
+              selected={alertPrefs.selected}
+              isDefault={alertPrefs.isDefault}
+              globallyEnabled={alertSettings.enabled}
             />
           </SettingsSection>
           <SettingsSection

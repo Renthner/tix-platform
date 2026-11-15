@@ -30,6 +30,7 @@ import { useFieldErrors, type FieldMap } from '@/lib/field-errors';
 import { useEventDate, useMoney } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useCart } from './cart-context';
+import { DiscountCodeBox } from './discount-code-box';
 import { CartCountdown } from './header-cart';
 
 export const COUNTRIES = [
@@ -409,6 +410,7 @@ export function CheckoutForm(props: Props) {
                 </div>
               )}
               <QuoteSummary quote={quote} />
+              <DiscountCodeBox onChange={() => router.refresh()} />
               {props.requireTerms && (
                 <div className="flex items-start gap-2">
                   <Checkbox
@@ -693,7 +695,7 @@ export function QuoteSummary({ quote }: { quote: CheckoutQuote }) {
                       {money(item.unitPriceGross, quote.currency)}
                     </div>
                   )}
-                  {money(item.priceGross, quote.currency)}
+                  {money(item.priceGross + item.codeDiscount, quote.currency)}
                 </div>
               </li>
             ))}
@@ -709,6 +711,17 @@ export function QuoteSummary({ quote }: { quote: CheckoutQuote }) {
           </ul>
         </div>
       ))}
+      {quote.codeDiscountTotal > 0 && (
+        <div
+          className="flex justify-between gap-3 border-t pt-3 text-success"
+          data-testid="quote-discount"
+        >
+          <span>
+            {t('summary.discount', { codes: quote.discounts.map((d) => d.code).join(', ') })}
+          </span>
+          <span className="tabular-nums">−{money(quote.codeDiscountTotal, quote.currency)}</span>
+        </div>
+      )}
       {quote.orderFees.length > 0 && (
         <ul className="space-y-1.5 border-t pt-3">
           {quote.orderFees.map((fee) => (

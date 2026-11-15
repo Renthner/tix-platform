@@ -32,6 +32,7 @@ import {
   isTransientPayPalError,
 } from '../payments/paypal';
 import { getSetting } from '../settings';
+import { dispatchMessages, queueHolderCancelledMails } from '../tickets/holder-mail';
 import { lockOrderTickets, voidTicketsForItems } from '../tickets/issue';
 import {
   cancelOpenAdjustmentInTransaction,
@@ -195,7 +196,8 @@ export async function cancelPaidOrder(
       .update(orderItems)
       .set({ status: 'REFUNDED', refundedAt: now })
       .where(inArray(orderItems.id, [...selectedIds]));
-    await voidTicketsForItems(tx, [...selectedIds], 'REFUNDED');
+    const voided = await voidTicketsForItems(tx, [...selectedIds], 'REFUNDED');
+    const holderMessageIds = await queueHolderCancelledMails(ctx, tx, voided.holders);
     const gaBySection = new Map<string, number>();
     for (const item of selected) {
       if (item.kind === 'GENERAL_ADMISSION') {
@@ -483,6 +485,7 @@ export async function cancelPaidOrder(
       released: selected,
       recordedRefundId,
       messageId,
+      holderMessageIds,
       adjustmentMessageId,
       issuedInvoiceId,
     };
@@ -519,6 +522,9 @@ export async function cancelPaidOrder(
       dispatchEmailMessage(ctx, adjustmentMessageId),
     );
   }
+  await guarded('holder e-mails (outbox sweeper retries)', () =>
+    dispatchMessages(ctx, outcome.holderMessageIds),
+  );
   if (outcome.messageId) {
     const messageId = outcome.messageId;
     await guarded('e-mail dispatch (outbox sweeper retries)', () =>
@@ -721,13 +727,17 @@ async function issueCreditNote(
         fee.amount === line.totalGross - before.gross
           ? { net: line.totalNet - before.net, tax: line.totalTax - before.tax }
           : splitGross(fee.amount, line.taxRateBasisPoints);
+      const quantity = Math.max(1, Math.min(fee.quantity, line.quantity));
+      // A fee line reduced by a discount code is invoiced as one line at the amount charged; a
+      // partial credit of it must still satisfy unit price x quantity = total.
+      const consistent = line.unitPriceGross * quantity === fee.amount;
       lines.push({
         invoiceId: '',
         position: lines.length + 1,
         description: line.description,
         serviceDate: line.serviceDate,
-        quantity: -Math.max(1, Math.min(fee.quantity, line.quantity)),
-        unitPriceGross: line.unitPriceGross,
+        quantity: consistent ? -quantity : -1,
+        unitPriceGross: consistent ? line.unitPriceGross : fee.amount,
         taxRateBasisPoints: line.taxRateBasisPoints,
         totalNet: -net,
         totalTax: -tax,

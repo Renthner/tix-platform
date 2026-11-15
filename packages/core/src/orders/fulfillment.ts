@@ -18,6 +18,7 @@ import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
 import { QUEUE_NAMES } from '../job-queues';
 import { publishSeatDelta } from '../realtime';
+import { dispatchMessages, queueHolderCancelledMails } from '../tickets/holder-mail';
 import { voidTicketsForItems } from '../tickets/issue';
 import { currentPaidCycle, orderPaidJobId } from './paid-cycle';
 
@@ -414,11 +415,12 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
         kind: orderItems.kind,
       });
     // Unpaid orders normally have no tickets; void any that exist so they can never be scanned.
-    await voidTicketsForItems(
+    const voided = await voidTicketsForItems(
       tx,
       items.map((i) => i.id),
       'CANCELLED',
     );
+    const holderMessageIds = await queueHolderCancelledMails(ctx, tx, voided.holders);
     // Standing areas: give the spots back to the DB capacity counter.
     const gaBySection = new Map<string, number>();
     for (const item of items) {
@@ -446,10 +448,11 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
     const messageId = params.notifyCustomer
       ? await createEmailMessage(ctx, tx, { key: 'ORDER_CANCELLED', orderId: order.id })
       : null;
-    return { items, messageId };
+    return { items, messageId, holderMessageIds };
   });
   if (!outcome) return false;
   await releaseInventory(ctx, outcome.items);
+  await dispatchMessages(ctx, outcome.holderMessageIds);
   if (outcome.messageId) {
     await dispatchEmailMessage(ctx, outcome.messageId).catch((err: unknown) =>
       coreLog.error({ err }, '[orders] cancellation e-mail stored but not queued (outbox retries)'),

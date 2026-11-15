@@ -36,6 +36,11 @@ const generalSchema = z.object({
   defaultCurrency: currencyCodeSchema.default('EUR'),
   defaultTimeZone: timeZoneSchema.default('Europe/Berlin'),
   supportEmail: z.email().optional(),
+  /**
+   * Length of the calendar entry (.ics / Google Calendar) of an event without an end time, in
+   * minutes.
+   */
+  defaultEventDurationMinutes: z.number().int().min(15).max(1_440).default(180),
   /** Super admins are told about newer releases (dashboard card; the check asks GitHub, see docs). */
   updateCheckEnabled: z.boolean().default(true),
   /** GitHub `owner/name` the update check reads releases from; empty = the repository this release came from. */
@@ -554,6 +559,22 @@ const customerAccountsSchema = z.object({
   loginLinkTtlMinutes: z.number().int().min(5).max(1_440).default(60),
 });
 
+/**
+ * Customer self-service for issued tickets: change the attendee name and / or hand a ticket over to
+ * someone else. Events can override it (event tab "Sales"). Off by default so an update never
+ * changes what customers may do.
+ */
+const ticketSelfServiceSchema = z.object({
+  enabled: z.boolean().default(false),
+  allowNameChange: z.boolean().default(true),
+  allowTransfer: z.boolean().default(true),
+  /** Customers can change until this many hours before the event starts (0 = until the start). */
+  deadlineHoursBeforeStart: z.number().int().min(0).max(8_760).default(24),
+  /** Maximum customer changes per seat (name changes and transfers together); empty = unlimited. */
+  maxChangesPerTicket: z.number().int().min(1).max(100).nullable().default(null),
+});
+export type TicketSelfServiceSettings = z.output<typeof ticketSelfServiceSchema>;
+
 export const BACKUP_FREQUENCIES = ['DAILY', 'WEEKLY'] as const;
 export type BackupFrequency = (typeof BACKUP_FREQUENCIES)[number];
 
@@ -606,6 +627,20 @@ const privacySchema = z.object({
   /** Personal fields of stored payment webhooks (payer, name, e-mail, address) are erased after this many days; 0 = keep. */
   webhookRetentionDays: z.number().int().min(0).max(3_650).default(90),
 });
+/** Waiting list of sold-out events (event tab "Sales" can override `enabled` per event). */
+const waitlistSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** Minutes between two availability checks of the same event (worker). */
+  evaluateIntervalMinutes: z.number().int().min(1).max(120).default(2),
+  /** An entry that was notified is notified again at the earliest after this many hours (0 = no pause). */
+  renotifyAfterHours: z.number().int().min(0).max(720).default(6),
+  /** Validity of the confirmation link; unconfirmed entries are deleted afterwards. */
+  confirmationTtlHours: z.number().int().min(1).max(168).default(48),
+  /** Upper limit of entries per event (abuse protection). */
+  maxEntriesPerEvent: z.number().int().min(10).max(100_000).default(5_000),
+  /** Largest number of tickets a visitor can ask for. */
+  maxTicketsPerEntry: z.number().int().min(1).max(50).default(10),
+});
 const backupCredentialsSchema = z.object({
   accessKeyId: z.string().min(1).max(256),
   secretAccessKey: z.string().min(1).max(1_024),
@@ -614,6 +649,44 @@ const backupCredentialsSchema = z.object({
 /** Bearer token of the Prometheus endpoint `/api/metrics` (no token = endpoint disabled). */
 const metricsCredentialsSchema = z.object({
   token: z.string().min(24).max(200),
+});
+
+/** Warning e-mails to admins (which alerts each admin gets is chosen on the own account page). */
+const alertsSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** An open alert is mailed again after this many hours while it persists. */
+  cooldownHours: z.number().int().min(1).max(168).default(6),
+  /** Upper limit of alert e-mails (all recipients together) per rolling hour. */
+  maxMailsPerHour: z.number().int().min(1).max(500).default(20),
+  /** Local time (shop time zone) of the daily digest mails (review cases, open refunds). */
+  digestTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .default('08:00'),
+  /** Send a short "resolved" mail when an alert that was mailed clears. */
+  sendResolved: z.boolean().default(true),
+  /** Storage used (percent) from which DISK_LOW is raised. */
+  diskUsedPercent: z.number().int().min(50).max(99).default(90),
+  /** Capacity (GB) the database + file buckets may use; 0 = no capacity check. */
+  storageCapacityGb: z.number().int().min(0).max(1_000_000).default(0),
+  /** Directories of the worker container whose file system is checked (comma separated). */
+  diskPaths: z.string().trim().max(500).default('/, /pre-update-backups'),
+  /** JOBS_FAILING: failed background jobs within the last hour. */
+  failedJobsPerHour: z.number().int().min(1).max(10_000).default(10),
+  /** JOBS_FAILING: oldest waiting job (minutes). */
+  queueBacklogMinutes: z.number().int().min(1).max(10_080).default(30),
+  /** EMAIL_DELIVERY_FAILING: e-mails that failed for good within the last 24 hours. */
+  failedEmailsPer24h: z.number().int().min(1).max(10_000).default(3),
+  /** BACKUP_OVERDUE: no successful backup within this multiple of the schedule interval. */
+  backupOverdueFactor: z.number().min(1).max(10).default(2),
+  /** REVIEW_CASES_OPEN: bank cases ("Kl�rf�lle") unresolved for this many days. */
+  reviewCaseDays: z.number().int().min(1).max(365).default(3),
+  /** BANK_SYNC_FAILING: sync failing / TAN required for this many hours. */
+  bankSyncHours: z.number().int().min(1).max(720).default(6),
+  /** PAYMENT_PROVIDER_ERRORS: window (hours) in which PayPal errors count. */
+  paymentErrorHours: z.number().int().min(1).max(168).default(24),
+  /** REFUNDS_OPEN: manual refunds waiting for this many days. */
+  refundOpenDays: z.number().int().min(1).max(365).default(3),
 });
 
 /** First-steps checklist on the admin dashboard. */
@@ -742,10 +815,20 @@ export const SETTINGS = {
     secret: false,
     description: 'Optional customer accounts and guest checkout',
   }),
+  ticketSelfService: define({
+    schema: ticketSelfServiceSchema,
+    secret: false,
+    description: 'Customer self-service for tickets: attendee name change and transfer',
+  }),
   privacy: define({
     schema: privacySchema,
     secret: false,
     description: 'Data retention periods (GDPR)',
+  }),
+  waitlist: define({
+    schema: waitlistSchema,
+    secret: false,
+    description: 'Waiting list of sold-out events',
   }),
   backup: define({
     schema: backupSchema,
@@ -756,6 +839,11 @@ export const SETTINGS = {
     schema: accountingSchema,
     secret: false,
     description: 'Accounting export: chart of accounts, DATEV master data',
+  }),
+  alerts: define({
+    schema: alertsSchema,
+    secret: false,
+    description: 'Warning e-mails to admins: switch, thresholds, digest time',
   }),
   setupChecklist: define({
     schema: setupChecklistSchema,

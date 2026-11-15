@@ -108,6 +108,7 @@ export default async function ShopLayout({
         'queue',
         'cart',
         'checkout',
+        'discount',
         'account',
         // Only what the client components of the shop read (admin menu, form feedback): the whole
         // admin namespace is ~70 KB per page view.

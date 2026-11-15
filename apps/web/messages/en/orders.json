@@ -13,7 +13,8 @@
     "BANK_TRANSFER": "Bank transfer",
     "CASH": "Cash",
     "CARD": "Card",
-    "COMPLIMENTARY": "Complimentary"
+    "COMPLIMENTARY": "Complimentary",
+    "FREE": "No payment due"
   },
   "paymentStatus": {
     "CREATED": "Started",
@@ -117,7 +118,8 @@
       "reminders": "Reminders",
       "paidAt": "Paid on",
       "reason": "Reason",
-      "refunded": "Refunded"
+      "refunded": "Refunded",
+      "discount": "Discount codes"
     },
     "items": {
       "title": "Tickets",
@@ -187,7 +189,9 @@
         "adjustment_reminder_sent": "Reminder for the additional payment sent",
         "invoice_correction_needed": "Invoice must be corrected (finance to-do)",
         "invoice_corrected": "Invoice corrected",
-        "overpayment_refund_requested": "Overpayment refund requested"
+        "overpayment_refund_requested": "Overpayment refund requested",
+        "ticket_name_changed": "Attendee name changed",
+        "ticket_transferred": "Ticket passed on"
       },
       "actors": {
         "SYSTEM": "System",
@@ -583,6 +587,14 @@
       "title": "Cancel and hide this test order?",
       "description": "Real money was received on this test order, so it cannot be deleted (accounting). It is cancelled like a normal order – PayPal payments are refunded automatically, bank transfers appear as an open refund – and hidden from the order list. Payments and refunds stay in the accounting export, marked TEST. Once cancelled and hidden it no longer blocks publishing the event.",
       "confirm": "Cancel & hide"
+    },
+    "ticketChanges": {
+      "title": "Name changes and transfers",
+      "transfer": "Passed on to {name} ({email})",
+      "name": "Name changed: {from} → {to}",
+      "byAdmin": "by an admin",
+      "byCustomer": "by the customer",
+      "recipientPage": "Recipient ticket page"
     }
   },
   "eventPayments": {
@@ -628,7 +640,8 @@
       "title": "Payment",
       "CASH": "Cash",
       "CARD": "Card",
-      "COMPLIMENTARY": "Complimentary"
+      "COMPLIMENTARY": "Complimentary",
+      "FREE": "No payment due"
     },
     "complimentaryHint": "Complimentary tickets cost nothing, carry no fees and get no invoice.",
     "buyer": {

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SECURITY_IDLE, type SecurityState } from '@/lib/security-state';
 import type { TotpSetup } from '@tix/core';
+import { ADMIN_ALERT_GROUPS, ALERT_TYPE_GROUP, type AdminAlertType } from '@tix/shared';
 
 type Action = (state: SecurityState, fd: FormData) => Promise<SecurityState>;
 
@@ -327,6 +328,90 @@ export function TwoFactorPanel({
             </SubmitButton>
           </ActionForm>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Own choice of warning e-mails (alert types the roles allow). */
+export function AlertPreferencesForm({
+  saveAction,
+  resetAction,
+  selectable,
+  selected,
+  isDefault,
+  globallyEnabled,
+}: {
+  saveAction: Action;
+  resetAction: Action;
+  selectable: readonly AdminAlertType[];
+  selected: readonly AdminAlertType[];
+  isDefault: boolean;
+  globallyEnabled: boolean;
+}) {
+  const t = useTranslations('system.alerts');
+  const [saveState, saveForm] = useActionState(saveAction, SECURITY_IDLE);
+  const [resetState, resetForm] = useActionState(resetAction, SECURITY_IDLE);
+  const router = useRouter();
+  useSuccessToast(saveState);
+  useSuccessToast(resetState);
+  useEffect(() => {
+    if (resetState.status === 'success') router.refresh();
+  }, [resetState, router]);
+  if (selectable.length === 0) {
+    return <p className="text-sm text-muted-foreground">{t('account.none')}</p>;
+  }
+  const groups = ADMIN_ALERT_GROUPS.map((group) => ({
+    group,
+    types: selectable.filter((type) => ALERT_TYPE_GROUP[type] === group),
+  })).filter((g) => g.types.length > 0);
+  return (
+    <div className="space-y-4">
+      {!globallyEnabled && (
+        <Alert>
+          <AlertDescription>{t('account.globalOff')}</AlertDescription>
+        </Alert>
+      )}
+      <ActionForm
+        action={saveForm}
+        className="space-y-4"
+        // Re-keyed after a reset so the checkboxes show the defaults again.
+        key={`${isDefault}-${selected.join(',')}`}
+      >
+        <ErrorAlert state={saveState} />
+        {groups.map(({ group, types }) => (
+          <fieldset key={group} className="space-y-2">
+            <legend className="text-sm font-semibold">{t(`groups.${group}`)}</legend>
+            {types.map((type) => (
+              <label key={type} className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  name="types"
+                  value={type}
+                  defaultChecked={selected.includes(type)}
+                  className="mt-1 size-4"
+                />
+                <span>
+                  <span className="font-medium">{t(`types.${type}.name`)}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {t(`types.${type}.description`)}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        ))}
+        <p className="text-xs text-muted-foreground">
+          {isDefault ? t('account.defaultHint') : t('account.customHint')}
+        </p>
+        <SubmitButton>{t('account.save')}</SubmitButton>
+      </ActionForm>
+      {!isDefault && (
+        <form action={resetForm}>
+          <Button type="submit" variant="outline" size="sm">
+            {t('account.reset')}
+          </Button>
+        </form>
       )}
     </div>
   );

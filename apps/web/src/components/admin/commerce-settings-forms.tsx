@@ -877,3 +877,150 @@ export function CustomerAccountsSettingsForm({
     </ActionForm>
   );
 }
+
+// ─── Waiting list ───────────────────────────────────────────────────────────
+
+export interface WaitlistValues {
+  enabled: boolean;
+  evaluateIntervalMinutes: number;
+  renotifyAfterHours: number;
+  confirmationTtlHours: number;
+  maxEntriesPerEvent: number;
+  maxTicketsPerEntry: number;
+}
+
+export function WaitlistSettingsForm({
+  action,
+  initial,
+}: {
+  action: Action;
+  initial: WaitlistValues;
+}) {
+  const t = useTranslations('admin.settings.waitlist');
+  const tc = useTranslations('common.actions');
+  const { state, formAction, err } = useSettingsForm(action);
+  return (
+    <ActionForm action={formAction} className="space-y-5">
+      <ActionFeedback state={state} />
+      <SwitchRow
+        name="enabled"
+        defaultChecked={initial.enabled}
+        label={t('enabled')}
+        hint={t('enabledHint')}
+      />
+      <div className="grid gap-4 md:grid-cols-2">
+        <NumberField
+          name="evaluateIntervalMinutes"
+          label={t('evaluateIntervalMinutes')}
+          hint={t('evaluateIntervalMinutesHint')}
+          defaultValue={initial.evaluateIntervalMinutes}
+          min={1}
+          max={120}
+          error={err('evaluateIntervalMinutes')}
+        />
+        <NumberField
+          name="renotifyAfterHours"
+          label={t('renotifyAfterHours')}
+          hint={t('renotifyAfterHoursHint')}
+          defaultValue={initial.renotifyAfterHours}
+          min={0}
+          max={720}
+          error={err('renotifyAfterHours')}
+        />
+        <NumberField
+          name="confirmationTtlHours"
+          label={t('confirmationTtlHours')}
+          hint={t('confirmationTtlHoursHint')}
+          defaultValue={initial.confirmationTtlHours}
+          min={1}
+          max={168}
+          error={err('confirmationTtlHours')}
+        />
+        <NumberField
+          name="maxTicketsPerEntry"
+          label={t('maxTicketsPerEntry')}
+          defaultValue={initial.maxTicketsPerEntry}
+          min={1}
+          max={50}
+          error={err('maxTicketsPerEntry')}
+        />
+        <NumberField
+          name="maxEntriesPerEvent"
+          label={t('maxEntriesPerEvent')}
+          hint={t('maxEntriesPerEventHint')}
+          defaultValue={initial.maxEntriesPerEvent}
+          min={10}
+          max={100000}
+          error={err('maxEntriesPerEvent')}
+        />
+      </div>
+      <SubmitButton>{tc('save')}</SubmitButton>
+    </ActionForm>
+  );
+}
+
+export interface TicketSelfServiceValues {
+  enabled: boolean;
+  allowNameChange: boolean;
+  allowTransfer: boolean;
+  deadlineHoursBeforeStart: number;
+  maxChangesPerTicket: number | null;
+}
+
+export function TicketSelfServiceSettingsForm({
+  action,
+  initial,
+}: {
+  action: Action;
+  initial: TicketSelfServiceValues;
+}) {
+  const t = useTranslations('admin.settings.ticketSelfService');
+  const tc = useTranslations('common.actions');
+  const { state, formAction, err } = useSettingsForm(action);
+  return (
+    <ActionForm action={formAction} className="space-y-5">
+      <ActionFeedback state={state} />
+      <div className="space-y-3">
+        <SwitchRow
+          name="enabled"
+          defaultChecked={initial.enabled}
+          label={t('enabled')}
+          hint={t('enabledHint')}
+        />
+        <SwitchRow
+          name="allowNameChange"
+          defaultChecked={initial.allowNameChange}
+          label={t('allowNameChange')}
+          hint={t('allowNameChangeHint')}
+        />
+        <SwitchRow
+          name="allowTransfer"
+          defaultChecked={initial.allowTransfer}
+          label={t('allowTransfer')}
+          hint={t('allowTransferHint')}
+        />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <NumberField
+          name="deadlineHoursBeforeStart"
+          label={t('deadlineHoursBeforeStart')}
+          defaultValue={initial.deadlineHoursBeforeStart}
+          min={0}
+          max={8760}
+          error={err('deadlineHoursBeforeStart')}
+        />
+        <NumberField
+          name="maxChangesPerTicket"
+          label={t('maxChangesPerTicket')}
+          defaultValue={initial.maxChangesPerTicket ?? ''}
+          optional
+          min={1}
+          max={100}
+          error={err('maxChangesPerTicket')}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">{t('note')}</p>
+      <SubmitButton>{tc('save')}</SubmitButton>
+    </ActionForm>
+  );
+}

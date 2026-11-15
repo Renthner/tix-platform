@@ -11,12 +11,14 @@ import { notFound } from 'next/navigation';
 import {
   BankTransferSettingsForm,
   CustomerAccountsSettingsForm,
+  TicketSelfServiceSettingsForm,
   InvoicingSettingsForm,
   OrganizerSettingsForm,
   PaypalSettingsForm,
   PaypalTestForm,
   SmtpSettingsForm,
   SmtpTestForm,
+  WaitlistSettingsForm,
 } from '@/components/admin/commerce-settings-forms';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Button } from '@/components/ui/button';
@@ -32,6 +34,7 @@ import {
   SettingsSection,
 } from '@/components/admin/settings-forms';
 import {
+  AlertSettingsForm,
   ScannerSettingsForm,
   SecuritySettingsForm,
 } from '@/components/admin/security-settings-forms';
@@ -126,6 +129,7 @@ async function TabContent({
       | 'startPage'
       | 'seo'
       | 'cookieNotice'
+      | 'waitlist'
       | 'bankTransfer',
     children: React.ReactNode,
   ) => (
@@ -293,14 +297,25 @@ async function TabContent({
       );
     case 'checkout': {
       const detectedIp = await clientIp();
-      return section(
-        'checkout',
-        <CheckoutSettingsForm
-          action={saveSettingsAction.bind(null, 'checkout')}
-          initial={await getSetting(core, 'checkout')}
-          detectedIp={detectedIp}
-          detectedIpPrivate={detectedIp === '0.0.0.0' || isNonPublicAddress(detectedIp)}
-        />,
+      return (
+        <>
+          {section(
+            'checkout',
+            <CheckoutSettingsForm
+              action={saveSettingsAction.bind(null, 'checkout')}
+              initial={await getSetting(core, 'checkout')}
+              detectedIp={detectedIp}
+              detectedIpPrivate={detectedIp === '0.0.0.0' || isNonPublicAddress(detectedIp)}
+            />,
+          )}
+          {section(
+            'waitlist',
+            <WaitlistSettingsForm
+              action={saveSettingsAction.bind(null, 'waitlist')}
+              initial={await getSetting(core, 'waitlist')}
+            />,
+          )}
+        </>
       );
     }
     case 'payments': {
@@ -513,6 +528,17 @@ async function TabContent({
         </>
       );
     }
+    case 'notifications': {
+      const ta = await getTranslations('system.alerts.settings');
+      return (
+        <SettingsSection id="alerts" title={ta('title')} description={ta('description')}>
+          <AlertSettingsForm
+            action={saveSettingsAction.bind(null, 'alerts')}
+            initial={await getSetting(core, 'alerts')}
+          />
+        </SettingsSection>
+      );
+    }
     case 'scanner':
       return (
         <SettingsSection
@@ -529,16 +555,28 @@ async function TabContent({
       );
     case 'accounts':
       return (
-        <SettingsSection
-          id="customerAccounts"
-          title={t('customerAccounts.title')}
-          description={t('customerAccounts.description')}
-        >
-          <CustomerAccountsSettingsForm
-            action={saveSettingsAction.bind(null, 'customerAccounts')}
-            initial={await getSetting(core, 'customerAccounts')}
-          />
-        </SettingsSection>
+        <>
+          <SettingsSection
+            id="customerAccounts"
+            title={t('customerAccounts.title')}
+            description={t('customerAccounts.description')}
+          >
+            <CustomerAccountsSettingsForm
+              action={saveSettingsAction.bind(null, 'customerAccounts')}
+              initial={await getSetting(core, 'customerAccounts')}
+            />
+          </SettingsSection>
+          <SettingsSection
+            id="ticketSelfService"
+            title={t('ticketSelfService.title')}
+            description={t('ticketSelfService.description')}
+          >
+            <TicketSelfServiceSettingsForm
+              action={saveSettingsAction.bind(null, 'ticketSelfService')}
+              initial={await getSetting(core, 'ticketSelfService')}
+            />
+          </SettingsSection>
+        </>
       );
   }
 }

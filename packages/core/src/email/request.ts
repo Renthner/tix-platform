@@ -1,6 +1,6 @@
 import { customers, emailMessages, invoices, orders, tickets, type Executor } from '@tix/db';
 import type { EmailTemplateKey } from '@tix/shared';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { QUEUE_NAMES } from '../job-queues';
@@ -13,6 +13,11 @@ export interface EmailRequest {
   locale?: string;
   orderId?: string | null;
   customerId?: string | null;
+  /**
+   * Order a message is about although it must not be linked to it (mails to ticket holders carry
+   * no order data): kept in the envelope only, so a GDPR erasure of the buyer can find them.
+   */
+  sourceOrderId?: string | null;
   /** Event whose template override should be preferred (defaults to the order's first event). */
   eventId?: string | null;
   variables?: Record<string, string | number | null | undefined>;
@@ -39,6 +44,8 @@ export interface StoredEmailRequest {
   locale: string | null;
   eventId: string | null;
   customerId: string | null;
+  /** See `EmailRequest.sourceOrderId`. */
+  sourceOrderId?: string | null;
   /** SecretBox envelope of the JSON `variables` (null when none). */
   variables: string | null;
   /** Files attached when the message was sent (delivery log). */
@@ -63,7 +70,9 @@ async function hasValidTickets(db: Executor, orderId: string): Promise<boolean> 
   const [row] = await db
     .select({ id: tickets.id })
     .from(tickets)
-    .where(and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID')))
+    .where(
+      and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID'), isNull(tickets.holderEmail)),
+    )
     .limit(1);
   return Boolean(row);
 }
@@ -142,6 +151,7 @@ export async function createEmailMessage(
     locale: request.locale ?? null,
     eventId: request.eventId ?? null,
     customerId: request.customerId ?? null,
+    sourceOrderId: request.sourceOrderId ?? null,
     variables:
       Object.keys(variables).length > 0
         ? requireCapability(ctx, 'secrets').encryptJson(variables, EMAIL_VARIABLES_CONTEXT)

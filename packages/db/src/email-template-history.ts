@@ -25,6 +25,8 @@ export function emailTemplateFingerprint(t: {
 export const PREVIOUS_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly string[]>> = {
   // Phase 3 text: "your tickets will be sent separately" (replaced when ticket PDFs were attached).
   'PAYMENT_RECEIVED_TICKETS|en': [
+    // Before the calendar / directions block.
+    '2c23775339047dbbcda95f2671dc0bb338cc9cca5899cce06a20cf36e07894b6',
     'a3ea96d72b50b218df43f00cb7e0756b6e214dd889c1f866e2dbdd3681e049fa',
     '72479c900ed00210696f32562f73f68176665ce9d4c9e789f7f5b0eeb0db34dc',
     // Phase 4 text with the single 'download all tickets' button.
@@ -35,6 +37,8 @@ export const PREVIOUS_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly str
   // German: Phase 3 text, then the formal ("Sie") Phase 4 text (replaced by the informal "du" texts).
   // Every listed fingerprint upgrades directly to the current default (chained upgrade).
   'PAYMENT_RECEIVED_TICKETS|de': [
+    // Before the calendar / directions block.
+    'a41ce6639d6a47634f2dc6ea5ed021f7c8670d6e223c136871084fb4ebe88247',
     'd5fb351b3d9e1f2553bd74044c5e59d8f8d1303e2fb90047827cede9c0db4f33',
     '2e617c02419d10e61d0f47adbeeaef9d00e8a743b914638e913130568f268096',
     '318b0a7bdb004bc18bc147219a843763b1b6d1f268dee0efc34dede820082c60',
@@ -44,6 +48,8 @@ export const PREVIOUS_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly str
     'c3d0d8f9855aa849f7e82958e5e20e09cffa00d891e57e5ffecd21e738052d53',
   ],
   'TICKETS_RESENT|en': [
+    // Before the calendar / directions block.
+    '4b69036809ee25d1b44a6c09fdad365163ab52a780c06a07c8dc38c0c3fe6358',
     'e091ac96bf3682ac540744c41ee880cff0257e4d4ff68cce7709bbfb4629eda8',
     'c1ed45959bda97cc0427dd9045e19ec1f38837f4ea0c282bcba176f160113979',
     // Phase 4 text with the single 'download all tickets' button.
@@ -52,6 +58,8 @@ export const PREVIOUS_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly str
     'faba05f152bf82245a821081c281f2bada214051f558dde0c81e650a0600e3c2',
   ],
   'TICKETS_RESENT|de': [
+    // Before the calendar / directions block.
+    '93d8fceeba40d781f456e3578d8d21ffeefba4f9ba18e86a4fb69141155dff8f',
     '1f8832ff0265196ec717d6db3b2aba19b5716430b12fd44c764eec1c3c8ccc33',
     '739c88520219ff4374ed74aad45d721f33a5eaf24f00d0e525761b5f43725154',
     '4b5156d18376f226f2be464d0434b38e13d0f3d23e331b9003dcf1f8cb8e7e82',

@@ -80,7 +80,12 @@ export async function loadWalletTicketData(
   const condition =
     'ticketId' in where
       ? eq(tickets.id, where.ticketId)
-      : and(eq(tickets.orderId, where.orderId), eq(tickets.status, 'VALID'));
+      : and(
+          eq(tickets.orderId, where.orderId),
+          eq(tickets.status, 'VALID'),
+          // Tickets handed over to someone else are not the buyer's any more.
+          isNull(tickets.holderEmail),
+        );
   const rows = await db
     .select({
       ticketId: tickets.id,

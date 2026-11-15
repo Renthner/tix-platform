@@ -1,0 +1,120 @@
+{
+  "title": "Rabattcodes",
+  "description": "Codes, die Kund:innen im Warenkorb eingeben. Sie senken die Ticketpreise (optional auch die Gebühren); Vorverkaufs-/VIP-Zugangscodes verwaltest du pro Veranstaltung.",
+  "modes": {
+    "single": "Einzelner Code",
+    "bulk": "Einmal-Codes erzeugen"
+  },
+  "createTitle": "Neuer Rabattcode",
+  "createSingle": "Code anlegen",
+  "createBulk": "Codes erzeugen",
+  "save": "Änderungen speichern",
+  "listTitle": "Codes ({count})",
+  "empty": "Noch keine Rabattcodes.",
+  "search": "Code oder Notiz suchen",
+  "batchTitle": "Erzeugter Stapel",
+  "batchHint": "Angezeigt werden die Codes eines erzeugten Stapels.",
+  "clearBatch": "Alle Codes anzeigen",
+  "exportCsv": "CSV exportieren",
+  "exportBatch": "Diesen Stapel exportieren (CSV)",
+  "detail": "Details",
+  "back": "Zurück zu den Codes",
+  "fields": {
+    "code": "Code",
+    "count": "Anzahl Codes",
+    "prefix": "Präfix (optional)",
+    "type": "Art",
+    "valuePercent": "Rabatt (%)",
+    "valueFixed": "Rabatt pro Bestellung ({currency})",
+    "validFrom": "Gültig ab",
+    "validUntil": "Gültig bis",
+    "maxTotalUses": "Max. Einlösungen gesamt",
+    "maxUsesPerEmail": "Max. Einlösungen pro Kunden-E-Mail",
+    "minOrderValue": "Mindestwert der berechtigten Tickets ({currency})",
+    "discountFees": "Auch auf Gebühren anwenden",
+    "stackable": "Mit anderen Codes kombinierbar",
+    "isActive": "Aktiv",
+    "note": "Interne Notiz"
+  },
+  "hints": {
+    "code": "Buchstaben, Ziffern, - und _ (3-40 Zeichen). Kund:innen können Groß-/Kleinschreibung beliebig tippen.",
+    "count": "Bis zu {max} Codes auf einmal.",
+    "prefix": "z. B. FRUEHLING – Codes sehen aus wie FRUEHLING-K7Q2M9XD.",
+    "fixed": "Wird einmal von der Bestellung abgezogen; nie mehr, als die berechtigten Tickets kosten.",
+    "zone": "Zeiten gelten in der Zeitzone des Shops ({timeZone}).",
+    "unlimited": "Leer = unbegrenzt.",
+    "minOrderValue": "Leer = kein Mindestwert. Zählt nur die berechtigten Tickets.",
+    "bulkSingleUse": "Erzeugte Codes können genau einmal eingelöst werden.",
+    "note": "Wird Kund:innen nie angezeigt."
+  },
+  "types": {
+    "PERCENT": "Prozent der berechtigten Ticketpreise",
+    "FIXED": "Fester Betrag pro Bestellung"
+  },
+  "scope": {
+    "title": "Wo der Code gilt",
+    "all": "Alle Veranstaltungen",
+    "selected": "Ausgewählte Veranstaltungen",
+    "events": "Veranstaltungen",
+    "categories": "Preiskategorien",
+    "tariffs": "Tarife",
+    "restrictHint": "Nichts angehakt = keine Einschränkung."
+  },
+  "columns": {
+    "code": "Code",
+    "discount": "Rabatt",
+    "scope": "Geltung",
+    "validity": "Gültigkeit",
+    "uses": "Einlösungen",
+    "total": "Gewährter Rabatt",
+    "status": "Status"
+  },
+  "scopeAll": "Alle Veranstaltungen",
+  "scopeSome": "{count, plural, one {# Veranstaltung} other {# Veranstaltungen}}",
+  "status": {
+    "ACTIVE": "Aktiv",
+    "INACTIVE": "Inaktiv",
+    "EXPIRED": "Abgelaufen",
+    "SCHEDULED": "Geplant",
+    "EXHAUSTED": "Aufgebraucht"
+  },
+  "deactivate": "Deaktivieren",
+  "activate": "Aktivieren",
+  "deactivateTitle": "Diesen Code deaktivieren?",
+  "activateTitle": "Diesen Code aktivieren?",
+  "delete": "Löschen",
+  "deleteTitle": "Diesen Code löschen?",
+  "deleteHint": "Nur Codes, die nie verwendet wurden, können gelöscht werden.",
+  "usage": {
+    "title": "Nutzung",
+    "empty": "Dieser Code wurde noch nicht verwendet.",
+    "order": "Bestellung",
+    "customer": "E-Mail",
+    "status": "Bestellstatus",
+    "discount": "Rabatt",
+    "date": "Datum",
+    "test": "Testbestellung",
+    "notCounted": "zählt nicht (storniert, abgelaufen oder Test)",
+    "stats": "{uses} aktive Einlösungen · {amount} Rabatt gewährt"
+  },
+  "csv": {
+    "header": [
+      "Code",
+      "Art",
+      "Wert",
+      "Gültig ab",
+      "Gültig bis",
+      "Max. Einlösungen gesamt",
+      "Max. Einlösungen pro E-Mail",
+      "Mindestwert",
+      "Rabatt auf Gebühren",
+      "Kombinierbar",
+      "Einlösungen",
+      "Gewährter Rabatt",
+      "Status",
+      "Notiz"
+    ],
+    "yes": "ja",
+    "no": "nein"
+  }
+}

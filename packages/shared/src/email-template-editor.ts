@@ -7,7 +7,16 @@ import type { EmailTemplateKey } from './enums';
  */
 
 export type EmailVariableGroup =
-  'shop' | 'customer' | 'order' | 'adjustment' | 'tickets' | 'account' | 'smtpTest';
+  | 'shop'
+  | 'customer'
+  | 'order'
+  | 'adjustment'
+  | 'tickets'
+  | 'transfer'
+  | 'account'
+  | 'smtpTest'
+  | 'alert'
+  | 'waitlist';
 
 export interface EmailVariableInfo {
   name: string;
@@ -101,12 +110,58 @@ const ADJUSTMENT_PAID = [
 ];
 
 const WALLET = [
-  ...names('tickets', ['walletLinks', 'ticketLinks'], 'html'),
-  ...names('tickets', ['ticketsPdfUrl', 'ticketsAttached']),
+  ...names('tickets', ['walletLinks', 'ticketLinks', 'calendarLinks'], 'html'),
+  ...names('tickets', ['ticketsPdfUrl', 'ticketsAttached', 'directionsUrl']),
 ];
+/** TICKET_TRANSFER_RECEIVED / TICKET_TRANSFER_SENT. */
+const TRANSFER = names('transfer', [
+  'recipientName',
+  'senderName',
+  'transferMessage',
+  'ticketPlace',
+  'ticketCode',
+  'eventTitle',
+  'eventDate',
+  'eventVenue',
+  'ticketPageUrl',
+  'ticketPdfUrl',
+  'appleWalletUrl',
+  'googleWalletUrl',
+  'newHolderEmail',
+  'orderNumber',
+]);
+/** TICKET_HOLDER_UPDATED / TICKET_HOLDER_CANCELLED: the ticket only, never order data. */
+const HOLDER = names('transfer', [
+  'recipientName',
+  'ticketPlace',
+  'ticketCode',
+  'eventTitle',
+  'eventDate',
+  'eventVenue',
+  'ticketPageUrl',
+  'ticketPdfUrl',
+  'appleWalletUrl',
+  'googleWalletUrl',
+]);
 const account = (url: string) => [
   ...names('customer', ['firstName']),
   ...names('account', [url, 'expiresAt']),
+];
+
+const ALERT = names('alert', ['firstName', 'alertTitle', 'alertSummary', 'alertSince', 'alertUrl']);
+const WAITLIST = [
+  ...names('customer', ['firstName']),
+  ...names('waitlist', [
+    'eventTitle',
+    'eventDate',
+    'eventVenue',
+    'eventUrl',
+    'confirmUrl',
+    'unsubscribeUrl',
+    'categoryName',
+    'quantity',
+    'expiresAt',
+  ]),
 ];
 
 const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
@@ -125,12 +180,21 @@ const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
   ADDITIONAL_PAYMENT_RECEIVED: [...SHOP, ...ORDER, ...ADJUSTMENT_PAID, ...WALLET],
   ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT: [...SHOP, ...ORDER, ...ADJUSTMENT_PAID, ...WALLET],
   TICKETS_RESENT: [...SHOP, ...ORDER, ...WALLET],
+  TICKET_TRANSFER_RECEIVED: [...SHOP, ...TRANSFER],
+  TICKET_TRANSFER_SENT: [...SHOP, ...ORDER, ...TRANSFER],
+  TICKET_HOLDER_UPDATED: [...SHOP, ...HOLDER],
+  TICKET_HOLDER_CANCELLED: [...SHOP, ...HOLDER],
   CUSTOMER_EMAIL_VERIFICATION: [...SHOP, ...CUSTOMER, ...account('verificationUrl')],
   CUSTOMER_PASSWORD_RESET: [...SHOP, ...CUSTOMER, ...account('resetUrl')],
   CUSTOMER_LOGIN_LINK: [...SHOP, ...CUSTOMER, ...account('loginUrl')],
   SMTP_TEST: [...SHOP, ...names('smtpTest', ['sentAt'])],
   ADMIN_INVITE: [...SHOP, ...account('inviteUrl')],
   ADMIN_PASSWORD_RESET: [...SHOP, ...account('resetUrl')],
+  ADMIN_ALERT: [...SHOP, ...ALERT],
+  ADMIN_ALERT_RESOLVED: [...SHOP, ...ALERT],
+  WAITLIST_CONFIRM: [...SHOP, ...WAITLIST],
+  WAITLIST_AVAILABLE: [...SHOP, ...WAITLIST],
+  WAITLIST_REMOVED: [...SHOP, ...WAITLIST],
 };
 
 /** Variables a template of this key can use (de-duplicated, in display order). */
@@ -216,7 +280,7 @@ export function joinEmailContent(parts: EmailContentParts, content: string): str
 const LOGIC_TOKEN = /\{\{\s*(?:#if\b|#unless\b|else\b|\/if\b|\/unless\b)[^{}]*\}\}/g;
 /** Block-level placeholders: only protected when they stand alone between blocks. */
 const BLOCK_VARIABLE =
-  /\{\{\s*(?:itemsTable|eventList|walletLinks|ticketLinks|adjustmentItems)\s*\}\}/g;
+  /\{\{\s*(?:itemsTable|eventList|walletLinks|ticketLinks|calendarLinks|adjustmentItems)\s*\}\}/g;
 const TOKEN = new RegExp(`${LOGIC_TOKEN.source}|${BLOCK_VARIABLE.source}`, 'g');
 
 const BLOCK_TAGS = 'p|table|h[1-6]|ul|ol|blockquote|div|hr';

@@ -4,7 +4,7 @@ import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage, type EmailAttachment } from '../email';
 import { issueInvoice } from '../invoices';
 import { hasPaymentMailForCycle } from '../orders/paid-cycle';
-import { ensureOrderTickets } from '../tickets/issue';
+import { countValidOrderTickets, ensureOrderTickets } from '../tickets/issue';
 
 export interface PaidOrderResult {
   invoiceId: string | null;
@@ -68,13 +68,16 @@ export async function processPaidOrder(
   }
 
   // Tickets before the mail: all-or-nothing and idempotent, a failure retries the whole job.
-  const ticketCount = (await ensureOrderTickets(ctx, orderId)).length;
+  // The buyer's PDF holds the tickets the buyer still has; tickets handed over to someone else
+  // (re-issued for their holder after a payment reversal) count as issued but are not attached.
+  const buyerTickets = (await ensureOrderTickets(ctx, orderId)).length;
+  const ticketCount = Math.max(buyerTickets, await countValidOrderTickets(ctx.db, orderId));
 
   // The ticket PDF is rendered by the e-mail job when it sends (a failure retries with the
   // job's back-off instead of blocking fulfilment; the admin can resend after a final failure).
   const attachments: EmailAttachment[] = [
     ...(invoiceId ? [{ type: 'invoice' as const, invoiceId }] : []),
-    ...(ticketCount > 0 ? [{ type: 'tickets' as const, orderId }] : []),
+    ...(buyerTickets > 0 ? [{ type: 'tickets' as const, orderId }] : []),
   ];
   const wantsMail =
     order.channel === 'ONLINE' || (options.sendPaymentMail === true && Boolean(order.email));

@@ -1,5 +1,6 @@
 import { emailTemplateVariables, type EmailTemplateKey } from '@tix/shared';
 import type { CoreContext } from '../context';
+import { mailTranslator } from '../i18n/mail-messages';
 import { sanitizeEmailHtml } from './sanitize';
 import {
   TemplateSyntaxError,
@@ -102,6 +103,7 @@ export function prepareEmailTemplate(
 const SAMPLE = {
   en: {
     firstName: 'Alex',
+    category: 'Category 1',
     lastName: 'Sample',
     eventTitle: 'Example Musical',
     eventVenue: 'Town Hall, Sampletown',
@@ -124,6 +126,7 @@ const SAMPLE = {
   },
   de: {
     firstName: 'Alex',
+    category: 'Kategorie 1',
     lastName: 'Muster',
     eventTitle: 'Beispiel-Musical',
     eventVenue: 'Stadthalle, Musterstadt',
@@ -180,6 +183,18 @@ export function sampleEmailVariables(
         `${place} (SAMPLE-${i + 1})\n${s.downloadPdf}: ${base}/api/orders/sample/tickets/sample-${i + 1}?t=sample-token\n${s.wallet}: https://wallet.example.org/pass`,
     )
     .join('\n\n');
+
+  const calendarT = mailTranslator(locale);
+  const calendarUrls = [
+    [calendarT('calendar.ics'), `${base}/api/orders/sample/calendar.ics?t=sample-token`],
+    [calendarT('calendar.google'), 'https://calendar.google.com/calendar/render?action=TEMPLATE'],
+    [
+      calendarT('calendar.directions'),
+      'https://www.google.com/maps/search/?api=1&query=Sample%20Venue',
+    ],
+  ] as const;
+  const calendarHtml = `<p style="margin:0 0 4px;font-size:13px;color:#52525b">${escapeHtml(s.eventTitle)}</p><p style="margin:0 0 14px">${calendarUrls.map(([label, url]) => ticketButton(label, url)).join('')}</p>`;
+  const calendarText = `${s.eventTitle}\n${calendarUrls.map(([label, url]) => `${label}: ${url}`).join('\n')}`;
 
   const adjustmentRows = [s.seat, s.seat2].map((place) => ({
     label: `${place}: ${s.reduced} → ${s.normal}`,
@@ -249,6 +264,13 @@ export function sampleEmailVariables(
     refundManual: null,
     walletLinks: trustedHtml(walletHtml, `${s.wallet}: https://wallet.example.org/pass`),
     ticketLinks: trustedHtml(ticketLinksHtml, ticketLinksText),
+    calendarLinks: trustedHtml(calendarHtml, calendarText),
+    directionsUrl: 'https://www.google.com/maps/search/?api=1&query=Sample%20Venue',
+    categoryName: s.category,
+    quantity: 2,
+    eventUrl: `${base}/events/sample`,
+    confirmUrl: `${base}/waitlist/confirm?token=sample`,
+    unsubscribeUrl: `${base}/waitlist/unsubscribe?token=sample`,
     ticketsAttached: 'yes',
     ticketsPdfUrl: `${base}/api/orders/sample/tickets?t=sample-token`,
     verificationUrl: `${base}/account/verify?token=sample`,
@@ -256,6 +278,23 @@ export function sampleEmailVariables(
     loginUrl: `${base}/account/login-link?token=sample`,
     inviteUrl: `${base}/admin/accept-invite?token=sample`,
     expiresAt: locale === 'de' ? '01.03.2026, 18:00 Uhr' : '1 March 2026, 6:00 PM',
+    alertTitle: locale === 'de' ? 'Sicherung fehlgeschlagen' : 'Backup failed',
+    alertSummary:
+      locale === 'de'
+        ? 'Die geplante Sicherung ist fehlgeschlagen: Speicher nicht erreichbar.'
+        : 'The scheduled backup failed: storage not reachable.',
+    alertSince: locale === 'de' ? '01.03.2026, 03:00 Uhr' : '1 March 2026, 3:00 AM',
+    alertUrl: `${base}/admin/backups`,
+    recipientName: locale === 'de' ? 'Robin Beispiel' : 'Robin Example',
+    senderName: `${s.firstName} ${s.lastName}`,
+    transferMessage: locale === 'de' ? 'Viel Spaß bei der Show!' : 'Enjoy the show!',
+    ticketPlace: s.seat,
+    ticketCode: 'SAMPLE-1',
+    ticketPageUrl: `${base}/tickets/sample-token`,
+    ticketPdfUrl: `${base}/api/tickets/sample/pdf?t=sample-token`,
+    appleWalletUrl: 'https://wallet.example.org/pass',
+    googleWalletUrl: 'https://wallet.example.org/pass',
+    newHolderEmail: 'robin.example@example.org',
     sentAt: locale === 'de' ? '01.03.2026, 12:00 Uhr' : '1 March 2026, 12:00 PM',
   };
   return variables;

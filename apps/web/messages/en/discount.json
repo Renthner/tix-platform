@@ -1,0 +1,19 @@
+{
+  "title": "Discount code",
+  "placeholder": "Enter code",
+  "apply": "Apply",
+  "remove": "Remove code {code}",
+  "line": "Discount code {codes}",
+  "errors": {
+    "INVALID": "This code is not valid.",
+    "NOT_STARTED": "This code is not valid yet.",
+    "EXPIRED": "This code has expired.",
+    "USAGE_LIMIT": "This code has been used up.",
+    "EMAIL_LIMIT": "You have already used this code the maximum number of times.",
+    "NOT_STACKABLE": "This code cannot be combined with another code.",
+    "NOT_VALID_FOR_ITEMS": "This code is not valid for the tickets in your cart.",
+    "MIN_ORDER_VALUE": "The minimum order value for this code is not reached.",
+    "RATE_LIMITED": "Too many attempts. Please wait a moment.",
+    "GENERIC": "The code could not be applied."
+  }
+}

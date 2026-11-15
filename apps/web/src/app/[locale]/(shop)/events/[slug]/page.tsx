@@ -3,14 +3,15 @@ import {
   effectiveCheckoutConfig,
   getDraftEventBySlug,
   getPublicSeatMap,
+  getLocalizedPublicSeatMap,
   getSetting,
   getShopAnnouncements,
+  getWaitlistOffer,
   getShopEventBySlug,
   getShopQueueConfig,
   localizeEventRow,
   localizeVenueRow,
   saleOpensAt,
-  type VenueRow,
 } from '@tix/core';
 import {
   INFO_BOX_ICON_PX,
@@ -18,10 +19,11 @@ import {
   normalizePageLayout,
   protectEmailsInHtml,
   publicPriceRanges,
+  venueMapsUrl,
   type InfoBoxSize,
   type PageBlockRef,
 } from '@tix/shared';
-import { CalendarDays, DoorOpen, ExternalLink, MapPin } from 'lucide-react';
+import { CalendarDays, CalendarPlus, DoorOpen, ExternalLink, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
@@ -29,6 +31,7 @@ import { cache, type CSSProperties, type ReactNode } from 'react';
 import { MediaImage } from '@/components/media-image';
 import { DraftBanner } from '@/components/shop/draft-banner';
 import { EventShop } from '@/components/shop/event-shop';
+import { WaitlistCard } from '@/components/shop/waitlist-card';
 import { Badge } from '@/components/ui/badge';
 import { resolveLocale } from '@/i18n/locale';
 import { cn } from '@/lib/utils';
@@ -48,18 +51,6 @@ import {
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ locale: string; slug: string }> };
-
-/** The venue's own Google Maps link, else a search link from coordinates / address. */
-function mapsUrl(venue: VenueRow): string {
-  if (venue.mapsUrl && /^https?:\/\//i.test(venue.mapsUrl)) return venue.mapsUrl;
-  const query =
-    venue.latitude !== null && venue.longitude !== null
-      ? `${venue.latitude},${venue.longitude}`
-      : [venue.name, venue.street, venue.postalCode, venue.city, venue.country]
-          .filter(Boolean)
-          .join(', ');
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
-}
 
 /**
  * Event, venue, cover and info box symbols of a slug from the shop data cache (tag invalidated
@@ -141,6 +132,20 @@ export default async function EventPage({ params }: Params) {
       getSetting(core, 'organizer'),
       headers().then((h) => h.get('x-nonce') ?? undefined),
     ]);
+  // Waiting list: offered while the event or a category is sold out. Never for drafts; an
+  // unreadable inventory must not break the page.
+  const waitlistOffer =
+    found.event.status === 'DRAFT' || !found.event.seatMapId
+      ? null
+      : await getLocalizedPublicSeatMap(core, found.event, content.locale)
+          .then((map) =>
+            getWaitlistOffer(
+              core,
+              found.event,
+              new Map(map.categories.map((c) => [c.id, c.name] as const)),
+            ),
+          )
+          .catch(() => null);
   const cover = found.cover;
   const base = publicBaseUrl();
   const isDraft = found.event.status === 'DRAFT';
@@ -214,7 +219,7 @@ export default async function EventPage({ params }: Params) {
             </span>
           )}
           <a
-            href={mapsUrl(venue)}
+            href={venueMapsUrl(venue)}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 underline-offset-4 hover:text-foreground hover:underline"
@@ -225,8 +230,24 @@ export default async function EventPage({ params }: Params) {
             <ExternalLink className="size-3" aria-hidden />
             <span className="sr-only">{t('showOnMap')}</span>
           </a>
+          <a
+            href={`/api/events/${event.id}/calendar.ics?locale=${content.locale}`}
+            className="flex items-center gap-2 underline-offset-4 hover:text-foreground hover:underline"
+          >
+            <CalendarPlus className="size-4" />
+            {t('addToCalendar')}
+          </a>
         </div>
       </div>
+
+      {waitlistOffer && (
+        <WaitlistCard
+          eventId={event.id}
+          soldOut={waitlistOffer.soldOut}
+          categories={waitlistOffer.categories}
+          maxTickets={waitlistOffer.maxTickets}
+        />
+      )}
 
       {layoutRows.map((row) => {
         const cells = row

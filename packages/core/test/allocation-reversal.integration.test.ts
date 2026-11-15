@@ -43,6 +43,7 @@ import {
   assignBankTransaction,
   backfillMissingTickets,
   cancelPaidOrder,
+  changeAttendeeName,
   createCoreContext,
   enterShop,
   findActiveInvoice,
@@ -56,6 +57,7 @@ import {
   rematchBankTransaction,
   reverseBankAllocation,
   saveSeatMapDocument,
+  transferTicket,
   type CoreContext,
   type DomainError,
   type EventRow,
@@ -475,6 +477,67 @@ describe.skipIf(!adminUrl || !redisUrl)('bank allocation reversal (integration)'
     const [, , fresh, finalNote] = await loadInvoices(a.orderId);
     expect(finalNote!.correctsInvoiceId).toBe(fresh!.id);
     expect(finalNote!.totalGross).toBe(-fresh!.totalGross);
+  });
+
+  it('keeps transfers and name changes through a reversal and a new payment, and tells the holder', async () => {
+    const a = await autoPaidOrder();
+    const admin = { type: 'ADMIN' as const, userId };
+    const [first, second] = await loadTickets(a.orderId);
+    const handed = await transferTicket(ctx, {
+      orderId: a.orderId,
+      ticketId: first!.id,
+      recipientName: 'Hanna Holder',
+      recipientEmail: 'hanna.reversal@example.invalid',
+      actor: admin,
+    });
+    await changeAttendeeName(ctx, {
+      orderId: a.orderId,
+      ticketId: second!.id,
+      name: 'Renamed Buyer',
+      actor: admin,
+    });
+    const keysOf = async (to: string) =>
+      (await handle.db.select().from(emailMessages).where(eq(emailMessages.toEmail, to)))
+        .map((m) => m.templateKey)
+        .sort();
+    expect(await keysOf('hanna.reversal@example.invalid')).toEqual(['TICKET_TRANSFER_RECEIVED']);
+
+    await reverse((await activeAllocation(a.txId)).id);
+    // The holder learns that the ticket is void for now.
+    expect(await keysOf('hanna.reversal@example.invalid')).toEqual([
+      'TICKET_HOLDER_CANCELLED',
+      'TICKET_TRANSFER_RECEIVED',
+    ]);
+    const [handedRow] = await handle.db
+      .select()
+      .from(tickets)
+      .where(eq(tickets.id, handed.newTicketId));
+    expect(handedRow!.status).toBe('CANCELLED');
+
+    // Paid again: the order-paid job re-issues the tickets - holder and names are kept.
+    const second2 = await insertCredit(a.total, 'Ticket again for holder');
+    await recordPayment(ctx, {
+      orderId: a.orderId,
+      amount: a.total,
+      currency: 'EUR',
+      method: 'BANK_TRANSFER',
+      bankTransactionId: second2,
+      actor: { type: 'SYSTEM' },
+    });
+    await processPaidOrder(ctx, a.orderId);
+    const valid = (await loadTickets(a.orderId)).filter((t) => t.status === 'VALID');
+    expect(valid).toHaveLength(2);
+    const held = valid.find((t) => t.holderEmail !== null)!;
+    expect(held).toMatchObject({
+      holderEmail: 'hanna.reversal@example.invalid',
+      attendeeName: 'Hanna Holder',
+    });
+    expect(valid.find((t) => t.holderEmail === null)!.attendeeName).toBe('Renamed Buyer');
+    expect(await keysOf('hanna.reversal@example.invalid')).toEqual([
+      'TICKET_HOLDER_CANCELLED',
+      'TICKET_HOLDER_UPDATED',
+      'TICKET_TRANSFER_RECEIVED',
+    ]);
   });
 
   it('lowers amountPaid for a partial payment of an awaiting order without touching items or invoices', async () => {

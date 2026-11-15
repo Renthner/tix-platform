@@ -4,7 +4,8 @@
     "BANK_TRANSFER": "Bank transfer (prepayment)",
     "CASH": "Cash",
     "CARD": "Card payment",
-    "COMPLIMENTARY": "Complimentary"
+    "COMPLIMENTARY": "Complimentary",
+    "FREE": "No payment due"
   },
   "items": {
     "seat": "Block {section} · Row {row} · Seat {seat}",
@@ -20,7 +21,8 @@
     "priceDifference": "Price difference",
     "creditApplied": "Credited from your earlier payment",
     "remainingToPay": "Still to pay",
-    "doorsOpen": "Doors open {time}"
+    "doorsOpen": "Doors open {time}",
+    "discount": "Discount code {codes}"
   },
   "invoice": {
     "title": "Invoice",
@@ -63,7 +65,8 @@
     },
     "fileName": "Invoice-{number}.pdf",
     "creditNoteFileName": "Credit-note-{number}.pdf",
-    "anonymousBuyer": "Walk-in customer"
+    "anonymousBuyer": "Walk-in customer",
+    "discountLine": "Discount code {codes}"
   },
   "ticket": {
     "date": "Date",
@@ -109,5 +112,100 @@
     "subjectPrefix": "[TEST]",
     "notice": "TEST ORDER – this e-mail belongs to a test order placed by an administrator. It is not a real purchase.",
     "watermark": "TEST ORDER"
+  },
+  "alerts": {
+    "BACKUP_FAILED": {
+      "failed": {
+        "title": "Backup failed",
+        "summary": "The last backup could not be completed: {reason}. Until a backup succeeds, recent changes are not protected."
+      },
+      "external": {
+        "title": "Backup upload to the external target failed",
+        "summary": "The backup was created locally but could not be uploaded to the external target: {reason}"
+      }
+    },
+    "BACKUP_OVERDUE": {
+      "last": {
+        "title": "No recent backup",
+        "summary": "The last successful backup is from {lastBackup}. A scheduled backup should have run within {hours} hours."
+      },
+      "never": {
+        "title": "No backup yet",
+        "summary": "Scheduled backups are switched on, but no backup has been created within {hours} hours."
+      }
+    },
+    "DISK_LOW": {
+      "filesystem": {
+        "title": "Disk space is running low ({path})",
+        "summary": "{usedPercent} % of {path} is used ({used} of {total}, {free} free) on the worker container."
+      },
+      "storage": {
+        "title": "Storage is almost full",
+        "summary": "The database and the files use {usedPercent} % of the configured capacity ({used} of {total}; database {database}, files {files})."
+      }
+    },
+    "JOBS_FAILING": {
+      "failed": {
+        "title": "Background jobs are failing",
+        "summary": "{count} background jobs failed within the last hour, most of them in the queue “{queue}”. Last error: {reason}"
+      },
+      "backlog": {
+        "title": "Background jobs are piling up",
+        "summary": "In the queue “{queue}” the oldest job has been waiting for {minutes} minutes. The worker may be stopped or overloaded."
+      }
+    },
+    "EMAIL_DELIVERY_FAILING": {
+      "default": {
+        "title": "E-mails cannot be delivered",
+        "summary": "{count} e-mails failed permanently within the last 24 hours. Last error: {reason}. Check the e-mail settings and send a test e-mail."
+      }
+    },
+    "REVIEW_CASES_OPEN": {
+      "default": {
+        "title": "Bank transactions need your review",
+        "summary": "{count} bank transactions have been waiting in the review list (Klärfälle) for several days."
+      }
+    },
+    "BANK_SYNC_FAILING": {
+      "failed": {
+        "title": "Bank sync is failing ({connection})",
+        "summary": "The connection “{connection}” could not be synchronised for several hours. Last error: {reason}"
+      },
+      "tan": {
+        "title": "Bank sync waits for a TAN ({connection})",
+        "summary": "The connection “{connection}” has been waiting for a TAN for several hours, so no new payments are imported."
+      }
+    },
+    "PAYMENT_PROVIDER_ERRORS": {
+      "credentials": {
+        "title": "PayPal rejects the stored credentials",
+        "summary": "PayPal ({environment}) rejected the client ID / secret. Payments and refunds with PayPal do not work until the credentials are corrected under Settings → Payments."
+      },
+      "refunds": {
+        "title": "Automatic refunds failed",
+        "summary": "{count} PayPal refunds failed. Last error: {reason}. Open the refunds list to retry or handle them manually."
+      }
+    },
+    "REFUNDS_OPEN": {
+      "default": {
+        "title": "Refunds are waiting for a transfer",
+        "summary": "{count} manual refunds have been open for several days. Transfer the money and mark them as done."
+      }
+    },
+    "UPDATE_AVAILABLE": {
+      "default": {
+        "title": "Update available: {latest}",
+        "summary": "Version {latest} is available (installed: {current})."
+      }
+    }
+  },
+  "calendar": {
+    "title": "Add to your calendar",
+    "ics": "Add to calendar (.ics)",
+    "google": "Google Calendar",
+    "directions": "Directions",
+    "doors": "Doors open {time}",
+    "organizer": "Organiser: {name}",
+    "eventPage": "Event page"
   }
 }

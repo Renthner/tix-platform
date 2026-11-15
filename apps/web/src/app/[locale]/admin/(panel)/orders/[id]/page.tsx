@@ -1,5 +1,7 @@
 import {
   getOrderAdminView,
+  holderTicketUrls,
+  listTicketChanges,
   getSetting,
   getTariffChangeOptions,
   listOrderAdjustments,
@@ -16,6 +18,10 @@ import { ConfirmAction } from '@/components/admin/confirm-action';
 import { ReverseAllocationButton } from '@/components/admin/banking/reverse-allocation';
 import { OrderAdminActions } from '@/components/admin/order-actions';
 import { OrderAdjustmentCard } from '@/components/admin/order-adjustment';
+import {
+  ResendHolderMailButton,
+  TicketSelfServiceActions,
+} from '@/components/shop/ticket-self-service';
 import { OrderStatusBadge } from '@/components/admin/order-badges';
 import { OrderTimeline } from '@/components/admin/order-timeline';
 import { OverpaymentCard, RefundBatchList } from '@/components/admin/refund-batches';
@@ -52,13 +58,15 @@ export default async function OrderDetailPage({
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const core = getCore();
-  const [view, refundBatches, checkout, adjustments, orderCredit] = await Promise.all([
-    getOrderAdminView(core, id),
-    listOrderRefundBatches(core, id),
-    getSetting(core, 'checkout'),
-    listOrderAdjustments(core, id),
-    getOrderCredit(core.db, id),
-  ]);
+  const [view, refundBatches, checkout, adjustments, orderCredit, ticketChanges] =
+    await Promise.all([
+      getOrderAdminView(core, id),
+      listOrderRefundBatches(core, id),
+      getSetting(core, 'checkout'),
+      listOrderAdjustments(core, id),
+      getOrderCredit(core.db, id),
+      listTicketChanges(core, id),
+    ]);
   if (!view) notFound();
   const { order } = view;
   // Real money was received on a test order: it cannot be deleted any more, only cancelled & hidden.
@@ -230,6 +238,15 @@ export default async function OrderDetailPage({
                       </span>
                     )}
                   </dd>
+                  {view.discounts.length > 0 && (
+                    <>
+                      <dt className="text-muted-foreground">{t('payment.discount')}</dt>
+                      <dd className="tabular-nums">
+                        {view.discounts.map((d) => d.code).join(', ')} · −
+                        {money(view.discounts.reduce((sum, d) => sum + d.amount, 0))}
+                      </dd>
+                    </>
+                  )}
                   <dt className="text-muted-foreground">{t('payment.total')}</dt>
                   <dd className="tabular-nums">{money(order.totalGross)}</dd>
                   <dt className="text-muted-foreground">{t('payment.paid')}</dt>
@@ -428,13 +445,55 @@ export default async function OrderDetailPage({
                                 }`
                               : '–'}
                           </TableCell>
-                          <TableCell>{ticket.attendeeName ?? '–'}</TableCell>
+                          <TableCell>
+                            {ticket.attendeeName ?? '–'}
+                            {ticket.holderEmail && (
+                              <span className="block text-xs text-muted-foreground">
+                                {ticket.holderEmail}
+                                {ticket.status === 'VALID' && (
+                                  <>
+                                    {' · '}
+                                    <a
+                                      className="underline"
+                                      data-slot="holder-ticket-link"
+                                      href={
+                                        holderTicketUrls(core, ticket, order.locale)?.page ?? '#'
+                                      }
+                                    >
+                                      {t('ticketChanges.recipientPage')}
+                                    </a>
+                                  </>
+                                )}
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             {t(`tickets.statuses.${ticket.status}`)}
                             {ticket.checkInState !== 'NONE' &&
                               ` · ${t(`tickets.checkIn.${ticket.checkInState}`)}`}
                           </TableCell>
                           <TableCell className="text-right" data-slot="ticket-downloads">
+                            {ticket.status === 'VALID' &&
+                              ticket.checkInState === 'NONE' &&
+                              (order.status === 'PAID' ||
+                                order.status === 'PARTIALLY_REFUNDED') && (
+                                <TicketSelfServiceActions
+                                  orderId={order.id}
+                                  token={null}
+                                  ticketId={ticket.id}
+                                  ticketCode={formatTicketCode(ticket.ticketCode)}
+                                  attendeeName={ticket.attendeeName}
+                                  canChangeName
+                                  canTransfer
+                                  admin
+                                  apiBase={`/api/admin/orders/${order.id}/tickets/${ticket.id}`}
+                                />
+                              )}
+                            {ticket.status === 'VALID' && ticket.holderEmail && (
+                              <ResendHolderMailButton
+                                apiBase={`/api/admin/orders/${order.id}/tickets/${ticket.id}`}
+                              />
+                            )}
                             {ticket.status === 'VALID' && (
                               <Button asChild variant="ghost" size="sm">
                                 <a href={`/api/admin/orders/${order.id}/tickets/${ticket.id}`}>
@@ -449,6 +508,43 @@ export default async function OrderDetailPage({
                     })}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {ticketChanges.length > 0 && (
+            <Card data-testid="ticket-changes">
+              <CardHeader>
+                <CardTitle>{t('ticketChanges.title')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="divide-y text-sm">
+                  {ticketChanges.map((c) => (
+                    <li key={c.id} className="py-2">
+                      <div className="font-medium">
+                        {c.kind === 'TRANSFER'
+                          ? t('ticketChanges.transfer', {
+                              name: c.newName ?? '–',
+                              email: c.recipientEmail ?? '–',
+                            })
+                          : t('ticketChanges.name', {
+                              from: c.oldName ?? '–',
+                              to: c.newName ?? '–',
+                            })}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {format.dateTime(c.createdAt, { dateStyle: 'medium', timeStyle: 'short' })}
+                        {' · '}
+                        {t(
+                          c.actor === 'ADMIN'
+                            ? 'ticketChanges.byAdmin'
+                            : 'ticketChanges.byCustomer',
+                        )}
+                        {c.message ? ` · "${c.message}"` : ''}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           )}

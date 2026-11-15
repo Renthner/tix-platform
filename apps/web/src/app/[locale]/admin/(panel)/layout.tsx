@@ -45,6 +45,8 @@ export default async function AdminPanelLayout({
         'editor',
         'orders',
         'fees',
+        'discounts',
+        'discount',
         'emailTemplates',
         'ticketDesigner',
         'adminSecurity',

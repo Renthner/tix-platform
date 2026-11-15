@@ -504,6 +504,14 @@ export interface EventSalesValues {
   customerAccountsEnabled: boolean | null;
   /** true = hidden from search engines. */
   seoNoindex: boolean;
+  /** Waiting list when sold out; null = global setting. */
+  waitlistEnabled: boolean | null;
+  /** Ticket self-service: null = inherit, false = off, true = on with the own values. */
+  selfServiceEnabled: boolean | null;
+  selfServiceAllowNameChange: boolean | null;
+  selfServiceAllowTransfer: boolean | null;
+  selfServiceDeadlineHours: number | null;
+  selfServiceMaxChanges: number | null;
 }
 
 export interface GlobalCheckoutDefaults {
@@ -523,6 +531,14 @@ export interface GlobalCheckoutDefaults {
   bankTransferCancelAfterDays: number | null;
   bankTransferDisableDaysBeforeEvent: number;
   customerAccountsEnabled: boolean;
+  waitlistEnabled: boolean;
+  selfService: {
+    enabled: boolean;
+    allowNameChange: boolean;
+    allowTransfer: boolean;
+    deadlineHoursBeforeStart: number;
+    maxChangesPerTicket: number | null;
+  };
 }
 
 export function EventSalesForm({
@@ -584,7 +600,8 @@ export function EventSalesForm({
       | 'bestAvailableEnabled'
       | 'companionRequiresWheelchair'
       | 'paypalEnabled'
-      | 'bankTransferEnabled',
+      | 'bankTransferEnabled'
+      | 'waitlistEnabled',
     label: string = t(name as never),
   ) => (
     <Field label={label} htmlFor={name}>
@@ -755,6 +772,108 @@ export function EventSalesForm({
             </NativeSelect>
           </Field>
         </div>
+      </section>
+
+      <section className="space-y-3" data-slot="self-service-settings">
+        <h3 className="text-sm font-medium">{t('selfService.title')}</h3>
+        <p className="text-xs text-muted-foreground">{t('selfService.hint')}</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label={t('selfService.mode')} htmlFor="selfServiceMode">
+            <NativeSelect
+              id="selfServiceMode"
+              name="selfServiceMode"
+              defaultValue={
+                initial.selfServiceEnabled === null
+                  ? 'inherit'
+                  : initial.selfServiceEnabled
+                    ? 'on'
+                    : 'off'
+              }
+            >
+              <option value="inherit">
+                {inherit(globals.selfService.enabled ? tcm('on') : tcm('off'))}
+              </option>
+              <option value="on">{t('selfService.own')}</option>
+              <option value="off">{tcm('off')}</option>
+            </NativeSelect>
+          </Field>
+          <Field label={t('selfService.allowNameChange')} htmlFor="selfServiceAllowNameChange">
+            <NativeSelect
+              id="selfServiceAllowNameChange"
+              name="selfServiceAllowNameChange"
+              defaultValue={
+                initial.selfServiceAllowNameChange === null
+                  ? 'inherit'
+                  : initial.selfServiceAllowNameChange
+                    ? 'on'
+                    : 'off'
+              }
+            >
+              <option value="inherit">
+                {inherit(globals.selfService.allowNameChange ? tcm('on') : tcm('off'))}
+              </option>
+              <option value="on">{tcm('on')}</option>
+              <option value="off">{tcm('off')}</option>
+            </NativeSelect>
+          </Field>
+          <Field label={t('selfService.allowTransfer')} htmlFor="selfServiceAllowTransfer">
+            <NativeSelect
+              id="selfServiceAllowTransfer"
+              name="selfServiceAllowTransfer"
+              defaultValue={
+                initial.selfServiceAllowTransfer === null
+                  ? 'inherit'
+                  : initial.selfServiceAllowTransfer
+                    ? 'on'
+                    : 'off'
+              }
+            >
+              <option value="inherit">
+                {inherit(globals.selfService.allowTransfer ? tcm('on') : tcm('off'))}
+              </option>
+              <option value="on">{tcm('on')}</option>
+              <option value="off">{tcm('off')}</option>
+            </NativeSelect>
+          </Field>
+          <Field
+            label={t('selfService.deadlineHours')}
+            htmlFor="selfServiceDeadlineHours"
+            error={err('selfServiceDeadlineHours')}
+            hint={inherit(globals.selfService.deadlineHoursBeforeStart)}
+          >
+            <Input
+              id="selfServiceDeadlineHours"
+              name="selfServiceDeadlineHours"
+              type="number"
+              min={0}
+              max={8760}
+              defaultValue={initial.selfServiceDeadlineHours ?? ''}
+              placeholder={String(globals.selfService.deadlineHoursBeforeStart)}
+            />
+          </Field>
+          <Field
+            label={t('selfService.maxChanges')}
+            htmlFor="selfServiceMaxChanges"
+            error={err('selfServiceMaxChanges')}
+            hint={inherit(globals.selfService.maxChangesPerTicket)}
+          >
+            <Input
+              id="selfServiceMaxChanges"
+              name="selfServiceMaxChanges"
+              type="number"
+              min={0}
+              max={100}
+              defaultValue={initial.selfServiceMaxChanges ?? ''}
+              placeholder={String(globals.selfService.maxChangesPerTicket ?? '')}
+            />
+          </Field>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-medium">{t('waitlist')}</h3>
+        <p className="text-xs text-muted-foreground">{t('waitlistHint')}</p>
+        <div className="grid gap-4 md:grid-cols-2">{triField('waitlistEnabled')}</div>
       </section>
 
       <section className="space-y-3">

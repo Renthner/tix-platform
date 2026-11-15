@@ -83,6 +83,42 @@
     "ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT": {
       "name": "Tariff changed – settled with credit",
       "description": "Sent when a tariff change is settled completely with an overpayment the customer already made: nothing to pay, old and new tariff per ticket, invoice correction and new tickets attached."
+    },
+    "ADMIN_ALERT": {
+      "name": "Admin warning",
+      "description": "Warning e-mail to admins when something needs attention (backup, disk, failed jobs, bank …)."
+    },
+    "ADMIN_ALERT_RESOLVED": {
+      "name": "Admin warning: resolved",
+      "description": "Short note that a warning has cleared by itself."
+    },
+    "WAITLIST_CONFIRM": {
+      "name": "Waiting list: confirm e-mail",
+      "description": "Double opt-in: link to confirm a waiting list entry."
+    },
+    "WAITLIST_AVAILABLE": {
+      "name": "Waiting list: tickets available",
+      "description": "Sent to everybody on the waiting list when tickets become available again."
+    },
+    "WAITLIST_REMOVED": {
+      "name": "Waiting list: removed",
+      "description": "Sent when an admin removes somebody from the waiting list."
+    },
+    "TICKET_TRANSFER_RECEIVED": {
+      "name": "Ticket passed on to you",
+      "description": "Sent to the recipient of a transferred ticket: ticket page, PDF and wallet links, optional message of the sender. Contains no order data."
+    },
+    "TICKET_TRANSFER_SENT": {
+      "name": "Ticket passed on – confirmation",
+      "description": "Sent to the buyer after they passed a ticket on: who received it and that the old QR code is no longer valid."
+    },
+    "TICKET_HOLDER_UPDATED": {
+      "name": "Ticket updated (recipient)",
+      "description": "Sent to the holder of a handed-over ticket when its QR code changed (seat or tariff change, key rotation, payment re-booked). Contains no order data."
+    },
+    "TICKET_HOLDER_CANCELLED": {
+      "name": "Ticket no longer valid (recipient)",
+      "description": "Sent to the holder of a handed-over ticket when the ticket was cancelled, refunded or reassigned. Contains no order data."
     }
   },
   "page": {
@@ -145,7 +181,10 @@
       "tickets": "Tickets",
       "account": "Account links",
       "smtpTest": "Test",
-      "adjustment": "Additional payment"
+      "adjustment": "Additional payment",
+      "alert": "Admin alert",
+      "waitlist": "Waiting list",
+      "transfer": "Ticket transfer"
     }
   },
   "preview": {

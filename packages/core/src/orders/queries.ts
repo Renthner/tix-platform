@@ -6,6 +6,7 @@ import {
   events,
   invoices,
   invoiceSupersessions,
+  orderDiscounts,
   orderFees,
   orderHistory,
   orderItems,
@@ -54,6 +55,8 @@ export interface OrderEventView {
     ticketTypeName: string;
     unitPriceGross: number;
     discountAmount: number;
+    /** Share of discount codes (already deducted from `priceGross`). */
+    codeDiscountAmount: number;
     priceGross: number;
   }[];
 }
@@ -66,6 +69,8 @@ export interface OrderTicketView {
   status: TicketStatus;
   checkInState: CheckInState;
   attendeeName: string | null;
+  /** Set when the ticket was handed over to someone else (the buyer has no QR / download for it). */
+  holderEmail: string | null;
 }
 
 /** Open additional payment (tariff change) as the customer sees it on the order page. */
@@ -102,6 +107,8 @@ export interface OrderView {
     quantity: number;
     totalGross: number;
   }[];
+  /** Discount codes used by the order (tickets + discounted fees), in the order applied. */
+  discounts: { code: string; amount: number }[];
   taxes: { rateBasisPoints: number; net: number; tax: number }[];
   /** All tickets of the order, issued ones first (REPLACED history included). */
   tickets: OrderTicketView[];
@@ -136,72 +143,79 @@ export interface OrderView {
 export async function getOrderView(ctx: CoreContext, orderId: string): Promise<OrderView | null> {
   const [order] = await ctx.db.select().from(orders).where(eq(orders.id, orderId));
   if (!order) return null;
-  const [itemRows, feeRows, invoiceRows, ticketRows, account, paypalSettings] = await Promise.all([
-    ctx.db
-      .select({
-        item: orderItems,
-        event: {
-          id: events.id,
-          slug: events.slug,
-          title: events.title,
-          translations: events.translations,
-          startsAt: events.startsAt,
-          timeZone: events.timeZone,
-        },
-        venueName: venues.name,
-        venueTranslations: venues.translations,
-      })
-      .from(orderItems)
-      .innerJoin(events, eq(events.id, orderItems.eventId))
-      .innerJoin(venues, eq(venues.id, events.venueId))
-      .where(eq(orderItems.orderId, orderId))
-      .orderBy(...placeOrderBy()),
-    ctx.db
-      .select()
-      .from(orderFees)
-      .where(eq(orderFees.orderId, orderId))
-      .orderBy(asc(orderFees.createdAt)),
-    ctx.db
-      .select({
-        id: invoices.id,
-        type: invoices.type,
-        invoiceNumber: invoices.invoiceNumber,
-        issuedAt: invoices.issuedAt,
-        correctsInvoiceId: invoices.correctsInvoiceId,
-      })
-      .from(invoices)
-      .where(eq(invoices.orderId, orderId))
-      .orderBy(asc(invoices.issuedAt)),
-    ctx.db
-      .select({
-        id: tickets.id,
-        orderItemId: tickets.orderItemId,
-        ticketCode: tickets.ticketCode,
-        status: tickets.status,
-        checkInState: tickets.checkInState,
-        attendeeName: tickets.attendeeName,
-      })
-      .from(tickets)
-      .innerJoin(orderItems, eq(orderItems.id, tickets.orderItemId))
-      .innerJoin(events, eq(events.id, orderItems.eventId))
-      .where(eq(tickets.orderId, orderId))
-      .orderBy(...placeOrderBy(), asc(tickets.issuedAt), asc(tickets.ticketCode)),
-    order.paymentMethod === 'BANK_TRANSFER'
-      ? ctx.db
-          .select({
-            accountHolder: bankAccounts.accountHolder,
-            iban: bankAccounts.iban,
-            bic: bankAccounts.bic,
-            bankName: bankAccounts.bankName,
-          })
-          .from(bankAccounts)
-          .where(
-            and(eq(bankAccounts.isDefaultForBankTransfer, true), eq(bankAccounts.isActive, true)),
-          )
-          .limit(1)
-      : Promise.resolve([]),
-    getSetting(ctx, 'paypal'),
-  ]);
+  const [itemRows, feeRows, invoiceRows, ticketRows, account, paypalSettings, discountRows] =
+    await Promise.all([
+      ctx.db
+        .select({
+          item: orderItems,
+          event: {
+            id: events.id,
+            slug: events.slug,
+            title: events.title,
+            translations: events.translations,
+            startsAt: events.startsAt,
+            timeZone: events.timeZone,
+          },
+          venueName: venues.name,
+          venueTranslations: venues.translations,
+        })
+        .from(orderItems)
+        .innerJoin(events, eq(events.id, orderItems.eventId))
+        .innerJoin(venues, eq(venues.id, events.venueId))
+        .where(eq(orderItems.orderId, orderId))
+        .orderBy(...placeOrderBy()),
+      ctx.db
+        .select()
+        .from(orderFees)
+        .where(eq(orderFees.orderId, orderId))
+        .orderBy(asc(orderFees.createdAt)),
+      ctx.db
+        .select({
+          id: invoices.id,
+          type: invoices.type,
+          invoiceNumber: invoices.invoiceNumber,
+          issuedAt: invoices.issuedAt,
+          correctsInvoiceId: invoices.correctsInvoiceId,
+        })
+        .from(invoices)
+        .where(eq(invoices.orderId, orderId))
+        .orderBy(asc(invoices.issuedAt)),
+      ctx.db
+        .select({
+          id: tickets.id,
+          orderItemId: tickets.orderItemId,
+          ticketCode: tickets.ticketCode,
+          status: tickets.status,
+          checkInState: tickets.checkInState,
+          attendeeName: tickets.attendeeName,
+          holderEmail: tickets.holderEmail,
+        })
+        .from(tickets)
+        .innerJoin(orderItems, eq(orderItems.id, tickets.orderItemId))
+        .innerJoin(events, eq(events.id, orderItems.eventId))
+        .where(eq(tickets.orderId, orderId))
+        .orderBy(...placeOrderBy(), asc(tickets.issuedAt), asc(tickets.ticketCode)),
+      order.paymentMethod === 'BANK_TRANSFER'
+        ? ctx.db
+            .select({
+              accountHolder: bankAccounts.accountHolder,
+              iban: bankAccounts.iban,
+              bic: bankAccounts.bic,
+              bankName: bankAccounts.bankName,
+            })
+            .from(bankAccounts)
+            .where(
+              and(eq(bankAccounts.isDefaultForBankTransfer, true), eq(bankAccounts.isActive, true)),
+            )
+            .limit(1)
+        : Promise.resolve([]),
+      getSetting(ctx, 'paypal'),
+      ctx.db
+        .select({ code: orderDiscounts.code, amount: orderDiscounts.amount })
+        .from(orderDiscounts)
+        .where(eq(orderDiscounts.orderId, orderId))
+        .orderBy(asc(orderDiscounts.position)),
+    ]);
 
   const correctionIds = new Set(
     invoiceRows.length > 0
@@ -251,6 +265,7 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
       ticketTypeName: item.ticketTypeName,
       unitPriceGross: item.unitPriceGross,
       discountAmount: item.discountAmount,
+      codeDiscountAmount: item.codeDiscountAmount,
       priceGross: item.priceGross,
     });
   }
@@ -298,6 +313,7 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
       quantity: f.quantity,
       totalGross: f.totalGross,
     })),
+    discounts: discountRows,
     taxes: [...taxes.entries()]
       .sort((a, b) => b[0] - a[0])
       .map(([rateBasisPoints, v]) => ({ rateBasisPoints, ...v })),

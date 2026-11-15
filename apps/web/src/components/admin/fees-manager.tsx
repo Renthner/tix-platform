@@ -3,7 +3,7 @@
 import {
   FEE_CALCULATIONS,
   FEE_SCOPES,
-  PAYMENT_METHODS,
+  FEE_PAYMENT_METHODS,
   SALES_CHANNELS,
   exampleFeeAmount,
   formatHundredths,
@@ -340,7 +340,7 @@ function FeeFields({
       ? ''
       : formatHundredths(initial.value, initial.calculation === 'PERCENT' ? 'percent' : 'money');
   const rateOptions = taxRates.filter((r) => r.isActive || r.id === initial?.taxRateId);
-  const methods = initial?.paymentMethods ?? PAYMENT_METHODS;
+  const methods = initial?.paymentMethods ?? FEE_PAYMENT_METHODS;
   const channels = initial?.channels?.length ? initial.channels : (['ONLINE'] as const);
 
   return (
@@ -428,7 +428,7 @@ function FeeFields({
       <CheckboxGroup
         legend={t('form.paymentMethods')}
         name="paymentMethods"
-        options={PAYMENT_METHODS.map((m) => ({ value: m, label: t(`methods.${m}`) }))}
+        options={FEE_PAYMENT_METHODS.map((m) => ({ value: m, label: t(`methods.${m}`) }))}
         checked={methods}
         error={err('paymentMethods') ? t('form.selectionRequired') : undefined}
       />

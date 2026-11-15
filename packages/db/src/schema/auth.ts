@@ -42,6 +42,8 @@ export const adminUsers = pgTable(
     passwordChangedAt: tstz('password_changed_at'),
     /** Personal dashboard settings (`DashboardPreferences` in @tix/shared): card order, status filter. */
     dashboardPreferences: jsonb('dashboard_preferences'),
+    /** Warning e-mails the user wants (`AlertPreferences` in @tix/shared); NULL = defaults of the roles. */
+    alertPreferences: jsonb('alert_preferences'),
     ...timestamps(),
   },
   (t) => [
@@ -141,5 +143,39 @@ export const auditLogs = pgTable(
     index('audit_logs_entity_idx').on(t.entityType, t.entityId, t.createdAt),
     index('audit_logs_actor_idx').on(t.actorUserId, t.createdAt),
     index('audit_logs_created_idx').on(t.createdAt),
+  ],
+);
+
+/**
+ * History of the admin warning e-mails ("alerts"): one row per occurrence of a problem. While a
+ * problem lasts there is one open row per `alert_key` (the partial unique index is the de-duplication
+ * guard); it is closed (`resolved_at`) when the check no longer finds it.
+ */
+export const adminAlerts = pgTable(
+  'admin_alerts',
+  {
+    id: id(),
+    /** One of `ADMIN_ALERT_TYPES` (@tix/shared). */
+    type: text('type').notNull(),
+    /** Identifies the problem inside its type (e.g. `BANK_SYNC_FAILING:<connection id>`, `BACKUP_FAILED:<failure time>`). */
+    alertKey: text('alert_key').notNull(),
+    /** Machine-readable parameters of the last evaluation (rendered into the mail in the recipient's language). */
+    details: jsonb('details').$type<Record<string, string | number | null>>().notNull().default({}),
+    /** Moment the problem started according to the check (falls back to the first evaluation). */
+    firstSeenAt: tstz('first_seen_at').notNull().defaultNow(),
+    lastSeenAt: tstz('last_seen_at').notNull().defaultNow(),
+    /** NULL = never mailed yet (rate limit, no recipients, alerting off). */
+    lastSentAt: tstz('last_sent_at'),
+    sendCount: integer('send_count').notNull().default(0),
+    resolvedAt: tstz('resolved_at'),
+    /** The "resolved" mail went out (only attempted for alerts that had been mailed). */
+    resolvedSentAt: tstz('resolved_sent_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('admin_alerts_open_key_uq')
+      .on(t.alertKey)
+      .where(sql`${t.resolvedAt} IS NULL`),
+    index('admin_alerts_first_seen_idx').on(t.firstSeenAt),
   ],
 );

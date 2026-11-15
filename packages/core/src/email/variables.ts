@@ -20,6 +20,7 @@ import { formatDate, formatDateTime, formatIban, formatMoney, formatTime } from 
 import { mailTranslator, type MailTranslator } from '../i18n/mail-messages';
 import { orderAccessToken, orderUrl } from '../orders/access';
 import { getSetting } from '../settings';
+import { calendarVariables } from '../calendar/email';
 import { ticketLinksVariable } from '../tickets/email-links';
 import { walletLinksVariable } from '../wallet/links';
 import { escapeHtml, trustedHtml, type TemplateVariables } from './template';
@@ -110,11 +111,47 @@ export const EMAIL_VARIABLES = {
   /**
    * PAYMENT_RECEIVED_TICKETS / TICKETS_RESENT: `walletLinks` is generated HTML (empty when wallet passes are off),
    * `ticketLinks` one block per valid ticket (single PDF + wallet buttons), `ticketsPdfUrl` the combined tickets PDF
-   * download (empty without valid tickets), `ticketsAttached` "yes" when the tickets PDF is attached (set on delivery).
+   * download (empty without valid tickets), `ticketsAttached` "yes" when the tickets PDF is attached (set on delivery),
+   * `calendarLinks` per event .ics / Google Calendar / directions buttons, `directionsUrl` the Google Maps link of the
+   * first event's venue.
    */
-  tickets: ['walletLinks', 'ticketLinks', 'ticketsPdfUrl', 'ticketsAttached'],
+  tickets: [
+    'walletLinks',
+    'ticketLinks',
+    'ticketsPdfUrl',
+    'ticketsAttached',
+    'calendarLinks',
+    'directionsUrl',
+  ],
+  /** TICKET_TRANSFER_RECEIVED / TICKET_TRANSFER_SENT (passed by the transfer flow). */
+  transfer: [
+    'recipientName',
+    'senderName',
+    'transferMessage',
+    'ticketPlace',
+    'ticketCode',
+    'ticketPageUrl',
+    'ticketPdfUrl',
+    'appleWalletUrl',
+    'googleWalletUrl',
+    'newHolderEmail',
+  ],
   account: ['verificationUrl', 'resetUrl', 'loginUrl', 'inviteUrl', 'expiresAt'],
   smtpTest: ['sentAt'],
+  /** ADMIN_ALERT / ADMIN_ALERT_RESOLVED (warning e-mails to admins). */
+  alert: ['firstName', 'alertTitle', 'alertSummary', 'alertSince', 'alertUrl'],
+  /** WAITLIST_CONFIRM / _AVAILABLE / _REMOVED: passed with the message (no order). */
+  waitlist: [
+    'eventTitle',
+    'eventDate',
+    'eventVenue',
+    'eventUrl',
+    'confirmUrl',
+    'unsubscribeUrl',
+    'categoryName',
+    'quantity',
+    'expiresAt',
+  ],
 } as const;
 
 export interface ShopContext {
@@ -234,6 +271,7 @@ export async function orderVariables(
     walletLinks: await walletLinksVariable(ctx, order.id, locale),
     ticketLinks: await ticketLinksVariable(ctx, order.id, locale),
     ticketsPdfUrl: await ticketsPdfUrl(ctx, order.id),
+    ...(await calendarVariables(ctx, order.id, locale)),
   };
 }
 
@@ -284,11 +322,20 @@ function itemsTable(
       const what = describeOrderItem(item, t);
       const detail = [item.categoryName, item.ticketTypeName].filter(Boolean).join(' · ');
       html.push(
-        `<tr><td style="${CELL}">${escapeHtml(what)}<br><span style="color:#52525b;font-size:13px">${escapeHtml(detail)}</span></td><td align="right" style="${CELL};white-space:nowrap">${escapeHtml(money(item.priceGross))}</td></tr>`,
+        `<tr><td style="${CELL}">${escapeHtml(what)}<br><span style="color:#52525b;font-size:13px">${escapeHtml(detail)}</span></td><td align="right" style="${CELL};white-space:nowrap">${escapeHtml(money(item.priceGross + item.codeDiscountAmount))}</td></tr>`,
       );
-      text.push(`  - ${what} (${detail}): ${money(item.priceGross)}`);
+      text.push(`  - ${what} (${detail}): ${money(item.priceGross + item.codeDiscountAmount)}`);
     }
     text.push('');
+  }
+  // Discount codes: tickets are listed at their price before the code, the discount is its own line.
+  const codeDiscount = items.reduce((sum, i) => sum + i.codeDiscountAmount, 0);
+  if (codeDiscount > 0) {
+    const label = t('items.discount', { codes: data.discounts.map((d) => d.code).join(', ') });
+    html.push(
+      `<tr><td style="${CELL}">${escapeHtml(label)}</td><td align="right" style="${CELL};white-space:nowrap">${escapeHtml(`−${money(codeDiscount)}`)}</td></tr>`,
+    );
+    text.push(`${label}: −${money(codeDiscount)}`, '');
   }
   const fees = data.fees.filter((f) => f.totalGross > 0);
   if (fees.length > 0) {

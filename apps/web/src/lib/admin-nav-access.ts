@@ -16,6 +16,7 @@ export const NAV_ACCESS: readonly (readonly [NavKey, readonly AdminRole[]])[] = 
   ['refunds', ['FINANCE']],
   ['accounting', ['FINANCE']],
   ['fees', ['FINANCE', 'EVENT_MANAGER']],
+  ['discounts', ['FINANCE', 'EVENT_MANAGER']],
   ['emailTemplates', ['SUPER_ADMIN']],
   ['ticketTemplates', ['EVENT_MANAGER']],
   ['venues', ['EVENT_MANAGER']],

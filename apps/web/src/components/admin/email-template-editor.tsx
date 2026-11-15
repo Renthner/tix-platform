@@ -51,7 +51,9 @@ const GROUP_ORDER: EmailVariableGroup[] = [
   'tickets',
   'customer',
   'account',
+  'waitlist',
   'smtpTest',
+  'alert',
   'shop',
 ];
 

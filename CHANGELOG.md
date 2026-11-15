@@ -8,6 +8,73 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.23] - 2026-11-15
+
+### Changed
+
+- **Ticket self-service after review:** once a ticket has been transferred only its current holder can
+  pass it on (holder ticket page, same deadline / limits / policy); the buyer can no longer rename or
+  re-transfer it. Admins can always intervene, including handing the ticket back to the buyer (admin
+  "transfer" to the buyer's address). The buyer check covers the order e-mail and the owning account's
+  e-mail. Hard caps (10 transfers per seat, 20 per order and 5 per recipient address per 24 h) apply
+  regardless of the settings; neutral subject, escaped message with line breaks. Holders get "ticket
+  updated" / "ticket no longer valid" e-mails (`TICKET_HOLDER_UPDATED`, `TICKET_HOLDER_CANCELLED`) on
+  re-issue, cancellation, refund and reversal; refunds always go to the buyer. A bank allocation
+  reversal followed by a new payment keeps holders and names. The old Google Wallet object is set
+  INACTIVE. Event override "0 = unlimited changes". GDPR erasure finds holder mails by order and keeps
+  the holder address of still valid tickets. "Resend tickets" and box-office counts include handed-over
+  tickets. Migration 0039 extended (not deployed).
+- **Discount codes after review:** re-submitting the checkout of a cart with a single-use code returns
+  the existing order instead of "code already used" (the order of the same cart is not another use);
+  the code endpoint has a per-IP limit; a fee reduced by a code is invoiced as one line (quantity in
+  the description) so unit price x quantity equals the total; the invoice's discount line names only
+  the codes that took something off that ticket (`order_items.code_discount_codes`); orders of 0 EUR
+  get the payment method `FREE` (statistics no longer count them as PayPal).
+
+### Added
+
+- **Accessible seat selection (WCAG 2.2 AA):** the shop seating plan is now a keyboard widget. Tab
+  enters the plan on the last focused (initially the first available) seat; arrow keys move to the
+  neighbouring seat (same row left/right, row above/below nearest by x), Home/End jump to the row
+  ends, Page Up/Down change the section, Enter/Space select or release a seat (same server calls and
+  rules as a click), Escape leaves the plan, +/- zoom. The focused seat is panned into view and has a
+  visible focus ring (dark ring with white halo on the always-light sheet). Every seat has an
+  accessible name (block, row, seat, wheelchair/companion type, category and price range, state
+  available/selected/not available); a polite live region announces selections, releases and errors,
+  and realtime changes of the focused seat only. Decorative plan layers are hidden from screen
+  readers. New "List instead of plan" view: sections, rows and available seats as buttons with a
+  category filter and a wheelchair/companion filter, sharing the selection with the plan. Zoom
+  changes are instant, so `prefers-reduced-motion` needs no special handling (en/de).
+- **Admin warning e-mails:** a worker job (every 5 minutes, leader-elected) checks for failed or overdue backups, low disk / storage, failing background jobs or backlog, undeliverable e-mails, old bank review cases, failing bank sync or pending TAN, PayPal credential errors and failed refunds, open manual refunds and (opt-in) updates. Each admin chooses the warnings on the account page (role defaults: super admin everything except updates, finance the money topics, event managers none). Thresholds, cooldown, hourly cap, digest time and a master switch live in Settings → Notifications; the texts are editable e-mail templates (`ADMIN_ALERT`, `ADMIN_ALERT_RESOLVED`, en + de); a short "resolved" mail follows when a warning clears. The System page lists the last 50 warnings. Migration 0039.
+- **Waiting list:** a sold-out event (or a sold-out price category) offers "Join the waiting list" on
+  the event page: e-mail, optional name, number of tickets, optional category. Double opt-in
+  confirmation e-mail; per-IP, per-session and per-address limits plus a honeypot (no captcha). The
+  worker checks events with confirmed entries (debounced per event, setting "Availability check
+  interval", default 2 min) and, when tickets become available again (cancellation, expiry, refund,
+  released or added seats), notifies every matching entry at once - first come, first served, no seats
+  reserved. An entry is notified at most once per availability wave (it is re-armed when its wish is
+  sold out again, with a configurable pause), is removed once the address bought, and stays on the list
+  otherwise. Admin: Settings -> Checkout "Waiting list" (global default on), per-event override and
+  entry list with CSV export, "Notify now" and removal in the event tab "Sales". E-mail templates
+  `WAITLIST_CONFIRM`, `WAITLIST_AVAILABLE`, `WAITLIST_REMOVED` (en/de, editable). Privacy: entries are
+  deleted by the retention job once the event started (unconfirmed ones after the confirmation period),
+  with the customer erasure, via the unsubscribe link and admin removal; they are part of the GDPR
+  export; removals are kept as bare ids in the `retained` ledger so a restore re-applies them.
+  Migration 0039.
+- **Add to calendar and directions:** `/api/events/<id>/calendar.ics` and
+  `/api/orders/<id>/calendar.ics` (RFC 5545, UTC times, folded lines, escaped text, organiser, event
+  page URL, coordinates), "Add to calendar" on the event page, and calendar (.ics), Google Calendar and
+  directions buttons on the shop order page and in the ticket e-mails. New template variables
+  `{{calendarLinks}}` and `{{directionsUrl}}` (default "payment received" and "tickets resent"
+  templates; unedited earlier defaults are upgraded by fingerprint). New setting General -> "Calendar
+  entry length" for events without an end time. The venue map link helper is shared (`venueMapsUrl`).
+- **Discount codes** (admin -> Discount codes, EVENT_MANAGER / FINANCE): fixed amount per order or percent of the eligible ticket prices; scope all / selected events, optional price categories and tariffs; validity window, max. total uses, max. uses per customer e-mail, minimum value, optional discount on fees, stackable (default: one code per order), internal note; bulk generation of single-use codes with CSV export; usage list and statistics per code. Shop: "Discount code" field in cart and checkout with translated errors; the discount is its own line in cart, checkout, order page, e-mails and the invoice PDF. Usage limits are enforced atomically when the order is placed (code rows locked, one winner for the last use); cancelled / expired / fully refunded orders release the use; test orders never count. Orders that cost 0 EUR (100 % discount) are paid immediately without payment reference. Migration 0039 (`discount_codes`, `order_discounts`, `code_discount_*` columns). Accounting: revenue is booked net of discount, see docs/ACCOUNTING.md.
+- **Customer self-service for tickets:** buyers can change the attendee name of a ticket and pass a
+  ticket on to someone else from the order page (new QR code, the old one is rejected RED at the
+  entrance after the next scanner sync; recipient gets a ticket-only link by e-mail). Off by default;
+  global setting (Settings → Customer accounts) with deadline and change limit, per-event override in
+  the Sales tab. Admins can do both without limits; the admin order page lists the history. Migration 0039.
+
 ## [1.0.0-alpha.22] - 2026-11-14
 
 ### Added

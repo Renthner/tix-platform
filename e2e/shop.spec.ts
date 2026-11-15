@@ -119,4 +119,31 @@ test('cart: reservation timer and tariff change; checkout by bank transfer creat
   await page.waitForURL(/\/orders\//, { timeout: 30_000 });
   await expect(page.getByText(/TIX-\d{4}-\d+-\d/).first()).toBeVisible();
   await expect(page.getByText('DE89 3704 0044 0532 0130 00').first()).toBeVisible();
+
+  // Calendar + directions: .ics download (text/calendar), Google Calendar, Google Maps.
+  const calendar = page.locator('[data-slot="order-calendar"]');
+  await expect(calendar).toBeVisible();
+  const ics = await calendar
+    .getByRole('link', { name: /Add to calendar/i })
+    .first()
+    .getAttribute('href');
+  expect(ics).toMatch(/\/api\/orders\/[0-9a-f-]{36}\/calendar\.ics\?/);
+  const icsResponse = await page.request.get(ics!);
+  expect(icsResponse.status()).toBe(200);
+  expect(icsResponse.headers()['content-type']).toContain('text/calendar');
+  const body = await icsResponse.text();
+  expect(body).toContain('BEGIN:VEVENT');
+  expect(body).toMatch(/DTSTART:\d{8}T\d{6}Z/);
+  expect(body).toContain('SUMMARY:');
+  await expect(calendar.getByRole('link', { name: /Google Calendar/i }).first()).toHaveAttribute(
+    'href',
+    /^https:\/\/calendar\.google\.com\/calendar\/render\?action=TEMPLATE/,
+  );
+  await expect(calendar.getByRole('link', { name: /Directions/i }).first()).toHaveAttribute(
+    'href',
+    /google\.com\/maps|maps\.app\.goo\.gl|goo\.gl\/maps/,
+  );
+  // A tampered token is refused.
+  const bad = await page.request.get(ics!.replace(/t=[^&]+/, 't=invalid'));
+  expect(bad.status()).toBe(404);
 });

@@ -17,7 +17,7 @@ import {
   type TicketLayout,
   localizeTicketLayout,
 } from '@tix/shared';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFPage } from 'pdf-lib';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { loadOrderDocumentData } from '../documents/order-data';
@@ -168,7 +168,8 @@ async function planOrderTickets(
       and(
         eq(tickets.orderId, orderId),
         eq(tickets.status, 'VALID'),
-        ...(onlyTicketId ? [eq(tickets.id, onlyTicketId)] : []),
+        // The order's PDF never contains tickets handed over to someone else.
+        ...(onlyTicketId ? [eq(tickets.id, onlyTicketId)] : [isNull(tickets.holderEmail)]),
       ),
     )
     .orderBy(...placeOrderBy());
@@ -388,12 +389,28 @@ export async function renderSingleTicketPdf(
   ticketId: string,
   /** When set, the ticket must belong to this order (download authorisation). */
   expectedOrderId?: string,
+  /**
+   * Who is downloading: `buyer` (order access – never a ticket handed over to someone else),
+   * `holder` (ticket access token of the recipient – only such tickets) or `admin` (any).
+   */
+  scope: 'buyer' | 'holder' | 'admin' = expectedOrderId ? 'buyer' : 'admin',
 ): Promise<TicketsPdf & { orderId: string }> {
   const [row] = await ctx.db
-    .select({ orderId: tickets.orderId, status: tickets.status, code: tickets.ticketCode })
+    .select({
+      orderId: tickets.orderId,
+      status: tickets.status,
+      code: tickets.ticketCode,
+      holderEmail: tickets.holderEmail,
+    })
     .from(tickets)
     .where(eq(tickets.id, ticketId));
-  if (!row || row.status !== 'VALID' || (expectedOrderId && row.orderId !== expectedOrderId)) {
+  if (
+    !row ||
+    row.status !== 'VALID' ||
+    (expectedOrderId && row.orderId !== expectedOrderId) ||
+    (scope === 'buyer' && row.holderEmail !== null) ||
+    (scope === 'holder' && row.holderEmail === null)
+  ) {
     throw new DomainError('TICKET_NOT_FOUND', 'Ticket not found', 404);
   }
   const plan = await planOrderTickets(ctx, row.orderId, ticketId);

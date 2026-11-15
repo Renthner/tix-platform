@@ -17,6 +17,7 @@ export const seatFeatureEnum = pgEnum('seat_feature', E.SEAT_FEATURES);
 
 export const eventStatusEnum = pgEnum('event_status', E.EVENT_STATUSES);
 export const discountKindEnum = pgEnum('discount_kind', E.DISCOUNT_KINDS);
+export const discountCodeTypeEnum = pgEnum('discount_code_type', E.DISCOUNT_CODE_TYPES);
 export const feeScopeEnum = pgEnum('fee_scope', E.FEE_SCOPES);
 export const feeCalculationEnum = pgEnum('fee_calculation', E.FEE_CALCULATIONS);
 export const salesChannelEnum = pgEnum('sales_channel', E.SALES_CHANNELS);
@@ -40,6 +41,8 @@ export const invoiceTypeEnum = pgEnum('invoice_type', E.INVOICE_TYPES);
 export const webhookEventStatusEnum = pgEnum('webhook_event_status', E.WEBHOOK_EVENT_STATUSES);
 
 export const ticketStatusEnum = pgEnum('ticket_status', E.TICKET_STATUSES);
+export const ticketChangeKindEnum = pgEnum('ticket_change_kind', E.TICKET_CHANGE_KINDS);
+export const ticketChangeActorEnum = pgEnum('ticket_change_actor', E.TICKET_CHANGE_ACTORS);
 export const checkInStateEnum = pgEnum('check_in_state', E.CHECK_IN_STATES);
 export const scanActionEnum = pgEnum('scan_action', E.SCAN_ACTIONS);
 export const scanSourceEnum = pgEnum('scan_source', E.SCAN_SOURCES);

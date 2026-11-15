@@ -11,6 +11,7 @@ export const SETTINGS_TABS = [
   'wallet',
   'accounts',
   'security',
+  'notifications',
   'scanner',
 ] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];

@@ -42,6 +42,17 @@ It exports the bookkeeping data of a date range as
 - Every export writes an audit entry (`accounting.export`: kind, range, row count – no personal
   data). Exports are built in memory; they are meant for months or years of a club-sized shop.
 
+## Discount codes
+
+A discount code (Admin -> Discount codes) reduces the gross ticket prices of an order (optionally the fees too).
+
+- **Calculation (integer cents).** PERCENT: `round-half-up(eligible base x basis points / 10 000)`; FIXED: `min(amount, eligible base)`, so no line or total ever becomes negative. The discount is distributed over the eligible lines proportionally to their price with the **largest remainder method** (leftover cents go to the largest fractional remainder, earlier line on a tie): the parts add up to the discount exactly and no line gets more than its own price. Every line keeps its own tax rate and is split into net and tax from its reduced gross price, so VAT per rate is exact by construction. Stackable codes are applied one after another, each on the prices left by the previous one.
+- **Invoice (GoBD).** A discounted ticket is invoiced at its gross price **before** the code, followed by its own negative line "Discount code X" with the same tax rate and the ticket as reference. The discount line names only the codes that actually took something off that ticket (`order_items.code_discount_codes`). The discount line carries net and tax as the difference of the two splits, so ticket line + discount line equal the stored reduced amounts. The invoice total and the tax breakdown per rate are therefore **net of the discount**. A discounted fee appears at its reduced amount (a fee reduced to 0 is not listed); when several units of a fee were reduced it is invoiced as **one line at the amount charged** (quantity in the description), so unit price x quantity always equals the line total - also on the credit notes of partial cancellations. An order of 0 EUR (100 % code, free tickets) is stored with the payment method `FREE`: it is invoiced like any paid order (0 EUR) but is not counted as PayPal / bank transfer in the statistics.
+- **Credit notes / refunds** repeat the ticket line **and** its discount line, so a cancelled ticket credits (and refunds) the discounted amount, never the gross price. A FIXED code is allocated to the tickets proportionally when the order is placed, so cancelling one ticket credits that ticket's share. Tickets bought with a code cannot be moved to another tariff (additional-payment workflow); seat changes keep the code share.
+- **DATEV / CSV.** Booked per document and tax rate on the revenue account as before. Because the discount line has the same rate, the revenue booking per rate is **net of the discount** (the negative line is merged into the rate group) - no separate discount account is needed, the debtor posting equals the invoice total. The simple documents CSV shows the invoice totals per rate (also net).
+- **Usage counting.** A use is an `order_discounts` row of a non-test order in status PENDING / AWAITING_PAYMENT / PAID / PARTIALLY_REFUNDED; cancelled, expired and fully refunded orders release it. Limits are checked again under a row lock on the code when the order is placed.
+- **Statistics** show revenue net of discounts plus the discount given in total and per code.
+
 ## Simple CSV
 
 UTF-8 **with BOM**, separator `;`, **decimal comma** (no thousands separator), CRLF – opens

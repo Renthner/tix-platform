@@ -94,14 +94,16 @@
   "event": {
     "postponed": "Verschoben",
     "doors": "Einlass {time}",
-    "showOnMap": "In Google Maps anzeigen"
+    "showOnMap": "In Google Maps anzeigen",
+    "addToCalendar": "Zum Kalender hinzufügen"
   },
   "chart": {
     "zoomIn": "Vergrößern",
     "zoomOut": "Verkleinern",
     "reset": "Ganzen Plan anzeigen",
     "ariaLabel": "Saalplan",
-    "remaining": "{count, plural, =0 {ausverkauft} one {# Platz frei} other {# Plätze frei}}"
+    "remaining": "{count, plural, =0 {ausverkauft} one {# Platz frei} other {# Plätze frei}}",
+    "keyboardHelp": "Saalplan. Mit den Pfeiltasten wechselst du zwischen den Plätzen, mit Pos1 und Ende springst du an den Anfang oder das Ende einer Reihe, mit Bild auf und Bild ab wechselst du den Bereich, mit Enter oder der Leertaste wählst du einen Platz aus oder gibst ihn frei, mit Escape verlässt du den Plan. Alternativ wählst du die Liste statt des Plans."
   },
   "selection": {
     "maintenanceTitle": "Wartungsarbeiten",
@@ -154,6 +156,66 @@
       "wheelchair": "Rollstuhlplatz",
       "companion": "Begleitplatz"
     },
-    "companionOwnerCheck": "Der zugehörige Rollstuhlplatz ist bereits verkauft. Du kannst den Begleitplatz buchen, wenn der Rollstuhlplatz mit derselben E-Mail-Adresse gebucht wurde – das wird an der Kasse geprüft."
+    "companionOwnerCheck": "Der zugehörige Rollstuhlplatz ist bereits verkauft. Du kannst den Begleitplatz buchen, wenn der Rollstuhlplatz mit derselben E-Mail-Adresse gebucht wurde – das wird an der Kasse geprüft.",
+    "state": {
+      "available": "frei",
+      "selected": "ausgewählt",
+      "unavailable": "nicht verfügbar"
+    },
+    "announce": {
+      "selected": "{seat} ausgewählt.",
+      "released": "{seat} freigegeben.",
+      "unavailable": "{seat} ist nicht verfügbar.",
+      "nowUnavailable": "{seat} ist jetzt nicht mehr verfügbar.",
+      "nowAvailable": "{seat} ist wieder frei.",
+      "failed": "{seat} konnte nicht ausgewählt werden: {error}"
+    },
+    "view": {
+      "toList": "Liste statt Plan",
+      "toPlan": "Plan anzeigen"
+    },
+    "list": {
+      "title": "Platzliste",
+      "filterCategory": "Kategorie",
+      "allCategories": "Alle Kategorien",
+      "onlySpecial": "Nur Rollstuhl- und Begleitplätze",
+      "rowGroup": "Reihe {label}",
+      "noSeats": "Mit diesen Filtern sind keine Plätze frei.",
+      "seatsAvailable": "{count, plural, one {# Platz frei} other {# Plätze frei}}",
+      "standing": "Stehbereich {name}: {remaining}"
+    }
+  },
+  "waitlist": {
+    "title": "Warteliste",
+    "soldOutTitle": "Ausverkauft – trag dich in die Warteliste ein",
+    "categoryTitle": "Ausverkaufte Kategorien – trag dich in die Warteliste ein",
+    "intro": "Wir schreiben dir eine E-Mail, sobald wieder Tickets verfügbar sind. Alle auf der Liste werden gleichzeitig benachrichtigt und es werden keine Plätze reserviert – wer zuerst bucht, bekommt sie.",
+    "email": "E-Mail-Adresse",
+    "firstName": "Name (optional)",
+    "quantity": "Anzahl Tickets",
+    "category": "Kategorie",
+    "anyCategory": "Beliebige Kategorie",
+    "submit": "In die Warteliste eintragen",
+    "privacy": "Wir verwenden deine Adresse nur für diese Benachrichtigung. Du bestätigst sie zuerst per E-Mail und kannst die Liste jederzeit über den Link in jeder Nachricht verlassen.",
+    "sentTitle": "Fast geschafft – bitte prüfe deine E-Mails",
+    "sent": "Wir haben dir einen Bestätigungslink geschickt. Der Eintrag zählt erst, nachdem du ihn geöffnet hast.",
+    "already": "Diese Adresse steht bereits auf der Warteliste.",
+    "confirm": {
+      "title": "Warteliste",
+      "confirmed": "Danke – du stehst auf der Warteliste. Wir schreiben dir, sobald wieder Tickets verfügbar sind.",
+      "alreadyConfirmed": "Du stehst bereits auf der Warteliste.",
+      "invalid": "Dieser Link ist ungültig oder abgelaufen. Bitte trag dich erneut in die Warteliste ein.",
+      "rateLimited": "Zu viele Versuche. Bitte versuche es in ein paar Minuten erneut.",
+      "toShop": "Zum Shop"
+    },
+    "unsubscribe": {
+      "title": "Warteliste verlassen",
+      "question": "Möchtest du dich für diese Veranstaltung von der Warteliste austragen?",
+      "confirm": "Von der Warteliste austragen",
+      "done": "Du wurdest von der Warteliste entfernt. Du erhältst für diese Veranstaltung keine weiteren Benachrichtigungen.",
+      "invalid": "Dieser Link ist ungültig oder abgelaufen.",
+      "rateLimited": "Zu viele Versuche. Bitte versuche es in ein paar Minuten erneut.",
+      "toShop": "Zum Shop"
+    }
   }
 }

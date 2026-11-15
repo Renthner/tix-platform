@@ -1,10 +1,11 @@
 import { createHash, createSign } from 'node:crypto';
 import { events, tickets } from '@tix/db';
 import { SUPPORTED_LOCALES, isBlankText, isPublicMediaKind, type Translations } from '@tix/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNotNull, ne } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { documentLocale, mailTranslator } from '../i18n/mail-messages';
 import { eventTags, invalidateShopCache } from '../cache/shop-cache';
+import { coreLog } from '../log';
 import { getMediaAsset } from '../media';
 import { getSecretSetting, getSetting } from '../settings';
 import type { WalletCheckIssue } from './apple';
@@ -493,6 +494,67 @@ export async function ensureGoogleSaveUrl(
     origin = null;
   }
   return buildSaveUrl(config, objectId, origin);
+}
+
+/**
+ * Switches the Google Wallet objects of tickets that are no longer valid (transferred, re-issued,
+ * cancelled, refunded) to INACTIVE, so the old pass stops looking like a usable ticket. Best
+ * effort: errors are logged and never block the change; a ticket whose object could not be
+ * deactivated keeps its object id and is retried by the next call / the ticket sweeper.
+ */
+export async function deactivateGoogleWalletObjects(
+  ctx: CoreContext,
+  scope: { orderId: string } | { limit: number },
+  doFetch: FetchLike = fetch,
+): Promise<number> {
+  try {
+    const config = await loadGoogleWalletConfig(ctx);
+    if (!config) return 0;
+    const where =
+      'orderId' in scope
+        ? and(
+            eq(tickets.orderId, scope.orderId),
+            ne(tickets.status, 'VALID'),
+            isNotNull(tickets.googleWalletObjectId),
+          )
+        : and(ne(tickets.status, 'VALID'), isNotNull(tickets.googleWalletObjectId));
+    const stale = await ctx.db
+      .select({ id: tickets.id, objectId: tickets.googleWalletObjectId })
+      .from(tickets)
+      .where(where)
+      .limit('limit' in scope ? scope.limit : 200);
+    let done = 0;
+    for (const row of stale) {
+      try {
+        const res = await api(
+          config,
+          doFetch,
+          'PATCH',
+          `/eventTicketObject/${encodeURIComponent(row.objectId!)}`,
+          { state: 'INACTIVE' },
+        );
+        // 404: the object was never created / already removed - nothing left to deactivate.
+        if (res.status !== 404 && (res.status < 200 || res.status >= 300)) {
+          throw new GoogleWalletApiError(errorMessage(res.json, res.status), res.status);
+        }
+        synced.delete(row.objectId!);
+        await ctx.db
+          .update(tickets)
+          .set({ googleWalletObjectId: null })
+          .where(eq(tickets.id, row.id));
+        done += 1;
+      } catch (err) {
+        coreLog.warn(
+          { err, ticketId: row.id },
+          '[wallet] could not deactivate Google Wallet object',
+        );
+      }
+    }
+    return done;
+  } catch (err) {
+    coreLog.warn({ err }, '[wallet] Google Wallet deactivation skipped');
+    return 0;
+  }
 }
 
 export interface GoogleConfigCheck {

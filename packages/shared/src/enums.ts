@@ -178,8 +178,18 @@ export const INVENTORY_HOLDING_ITEM_STATUSES = [
   'CONFIRMED',
 ] as const satisfies readonly OrderItemStatus[];
 
-export const PAYMENT_METHODS = values('PAYPAL', 'BANK_TRANSFER', 'CASH', 'CARD', 'COMPLIMENTARY');
+/** FREE = online order of 0 EUR (100 % code / free tickets): nothing was paid by any method. */
+export const PAYMENT_METHODS = values(
+  'PAYPAL',
+  'BANK_TRANSFER',
+  'CASH',
+  'CARD',
+  'COMPLIMENTARY',
+  'FREE',
+);
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+/** Methods a fee can be restricted to (an order of 0 EUR has no fees to restrict). */
+export const FEE_PAYMENT_METHODS = PAYMENT_METHODS.filter((m) => m !== 'FREE');
 
 export const PAYMENT_STATUSES = values(
   'CREATED',
@@ -217,6 +227,13 @@ export type WebhookEventStatus = (typeof WEBHOOK_EVENT_STATUSES)[number];
 // ─── Tickets & check-in ─────────────────────────────────────────────────────
 export const TICKET_STATUSES = values('VALID', 'CANCELLED', 'REFUNDED', 'REPLACED');
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
+
+/** Self-service / admin changes of a ticket's holder (history table `ticket_changes`). */
+export const TICKET_CHANGE_KINDS = values('NAME_CHANGE', 'TRANSFER');
+export type TicketChangeKind = (typeof TICKET_CHANGE_KINDS)[number];
+
+export const TICKET_CHANGE_ACTORS = values('CUSTOMER', 'ADMIN');
+export type TicketChangeActor = (typeof TICKET_CHANGE_ACTORS)[number];
 
 export const CHECK_IN_STATES = values('NONE', 'CHECKED_IN', 'CHECKED_OUT');
 export type CheckInState = (typeof CHECK_IN_STATES)[number];
@@ -346,14 +363,35 @@ export const EMAIL_TEMPLATE_KEYS = values(
   'ADDITIONAL_PAYMENT_RECEIVED',
   'ADDITIONAL_PAYMENT_SETTLED_BY_CREDIT',
   'TICKETS_RESENT',
+  'TICKET_TRANSFER_RECEIVED',
+  'TICKET_TRANSFER_SENT',
+  'TICKET_HOLDER_UPDATED',
+  'TICKET_HOLDER_CANCELLED',
   'CUSTOMER_EMAIL_VERIFICATION',
   'CUSTOMER_PASSWORD_RESET',
   'CUSTOMER_LOGIN_LINK',
   'SMTP_TEST',
   'ADMIN_INVITE',
   'ADMIN_PASSWORD_RESET',
+  'ADMIN_ALERT',
+  'ADMIN_ALERT_RESOLVED',
+  'WAITLIST_CONFIRM',
+  'WAITLIST_AVAILABLE',
+  'WAITLIST_REMOVED',
 );
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 
 export const EMAIL_STATUSES = values('QUEUED', 'SENDING', 'SENT', 'FAILED');
 export type EmailStatus = (typeof EMAIL_STATUSES)[number];
+
+/** Discount codes (promo codes): FIXED = amount per order (cents), PERCENT = basis points. */
+export const DISCOUNT_CODE_TYPES = values('FIXED', 'PERCENT');
+export type DiscountCodeType = (typeof DISCOUNT_CODE_TYPES)[number];
+
+/** Orders in these states use up a discount code; cancelled / expired / fully refunded ones release it. */
+export const DISCOUNT_USAGE_ORDER_STATUSES = [
+  'PENDING',
+  'AWAITING_PAYMENT',
+  'PAID',
+  'PARTIALLY_REFUNDED',
+] as const satisfies readonly OrderStatus[];

@@ -10,7 +10,7 @@ import {
   type PublicSeatMap,
   type SeatDeltaMessage,
 } from '@tix/shared';
-import { Loader2, Minus, Plus, Sparkles, X } from 'lucide-react';
+import { List, Loader2, Map as MapIcon, Minus, Plus, Sparkles, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -39,7 +39,13 @@ import {
   subscribeRoom,
 } from '@/lib/realtime';
 import { useCart } from './cart-context';
-import { SeatChart, type SeatColors, type SeatStatus } from './seat-chart/seat-chart';
+import {
+  SeatChart,
+  type SeatAvailability,
+  type SeatColors,
+  type SeatStatus,
+} from './seat-chart/seat-chart';
+import { SeatList } from './seat-chart/seat-list';
 import { SeatStateLegend, SeatSwatch, StandingSwatch } from './seat-chart/seat-legend';
 
 /** Upper bound of standing spots per request (matches the API). */
@@ -92,6 +98,7 @@ export function SeatSelection({
 }) {
   const locale = useLocale();
   const t = useTranslations('shop.selection');
+  const tChart = useTranslations('shop.chart');
   const tErr = useTranslations('common.errors');
   const money = useMoney();
   const router = useRouter();
@@ -103,6 +110,16 @@ export function SeatSelection({
   const [highlighted, setHighlighted] = useState<ReadonlySet<string>>(new Set());
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<'plan' | 'list'>('plan');
+  const viewToggleRef = useRef<HTMLButtonElement | null>(null);
+  // Screen reader announcements (polite live region); the counter makes repeated texts re-announce.
+  const [announcement, setAnnouncement] = useState({ text: '', n: 0 });
+  const announce = useCallback(
+    (text: string) => setAnnouncement((prev) => ({ text, n: prev.n + 1 })),
+    [],
+  );
+  /** Seat in focus on the plan and whether it is currently unavailable (realtime announcements). */
+  const watchedSeat = useRef<{ id: string; unavailable: boolean } | null>(null);
   const invRef = useRef(inv);
   invRef.current = inv;
 
@@ -243,16 +260,19 @@ export function SeatSelection({
   }, [map]);
 
   /** "€29.00 – €59.00" (or one price) over the tariffs offered in a category. */
-  const priceRangeLabel = (categoryId: string) => {
-    const range = lookups?.priceRange.get(categoryId);
-    if (!range || !map) return '';
-    return range.min === range.max
-      ? money(range.min, map.currency)
-      : t('priceRange', {
-          min: money(range.min, map.currency),
-          max: money(range.max, map.currency),
-        });
-  };
+  const priceRangeLabel = useCallback(
+    (categoryId: string) => {
+      const range = lookups?.priceRange.get(categoryId);
+      if (!range || !map) return '';
+      return range.min === range.max
+        ? money(range.min, map.currency)
+        : t('priceRange', {
+            min: money(range.min, map.currency),
+            max: money(range.max, map.currency),
+          });
+    },
+    [lookups, map, money, t],
+  );
 
   /** Type of special seats, shown next to the seat number (tooltip, selection list). */
   const seatTypeLabel = useCallback(
@@ -287,6 +307,69 @@ export function SeatSelection({
     [lookups, map, money, seatTypeLabel, t],
   );
 
+  /** "Block, row A, seat 5" – used in announcements and accessible names. */
+  const seatName = useCallback(
+    (seat: PublicSeat) => {
+      const section = lookups?.sections.get(seat.s);
+      const row = seat.r ? lookups?.rows.get(seat.r) : undefined;
+      return [
+        section?.name,
+        row ? t('row', { label: row.label }) : null,
+        t('seat', { label: seat.l }),
+      ]
+        .filter(Boolean)
+        .join(', ');
+    },
+    [lookups, t],
+  );
+
+  /** Accessible name of a seat on the plan / in the list: place, type, category + price, state. */
+  const seatLabel = useCallback(
+    (seat: PublicSeat, availability: SeatAvailability) => {
+      const category = seat.c ? lookups?.categories.get(seat.c) : undefined;
+      return [
+        seatName(seat),
+        seatTypeLabel(seat),
+        category ? `${category.name}, ${priceRangeLabel(category.id)}` : null,
+        t(`state.${availability}`),
+      ]
+        .filter(Boolean)
+        .join(', ');
+    },
+    [lookups, priceRangeLabel, seatName, seatTypeLabel, t],
+  );
+
+  const isSeatUnavailable = useCallback((seat: PublicSeat) => {
+    const current = invRef.current;
+    return (
+      (seat.f & SEAT_FLAG.BLOCKED) !== 0 || current.taken.has(seat.i) || current.locked.has(seat.i)
+    );
+  }, []);
+
+  // Realtime changes announce only for the seat that has keyboard focus (no flood).
+  useEffect(() => {
+    const watched = watchedSeat.current;
+    const seat = watched ? lookups?.seats.get(watched.id) : undefined;
+    if (!watched || !seat) return;
+    const unavailable = isSeatUnavailable(seat);
+    if (unavailable === watched.unavailable) return;
+    watched.unavailable = unavailable;
+    announce(
+      t(unavailable ? 'announce.nowUnavailable' : 'announce.nowAvailable', {
+        seat: seatName(seat),
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusVersion]);
+
+  const handleFocusSeat = useCallback(
+    (id: string | null) => {
+      const seat = id ? lookups?.seats.get(id) : undefined;
+      watchedSeat.current = id && seat ? { id, unavailable: isSeatUnavailable(seat) } : null;
+    },
+    [isSeatUnavailable, lookups],
+  );
+
   const selectedSeats = useMemo(
     () =>
       lookups
@@ -318,13 +401,18 @@ export function SeatSelection({
             method: 'DELETE',
             json: { seatIds: [seat.i] },
           });
+          announce(t('announce.released', { seat: seatName(seat) }));
         } catch (err) {
           showError(err);
+          announce(t('announce.failed', { seat: seatName(seat), error: errorMessage(tErr, err) }));
         }
         void refreshCart();
         return;
       }
-      if (current.taken.has(seat.i) || current.locked.has(seat.i)) return;
+      if (isSeatUnavailable(seat)) {
+        announce(t('announce.unavailable', { seat: seatName(seat) }));
+        return;
+      }
       update((d) => d.pending.add(seat.i));
       try {
         await apiFetch(`/api/events/${eventId}/seats`, {
@@ -335,8 +423,17 @@ export function SeatSelection({
           d.pending.delete(seat.i);
           d.mine.add(seat.i);
         });
+        announce(t('announce.selected', { seat: seatName(seat) }));
         void refreshCart();
       } catch (err) {
+        if (
+          watchedSeat.current?.id === seat.i &&
+          ['SEAT_LOCKED', 'SEAT_UNAVAILABLE'].includes(errorCode(err) ?? '')
+        ) {
+          // Announced below with the error; avoid a second "now not available" message.
+          watchedSeat.current.unavailable = true;
+        }
+        announce(t('announce.failed', { seat: seatName(seat), error: errorMessage(tErr, err) }));
         update((d) => {
           d.pending.delete(seat.i);
           if (errorCode(err) === 'SEAT_LOCKED') d.locked.add(seat.i);
@@ -346,7 +443,19 @@ export function SeatSelection({
         if (errorCode(err) === 'PASS_REQUIRED') onPassLost();
       }
     },
-    [config.manualSeatSelectionEnabled, eventId, onPassLost, refreshCart, showError, update],
+    [
+      announce,
+      config.manualSeatSelectionEnabled,
+      eventId,
+      isSeatUnavailable,
+      onPassLost,
+      refreshCart,
+      seatName,
+      showError,
+      t,
+      tErr,
+      update,
+    ],
   );
 
   const setGa = useCallback(
@@ -464,19 +573,55 @@ export function SeatSelection({
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
       <div className="space-y-3" data-realtime={realtimeJoined ? 'connected' : 'connecting'}>
         <MaintenanceNotice />
-        <SeatChart
-          map={map}
-          colors={colors}
-          status={status}
-          statusVersion={statusVersion}
-          gaRemaining={inv.ga}
-          gaMine={inv.gaMine}
-          highlighted={highlighted}
-          interactive={config.manualSeatSelectionEnabled || standingSections.length > 0}
-          onSeatClick={toggleSeat}
-          onSectionClick={setActiveSection}
-          seatTitle={seatTitle}
-        />
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {announcement.text}
+          {announcement.n % 2 === 0 ? '' : '\u00a0'}
+        </div>
+        <div className="flex justify-end">
+          <Button
+            ref={viewToggleRef}
+            variant="outline"
+            size="sm"
+            data-testid="seat-view-toggle"
+            onClick={() => setView((v) => (v === 'plan' ? 'list' : 'plan'))}
+          >
+            {view === 'plan' ? <List /> : <MapIcon />}
+            {view === 'plan' ? t('view.toList') : t('view.toPlan')}
+          </Button>
+        </div>
+        {view === 'list' && (
+          <SeatList
+            map={map}
+            status={status}
+            statusVersion={statusVersion}
+            seatLabel={seatLabel}
+            onToggle={(seat) => void toggleSeat(seat)}
+            onSectionClick={setActiveSection}
+            gaRemaining={inv.ga}
+            standingEnabled
+          />
+        )}
+        {/* Stays mounted while the list is shown (the legend swatches use the plan's symbols). */}
+        <div className={view === 'list' ? 'hidden' : undefined}>
+          <SeatChart
+            map={map}
+            colors={colors}
+            status={status}
+            statusVersion={statusVersion}
+            gaRemaining={inv.ga}
+            gaMine={inv.gaMine}
+            highlighted={highlighted}
+            interactive={config.manualSeatSelectionEnabled || standingSections.length > 0}
+            onSeatClick={toggleSeat}
+            onSectionClick={setActiveSection}
+            seatTitle={seatTitle}
+            seatLabel={seatLabel}
+            keyboardHelp={tChart('keyboardHelp')}
+            onUnavailableSeat={(seat) => void toggleSeat(seat)}
+            onFocusSeat={handleFocusSeat}
+            onEscape={() => viewToggleRef.current?.focus()}
+          />
+        </div>
         <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
           {map.categories.map((c) => {
             const seated = map.seats.some((seat) => seat.c === c.id);
@@ -508,9 +653,19 @@ export function SeatSelection({
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
-                <Label>{t('bestAvailable.category')}</Label>
+                <Label id="best-available-category-label" htmlFor="best-available-category">
+                  {t('bestAvailable.category')}
+                </Label>
                 <Select value={bestCategory} onValueChange={setBestCategory}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger
+                    id="best-available-category"
+                    aria-label={`${t('bestAvailable.category')}: ${
+                      bestCategories.find((c) => c.id === bestCategory)
+                        ? `${bestCategories.find((c) => c.id === bestCategory)!.name} · ${priceRangeLabel(bestCategory)}`
+                        : t('bestAvailable.choose')
+                    }`}
+                    className="w-full"
+                  >
                     <SelectValue placeholder={t('bestAvailable.choose')} />
                   </SelectTrigger>
                   <SelectContent>

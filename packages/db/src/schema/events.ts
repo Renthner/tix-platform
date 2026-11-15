@@ -81,6 +81,8 @@ export const events = pgTable(
     hadTestOrders: boolean('had_test_orders').notNull().default(false),
     /** TRUE = hidden from search engines (noindex, not in the sitemap, no structured data). */
     seoNoindex: boolean('seo_noindex').notNull().default(false),
+    /** Waiting list when sold out: NULL = follow the global `waitlist.enabled` setting. */
+    waitlistEnabled: boolean('waitlist_enabled'),
     /**
      * Event page layout: rows of blocks side by side (drag & drop in the admin). Read through
      * `normalizePageLayout` (also converts the earlier flat format).
@@ -139,6 +141,17 @@ export const events = pgTable(
      * only). NULL = global `customerAccounts.enabled`. Accounts cannot be forced on per event.
      */
     customerAccountsEnabled: boolean('customer_accounts_enabled'),
+
+    /**
+     * Ticket self-service (global `ticketSelfService`): NULL = inherit, FALSE = off for this event,
+     * TRUE = on with the own values below (a NULL value inherits that field from the global setting).
+     */
+    selfServiceEnabled: boolean('self_service_enabled'),
+    selfServiceAllowNameChange: boolean('self_service_allow_name_change'),
+    selfServiceAllowTransfer: boolean('self_service_allow_transfer'),
+    selfServiceDeadlineHours: integer('self_service_deadline_hours'),
+    /** NULL = inherit, 0 = unlimited for this event, otherwise the limit. */
+    selfServiceMaxChanges: integer('self_service_max_changes'),
 
     // ── Overrides of global `paypal` / `bankTransfer` settings ─────────────
     paypalEnabled: boolean('paypal_enabled'),

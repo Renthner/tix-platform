@@ -109,6 +109,27 @@ function ticketLinksText(locale: Locale): string {
 {{/if}}`;
 }
 
+const CALENDAR_TEXT = {
+  en: 'Add the event to your calendar and find your way:',
+  de: 'Trage die Veranstaltung in deinen Kalender ein und finde den Weg:',
+} as const;
+
+/**
+ * "Add to calendar" / directions buttons per event (`{{calendarLinks}}` is generated HTML,
+ * empty without a public URL or events). Like the ticket links it sits between block elements.
+ */
+function calendarBlock(locale: Locale): string {
+  return `{{#if calendarLinks}}${paragraph(CALENDAR_TEXT[locale])}
+{{calendarLinks}}{{/if}}`;
+}
+
+function calendarText(locale: Locale): string {
+  return `{{#if calendarLinks}}${CALENDAR_TEXT[locale]}
+{{calendarLinks}}
+
+{{/if}}`;
+}
+
 /** Attachment sentence, or – when the PDF had to be left out (mail too large) – the download hint. */
 const ticketsSentence = (attached: string, download: string) =>
   `{{#if ticketsAttached}}${attached}{{else}}${download}{{/if}}`;
@@ -288,6 +309,7 @@ ${COMMON.de.regardsText}`,
           ),
         ),
         ticketLinksBlock('en'),
+        calendarBlock('en'),
         '{{itemsTable}}',
         button('en', 'orderUrl', COMMON.en.viewOrder),
         paragraph('We are looking forward to seeing you!'),
@@ -301,7 +323,7 @@ we have received your payment of {{amount}} – thank you very much! Your order 
 
 {{/if}}${ticketsSentence('Your tickets are attached to this e-mail as PDF. You can also download them at any time on your order page.', 'You can download your tickets individually below or at any time on your order page.')}
 
-${ticketLinksText('en')}{{itemsTable}}
+${ticketLinksText('en')}${calendarText('en')}{{itemsTable}}
 
 ${orderLink('en')}We are looking forward to seeing you!
 
@@ -324,6 +346,7 @@ ${COMMON.en.regardsText}`,
           ),
         ),
         ticketLinksBlock('de'),
+        calendarBlock('de'),
         '{{itemsTable}}',
         button('de', 'orderUrl', COMMON.de.viewOrder),
         paragraph('Wir freuen uns auf dich!'),
@@ -337,7 +360,7 @@ wir haben deine Zahlung über {{amount}} erhalten – herzlichen Dank! Deine Bes
 
 {{/if}}${ticketsSentence('Deine Tickets findest du als PDF im Anhang dieser E-Mail. Du kannst sie außerdem jederzeit auf der Seite deiner Bestellung herunterladen.', 'Du kannst deine Tickets unten einzeln oder jederzeit auf der Seite deiner Bestellung herunterladen.')}
 
-${ticketLinksText('de')}{{itemsTable}}
+${ticketLinksText('de')}${calendarText('de')}{{itemsTable}}
 
 ${orderLink('de')}Wir freuen uns auf dich!
 
@@ -853,6 +876,7 @@ ${ticketLinksText('de')}${orderLink('de')}${COMMON.de.regardsText}`,
             ),
         ),
         ticketLinksBlock('en'),
+        calendarBlock('en'),
         '{{itemsTable}}',
         button('en', 'orderUrl', COMMON.en.viewOrder),
         paragraph('We are looking forward to seeing you!'),
@@ -862,7 +886,7 @@ ${ticketLinksText('de')}${orderLink('de')}${COMMON.de.regardsText}`,
 
 as requested, here are the details of your order {{orderNumber}} once again. {{#if ticketsAttached}}Your tickets are attached to this e-mail as PDF and can also be downloaded at any time on your order page.{{else}}You can download your tickets individually below or at any time on your order page.{{/if}}
 
-${ticketLinksText('en')}{{itemsTable}}
+${ticketLinksText('en')}${calendarText('en')}{{itemsTable}}
 
 ${orderLink('en')}We are looking forward to seeing you!
 
@@ -880,6 +904,7 @@ ${COMMON.en.regardsText}`,
             ),
         ),
         ticketLinksBlock('de'),
+        calendarBlock('de'),
         '{{itemsTable}}',
         button('de', 'orderUrl', COMMON.de.viewOrder),
         paragraph('Wir freuen uns auf dich!'),
@@ -889,9 +914,235 @@ ${COMMON.en.regardsText}`,
 
 wie gewünscht senden wir dir die Angaben zu deiner Bestellung {{orderNumber}} noch einmal. {{#if ticketsAttached}}Deine Tickets findest du als PDF im Anhang dieser E-Mail; du kannst sie außerdem jederzeit auf der Seite deiner Bestellung herunterladen.{{else}}Du kannst deine Tickets unten einzeln oder jederzeit auf der Seite deiner Bestellung herunterladen.{{/if}}
 
-${ticketLinksText('de')}{{itemsTable}}
+${ticketLinksText('de')}${calendarText('de')}{{itemsTable}}
 
 ${orderLink('de')}Wir freuen uns auf dich!
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  TICKET_TRANSFER_RECEIVED: {
+    en: () => ({
+      subject: 'A ticket for {{eventTitle}} was passed on to you',
+      html: [
+        paragraph('Hello{{#if recipientName}} {{recipientName}}{{/if}},'),
+        paragraph(
+          '<strong>{{senderName}}</strong> has passed a ticket for <strong>{{eventTitle}}</strong> on to you. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Your seat: <strong>{{ticketPlace}}</strong> (ticket {{ticketCode}}).',
+        ),
+        '{{#if transferMessage}}<blockquote style="margin:0 0 16px;padding:8px 14px;border-left:3px solid #d4d4d8;color:#3f3f46;white-space:pre-line">{{transferMessage}}</blockquote>{{/if}}',
+        button('en', 'ticketPageUrl', 'Open your ticket'),
+        paragraph(
+          'You can download the ticket as PDF{{#if appleWalletUrl}}, add it to Apple Wallet{{/if}}{{#if googleWalletUrl}} or add it to Google Wallet{{/if}} on that page. Please bring it to the entrance – on your phone or printed.',
+        ),
+        '{{#if ticketPdfUrl}}<p style="margin:0 0 16px">' +
+          `<a href="{{ticketPdfUrl}}" style="color:#18181b">Download PDF</a>` +
+          '{{#if appleWalletUrl}} · <a href="{{appleWalletUrl}}" style="color:#18181b">Apple Wallet</a>{{/if}}' +
+          '{{#if googleWalletUrl}} · <a href="{{googleWalletUrl}}" style="color:#18181b">Google Wallet</a>{{/if}}</p>{{/if}}',
+        paragraph('We are looking forward to seeing you!'),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if recipientName}} {{recipientName}}{{/if}},
+
+{{senderName}} has passed a ticket for {{eventTitle}} on to you. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Your seat: {{ticketPlace}} (ticket {{ticketCode}}).
+
+{{#if transferMessage}}"{{transferMessage}}"
+
+{{/if}}Open your ticket: {{ticketPageUrl}}
+PDF: {{ticketPdfUrl}}
+{{#if appleWalletUrl}}Apple Wallet: {{appleWalletUrl}}
+{{/if}}{{#if googleWalletUrl}}Google Wallet: {{googleWalletUrl}}
+{{/if}}
+Please bring the ticket to the entrance – on your phone or printed.
+
+We are looking forward to seeing you!
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Dir wurde ein Ticket für {{eventTitle}} weitergegeben',
+      html: [
+        paragraph('Hallo{{#if recipientName}} {{recipientName}}{{/if}},'),
+        paragraph(
+          '<strong>{{senderName}}</strong> hat ein Ticket für <strong>{{eventTitle}}</strong> an dich weitergegeben. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Dein Platz: <strong>{{ticketPlace}}</strong> (Ticket {{ticketCode}}).',
+        ),
+        '{{#if transferMessage}}<blockquote style="margin:0 0 16px;padding:8px 14px;border-left:3px solid #d4d4d8;color:#3f3f46;white-space:pre-line">{{transferMessage}}</blockquote>{{/if}}',
+        button('de', 'ticketPageUrl', 'Ticket öffnen'),
+        paragraph(
+          'Auf dieser Seite kannst du das Ticket als PDF herunterladen{{#if appleWalletUrl}}, zu Apple Wallet hinzufügen{{/if}}{{#if googleWalletUrl}} oder zu Google Wallet hinzufügen{{/if}}. Bitte bring es zum Einlass mit – auf dem Handy oder ausgedruckt.',
+        ),
+        '{{#if ticketPdfUrl}}<p style="margin:0 0 16px">' +
+          `<a href="{{ticketPdfUrl}}" style="color:#18181b">PDF herunterladen</a>` +
+          '{{#if appleWalletUrl}} · <a href="{{appleWalletUrl}}" style="color:#18181b">Apple Wallet</a>{{/if}}' +
+          '{{#if googleWalletUrl}} · <a href="{{googleWalletUrl}}" style="color:#18181b">Google Wallet</a>{{/if}}</p>{{/if}}',
+        paragraph('Wir freuen uns auf dich!'),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if recipientName}} {{recipientName}}{{/if}},
+
+{{senderName}} hat ein Ticket für {{eventTitle}} an dich weitergegeben. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Dein Platz: {{ticketPlace}} (Ticket {{ticketCode}}).
+
+{{#if transferMessage}}"{{transferMessage}}"
+
+{{/if}}Ticket öffnen: {{ticketPageUrl}}
+PDF: {{ticketPdfUrl}}
+{{#if appleWalletUrl}}Apple Wallet: {{appleWalletUrl}}
+{{/if}}{{#if googleWalletUrl}}Google Wallet: {{googleWalletUrl}}
+{{/if}}
+Bitte bring das Ticket zum Einlass mit – auf dem Handy oder ausgedruckt.
+
+Wir freuen uns auf dich!
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  TICKET_TRANSFER_SENT: {
+    en: () => ({
+      subject: 'Ticket passed on – order {{orderNumber}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'the ticket for <strong>{{ticketPlace}}</strong> ({{eventTitle}}) in your order {{orderNumber}} now belongs to <strong>{{recipientName}}</strong> ({{newHolderEmail}}). We sent the new ticket to that address.',
+        ),
+        paragraph(
+          '<strong>Your previous QR code is no longer valid</strong> – it will be rejected at the entrance. Your order and invoice stay unchanged.',
+        ),
+        button('en', 'orderUrl', COMMON.en.viewOrder),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+the ticket for {{ticketPlace}} ({{eventTitle}}) in your order {{orderNumber}} now belongs to {{recipientName}} ({{newHolderEmail}}). We sent the new ticket to that address.
+
+Your previous QR code is no longer valid – it will be rejected at the entrance. Your order and invoice stay unchanged.
+
+${orderLink('en')}${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Ticket weitergegeben – Bestellung {{orderNumber}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'das Ticket für <strong>{{ticketPlace}}</strong> ({{eventTitle}}) aus deiner Bestellung {{orderNumber}} gehört jetzt <strong>{{recipientName}}</strong> ({{newHolderEmail}}). Das neue Ticket haben wir an diese Adresse geschickt.',
+        ),
+        paragraph(
+          '<strong>Dein bisheriger QR-Code ist nicht mehr gültig</strong> – er wird am Einlass abgewiesen. Deine Bestellung und deine Rechnung bleiben unverändert.',
+        ),
+        button('de', 'orderUrl', COMMON.de.viewOrder),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+das Ticket für {{ticketPlace}} ({{eventTitle}}) aus deiner Bestellung {{orderNumber}} gehört jetzt {{recipientName}} ({{newHolderEmail}}). Das neue Ticket haben wir an diese Adresse geschickt.
+
+Dein bisheriger QR-Code ist nicht mehr gültig – er wird am Einlass abgewiesen. Deine Bestellung und deine Rechnung bleiben unverändert.
+
+${orderLink('de')}${COMMON.de.regardsText}`,
+    }),
+  },
+
+  TICKET_HOLDER_UPDATED: {
+    en: () => ({
+      subject: 'Your ticket for {{eventTitle}} was updated',
+      html: [
+        paragraph('Hello{{#if recipientName}} {{recipientName}}{{/if}},'),
+        paragraph(
+          'your ticket for <strong>{{eventTitle}}</strong> was updated by the organiser. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Your seat: <strong>{{ticketPlace}}</strong> (ticket {{ticketCode}}).',
+        ),
+        paragraph(
+          '<strong>Your previous QR code is no longer valid.</strong> Please use the new ticket from now on.',
+        ),
+        button('en', 'ticketPageUrl', 'Open your ticket'),
+        '{{#if ticketPdfUrl}}<p style="margin:0 0 16px">' +
+          `<a href="{{ticketPdfUrl}}" style="color:#18181b">Download PDF</a>` +
+          '{{#if appleWalletUrl}} · <a href="{{appleWalletUrl}}" style="color:#18181b">Apple Wallet</a>{{/if}}' +
+          '{{#if googleWalletUrl}} · <a href="{{googleWalletUrl}}" style="color:#18181b">Google Wallet</a>{{/if}}</p>{{/if}}',
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if recipientName}} {{recipientName}}{{/if}},
+
+your ticket for {{eventTitle}} was updated by the organiser. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Your seat: {{ticketPlace}} (ticket {{ticketCode}}).
+
+Your previous QR code is no longer valid. Please use the new ticket from now on.
+
+Open your ticket: {{ticketPageUrl}}
+PDF: {{ticketPdfUrl}}
+{{#if appleWalletUrl}}Apple Wallet: {{appleWalletUrl}}
+{{/if}}{{#if googleWalletUrl}}Google Wallet: {{googleWalletUrl}}
+{{/if}}
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Dein Ticket für {{eventTitle}} wurde aktualisiert',
+      html: [
+        paragraph('Hallo{{#if recipientName}} {{recipientName}}{{/if}},'),
+        paragraph(
+          'dein Ticket für <strong>{{eventTitle}}</strong> wurde vom Veranstalter aktualisiert. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Dein Platz: <strong>{{ticketPlace}}</strong> (Ticket {{ticketCode}}).',
+        ),
+        paragraph(
+          '<strong>Dein bisheriger QR-Code ist nicht mehr gültig.</strong> Bitte verwende ab jetzt das neue Ticket.',
+        ),
+        button('de', 'ticketPageUrl', 'Ticket öffnen'),
+        '{{#if ticketPdfUrl}}<p style="margin:0 0 16px">' +
+          `<a href="{{ticketPdfUrl}}" style="color:#18181b">PDF herunterladen</a>` +
+          '{{#if appleWalletUrl}} · <a href="{{appleWalletUrl}}" style="color:#18181b">Apple Wallet</a>{{/if}}' +
+          '{{#if googleWalletUrl}} · <a href="{{googleWalletUrl}}" style="color:#18181b">Google Wallet</a>{{/if}}</p>{{/if}}',
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if recipientName}} {{recipientName}}{{/if}},
+
+dein Ticket für {{eventTitle}} wurde vom Veranstalter aktualisiert. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Dein Platz: {{ticketPlace}} (Ticket {{ticketCode}}).
+
+Dein bisheriger QR-Code ist nicht mehr gültig. Bitte verwende ab jetzt das neue Ticket.
+
+Ticket öffnen: {{ticketPageUrl}}
+PDF: {{ticketPdfUrl}}
+{{#if appleWalletUrl}}Apple Wallet: {{appleWalletUrl}}
+{{/if}}{{#if googleWalletUrl}}Google Wallet: {{googleWalletUrl}}
+{{/if}}
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  TICKET_HOLDER_CANCELLED: {
+    en: () => ({
+      subject: 'Your ticket for {{eventTitle}} is no longer valid',
+      html: [
+        paragraph('Hello{{#if recipientName}} {{recipientName}}{{/if}},'),
+        paragraph(
+          'your ticket for <strong>{{eventTitle}}</strong> ({{ticketPlace}}, ticket {{ticketCode}}) is <strong>no longer valid</strong>: it was cancelled, refunded or reassigned. It will be rejected at the entrance.',
+        ),
+        paragraph(
+          'Any refund goes to the person who bought the ticket. If you have questions, please contact the person who passed the ticket on to you or the organiser.',
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if recipientName}} {{recipientName}}{{/if}},
+
+your ticket for {{eventTitle}} ({{ticketPlace}}, ticket {{ticketCode}}) is no longer valid: it was cancelled, refunded or reassigned. It will be rejected at the entrance.
+
+Any refund goes to the person who bought the ticket. If you have questions, please contact the person who passed the ticket on to you or the organiser.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Dein Ticket für {{eventTitle}} ist nicht mehr gültig',
+      html: [
+        paragraph('Hallo{{#if recipientName}} {{recipientName}}{{/if}},'),
+        paragraph(
+          'dein Ticket für <strong>{{eventTitle}}</strong> ({{ticketPlace}}, Ticket {{ticketCode}}) ist <strong>nicht mehr gültig</strong>: Es wurde storniert, erstattet oder neu vergeben. Am Einlass wird es abgewiesen.',
+        ),
+        paragraph(
+          'Eine Erstattung geht an die Person, die das Ticket gekauft hat. Bei Fragen wende dich bitte an die Person, die dir das Ticket weitergegeben hat, oder an den Veranstalter.',
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if recipientName}} {{recipientName}}{{/if}},
+
+dein Ticket für {{eventTitle}} ({{ticketPlace}}, Ticket {{ticketCode}}) ist nicht mehr gültig: Es wurde storniert, erstattet oder neu vergeben. Am Einlass wird es abgewiesen.
+
+Eine Erstattung geht an die Person, die das Ticket gekauft hat. Bei Fragen wende dich bitte an die Person, die dir das Ticket weitergegeben hat, oder an den Veranstalter.
 
 ${COMMON.de.regardsText}`,
     }),
@@ -1224,6 +1475,255 @@ wir haben eine Anfrage erhalten, das Passwort deines Admin-Portal-Kontos zurück
 
 {{#if expiresAt}}Der Link ist gültig bis {{expiresAt}} und kann nur einmal verwendet werden.
 {{/if}}Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren – dein Passwort bleibt unverändert.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+  WAITLIST_CONFIRM: {
+    en: () => ({
+      subject: 'Please confirm your waiting list entry for {{eventTitle}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'you asked to be notified when tickets for <strong>{{eventTitle}}</strong> ({{eventDate}}) become available again. Please confirm your e-mail address so that we may write to you.',
+        ),
+        button('en', 'confirmUrl', 'Confirm waiting list entry'),
+        '{{#if expiresAt}}' +
+          paragraph(`<span style="${MUTED}">The link is valid until {{expiresAt}}.</span>`) +
+          '{{/if}}',
+        paragraph(
+          `<span style="${MUTED}">We only use your address for this notification. If you did not sign up, simply ignore this e-mail – nothing will be sent to you.</span>`,
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+you asked to be notified when tickets for {{eventTitle}} ({{eventDate}}) become available again. Please confirm your e-mail address by opening this link:
+
+{{confirmUrl}}
+
+{{#if expiresAt}}The link is valid until {{expiresAt}}.
+{{/if}}We only use your address for this notification. If you did not sign up, simply ignore this e-mail – nothing will be sent to you.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Bitte bestätige deinen Wartelisten-Eintrag für {{eventTitle}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'du möchtest benachrichtigt werden, wenn für <strong>{{eventTitle}}</strong> ({{eventDate}}) wieder Tickets verfügbar sind. Bitte bestätige deine E-Mail-Adresse, damit wir dir schreiben dürfen.',
+        ),
+        button('de', 'confirmUrl', 'Wartelisten-Eintrag bestätigen'),
+        '{{#if expiresAt}}' +
+          paragraph(`<span style="${MUTED}">Der Link ist gültig bis {{expiresAt}}.</span>`) +
+          '{{/if}}',
+        paragraph(
+          `<span style="${MUTED}">Wir verwenden deine Adresse nur für diese Benachrichtigung. Falls du dich nicht eingetragen hast, ignoriere diese E-Mail einfach – du bekommst dann nichts von uns.</span>`,
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+du möchtest benachrichtigt werden, wenn für {{eventTitle}} ({{eventDate}}) wieder Tickets verfügbar sind. Bitte bestätige deine E-Mail-Adresse über diesen Link:
+
+{{confirmUrl}}
+
+{{#if expiresAt}}Der Link ist gültig bis {{expiresAt}}.
+{{/if}}Wir verwenden deine Adresse nur für diese Benachrichtigung. Falls du dich nicht eingetragen hast, ignoriere diese E-Mail einfach – du bekommst dann nichts von uns.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+  WAITLIST_AVAILABLE: {
+    en: () => ({
+      subject: 'Tickets available again: {{eventTitle}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'good news: tickets for <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) are available again. Everybody on the waiting list is notified at the same time and no seats are reserved – whoever books first gets them, so please be quick.',
+        ),
+        button('en', 'eventUrl', 'Get tickets now'),
+        paragraph(
+          `<span style="${MUTED}">You stay on the waiting list and are notified again if tickets become available after a sell-out – unless you book or <a href="{{unsubscribeUrl}}" style="color:#52525b">remove yourself from the list</a>.</span>`,
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+good news: tickets for {{eventTitle}} ({{eventDate}}, {{eventVenue}}) are available again. Everybody on the waiting list is notified at the same time and no seats are reserved – whoever books first gets them, so please be quick.
+
+{{eventUrl}}
+
+You stay on the waiting list and are notified again if tickets become available after a sell-out – unless you book or remove yourself from the list: {{unsubscribeUrl}}
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Wieder Tickets verfügbar: {{eventTitle}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'gute Nachrichten: Für <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) sind wieder Tickets verfügbar. Alle auf der Warteliste werden gleichzeitig benachrichtigt und es werden keine Plätze reserviert – wer zuerst bucht, bekommt sie. Sei also schnell.',
+        ),
+        button('de', 'eventUrl', 'Jetzt Tickets sichern'),
+        paragraph(
+          `<span style="${MUTED}">Du bleibst auf der Warteliste und wirst erneut benachrichtigt, wenn nach einem Ausverkauf wieder Tickets frei werden – es sei denn, du buchst oder <a href="{{unsubscribeUrl}}" style="color:#52525b">trägst dich von der Liste aus</a>.</span>`,
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+gute Nachrichten: Für {{eventTitle}} ({{eventDate}}, {{eventVenue}}) sind wieder Tickets verfügbar. Alle auf der Warteliste werden gleichzeitig benachrichtigt und es werden keine Plätze reserviert – wer zuerst bucht, bekommt sie. Sei also schnell.
+
+{{eventUrl}}
+
+Du bleibst auf der Warteliste und wirst erneut benachrichtigt, wenn nach einem Ausverkauf wieder Tickets frei werden – es sei denn, du buchst oder trägst dich von der Liste aus: {{unsubscribeUrl}}
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+  WAITLIST_REMOVED: {
+    en: () => ({
+      subject: 'You are no longer on the waiting list for {{eventTitle}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'we removed you from the waiting list for <strong>{{eventTitle}}</strong> ({{eventDate}}). You will not receive further notifications for this event.',
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+we removed you from the waiting list for {{eventTitle}} ({{eventDate}}). You will not receive further notifications for this event.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Du bist nicht mehr auf der Warteliste für {{eventTitle}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'wir haben dich von der Warteliste für <strong>{{eventTitle}}</strong> ({{eventDate}}) entfernt. Du erhältst für diese Veranstaltung keine weiteren Benachrichtigungen.',
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+wir haben dich von der Warteliste für {{eventTitle}} ({{eventDate}}) entfernt. Du erhältst für diese Veranstaltung keine weiteren Benachrichtigungen.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+  ADMIN_ALERT: {
+    en: () => ({
+      subject: '[{{shopName}}] Warning: {{alertTitle}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph('something in {{shopName}} needs your attention:'),
+        paragraph('<strong>{{alertTitle}}</strong>'),
+        paragraph('{{alertSummary}}'),
+        '{{#if alertSince}}' +
+          paragraph(`<span style="${MUTED}">Since: {{alertSince}}</span>`) +
+          '{{/if}}',
+        button('en', 'alertUrl', 'Open in the admin area'),
+        paragraph(
+          `<span style="${MUTED}">You receive this warning because it is switched on in your admin account (My account → Warning e-mails).</span>`,
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+something in {{shopName}} needs your attention:
+
+{{alertTitle}}
+{{alertSummary}}
+{{#if alertSince}}Since: {{alertSince}}
+{{/if}}
+{{alertUrl}}
+
+You receive this warning because it is switched on in your admin account (My account → Warning e-mails).
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: '[{{shopName}}] Warnung: {{alertTitle}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph('bei {{shopName}} braucht etwas deine Aufmerksamkeit:'),
+        paragraph('<strong>{{alertTitle}}</strong>'),
+        paragraph('{{alertSummary}}'),
+        '{{#if alertSince}}' +
+          paragraph(`<span style="${MUTED}">Seit: {{alertSince}}</span>`) +
+          '{{/if}}',
+        button('de', 'alertUrl', 'Im Admin-Bereich öffnen'),
+        paragraph(
+          `<span style="${MUTED}">Du erhältst diese Warnung, weil sie in deinem Admin-Konto eingeschaltet ist (Mein Konto → Warn-E-Mails).</span>`,
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+bei {{shopName}} braucht etwas deine Aufmerksamkeit:
+
+{{alertTitle}}
+{{alertSummary}}
+{{#if alertSince}}Seit: {{alertSince}}
+{{/if}}
+{{alertUrl}}
+
+Du erhältst diese Warnung, weil sie in deinem Admin-Konto eingeschaltet ist (Mein Konto → Warn-E-Mails).
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ADMIN_ALERT_RESOLVED: {
+    en: () => ({
+      subject: '[{{shopName}}] Resolved: {{alertTitle}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph('good news: the following warning for {{shopName}} has cleared by itself.'),
+        paragraph('<strong>{{alertTitle}}</strong>'),
+        '{{#if alertSince}}' +
+          paragraph(`<span style="${MUTED}">Lasted since: {{alertSince}}</span>`) +
+          '{{/if}}',
+        button('en', 'alertUrl', 'Open in the admin area'),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+good news: the following warning for {{shopName}} has cleared by itself.
+
+{{alertTitle}}
+{{#if alertSince}}Lasted since: {{alertSince}}
+{{/if}}
+{{alertUrl}}
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: '[{{shopName}}] Behoben: {{alertTitle}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'gute Nachricht: Die folgende Warnung für {{shopName}} hat sich von selbst erledigt.',
+        ),
+        paragraph('<strong>{{alertTitle}}</strong>'),
+        '{{#if alertSince}}' +
+          paragraph(`<span style="${MUTED}">Bestand seit: {{alertSince}}</span>`) +
+          '{{/if}}',
+        button('de', 'alertUrl', 'Im Admin-Bereich öffnen'),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+gute Nachricht: Die folgende Warnung für {{shopName}} hat sich von selbst erledigt.
+
+{{alertTitle}}
+{{#if alertSince}}Bestand seit: {{alertSince}}
+{{/if}}
+{{alertUrl}}
 
 ${COMMON.de.regardsText}`,
     }),

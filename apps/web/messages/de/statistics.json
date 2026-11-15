@@ -41,7 +41,8 @@
     "BANK_TRANSFER": "Vorkasse (Überweisung)",
     "CASH": "Bar",
     "CARD": "Karte",
-    "COMPLIMENTARY": "Freikarte"
+    "COMPLIMENTARY": "Freikarte",
+    "FREE": "Keine Zahlung nötig"
   },
   "summary": {
     "period": "{from} – {to} ({days, plural, one {# Tag} other {# Tage}}), Zeitzone {zone}",

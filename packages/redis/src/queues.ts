@@ -24,6 +24,10 @@ export const QUEUE_NAMES = {
   privacy: 'privacy',
   /** AVIF / WebP variants of uploaded images (backfill of existing assets). */
   media: 'media',
+  /** Evaluation of the admin warning e-mails (backups, disk, jobs, bank …). */
+  alerts: 'alerts',
+  /** Waiting list availability checks and notifications. */
+  waitlist: 'waitlist',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

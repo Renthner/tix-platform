@@ -342,6 +342,9 @@ const salesSchema = z.object({
   bankTransferReminderAfterDays: optionalInt(1, 60),
   bankTransferCancelAfterDays: optionalInt(1, 90),
   bankTransferDisableDaysBeforeEvent: optionalInt(0, 90),
+  selfServiceDeadlineHours: optionalInt(0, 8_760),
+  // 0 = unlimited for this event (overrides a global limit); empty = inherit.
+  selfServiceMaxChanges: optionalInt(0, 100),
 });
 
 export async function updateEventSalesAction(
@@ -363,6 +366,8 @@ export async function updateEventSalesAction(
     bankTransferCancelAfterDays:
       cancelMode === 'custom' ? text(fd, 'bankTransferCancelAfterDays') : undefined,
     bankTransferDisableDaysBeforeEvent: text(fd, 'bankTransferDisableDaysBeforeEvent'),
+    selfServiceDeadlineHours: text(fd, 'selfServiceDeadlineHours'),
+    selfServiceMaxChanges: text(fd, 'selfServiceMaxChanges'),
   });
   const errors: Partial<Record<string, FieldErrorCode>> = parsed.success
     ? {}
@@ -418,6 +423,10 @@ export async function updateEventSalesAction(
     // Accounts can only be hidden per event (they cannot be forced on when disabled globally).
     customerAccountsEnabled: triState(fd, 'customerAccountsEnabled') === false ? false : null,
     seoNoindex: flag(fd, 'seoNoindex'),
+    waitlistEnabled: triState(fd, 'waitlistEnabled'),
+    selfServiceEnabled: triState(fd, 'selfServiceMode'),
+    selfServiceAllowNameChange: triState(fd, 'selfServiceAllowNameChange'),
+    selfServiceAllowTransfer: triState(fd, 'selfServiceAllowTransfer'),
   };
   const { db } = getCore();
   await db.update(events).set(values).where(eq(events.id, eventId));

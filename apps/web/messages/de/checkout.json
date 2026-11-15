@@ -50,7 +50,8 @@
     "reservedFor": "Reserviert für",
     "total": "Gesamt",
     "vat": "inkl. {rate} % MwSt.",
-    "graceNote": "Deine Reservierung wurde für den Bestellvorgang einmalig um {minutes} Minuten verlängert."
+    "graceNote": "Deine Reservierung wurde für den Bestellvorgang einmalig um {minutes} Minuten verlängert.",
+    "discount": "Rabattcode {codes}"
   },
   "terms": "Ich akzeptiere die <terms>AGB</terms> und habe die <privacy>Datenschutzerklärung</privacy> gelesen.",
   "submit": "Zahlungspflichtig bestellen",
@@ -135,7 +136,8 @@
       "vat": "inkl. {rate} % MwSt.",
       "paid": "Bezahlt",
       "refundedItem": "erstattet",
-      "refunded": "Erstattet"
+      "refunded": "Erstattet",
+      "discount": "Rabattcode {codes}"
     },
     "documents": {
       "title": "Dokumente",
@@ -189,7 +191,49 @@
       "rest": "Restbetrag"
     },
     "testBadge": "TEST",
-    "testNotice": "Dies ist eine Testbestellung, die ein Administrator für eine unveröffentlichte Veranstaltung aufgegeben hat. Es handelt sich nicht um einen echten Kauf."
+    "testNotice": "Dies ist eine Testbestellung, die ein Administrator für eine unveröffentlichte Veranstaltung aufgegeben hat. Es handelt sich nicht um einen echten Kauf.",
+    "calendar": {
+      "title": "Kalender und Anfahrt",
+      "intro": "Trage den Termin in deinen Kalender ein und finde den Weg zur Spielstätte.",
+      "ics": "Zum Kalender hinzufügen (.ics)",
+      "google": "Google Kalender",
+      "directions": "Anfahrt"
+    },
+    "selfService": {
+      "changeName": "Name ändern",
+      "transfer": "Weitergeben",
+      "nameTitle": "Name auf Ticket {code} ändern",
+      "nameText": "Der Name steht auf dem Ticket und wird am Einlass angezeigt. Der QR-Code bleibt gleich.",
+      "nameLabel": "Name auf dem Ticket",
+      "nameSaved": "Der Name wurde geändert.",
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "transferTitle": "Ticket {code} weitergeben",
+      "transferText": "Die Empfängerin oder der Empfänger bekommt dieses Ticket per E-Mail, mit neuem QR-Code. Du kannst das Ticket danach selbst nicht mehr nutzen.",
+      "recipientName": "Name der Empfängerin / des Empfängers",
+      "recipientEmail": "E-Mail-Adresse der Empfängerin / des Empfängers",
+      "message": "Nachricht (optional)",
+      "transferWarning": "Der aktuelle QR-Code wird sofort ungültig und am Einlass abgewiesen. Deine Bestellung und deine Rechnung bleiben unverändert.",
+      "transferConfirm": "Ticket weitergeben",
+      "transferred": "Das Ticket wurde weitergegeben. Der Empfänger bekommt eine E-Mail.",
+      "handBackHint": "Um das Ticket an den Käufer zurückzugeben, gib dessen E-Mail-Adresse ein. Wer das Ticket zuvor bekommen hat, wird informiert, dass es nicht mehr gilt.",
+      "heldBy": "Weitergegeben an {email}",
+      "resend": "Erneut an Empfänger senden",
+      "resent": "Die E-Mail an den Empfänger wurde erneut gesendet."
+    },
+    "holder": {
+      "metaTitle": "Dein Ticket",
+      "seat": "Platz",
+      "name": "Name",
+      "code": "Ticketcode",
+      "intro": "Zeig am Einlass den QR-Code des Tickets – als PDF auf dem Handy oder ausgedruckt.",
+      "pdf": "Ticket-PDF",
+      "apple": "Zu Apple Wallet hinzufügen",
+      "google": "Zu Google Wallet hinzufügen",
+      "passOnUntil": "Du kannst dieses Ticket noch bis {date} an jemand anderen weitergeben.",
+      "transferred": "Dieses Ticket wurde an jemand anderen weitergegeben und ist nicht mehr gültig.",
+      "void": "Dieses Ticket ist nicht mehr gültig."
+    }
   },
   "account": {
     "title": "Schneller bestellen mit Kundenkonto",

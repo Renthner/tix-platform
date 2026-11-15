@@ -16,7 +16,12 @@ export async function GET(
     if (!session) return apiError('FORBIDDEN', 'Not allowed', 403);
     const { id, ticketId } = await params;
     return pdfResponse(
-      await renderSingleTicketPdf(getCore(), uuidParam.parse(ticketId), uuidParam.parse(id)),
+      await renderSingleTicketPdf(
+        getCore(),
+        uuidParam.parse(ticketId),
+        uuidParam.parse(id),
+        'admin',
+      ),
     );
   });
 }
