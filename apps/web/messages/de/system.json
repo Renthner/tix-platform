@@ -252,5 +252,39 @@
       "refundOpenDays": "Manuelle Erstattungen offen seit (Tagen)",
       "thresholds": "Schwellenwerte"
     }
+  },
+  "loadTest": {
+    "title": "Lasttest-Modus",
+    "description": "Zeitlich begrenzter Schalter für einen realistischen Lasttest gegen diesen Server (siehe docs/LOAD-TEST.de.md).",
+    "statusOn": "Aktiv",
+    "statusOff": "Aus",
+    "until": "Endet {time}",
+    "intro": "Solange der Modus aktiv ist, überspringen Anfragen mit dem Header X-Tix-Loadtest und dem untenstehenden Token ausschließlich die IP-bezogenen Durchsatzlimits des Shops (Sitzplatz-Anfragen, Kasse, Shop-Eintritt, Realtime-Token). Login, Zwei-Faktor, Scanner, Limits je Sitzung, je E-Mail-Adresse und je Code, die Sitzplatzsperre und alle Bestellgrenzen gelten weiter. Der Modus endet von selbst, jeder Schritt steht im Audit-Log.",
+    "duration": "Dauer (Minuten)",
+    "durationHint": "5 bis 240 Minuten. Der Modus schaltet sich automatisch ab.",
+    "password": "Dein Passwort (Bestätigung)",
+    "enable": "Lasttest-Modus aktivieren",
+    "disable": "Jetzt deaktivieren",
+    "disableConfirm": "Lasttest-Modus deaktivieren? Ein laufender Lastgenerator unterliegt wieder den IP-Limits.",
+    "tokenTitle": "Lasttest-Token",
+    "tokenHint": "Jetzt kopieren und dem Lastgenerator übergeben (--loadtest-token). Es wird nur einmal angezeigt und kann nicht erneut gelesen werden.",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "banner": "Der Lasttest-Modus ist bis {time} aktiv. IP-Limits werden für den Lastgenerator übersprungen.",
+    "bannerLink": "Öffnen",
+    "errors": {
+      "failed": "Die Anfrage ist fehlgeschlagen.",
+      "WRONG_PASSWORD": "Das Passwort ist nicht korrekt.",
+      "TWO_FACTOR_REQUIRED": "Richte zuerst eine Authenticator-App oder einen Passkey in deinem Konto ein.",
+      "LOADTEST_ACTIVE": "Es läuft bereits ein Lasttest.",
+      "RATE_LIMITED": "Zu viele Versuche. Bitte versuche es später erneut.",
+      "TWO_FACTOR_CODE_REQUIRED": "Gib den Code deiner Authenticator-App (oder einen Wiederherstellungscode) ein oder bestätige mit einem Passkey.",
+      "TWO_FACTOR_INVALID": "Der Code ist nicht korrekt.",
+      "PASSKEY_INVALID": "Der Passkey konnte nicht überprüft werden. Bitte versuche es erneut.",
+      "ACCOUNT_LOCKED": "Das Konto ist vorübergehend gesperrt."
+    },
+    "code": "Authenticator- oder Wiederherstellungscode",
+    "passkeyHint": "Statt eines Codes kannst du mit deinem Passkey bestätigen.",
+    "passkeySubmit": "Mit Passkey aktivieren"
   }
 }

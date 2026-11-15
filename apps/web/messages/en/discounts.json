@@ -45,6 +45,9 @@
     "unlimited": "Empty = unlimited.",
     "minOrderValue": "Empty = no minimum. Counts the eligible tickets only.",
     "bulkSingleUse": "Generated codes can be used exactly once each.",
+    "fullPercent": "A 100 % code makes tickets free. Depending on the policy in Settings → Checkout (“Full discounts”) such an order is allowed, gets an invoice note or the code is refused.",
+    "fixedMayCover": "A fixed amount at least as high as the ticket price makes the order free. Depending on the policy in Settings → Checkout (“Full discounts”) such an order is allowed, gets an invoice note or the code is refused.",
+    "percentCap": "This percentage is above the maximum of {max} % set in Settings → Checkout. The code cannot be saved.",
     "note": "Never shown to customers."
   },
   "types": {

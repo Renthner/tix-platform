@@ -106,10 +106,16 @@ function relyingParty(ctx: Pick<CoreContext, 'appUrl'>): RelyingParty {
 // ─── Challenges (Redis, single use) ───────────────────────────────────────────────────
 
 export type ChallengePurpose =
-  'register' | 'login' | 'second-factor' | 'restore' | 'add-passkey' | 'recovery-codes';
+  | 'register'
+  | 'login'
+  | 'second-factor'
+  | 'restore'
+  | 'add-passkey'
+  | 'recovery-codes'
+  | 'loadtest';
 
 /** Purposes of assertions that re-confirm a signed-in admin (challenge bound to user + `bind`). */
-export type ReauthPurpose = 'restore' | 'add-passkey' | 'recovery-codes';
+export type ReauthPurpose = 'restore' | 'add-passkey' | 'recovery-codes' | 'loadtest';
 
 export interface ChallengeRecord {
   challenge: string;

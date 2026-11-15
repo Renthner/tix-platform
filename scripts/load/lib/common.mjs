@@ -135,8 +135,11 @@ export class Vu {
   async call(label, method, path, json) {
     const headers = { cookie: this.cookieHeader(), origin: this.cfg.origin };
     if (this.cfg.fakeIp) headers['x-forwarded-for'] = this.ip;
+    // Sanctioned load test (docs/LOAD-TEST.md): skips ONLY the per-IP throughput limits.
+    if (this.cfg.loadtestToken) headers['x-tix-loadtest'] = this.cfg.loadtestToken;
     if (json !== undefined) headers['content-type'] = 'application/json';
     const t0 = now();
+    const wallStart = Date.now();
     let status = 0;
     let body = null;
     let code = '';
@@ -169,7 +172,7 @@ export class Vu {
     }
     const ms = now() - t0;
     this.metrics.record(label, status, code, ms);
-    return { status, body, code, ms };
+    return { status, body, code, ms, wallStart, wallEnd: Date.now() };
   }
 }
 
@@ -187,9 +190,13 @@ export async function pool(items, limit, fn) {
 }
 
 // ── infrastructure access ─────────────────────────────────────────────────────────
-export async function openDb(url) {
+export async function openDb(url, { readOnly = false } = {}) {
   const { Client } = requireFrom('packages/db')('pg');
-  const client = new Client({ connectionString: url });
+  const client = new Client({
+    connectionString: url,
+    // A checking session never writes: every transaction of it is read-only on the server side.
+    ...(readOnly ? { options: '-c default_transaction_read_only=on' } : {}),
+  });
   await client.connect();
   return client;
 }
@@ -238,6 +245,7 @@ export function buildConfig(args) {
     base,
     origin: String(args.origin ?? process.env.LOAD_ORIGIN ?? base),
     fakeIp: args['fake-ip'] === true || process.env.LOAD_FAKE_IP === '1',
+    loadtestToken: args['loadtest-token'] ?? process.env.TIX_LOADTEST_TOKEN ?? null,
     timeoutMs: Number(args.timeout ?? 30_000),
     vus: Number(args.vus ?? process.env.LOAD_VUS ?? 1200),
     seed: Number(args.seed ?? 42),

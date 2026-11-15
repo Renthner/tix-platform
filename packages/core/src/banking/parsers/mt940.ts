@@ -12,7 +12,9 @@ import {
  *    references, supplementary details)
  *  - `:86:` structured information `GVC?00…?10…?20…?29…?30…?31…?32…?33…?34…?60…?63`
  *    with SEPA tags (EREF+, SVWZ+, MREF+ …) inside the purpose lines.
- * MT942 (interim, unbooked) messages are skipped.
+ * MT942 (interim transaction report: :34F: floor limits, :13D: creation time, :90D:/:90C:
+ * totals) uses the same :61:/:86: lines and is imported with them; the totals are ignored
+ * and the transactions are flagged `raw.interim`.
  */
 
 const FIELD_START = /^:(\d{2}[A-Z]?):/;
@@ -26,7 +28,8 @@ interface Field {
 
 export function looksLikeMt940(content: string): boolean {
   return (
-    /(^|\n):20:/.test(content) && (/(^|\n):61:/.test(content) || /(^|\n):60[FM]:/.test(content))
+    /(^|\n):20:/.test(content) &&
+    (/(^|\n):61:/.test(content) || /(^|\n):60[FM]:/.test(content) || /(^|\n):34F:/.test(content))
   );
 }
 
@@ -44,7 +47,10 @@ function splitFields(content: string): Field[][] {
     const line = rawLine.replace(/\s+$/, '');
     const start = FIELD_START.exec(line);
     if (start) {
-      if (start[1] === '20' && current.some((f) => f.tag === '61' || f.tag === '62F')) {
+      if (
+        start[1] === '20' &&
+        current.some((f) => ['61', '62F', '62M', '34F', '90D', '90C'].includes(f.tag))
+      ) {
         messages.push(current);
         current = [];
       }
@@ -67,6 +73,12 @@ function splitFields(content: string): Field[][] {
 
 function parseBalanceCurrency(value: string): string | null {
   const m = /^[CD]\d{6}([A-Z]{3})/.exec(value);
+  return m ? m[1]! : null;
+}
+
+/** MT942 `:34F:` floor limit, e.g. `EURD0,` – the first three letters are the currency. */
+function parseFloorLimitCurrency(value: string): string | null {
+  const m = /^([A-Z]{3})/.exec(value.trim());
   return m ? m[1]! : null;
 }
 
@@ -206,6 +218,7 @@ function buildTransaction(
   line: StatementLine,
   info: Info86 | null,
   currency: string,
+  interim = false,
 ): ParsedTransaction {
   const purpose = info?.purpose ?? '';
   const tags = parseSepaTags(purpose);
@@ -229,7 +242,8 @@ function buildTransaction(
     bookingText: cleanText(info?.bookingText, 200),
     raw: Object.fromEntries(
       Object.entries({
-        source: 'mt940',
+        source: interim ? 'mt942' : 'mt940',
+        interim: interim || undefined,
         transactionType: line.transactionType,
         customerReference: line.customerReference,
         supplementary: line.supplementary,
@@ -251,9 +265,12 @@ export function parseMt940(content: string): ParsedStatementFile {
   const warnings: string[] = [];
   const statements: ParsedStatement[] = [];
   for (const fields of messages) {
-    if (fields.some((f) => f.tag === '34F')) {
-      warnings.push('MT942 interim report (unbooked transactions) skipped');
-      continue;
+    // MT942 (interim transaction report): same :61:/:86: lines, no balances. :90D:/:90C:
+    // totals are ignored. The entries are flagged `interim`: the importer stores them held
+    // back (never matched / paid automatically) and links them to the final booking later.
+    const interim = fields.some((f) => f.tag === '34F');
+    if (interim) {
+      warnings.push('MT942 interim report (entries are not booked yet)');
     }
     const reference = fields.find((f) => f.tag === '20')?.value.trim() ?? null;
     const number = fields.find((f) => f.tag === '28C' || f.tag === '28')?.value.trim() ?? null;
@@ -262,6 +279,7 @@ export function parseMt940(content: string): ParsedStatementFile {
     const currency =
       parseBalanceCurrency(opening?.value ?? '') ??
       parseBalanceCurrency(closing?.value ?? '') ??
+      parseFloorLimitCurrency(fields.find((f) => f.tag === '34F')?.value ?? '') ??
       'EUR';
     const transactions: ParsedTransaction[] = [];
     for (let i = 0; i < fields.length; i += 1) {
@@ -274,7 +292,7 @@ export function parseMt940(content: string): ParsedStatementFile {
       }
       const next = fields[i + 1];
       const info = next?.tag === '86' ? parse86(next.value) : null;
-      transactions.push(buildTransaction(line, info, currency));
+      transactions.push(buildTransaction(line, info, currency, interim));
     }
     const dates = transactions.map((t) => t.bookingDate).sort();
     statements.push({

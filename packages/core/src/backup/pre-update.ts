@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { PgClient } from '@tix/db';
+import { createDb, PgClient } from '@tix/db';
+import { collectSecretKeyFingerprints } from '../secrets/reencrypt';
 import { writeArchive, type ArchiveEntry } from './archive';
 import { listCatalogue, writeBackupState } from './catalogue';
 import { encryptStream, type BackupKey } from './crypto';
@@ -87,6 +88,27 @@ async function* archiveEntries(
   };
 }
 
+async function sampleSecretKeys(params: PreUpdateBackupParams): Promise<string[]> {
+  const handle = createDb({
+    connectionString: params.databaseUrl,
+    poolMax: 1,
+    applicationName: 'tix-pre-update-secret-keys',
+    statementTimeoutMs: 30_000,
+  });
+  try {
+    return await collectSecretKeyFingerprints(handle, params.keyRing, undefined, {
+      tolerateMissing: true,
+    });
+  } catch (err) {
+    params.logger.warn(
+      `pre-update backup: secret key fingerprints not recorded: ${describeError(err)}`,
+    );
+    return [];
+  } finally {
+    await handle.close().catch(() => undefined);
+  }
+}
+
 /** One snapshot-consistent dump + manifest, written to the bucket or (fallback) the local directory. */
 export async function createPreUpdateBackup(
   params: PreUpdateBackupParams,
@@ -107,6 +129,9 @@ export async function createPreUpdateBackup(
     const rowCounts = await readExistingRowCounts(snapshotClient);
     const lastMigration = await readMigrationInfo(snapshotClient, params.migrationsDir);
     const version = await snapshotClient.query<{ server_version: string }>('SHOW server_version');
+    // Which keys do the stored secrets depend on? (sample; never blocks the backup; the database
+    // may still be at an older version: missing tables are skipped)
+    const secretKeys = await sampleSecretKeys(params);
     const inner: BackupManifest = {
       formatVersion: BACKUP_FORMAT_VERSION,
       id: randomUUID(),
@@ -119,6 +144,7 @@ export async function createPreUpdateBackup(
       encryption: { algorithm: 'AES-256-GCM-STREAM', keyId: active.id },
       rowCounts,
       createdByUserId: null,
+      ...(secretKeys.length > 0 ? { secretKeys } : {}),
     };
     const directory = backupDirectory(inner);
     const stats = { dumpBytes: 0 };

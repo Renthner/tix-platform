@@ -31,6 +31,18 @@
     "NEEDS_REVIEW": "Klärfall",
     "IGNORED": "Ignoriert"
   },
+  "hold": {
+    "INTERIM": "Vorläufig (noch nicht gebucht)",
+    "POSSIBLE_DUPLICATE": "Mögliches Duplikat – prüfen",
+    "NO_BOOKING_DATE": "Ohne Buchungsdatum – prüfen",
+    "AGGREGATE": "Durch Einzelbuchungen abgedeckt"
+  },
+  "holdHint": {
+    "INTERIM": "Eintrag eines Zwischenberichts (MT942). Wird nie automatisch zugeordnet oder bezahlt; der endgültige Auszug ersetzt ihn.",
+    "POSSIBLE_DUPLICATE": "Sieht aus wie ein Eintrag einer früheren camt.054-Datei und hat keine Referenz zur Unterscheidung. Wird erst nach deiner Freigabe zugeordnet.",
+    "NO_BOOKING_DATE": "camt.054-Eintrag ohne Buchungsdatum und ohne Referenz. Wird erst nach deiner Freigabe zugeordnet.",
+    "AGGREGATE": "Sammelbuchung, deren Einzelzahlungen als camt.054-Einträge importiert wurden – wird nicht doppelt gezählt."
+  },
   "reason": {
     "NO_REFERENCE": "Kein Verwendungszweck",
     "UNKNOWN_REFERENCE": "Unbekannte Referenz",
@@ -82,7 +94,7 @@
     "FINTS": "FinTS (Online-Banking)",
     "PSD2_GOCARDLESS": "PSD2 (GoCardless – eingestellt)",
     "PSD2_FINAPI": "PSD2 über finAPI",
-    "FILE_IMPORT": "Datei-Import (camt / MT940 / CSV)",
+    "FILE_IMPORT": "Datei-Import (camt / MT940 / MT942 / CSV)",
     "IMAP": "E-Mail-Postfach (IMAP)"
   },
   "adapterHint": {
@@ -106,9 +118,9 @@
   },
   "format": {
     "AUTO": "Automatisch erkennen",
-    "CAMT052": "camt.052",
+    "CAMT052": "camt.052 / camt.054",
     "CAMT053": "camt.053",
-    "MT940": "MT940",
+    "MT940": "MT940 / MT942",
     "CSV": "CSV"
   },
   "accounts": {
@@ -355,6 +367,7 @@
     "fullyAllocated": "Diese Überweisung ist bereits vollständig zugeordnet und kann nicht erneut zugewiesen werden. Erstatte den Mehrbetrag in der Bestellung und markiere den Fall danach als erledigt.",
     "openOrder": "Bestellung {order} öffnen (Erstattung)",
     "rematch": "Abgleich erneut ausführen",
+    "releaseHold": "Kein Duplikat – für Abgleich freigeben",
     "details": "Details",
     "reference": "Gefundene Referenz",
     "reversedInfo": "Aufgehoben von {who} am {when}",
@@ -416,7 +429,7 @@
   },
   "imports": {
     "title": "Kontoauszugs-Importe",
-    "description": "Lade camt.053 / camt.052 (XML), MT940 oder CSV-Exporte deiner Bank hoch – auch als ZIP. Bereits importierte Dateien werden erkannt, ebenso Buchungen, die über einen anderen Weg eingetroffen sind.",
+    "description": "Lade camt.053 / camt.052 / camt.054 (XML), MT940 / MT942 oder CSV-Exporte deiner Bank hoch – auch als ZIP; das Format wird automatisch erkannt. Zwischenberichte sind ebenfalls möglich: MT942-Einträge werden nur als \"vorläufig\" angezeigt und nie automatisch bezahlt (der endgültige Auszug zählt); gebuchte Einträge aus camt.052 / camt.054 werden zugeordnet und später wiedererkannt. Bereits importierte Dateien werden erkannt, ebenso Buchungen, die über einen anderen Weg eingetroffen sind.",
     "account": "Empfangskonto",
     "noAccounts": "Lege zuerst ein Empfangskonto an.",
     "drop": "Kontoauszüge hierher ziehen oder klicken zum Auswählen",

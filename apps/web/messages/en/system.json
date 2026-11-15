@@ -252,5 +252,39 @@
       "refundOpenDays": "Manual refunds open for (days)",
       "thresholds": "Thresholds"
     }
+  },
+  "loadTest": {
+    "title": "Load test mode",
+    "description": "Time-limited switch for a realistic load test against this server (see docs/LOAD-TEST.md).",
+    "statusOn": "Active",
+    "statusOff": "Off",
+    "until": "Ends {time}",
+    "intro": "While active, requests that carry the header X-Tix-Loadtest with the token below skip only the per-IP throughput limits of the shop (seat requests, checkout, shop entry, realtime token). Login, two-factor, scanner, per-session, per-e-mail and per-code limits, seat locking and all order limits stay in force. The mode ends by itself, every step is written to the audit log.",
+    "duration": "Duration (minutes)",
+    "durationHint": "5 to 240 minutes. The mode switches off automatically.",
+    "password": "Your password (confirmation)",
+    "enable": "Enable load test mode",
+    "disable": "Disable now",
+    "disableConfirm": "Disable the load test mode? A running load generator is limited by the per-IP limits again.",
+    "tokenTitle": "Load test token",
+    "tokenHint": "Copy it now and pass it to the load generator (--loadtest-token). It is shown only once and cannot be read again.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "banner": "Load test mode is active until {time}. Per-IP limits are skipped for the load generator.",
+    "bannerLink": "Open",
+    "errors": {
+      "failed": "The request failed.",
+      "WRONG_PASSWORD": "The password is not correct.",
+      "TWO_FACTOR_REQUIRED": "Set up an authenticator app or a passkey in your account first.",
+      "LOADTEST_ACTIVE": "A load test is already active.",
+      "RATE_LIMITED": "Too many attempts. Please try again later.",
+      "TWO_FACTOR_CODE_REQUIRED": "Enter the code of your authenticator app (or a recovery code), or confirm with a passkey.",
+      "TWO_FACTOR_INVALID": "The code is not correct.",
+      "PASSKEY_INVALID": "The passkey could not be verified. Please try again.",
+      "ACCOUNT_LOCKED": "The account is temporarily locked."
+    },
+    "code": "Authenticator or recovery code",
+    "passkeyHint": "Instead of a code you can confirm with your passkey.",
+    "passkeySubmit": "Enable with passkey"
   }
 }

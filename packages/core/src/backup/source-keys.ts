@@ -9,7 +9,7 @@ import {
 import { requireCapability, type CoreContext } from '../context';
 import { BackupCryptoError, decryptStream } from './crypto';
 import type { BackupBucket } from './bucket';
-import type { BackupRuntime } from './runtime';
+import { archiveKeys, type BackupRuntime } from './runtime';
 
 /**
  * Encryption key(s) of the SOURCE system of a backup (`APP_ENCRYPTION_KEYS` ring entries of the
@@ -24,7 +24,7 @@ import type { BackupRuntime } from './runtime';
  * The key text is never logged, never part of job data / audit / error messages.
  */
 
-export type SourceKeysErrorCode = 'INVALID' | 'CONFLICT' | 'EXPIRED' | 'DISABLED';
+export type SourceKeysErrorCode = 'INVALID' | 'EXPIRED' | 'DISABLED';
 
 /**
  * Operator opt-in. Restoring/probing a backup streams `pg_restore` output into psql as the
@@ -69,11 +69,11 @@ export const SOURCE_KEYS_TTL_SECONDS = 3_600;
 export const SOURCE_KEYS_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32}$/;
 const SECRET_CONTEXT = 'backup-source-keys';
 
-/** Parses what the admin pasted and checks it against the system's own ring. Throws SourceKeysError. */
-export function parseSourceKeys(
-  text: string,
-  currentRing: readonly SecretBoxKey[],
-): SecretBoxKey[] {
+/**
+ * Parses what the admin pasted. A key id that this system also uses (with other material) is fine:
+ * the key ring keeps several candidates per id. Throws SourceKeysError('INVALID').
+ */
+export function parseSourceKeys(text: string): SecretBoxKey[] {
   let keys: SecretBoxKey[];
   try {
     keys = parseKeyRingText(text);
@@ -84,27 +84,16 @@ export function parseSourceKeys(
     );
   }
   if (keys.length === 0) throw new SourceKeysError('INVALID', 'No key was entered');
-  const ids = new Set(keys.map((k) => k.id));
-  if (ids.size !== keys.length) throw new SourceKeysError('INVALID', 'Duplicate key ids');
-  try {
-    mergeKeyRings(currentRing, keys);
-  } catch (err) {
-    throw new SourceKeysError('CONFLICT', (err as Error).message);
-  }
-  return keys;
+  return mergeKeyRings(keys);
 }
 
 const redisKey = (ctx: Pick<CoreContext, 'keys'>, token: string) =>
   `${ctx.keys.prefix}:backup:source-keys:${token}`;
 
 /** Validates, encrypts and stores the keys; returns the single-use token for the job. */
-export async function stageSourceKeys(
-  ctx: CoreContext,
-  text: string,
-  currentRing: readonly SecretBoxKey[],
-): Promise<string> {
+export async function stageSourceKeys(ctx: CoreContext, text: string): Promise<string> {
   assertForeignBackupKeysAllowed();
-  const keys = parseSourceKeys(text, currentRing);
+  const keys = parseSourceKeys(text);
   const token = randomBytes(24).toString('base64url');
   await ctx.redis.set(
     redisKey(ctx, token),
@@ -139,7 +128,12 @@ export async function takeSourceKeys(ctx: CoreContext, token: string): Promise<S
 export function withSourceKeys(rt: BackupRuntime, keys: readonly SecretBoxKey[]): BackupRuntime {
   if (keys.length === 0) return rt;
   assertForeignBackupKeysAllowed();
-  return { ...rt, keyRing: mergeKeyRings(rt.keyRing, keys) };
+  // The entered keys are allowed for archives too (the flag was just checked).
+  return {
+    ...rt,
+    keyRing: mergeKeyRings(rt.keyRing, keys),
+    archiveKeyRing: mergeKeyRings(archiveKeys(rt), keys),
+  };
 }
 
 export type KeyCheckResult = 'MATCH' | 'KEY_UNKNOWN' | 'MISMATCH' | 'NOT_A_BACKUP';

@@ -1,7 +1,8 @@
 import { BANK_TX_MATCH_STATUSES } from '@tix/shared';
 import { Download, Search } from 'lucide-react';
 import { getFormatter, getLocale, getTranslations } from 'next-intl/server';
-import { MatchStatusBadge, ReasonBadge } from '@/components/admin/banking/banking-ui';
+import { HoldBadge, MatchStatusBadge, ReasonBadge } from '@/components/admin/banking/banking-ui';
+import { bankTxHold } from '@/lib/banking-hold';
 import { NativeSelect } from '@/components/admin/form-controls';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -204,7 +205,11 @@ export default async function TransactionsPage({
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        <MatchStatusBadge status={tx.matchStatus} />
+                        {bankTxHold(tx.rawData) ? (
+                          <HoldBadge hold={bankTxHold(tx.rawData)!} />
+                        ) : (
+                          <MatchStatusBadge status={tx.matchStatus} />
+                        )}
                         {tx.matchStatus === 'NEEDS_REVIEW' && tx.reviewReason ? (
                           <ReasonBadge reason={tx.reviewReason} />
                         ) : null}

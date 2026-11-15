@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { ReviewCase } from '@/components/admin/banking/review-case';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { bankTxHold } from '@/lib/banking-hold';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { requireAdmin } from '@/server/auth';
@@ -56,7 +57,11 @@ export default async function TransactionDetailPage({
           <ArrowLeft /> {t('transactions.backToList')}
         </Link>
       </Button>
-      <ReviewCase view={toReviewCaseView(detail)} showDetailsLink={false} />
+      <ReviewCase
+        view={toReviewCaseView(detail)}
+        showDetailsLink={false}
+        hold={bankTxHold(tx.rawData)}
+      />
       <Card>
         <CardHeader>
           <CardTitle>{t('review.details')}</CardTitle>

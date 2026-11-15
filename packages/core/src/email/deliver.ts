@@ -7,12 +7,7 @@ import { renderOrderTicketsPdf } from '../tickets/render';
 import { loadInvoicePdf } from '../invoices';
 import { getSetting } from '../settings';
 import { EmailTemplateMissingError, renderEmail } from './render';
-import {
-  EMAIL_VARIABLES_CONTEXT,
-  parseStoredEmailRequest,
-  type EmailAttachment,
-  type StoredEmailRequest,
-} from './request';
+import { EMAIL_VARIABLES_CONTEXT, parseStoredEmailRequest, type EmailAttachment } from './request';
 import { estimateMessageBytes, exceedsMaxMessageSize } from './size';
 import { TemplateSyntaxError } from './template';
 import { isPermanentSmtpError, smtpSender, type MailSender } from './transport';
@@ -185,8 +180,9 @@ export async function deliverEmailMessage(
       headers: { 'Auto-Submitted': 'auto-generated' },
     };
     const info = (await sender.transporter.sendMail(mail)) as { messageId?: string };
-    const sentPayload: StoredEmailRequest = {
-      ...payload,
+    // Merge only the new keys in SQL: the stored envelope (`variables`) may have been re-encrypted
+    // since the snapshot above and must never be rewritten from it.
+    const sentPatch = {
       ...(ticketsOmitted ? { ticketsOmitted: true } : {}),
       sentFiles: files.map((f) => ({
         fileName: f.fileName,
@@ -202,7 +198,7 @@ export async function deliverEmailMessage(
         sentAt: new Date(),
         providerMessageId: info.messageId ?? null,
         lastError: null,
-        attachments: sentPayload,
+        attachments: sql`coalesce(${emailMessages.attachments}, '{}'::jsonb) || ${JSON.stringify(sentPatch)}::jsonb`,
         updatedAt: new Date(),
       })
       .where(eq(emailMessages.id, messageId));

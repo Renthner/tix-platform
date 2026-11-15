@@ -160,6 +160,48 @@ export const SectionLayer = memo(function SectionLayer({
   );
 });
 
+/** Prefix of the keyboard node ids of standing sections (never collides with seat ids). */
+export const STANDING_NAV_PREFIX = 'ga:';
+
+/** Position of the keyboard node of a standing section (its label anchor / centre). */
+export function standingNavPoint(section: PublicSection): { x: number; y: number } | null {
+  return section.label?.position ?? labelAnchor(section.geometry);
+}
+
+/**
+ * Keyboard controls for standing sections (no seats): focusable buttons that open the quantity
+ * panel. Transparent over the section; the outline is the focus ring.
+ */
+export const StandingNavLayer = memo(function StandingNavLayer({
+  sections,
+  label,
+}: {
+  sections: PublicSection[];
+  label: (section: PublicSection) => string;
+}) {
+  return (
+    <g>
+      {sections.map((section) => {
+        const shape = shapeProps(section.geometry);
+        if (!shape) return null;
+        const Tag = shape.tag;
+        return (
+          <g
+            key={section.id}
+            data-seat-nav={`${STANDING_NAV_PREFIX}${section.id}`}
+            role="button"
+            tabIndex={-1}
+            aria-label={label(section)}
+          >
+            <Tag {...shape.attrs} className="tix-seat-focus-halo" />
+            <Tag {...shape.attrs} className="tix-seat-focus-ring" />
+          </g>
+        );
+      })}
+    </g>
+  );
+});
+
 export const ElementLayer = memo(function ElementLayer({
   elements,
 }: {

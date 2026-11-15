@@ -46,6 +46,7 @@ import {
   addSeats,
   afterSeatMapSaved,
   assignBankTransaction,
+  backfillMissingInvoices,
   cancelAdjustment,
   cancelPaidOrder,
   completePayPalPayment,
@@ -1949,5 +1950,89 @@ describe.skipIf(!adminUrl || !redisUrl)('additional payments / tariff change (in
     await cancelAdjustment(ctx, { adjustmentId: proposed.adjustmentId, userId });
     // Without the open request the overpayment can be reversed again.
     await reverseBankAllocation(ctx, { allocationId: allocation!.id, userId, reason: 'wrong' });
+  });
+
+  // Last test of the file: the backfill below looks at every recent paid order without an invoice.
+  it('a 0.00 order (NO_INVOICE) whose tariff upgrade is paid later gets an invoice, also via the backfill', async () => {
+    const seat = seatIds[58]!;
+    // A real free order: a 100 % tariff and no service fee (the fee is switched off meanwhile).
+    const [category] = await handle.db.select().from(priceCategories).limit(1);
+    const [free] = await handle.db
+      .insert(ticketTypes)
+      .values({
+        eventId: event.id,
+        name: 'Free',
+        discountKind: 'PERCENT',
+        discountValue: 10_000,
+        requiresProofAtEntry: false,
+      })
+      .returning();
+    await handle.db
+      .insert(priceCategoryTicketTypes)
+      .values({ priceCategoryId: category!.id, ticketTypeId: free!.id });
+    await handle.db.update(fees).set({ isActive: false });
+    await saveSetting(ctx, 'invoicing', { zeroValueInvoice: 'NO_INVOICE' }, null);
+    try {
+      const freeOrder = async (seatId: string) => {
+        const session = `k${uuid().slice(0, 8)}`;
+        await enterShop(ctx, event, session);
+        await addSeats(ctx, session, event, [seatId]);
+        await setTariff(ctx, session, event, seatId, free!.id);
+        const { quotes } = await getCheckoutOptions(ctx, session);
+        expect(quotes.BANK_TRANSFER.totalGross).toBe(0);
+        const placed = await placeOrder(ctx, {
+          sessionId: session,
+          input: buyer('BANK_TRANSFER', 0),
+        });
+        await ensureOrderTickets(ctx, placed.orderId);
+        const [row] = await handle.db.select().from(orders).where(eq(orders.id, placed.orderId));
+        expect(row).toMatchObject({ paymentMethod: 'FREE', status: 'PAID', totalGross: 0 });
+        return placed.orderId;
+      };
+      const upgradeAndPayInCash = async (orderId: string, seatId: string) => {
+        const item = await itemOf(orderId, seatId);
+        const proposed = await proposeTariffChange(ctx, {
+          orderId,
+          changes: [{ orderItemId: item.id, newTicketTypeId: normalId }],
+          reason: 'Free tariff does not apply',
+          notify: false,
+          userId,
+          canUseCredit: true,
+        });
+        await recordManualAdjustmentPayment(ctx, {
+          adjustmentId: proposed.adjustmentId,
+          method: 'CASH',
+          userId,
+        });
+      };
+      const orderId = await freeOrder(seat);
+      const invoicesOf = async (id = orderId) =>
+        handle.db.select().from(invoices).where(eq(invoices.orderId, id));
+
+      // No money, total 0: neither the issue function nor the backfill invoices it.
+      expect(await issueInvoice(ctx, orderId)).toBeNull();
+      await backfillMissingInvoices(ctx);
+      expect(await invoicesOf()).toHaveLength(0);
+
+      // Tariff upgrade, paid in cash: real money arrives, the method stays FREE -> invoice.
+      await upgradeAndPayInCash(orderId, seat);
+      const [after] = await handle.db.select().from(orders).where(eq(orders.id, orderId));
+      expect(after!.paymentMethod).toBe('FREE');
+      expect((await invoicesOf()).filter((d) => d.type === 'INVOICE')).toHaveLength(1);
+      expect(await historyTypes(orderId)).not.toContain('invoice_correction_needed');
+
+      // The backfill picks such an order up when its invoice is missing (here: invoicing was off
+      // while the upgrade was paid, as if the invoice job had failed).
+      const second = await freeOrder(seatIds[59]!);
+      await saveSetting(ctx, 'invoicing', { issueInvoices: false }, null);
+      await upgradeAndPayInCash(second, seatIds[59]!);
+      await saveSetting(ctx, 'invoicing', { issueInvoices: true }, null);
+      expect(await invoicesOf(second)).toHaveLength(0);
+      expect((await backfillMissingInvoices(ctx)).issued).toBeGreaterThanOrEqual(1);
+      expect((await invoicesOf(second)).filter((d) => d.type === 'INVOICE')).toHaveLength(1);
+    } finally {
+      await handle.db.update(fees).set({ isActive: true });
+      await saveSetting(ctx, 'invoicing', { zeroValueInvoice: 'INVOICE' }, null);
+    }
   });
 });

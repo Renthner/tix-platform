@@ -133,6 +133,36 @@ const maintenanceWatcher = new MaintenanceWatcher({
   },
   onEnd: () => logger.info('maintenance ended: accepting connections again'),
 });
+
+// Epoch: an opaque token that changes when the Redis seat state was replaced (restore). Announced to
+// every client on connect and to all connected clients when it changes; a client that saw another
+// epoch before resyncs completely (see packages/shared/src/realtime-epoch.ts).
+const EPOCH_POLL_MS = 3_000;
+let currentEpoch: string | null = null;
+async function readEpoch(): Promise<string | null> {
+  const existing = await redis.command.get(keys.realtimeEpoch());
+  if (existing) return existing;
+  // First start of this Redis: whoever is first wins (NX), everybody reads the same value.
+  await redis.command.set(keys.realtimeEpoch(), randomUUID(), 'NX');
+  return redis.command.get(keys.realtimeEpoch());
+}
+async function refreshEpoch(announce: boolean): Promise<void> {
+  try {
+    const next = await readEpoch();
+    if (!next || next === currentEpoch) return;
+    const changed = currentEpoch !== null;
+    currentEpoch = next;
+    if (announce && changed) {
+      logger.info('realtime epoch changed: announcing to clients');
+      io.emit('realtime:epoch', { epoch: next });
+    }
+  } catch (err) {
+    logger.warn({ err }, 'realtime epoch check failed');
+  }
+}
+const epochTimer = setInterval(() => void refreshEpoch(true), EPOCH_POLL_MS);
+epochTimer.unref();
+
 io.use(async (_socket, next) => {
   if (Date.now() - maintenanceCache.at > 1_500) {
     const active = await maintenanceProbe().catch(() => false);
@@ -183,6 +213,7 @@ function eventRoomJoin(
 io.on('connection', (socket) => {
   const data = socket.data as SocketData;
   void socket.join(`sid:${data.sid}`);
+  if (currentEpoch) socket.emit('realtime:epoch', { epoch: currentEpoch });
 
   socket.on('seats:subscribe', (eventId: unknown, ack?: unknown) =>
     eventRoomJoin(socket, 'seats', eventId, ack),
@@ -317,6 +348,7 @@ async function main(): Promise<void> {
     channels.patterns.queue,
     channels.patterns.sessions,
   );
+  await refreshEpoch(false);
   maintenanceWatcher.start();
   void beat();
   http.listen(env.REALTIME_PORT, env.REALTIME_HOST, () => {
@@ -334,6 +366,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'shutting down');
   clearInterval(flushTimer);
   clearInterval(heartbeatTimer);
+  clearInterval(epochTimer);
   await removeRealtimeHeartbeat(redis.command, keys, instanceId).catch(() => undefined);
   maintenanceWatcher.stop();
   await new Promise<void>((resolve) => io.close(() => resolve()));

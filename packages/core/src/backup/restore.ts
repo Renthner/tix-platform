@@ -2,13 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { adminUsers, auditLogs, PgClient } from '@tix/db';
 import { runMigrations } from '@tix/db/migrate';
 import { QUEUE_NAMES, type Keyspace, type Redis } from '@tix/redis';
-import { persistExtraKeys, type SecretBoxKey } from '@tix/shared/server';
+import { keyLabel, persistExtraKeys, type SecretBoxKey } from '@tix/shared/server';
 import { eq } from 'drizzle-orm';
 import { invalidateShopCache } from '../cache/shop-cache';
 import type { JobQueues } from '../job-queues';
-import { invalidateSettings } from '../settings';
+import { getSetting, invalidateSettings } from '../settings';
 import { replayErasureLedger } from '../customers/privacy';
 import { runPrivacyRetention } from '../customers/privacy';
+import { verifySecretsReadable } from '../secrets/reencrypt';
 import { enqueueRefundReconcile, markRefundsForReconciliation } from '../orders/refund-reconcile';
 import { BackupCryptoError } from './crypto';
 import { createBackup, type CreateBackupResult } from './create';
@@ -25,12 +26,19 @@ import {
   readSequenceCounters,
   terminateOtherSessions,
 } from './pg';
-import { describeError, type BackupRuntime } from './runtime';
+import {
+  archiveKeys,
+  describeError,
+  sendSecretsUnreadableAlert,
+  type BackupRuntime,
+} from './runtime';
 import { withSourceKeys } from './source-keys';
 import {
   clearMaintenance,
   clearRestoreIncomplete,
+  clearSecretsUnreadable,
   getRestoreIncomplete,
+  setSecretsUnreadable,
   setMaintenance,
   setRestoreIncomplete,
   startMaintenanceHeartbeat,
@@ -64,6 +72,8 @@ export interface RestoreResult {
   erasuresReplayed: number;
   /** Ids of source-system keys now stored as additional decrypt-only keys (never key material). */
   additionalKeyIds: string[];
+  /** Restored secrets that no key of this system opens (0 = everything is readable). */
+  unreadableSecrets: number;
 }
 
 /** Grace period after the flag was set so in-flight web requests can finish. */
@@ -92,11 +102,13 @@ export async function validateRestore(
   let inspected: ArchiveInspection;
   try {
     const source = await rt.buckets.backups.getStream(archiveKey(entry.directory));
-    inspected = await inspectArchive(source.stream, rt.keyRing);
+    inspected = await inspectArchive(source.stream, archiveKeys(rt));
   } catch (err) {
     if (err instanceof BackupCryptoError) {
       throw new RestoreRejectedError(
-        err.code === 'KEY_UNKNOWN' ? 'KEY_UNKNOWN' : 'ARCHIVE_INVALID',
+        err.code === 'KEY_UNKNOWN' || err.code === 'KEY_MISMATCH'
+          ? 'KEY_UNKNOWN'
+          : 'ARCHIVE_INVALID',
         err.message,
       );
     }
@@ -146,6 +158,8 @@ export async function cleanupRedisAfterRestore(ctx: {
   await deleteByPattern(ctx.redis, `${prefix}:{ev:*`);
   await deleteByPattern(ctx.redis, `${prefix}:cart:*`);
   await ctx.redis.del(ctx.keys.activeLockEvents(), ctx.keys.activeQueueEvents());
+  // Connected browsers still show the old locks/availability: a new epoch makes them resync fully.
+  await ctx.redis.set(ctx.keys.realtimeEpoch(), randomUUID());
   if (ctx.jobs) {
     for (const name of [QUEUE_NAMES.email, QUEUE_NAMES.documents, QUEUE_NAMES.refunds]) {
       const queue = ctx.jobs.queue(name);
@@ -205,7 +219,7 @@ async function restoreFiles(
   let restored = 0;
   await progress.step('FILES_RESTORE');
   const source = await rt.buckets.backups.getStream(archiveKey(directory));
-  for await (const file of archivedFiles(source.stream, rt.keyRing)) {
+  for await (const file of archivedFiles(source.stream, archiveKeys(rt))) {
     const bucket = rt.buckets[file.area];
     const contentType = file.entry.header.contentType ?? 'application/octet-stream';
     const size = file.entry.header.size;
@@ -277,7 +291,12 @@ export async function restoreBackup(
   let additionalKeyIds: string[] = [];
   if (sourceKeys.length > 0) {
     try {
-      additionalKeyIds = persistExtraKeys(sourceKeys, baseRt.keyRing);
+      const known = baseRt.keyRing; // before anything is written (configured + earlier additional)
+      persistExtraKeys(sourceKeys, known);
+      // New = id AND material not known before (an equal id with other material is a new key).
+      additionalKeyIds = sourceKeys
+        .filter((k) => !known.some((c) => c.id === k.id && c.key.equals(k.key)))
+        .map(keyLabel);
     } catch (err) {
       throw new RestoreRejectedError(
         'KEYS_NOT_SAVED',
@@ -353,19 +372,24 @@ export async function restoreBackup(
     });
     try {
       const source = await rt.buckets.backups.getStream(archiveKey(directory));
-      await pgRestoreFromStream(rt.pg, rt.databaseUrl, extractDump(source.stream, rt.keyRing), {
-        applicationName: 'tix-restore',
-        carryForward,
-        beforeCommit: async () => {
-          await setRestoreIncomplete(rt.ctx, {
-            backupId: params.backupId,
-            safetyBackupId,
-            at: new Date().toISOString(),
-            step: 'MIGRATIONS',
-          });
-          committed = true;
+      await pgRestoreFromStream(
+        rt.pg,
+        rt.databaseUrl,
+        extractDump(source.stream, archiveKeys(rt)),
+        {
+          applicationName: 'tix-restore',
+          carryForward,
+          beforeCommit: async () => {
+            await setRestoreIncomplete(rt.ctx, {
+              backupId: params.backupId,
+              safetyBackupId,
+              at: new Date().toISOString(),
+              step: 'MIGRATIONS',
+            });
+            committed = true;
+          },
         },
-      });
+      );
     } catch (err) {
       if (err instanceof PgRestoreError && !err.commitSent) {
         // Rolled back: this attempt changed nothing. Only remove a marker this attempt created;
@@ -423,6 +447,10 @@ export async function restoreBackup(
     await invalidateShopCache(rt.ctx, 'all');
     await enqueueRefundReconcile(rt.ctx);
 
+    // The restored secrets may sit under keys this system does not have: say so now instead of
+    // letting mail / payment / bank features fail later.
+    const unreadableSecrets = await checkRestoredSecrets(rt);
+
     await retry(() =>
       recordRestoreAudit(rt, params.userId, {
         backupId: params.backupId,
@@ -434,6 +462,7 @@ export async function restoreBackup(
         erasuresReplayed: erasures.replayed,
         // Ids only; never key material.
         additionalKeyIds,
+        unreadableSecrets,
       }),
     ).catch((err) => rt.logger.warn({ err }, 'restore audit entry could not be written'));
 
@@ -446,6 +475,7 @@ export async function restoreBackup(
       filesQuarantined: files.quarantined,
       erasuresReplayed: erasures.replayed,
       additionalKeyIds,
+      unreadableSecrets,
     };
   } catch (err) {
     if (committed) {
@@ -467,6 +497,40 @@ export async function restoreBackup(
     await clearMaintenance(rt.ctx).catch((err) =>
       rt.logger.error({ err: describeError(err) }, 'maintenance flag could not be cleared'),
     );
+  }
+}
+
+/**
+ * Verification pass over every stored secret with the keys this system has (including the source
+ * keys that were just stored). A non-zero count raises a persistent notice (backups page) and an
+ * alert mail; zero clears an older notice. Never throws.
+ */
+async function checkRestoredSecrets(rt: BackupRuntime): Promise<number> {
+  try {
+    const readable = await retry(() => verifySecretsReadable(rt.ctx, rt.keyRing));
+    if (readable.unreadable === 0) {
+      await clearSecretsUnreadable(rt.ctx).catch(() => undefined);
+      return 0;
+    }
+    rt.logger.warn(
+      { count: readable.unreadable, tables: readable.tables },
+      'restore: stored secrets cannot be opened with the keys of this system; enter the source key',
+    );
+    await setSecretsUnreadable(rt.ctx, {
+      count: readable.unreadable,
+      at: new Date().toISOString(),
+      source: 'RESTORE',
+    }).catch(() => undefined);
+    const { alertEmail } = await getSetting(rt.ctx, 'backup');
+    if (alertEmail) {
+      await sendSecretsUnreadableAlert(rt.ctx, alertEmail, readable.unreadable).catch((err) =>
+        rt.logger.warn({ err: describeError(err) }, 'secrets alert e-mail could not be sent'),
+      );
+    }
+    return readable.unreadable;
+  } catch (err) {
+    rt.logger.warn({ err: describeError(err) }, 'restore: the secrets verification pass failed');
+    return 0;
   }
 }
 

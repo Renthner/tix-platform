@@ -33,6 +33,7 @@ export const FIELD_ERROR_CODES = [
   'pngOnly',
   'hostNotAllowed',
   'titleTemplate',
+  'percentCap',
 ] as const;
 export type FieldErrorCode = (typeof FIELD_ERROR_CODES)[number];
 

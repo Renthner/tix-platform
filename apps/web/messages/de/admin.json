@@ -51,6 +51,7 @@
     "required": "Dieses Feld ist erforderlich.",
     "pngOnly": "Hier sind nur PNG-Bilder erlaubt (Vorgabe von Apple Wallet).",
     "hostNotAllowed": "Dieser Host ist nicht erlaubt: Er darf nicht dieser Rechner, eine Link-Local- oder Cloud-Metadaten-Adresse oder ein interner Dienst dieses Stacks sein. Adressen im privaten Netz sind erlaubt.",
+    "percentCap": "Dieser Prozentsatz liegt über dem in der Rabatt-Richtlinie erlaubten Maximum (Einstellungen → Kasse).",
     "invalid": "Dieser Wert ist ungültig.",
     "tooLong": "Dieser Text ist zu lang.",
     "tooSmall": "Dieser Wert ist zu klein.",
@@ -1061,7 +1062,20 @@
         "order": "Nach „Zahlungspflichtig bestellen“ hält die Bestellung die Plätze: bei Überweisung bis zur Stornofrist (Zahlungen → Überweisung), bei PayPal bis zum Zeitlimit für die Freigabe (Zahlungen → PayPal)."
       },
       "refundFeesByDefault": "Gebühren bei Stornierung bezahlter Bestellungen standardmäßig erstatten",
-      "refundFeesByDefaultHint": "Setzt „Gebühren erstatten“ im Formular „Stornieren & erstatten“ einer Bestellung vor. Bei jeder Stornierung kann es geändert werden."
+      "refundFeesByDefaultHint": "Setzt „Gebühren erstatten“ im Formular „Stornieren & erstatten“ einer Bestellung vor. Bei jeder Stornierung kann es geändert werden.",
+      "discountsTitle": "Rabattcodes",
+      "discountsNotice": "Ob ein Gratisticket (eine durch einen Rabattcode auf 0,00 reduzierte Bestellung) steuerliche oder buchhalterische Folgen hat, zum Beispiel als unentgeltliche Wertabgabe, muss Ihre Organisation mit der eigenen Steuerberatung klären. Mit diesen Schaltern legen Sie fest, wie sich der Shop verhält.",
+      "fullDiscountPolicy": "Volle Rabatte (Bestellungen über 0,00)",
+      "fullDiscountPolicyHint": "Was passiert, wenn ein Rabattcode eine Bestellung auf 0,00 reduziert. Bestellungen, die auch ohne Code kostenlos sind (kostenlose Tarife), sind nicht betroffen.",
+      "fullDiscountOptions": {
+        "ALLOW": "Erlauben",
+        "ALLOW_WITH_NOTE": "Erlauben und Rechnungshinweis drucken",
+        "DISALLOW": "Nicht erlauben (Codes müssen einen Zahlbetrag übrig lassen)"
+      },
+      "minimumOrderTotal": "Mindestbestellwert nach Rabatten",
+      "minimumOrderTotalHint": "Ein Code, der die Summe unter diesen Betrag drücken würde, wird abgelehnt. 0,00 = keine Einschränkung. Bei „Nicht erlauben“ gilt immer mindestens 0,01.",
+      "maxDiscountPercent": "Höchstprozentsatz eines Codes (%)",
+      "maxDiscountPercentHint": "Die Begrenzung gilt pro Code: Prozent-Codes über diesem Wert können nicht gespeichert werden und werden im Shop abgelehnt. 100 = keine Begrenzung. Mehrere kombinierbare Codes können zusammen trotzdem mehr als die Begrenzung ergeben."
     },
     "seatDisplay": {
       "title": "Farben im Saalplan",
@@ -1202,7 +1216,18 @@
       "invoiceFooter": "Rechnungsfußzeile",
       "invoiceFooterHint": "Optionaler Text unten auf jeder Rechnungsseite, z. B. Bankverbindung oder Grußformel.",
       "smallAmountInvoiceLimit": "Kleinbetragsgrenze für Rechnungen",
-      "smallAmountInvoiceLimitHint": "Abendkasse: Über diesem Bruttobetrag braucht eine Rechnung Name und vollständige Anschrift des Käufers (Standard 250,00, die Grenze für Kleinbetragsrechnungen). Freikarten sind ausgenommen."
+      "smallAmountInvoiceLimitHint": "Abendkasse: Über diesem Bruttobetrag braucht eine Rechnung Name und vollständige Anschrift des Käufers (Standard 250,00, die Grenze für Kleinbetragsrechnungen). Freikarten sind ausgenommen.",
+      "zeroValueTitle": "Bestellungen über 0,00",
+      "zeroValueInvoice": "Rechnung bei Bestellungen über 0,00",
+      "zeroValueInvoiceHint": "Gilt für Bestellungen ohne Zahlbetrag (kostenlose Tarife, Rabattcode bis 0,00). Freikarten der Abendkasse erhalten nie eine Rechnung.",
+      "zeroValueOptions": {
+        "INVOICE": "Rechnung über 0,00 ausstellen",
+        "NO_INVOICE": "Keine Rechnung ausstellen"
+      },
+      "zeroValueInvoiceNote": "Rechnungshinweis für auf 0,00 reduzierte Bestellungen",
+      "zeroValueInvoiceNoteHint": "Wird auf der Rechnung einer Bestellung gedruckt, die ein Rabattcode auf 0,00 reduziert hat, wenn „Volle Rabatte“ (Einstellungen → Kasse) auf „Erlauben und Rechnungshinweis drucken“ steht. Formulieren Sie ihn wie mit Ihrer Steuerberatung abgestimmt. Leer = kein Hinweis. Fehlende Sprachen verwenden die Standardsprache des Shops.",
+      "discountNoteOnAllInvoices": "Hinweis auf jeder rabattierten Rechnung drucken",
+      "discountNoteOnAllInvoicesHint": "Druckt den Hinweis auch auf Rechnungen, die einen Rabattcode enthalten, aber noch einen Zahlbetrag haben."
     },
     "bankTransfer": {
       "title": "Überweisung (Vorkasse)",

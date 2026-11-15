@@ -150,6 +150,10 @@ export async function loadAccountingData(
   range: AccountingRange,
   timeZone: string,
   kinds: ('documents' | 'payments' | 'refunds')[] = ['documents', 'payments', 'refunds'],
+  options: {
+    /** Leave out invoices / credit notes with a total of 0 (setting `zeroValueDocuments`). */
+    excludeZeroValueDocuments?: boolean;
+  } = {},
 ): Promise<AccountingData> {
   validateRange(range);
   const window = instantRange(range.from, range.to, timeZone);
@@ -179,6 +183,7 @@ export async function loadAccountingData(
           gte(invoices.issuedAt, window.gte),
           lt(invoices.issuedAt, window.lt),
           eq(orders.isTest, false),
+          options.excludeZeroValueDocuments ? ne(invoices.totalGross, 0) : undefined,
         ),
       )
       .orderBy(asc(invoices.issuedAt), asc(invoices.invoiceNumber));

@@ -14,16 +14,12 @@ export { readZip, isZip, type ZipEntry } from './zip';
 /** Detects the statement format from the decoded content (and the file name as a hint). */
 export function detectStatementFormat(content: string, fileName = ''): BankStatementFormat | null {
   const camt = looksLikeCamt(content);
-  if (camt === 'CAMT054') {
-    throw new StatementParseError(
-      'UNSUPPORTED_FORMAT',
-      'camt.054 notifications are not supported – please export camt.053 or camt.052',
-    );
-  }
-  if (camt) return camt;
+  // camt.054 notifications are stored within the CAMT052 family (see parsers/camt.ts),
+  // MT942 interim reports within MT940 (see parsers/mt940.ts).
+  if (camt) return camt === 'CAMT054' ? 'CAMT052' : camt;
   if (looksLikeMt940(content)) return 'MT940';
   const lower = fileName.toLowerCase();
-  if (/\.(sta|mt940|940)$/.test(lower) && content.includes(':61:')) return 'MT940';
+  if (/\.(sta|mt940|940|mt942|942)$/.test(lower) && content.includes(':61:')) return 'MT940';
   const firstLines = content.split(/\r?\n/).slice(0, 10).join('\n');
   if (lower.endsWith('.csv') || /[;\t]/.test(firstLines)) return 'CSV';
   return null;
@@ -39,7 +35,7 @@ export function expandStatementFiles(source: StatementSource): StatementSource[]
   if (!isZip(source.bytes)) return [source];
   return readZip(source.bytes)
     .filter((e) => !/(^|\/)(__MACOSX|\.)/.test(e.name))
-    .filter((e) => /\.(xml|sta|txt|mt940|940|csv)$/i.test(e.name))
+    .filter((e) => /\.(xml|sta|txt|mt940|940|mt942|942|csv)$/i.test(e.name))
     .map((e) => ({ fileName: `${source.fileName}/${e.name}`, bytes: e.data }));
 }
 
@@ -80,7 +76,7 @@ export function parseStatementFile(
     default:
       throw new StatementParseError(
         'UNSUPPORTED_FORMAT',
-        'Unknown file format – supported are camt.052, camt.053, MT940 and CSV',
+        'Unknown file format – supported are camt.052, camt.053, camt.054, MT940, MT942 and CSV',
       );
   }
 }

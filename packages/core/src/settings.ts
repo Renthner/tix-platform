@@ -124,7 +124,7 @@ export function invalidateSettings(key?: string): void {
  * back to the browser. The admin UI only learns whether a secret is configured.
  * ------------------------------------------------------------------------------------- */
 
-const secretContext = (key: string) => `setting:${key}`;
+export const settingSecretContext = (key: string) => `setting:${key}`;
 
 function assertSecret(key: SettingKey): void {
   if (!SETTINGS[key].secret) throw new Error(`Setting "${key}" is not a secret setting`);
@@ -147,7 +147,10 @@ export async function getSecretSetting<K extends SettingKey>(
   let value: SettingValue<K> | null = null;
   if (row?.encryptedValue) {
     if (!ctx.secrets) throw new Error('Core context capability "secrets" is not configured');
-    value = parseSetting(key, ctx.secrets.decryptJson(row.encryptedValue, secretContext(key)));
+    value = parseSetting(
+      key,
+      ctx.secrets.decryptJson(row.encryptedValue, settingSecretContext(key)),
+    );
   }
   storeIfCurrent(cacheKey, startSeq, value);
   return value;
@@ -174,7 +177,7 @@ export async function saveSecretSetting<K extends SettingKey>(
   assertSecret(key);
   if (!ctx.secrets) throw new Error('Core context capability "secrets" is not configured');
   const value = parseSetting(key, input);
-  const encryptedValue = ctx.secrets.encryptJson(value, secretContext(key));
+  const encryptedValue = ctx.secrets.encryptJson(value, settingSecretContext(key));
   await ctx.db
     .insert(systemSettings)
     .values({ key, value: null, encryptedValue, updatedByUserId })

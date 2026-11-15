@@ -13,6 +13,8 @@ import { dirname, join } from 'node:path';
 import {
   createSecretBox,
   parseKeyRing,
+  parseKeyRingLoose,
+  ringFingerprint,
   SecretBoxError,
   type SecretBox,
   type SecretBoxKey,
@@ -24,6 +26,11 @@ import {
  * additional keys only decrypt (they are always appended behind the configured ring); the file
  * lives on the data volume (`<TIX_SECRETS_DIR or /data/secrets>/extra-encryption-keys`, override
  * with `TIX_EXTRA_KEYS_FILE`), one `id:base64` entry per line, mode 0600.
+ *
+ * The ring maps an id to a LIST of candidate keys: another installation may have used the same id
+ * (`k1`) with different material. Decryption tries every candidate of the envelope's id (AES-GCM
+ * tells the right one), encryption always uses the first configured key. After the restored secrets
+ * were re-encrypted (`reEncryptSecrets`) the file is removed again (`removeExtraKeys`).
  */
 
 export const EXTRA_KEYS_FILENAME = 'extra-encryption-keys';
@@ -51,7 +58,7 @@ export function parseKeyRingText(text: string): SecretBoxKey[] {
     .split(/[\s,]+/)
     .filter(Boolean)
     .join(',');
-  return spec === '' ? [] : parseKeyRing(spec);
+  return spec === '' ? [] : parseKeyRingLoose(spec);
 }
 
 /** Serialises entries as `id:base64` lines (the format of the extra keys file). */
@@ -60,21 +67,15 @@ export function formatKeyRingText(keys: readonly SecretBoxKey[]): string {
 }
 
 /**
- * Concatenates rings in order (earlier rings win positions). The same id with the same material
- * is merged; the same id with DIFFERENT material is rejected: envelopes and archives only carry
- * the id, so two materials under one id could not be told apart.
+ * Concatenates rings in order (earlier rings win positions; the first key of the first ring stays
+ * the encryption key). The same id AND material is merged; the same id with different material is
+ * kept as a further candidate for that id.
  */
 export function mergeKeyRings(...rings: ReadonlyArray<readonly SecretBoxKey[]>): SecretBoxKey[] {
   const merged: SecretBoxKey[] = [];
   for (const ring of rings) {
     for (const key of ring) {
-      const existing = merged.find((k) => k.id === key.id);
-      if (!existing) merged.push(key);
-      else if (!existing.key.equals(key.key)) {
-        throw new SecretBoxError(
-          `The key id "${key.id}" is already used here with a different key. Give one of the two keys a different id.`,
-        );
-      }
+      if (!merged.some((k) => k.id === key.id && k.key.equals(key.key))) merged.push(key);
     }
   }
   return merged;
@@ -143,9 +144,9 @@ export function loadKeyRing(spec: string, env: EnvSource = process.env): SecretB
 }
 
 /**
- * Stores `keys` as additional (decrypt-only) keys. Throws on an id collision with the configured
- * ring or the existing file (different material) BEFORE anything is written. Entries that the
- * configured ring already contains are not stored; entries already in the file are kept. Returns the ids that are new in the file.
+ * Stores `keys` as additional (decrypt-only) keys. Entries the configured ring or the file already
+ * contain (same id and material) are not stored again; the same id with other material IS stored
+ * (candidate per id). Returns the ids of the entries that are new in the file.
  */
 export function persistExtraKeys(
   keys: readonly SecretBoxKey[],
@@ -154,23 +155,61 @@ export function persistExtraKeys(
 ): string[] {
   const path = extraKeysPath(env);
   const existing = loadExtraKeys(path);
-  mergeKeyRings(configured, existing, keys); // collisions throw before anything is written
-  const fresh = keys.filter((k) => !configured.some((c) => c.id === k.id));
+  const known = mergeKeyRings(configured, existing);
+  const fresh = mergeKeyRings(
+    keys.filter((k) => !known.some((c) => c.id === k.id && c.key.equals(k.key))),
+  );
+  if (fresh.length === 0) return [];
   const stored = mergeKeyRings(existing, fresh);
-  const added = stored.filter((k) => !existing.some((e) => e.id === k.id)).map((k) => k.id);
-  if (added.length === 0) return [];
-  writeFileDurably(path, `${formatKeyRingText(stored)}\n`);
-  // Read back from disk (not from memory) before the caller proceeds to replace the database.
+  writeFileDurably(
+    path,
+    `${formatKeyRingText(stored)}
+`,
+  );
+  verifyExtraKeys(path, stored);
+  return fresh.map((k) => k.id);
+}
+
+/** Read back from disk (not from memory) before the caller relies on the file. */
+function verifyExtraKeys(path: string, expected: readonly SecretBoxKey[]): void {
   const back = loadExtraKeys(path);
   const same =
-    back.length === stored.length &&
-    stored.every((k) => back.some((b) => b.id === k.id && b.key.equals(k.key)));
+    back.length === expected.length &&
+    expected.every((k) => back.some((b) => b.id === k.id && b.key.equals(k.key)));
   if (!same) {
     throw new SecretBoxError(
       `Additional encryption keys: ${path} could not be verified after writing`,
     );
   }
-  return added;
+}
+
+/**
+ * Removes entries (all when `which` is omitted) from the additional keys file; the file itself is
+ * deleted when nothing is left (an empty file would be logged as truncated). Only call this once
+ * nothing stored in the database needs the keys any more. Returns the number of removed entries.
+ */
+export function removeExtraKeys(
+  which?: readonly SecretBoxKey[],
+  env: EnvSource = process.env,
+): number {
+  const path = extraKeysPath(env);
+  const existing = loadExtraKeys(path);
+  const remaining = which
+    ? existing.filter((k) => !which.some((w) => w.id === k.id && w.key.equals(k.key)))
+    : [];
+  const removed = existing.length - remaining.length;
+  if (removed === 0) return 0;
+  if (remaining.length === 0) {
+    unlinkSync(path);
+  } else {
+    writeFileDurably(
+      path,
+      `${formatKeyRingText(remaining)}
+`,
+    );
+    verifyExtraKeys(path, remaining);
+  }
+  return removed;
 }
 
 /**
@@ -223,6 +262,7 @@ export function createReloadingSecretBox(spec: string, env: EnvSource = process.
   const initial = loadExtraKeysTolerant(path);
   let problem = initial.problem;
   let ring = mergeKeyRings(configured, initial.keys);
+  let fingerprint = ringFingerprint(ring);
   let inner = createSecretBox(ring);
   let lastReload = 0;
 
@@ -234,8 +274,10 @@ export function createReloadingSecretBox(spec: string, env: EnvSource = process.
       const loaded = loadExtraKeysTolerant(path);
       problem = loaded.problem;
       const next = mergeKeyRings(configured, loaded.keys);
-      if (next.length === ring.length) return false;
+      const nextFingerprint = ringFingerprint(next);
+      if (nextFingerprint === fingerprint) return false;
       ring = next;
+      fingerprint = nextFingerprint;
       inner = createSecretBox(ring);
       return true;
     } catch {
@@ -247,11 +289,9 @@ export function createReloadingSecretBox(spec: string, env: EnvSource = process.
     try {
       return inner.decrypt(envelope, context);
     } catch (err) {
-      if (
-        err instanceof SecretBoxError &&
-        err.message.startsWith('Unknown encryption key id') &&
-        reload()
-      ) {
+      // Unknown id, or (an id shared with another system's key) a failed authentication: the file
+      // may have gained keys since this process read it.
+      if (err instanceof SecretBoxError && reload()) {
         return inner.decrypt(envelope, context);
       }
       if (

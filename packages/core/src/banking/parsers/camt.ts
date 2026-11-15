@@ -11,10 +11,16 @@ import {
  * ISO 20022 cash management statements:
  *  - camt.053 (BkToCstmrStmt, end-of-day statement)
  *  - camt.052 (BkToCstmrAcctRpt, intraday / account report – also what FinTS HKCAZ returns)
+ *  - camt.054 (BkToCstmrDbtCdtNtfctn, debit/credit notification, versions .001.02 – .001.08)
  * Versions .001.02 – .001.13 share the element names used here. Only booked entries
  * (Sts = BOOK) are imported; pending/information entries are skipped. Batch entries with
  * several transaction details are split into one transaction per detail when each detail
  * carries its own amount.
+ *
+ * camt.054 entries map to the same transaction shape (and therefore the same fingerprint)
+ * as camt.052/053 entries; the stored statement format stays within the CAMT052 family
+ * (intraday-type data) so no database enum change is needed – `raw.source` tells them apart.
+ * Booking date is optional in camt.054; the value date is used as a fallback there.
  */
 
 type XmlNode = Record<string, unknown>;
@@ -22,6 +28,7 @@ type XmlNode = Record<string, unknown>;
 const ARRAY_TAGS = new Set([
   'Stmt',
   'Rpt',
+  'Ntfctn',
   'Ntry',
   'NtryDtls',
   'TxDtls',
@@ -144,17 +151,26 @@ function remittanceOf(details: unknown): string | null {
   return joinRemittance([...unstructured, ...structured]);
 }
 
-function parseEntry(entry: unknown, fallbackCurrency: string | null): ParsedTransaction[] {
+function parseEntry(
+  entry: unknown,
+  fallbackCurrency: string | null,
+  notification: boolean,
+): ParsedTransaction[] {
   const amount = amountOf(child(entry, 'Amt'));
-  const bookingDate = dateOf(child(entry, 'BookgDt'));
+  const valueDate = dateOf(child(entry, 'ValDt'));
+  const ownBookingDate = dateOf(child(entry, 'BookgDt'));
+  const bookingDate = ownBookingDate ?? (notification ? valueDate : null);
+  // camt.054 may omit the booking date: the value date stands in for it, which is not a stable
+  // date – the importer holds such entries back unless they carry a bank/end-to-end reference.
+  const noBookingDate = notification && !ownBookingDate;
   if (!amount || !bookingDate) return [];
   const isDebit = text(entry, 'CdtDbtInd') === 'DBIT';
-  const valueDate = dateOf(child(entry, 'ValDt'));
   const entryRef = text(entry, 'AcctSvcrRef');
   const entryCode = bankTransactionCode(entry);
   const bookingText = cleanText(text(entry, 'AddtlNtryInf'), 500);
   const currency = amount.currency ?? fallbackCurrency ?? 'EUR';
   const details = list(entry, 'NtryDtls').flatMap((d) => list(d, 'TxDtls'));
+  const batchCount = Number.parseInt(text(entry, 'NtryDtls', 'Btch', 'NbOfTxs') ?? '', 10);
 
   const build = (
     detail: unknown,
@@ -162,6 +178,7 @@ function parseEntry(entry: unknown, fallbackCurrency: string | null): ParsedTran
     debit: boolean,
     ccy: string,
     index: number,
+    aggregate = false,
   ): ParsedTransaction => {
     const counterparty = debit ? 'Cdtr' : 'Dbtr';
     const party = child(detail, 'RltdPties', counterparty);
@@ -181,12 +198,14 @@ function parseEntry(entry: unknown, fallbackCurrency: string | null): ParsedTran
       bankTransactionCode: bankTransactionCode(detail) ?? entryCode,
       bookingText,
       raw: compact({
-        source: 'camt',
+        source: notification ? 'camt054' : 'camt',
         detailIndex: details.length > 1 ? index : undefined,
         mandateId: text(detail, 'Refs', 'MndtId'),
         ultimateParty: cleanText(partyName(ultimate), 140),
         additionalInfo: cleanText(text(detail, 'AddtlTxInf'), 500),
         reversal: text(entry, 'RvslInd') === 'true' || undefined,
+        noBookingDate: noBookingDate || undefined,
+        aggregate: aggregate || undefined,
       }),
     };
   };
@@ -210,14 +229,17 @@ function parseEntry(entry: unknown, fallbackCurrency: string | null): ParsedTran
       );
     }
   }
-  return [build(details[0], amount.cents, isDebit, currency, 0)];
+  // One entry that stands for several payments (batch booking not split into transactions):
+  // flagged so the importer can avoid counting it on top of per-transaction camt.054 rows.
+  const aggregate = details.length > 1 || (Number.isFinite(batchCount) && batchCount > 1);
+  return [build(details[0], amount.cents, isDebit, currency, 0, aggregate)];
 }
 
 function compact(obj: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null));
 }
 
-function parseReport(report: unknown, warnings: string[]): ParsedStatement {
+function parseReport(report: unknown, warnings: string[], notification = false): ParsedStatement {
   const currency = text(report, 'Acct', 'Ccy');
   const transactions: ParsedTransaction[] = [];
   let skipped = 0;
@@ -227,7 +249,7 @@ function parseReport(report: unknown, warnings: string[]): ParsedStatement {
       skipped += 1;
       continue;
     }
-    const parsed = parseEntry(entry, currency);
+    const parsed = parseEntry(entry, currency, notification);
     if (parsed.length === 0) warnings.push('CAMT entry without amount or booking date skipped');
     transactions.push(...parsed);
   }
@@ -281,11 +303,16 @@ export function parseCamt(xml: string): ParsedStatementFile {
       warnings,
     };
   }
-  if (child(root, 'BkToCstmrDbtCdtNtfctn')) {
-    throw new StatementParseError(
-      'UNSUPPORTED_FORMAT',
-      'camt.054 notifications are not supported – please export camt.053 or camt.052',
-    );
+  const ntfctn = child(root, 'BkToCstmrDbtCdtNtfctn');
+  if (ntfctn) {
+    return {
+      format: 'CAMT052',
+      statements: list(ntfctn, 'Ntfctn').map((n) => parseReport(n, warnings, true)),
+      warnings,
+    };
   }
-  throw new StatementParseError('UNSUPPORTED_FORMAT', 'Not a camt.052 / camt.053 document');
+  throw new StatementParseError(
+    'UNSUPPORTED_FORMAT',
+    'Not a camt.052 / camt.053 / camt.054 document',
+  );
 }

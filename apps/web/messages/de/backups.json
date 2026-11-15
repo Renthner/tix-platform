@@ -48,7 +48,8 @@
       "VERIFY": "Prüfung",
       "RESTORE": "Wiederherstellung",
       "IMPORT": "Import der hochgeladenen Datei",
-      "PROBE": "Probe-Wiederherstellung"
+      "PROBE": "Probe-Wiederherstellung",
+      "REENCRYPT": "Geheimnisse neu verschlüsseln"
     },
     "state": {
       "RUNNING": "Läuft",
@@ -87,7 +88,23 @@
       "REJECTED_NOT_FOUND": "Abgelehnt: Sicherung nicht gefunden",
       "ERASURE_REPLAY": "Aufgezeichnete Löschungen werden erneut angewendet…",
       "SANITY": "Kopie migrieren und wichtige Tabellen prüfen…",
-      "CLEANUP": "Alte Testdatenbanken aufräumen…"
+      "CLEANUP": "Alte Testdatenbanken aufräumen…",
+      "REENCRYPT": "Gespeicherte Geheimnisse werden neu verschlüsselt…",
+      "REENCRYPT_CLEANUP": "Nicht mehr benötigte zusätzliche Schlüssel werden entfernt…",
+      "REENCRYPT_INCOMPLETE": "Neuverschlüsselung unvollständig – die zusätzlichen Schlüssel wurden behalten, damit nichts unlesbar wird",
+      "IMPORT_KEY_UNKNOWN": "Abgelehnt: Diese Sicherung stammt von einem anderen System und ist mit dem Schlüssel dieses Systems nicht lesbar",
+      "IMPORT_KEY_WRONG": "Abgelehnt: Der eingegebene Verschlüsselungsschlüssel öffnet diese Sicherung nicht",
+      "IMPORT_KEYS_DISABLED": "Abgelehnt: Die Eingabe des Schlüssels eines anderen Systems ist hier abgeschaltet",
+      "IMPORT_KEYS_EXPIRED": "Abgelehnt: Der eingegebene Schlüssel war nicht mehr verfügbar – lade die Datei erneut hoch",
+      "REJECTED_KEYS_DISABLED": "Abgelehnt: Die Eingabe des Schlüssels eines anderen Systems ist hier abgeschaltet",
+      "REJECTED_KEYS_EXPIRED": "Abgelehnt: Der eingegebene Schlüssel war nicht mehr verfügbar – gib ihn erneut ein",
+      "REJECTED_KEYS_INVALID": "Abgelehnt: Der eingegebene Schlüssel ist ungültig",
+      "REJECTED_KEY_WRONG": "Abgelehnt: Der eingegebene Verschlüsselungsschlüssel öffnet diese Sicherung nicht"
+    },
+    "reencrypt": {
+      "done": "{reEncrypted} Geheimnisse neu verschlüsselt, {skipped} nutzten bereits den Schlüssel dieses Systems. Entfernte zusätzliche Schlüssel: {removed}.",
+      "incomplete": "{remaining} Geheimnisse brauchen noch einen zusätzlichen Schlüssel ({unreadable} davon kann kein bekannter Schlüssel lesen). Die zusätzlichen Schlüssel wurden behalten.",
+      "table": "{table}: {reEncrypted} neu verschlüsselt, {skipped} unverändert, {unreadable} nicht lesbar"
     }
   },
   "list": {
@@ -133,7 +150,8 @@
     "BAD_ARCHIVE": "Die Archivstruktur ist ungültig.",
     "SANITY_FAILED": "Die Testwiederherstellung hat funktioniert, die Kopie hat aber die Plausibilitätsprüfung nicht bestanden.",
     "MIGRATION_NEWER": "Die Sicherung wurde mit einer neueren Version der Software erstellt als der aktuell laufenden.",
-    "PROBE_FAILED": "Die Probe-Wiederherstellung konnte nicht abgeschlossen werden."
+    "PROBE_FAILED": "Die Probe-Wiederherstellung konnte nicht abgeschlossen werden.",
+    "KEY_MISMATCH": "Kein gespeicherter Schlüssel öffnet diese Sicherung (von einem anderen System mit gleicher Schlüssel-ID oder beschädigt)."
   },
   "restore": {
     "title": "Diese Sicherung wiederherstellen?",
@@ -153,7 +171,8 @@
     "passkeyHint": "Statt eines Codes kannst du mit deinem Passkey bestätigen.",
     "passkeySubmit": "Mit Passkey wiederherstellen",
     "passkeyWaiting": "Warte auf Passkey…",
-    "twoFactorSetupLink": "Mein Konto öffnen"
+    "twoFactorSetupLink": "Mein Konto öffnen",
+    "secretKeysMissing": "Diese Sicherung enthält Geheimnisse unter Verschlüsselungsschlüsseln, die dieses System nicht hat ({keys}). Gib unten den Schlüssel des Quellsystems ein, sonst bleiben diese Geheimnisse nach der Wiederherstellung unlesbar."
   },
   "deleteConfirm": {
     "title": "Diese Sicherung löschen?",
@@ -168,9 +187,9 @@
     "dialog": {
       "title": "Sicherungsdatei hochladen",
       "description": "Lade eine .tixbak-Datei hoch, z. B. von einem anderen Server oder vom externen Ziel. Sie wird vollständig geprüft, bevor sie in der Liste erscheint.",
-      "keyHint": "Eine Sicherung eines anderen Systems ist mit dessen Schlüssel verschlüsselt und ohne ihn nicht lesbar: Gib den Schlüssel unten ein, sonst wird die Datei abgelehnt und gelöscht. Der Schlüssel dient nur zum Prüfen der Datei; beim Wiederherstellen wirst du erneut danach gefragt.",
+      "keyHint": "Stammt diese Sicherung von einem anderen System, gib unten dessen Verschlüsselungsschlüssel ein (der APP_ENCRYPTION_KEYS-Wert aus dessen .env-Datei). Ohne ihn wird die Datei abgelehnt und gelöscht. Der Schlüssel dient nur zum Prüfen der Datei; beim Wiederherstellen wirst du erneut danach gefragt.",
       "choose": "Datei wählen und hochladen",
-      "keyFailed": "Der eingegebene Schlüsseltext ist ungültig oder kollidiert mit einem Schlüssel dieses Systems."
+      "keyFailed": "Der eingegebene Schlüsseltext ist ungültig."
     }
   },
   "settings": {
@@ -243,7 +262,6 @@
     "protected": "Die neueste geprüfte Sicherung kann nicht gelöscht werden.",
     "twoFactorSetupRequired": "Zum Wiederherstellen ist die Zwei-Faktor-Authentifizierung nötig. Richte sie zuerst in deinem Konto ein.",
     "sourceKeysInvalid": "Der eingegebene Verschlüsselungsschlüssel ist ungültig. Erwartet werden Einträge wie id:base64, getrennt durch Kommas oder Zeilen.",
-    "sourceKeysConflict": "Eine Schlüssel-ID des eingegebenen Schlüssels wird von diesem System bereits mit einem anderen Schlüssel verwendet. Gib dem eigenen Schlüssel dieses Systems zuerst eine andere ID.",
     "sourceKeysDisabled": "Die Wiederherstellung mit dem Schlüssel eines anderen Systems ist auf diesem Server deaktiviert. Der Betreiber kann sie mit TIX_ALLOW_FOREIGN_BACKUP_KEYS=1 aktivieren (siehe Backup-Dokumentation)."
   },
   "dashboardAlert": {
@@ -297,14 +315,18 @@
   "sourceKey": {
     "disabled": {
       "short": "Schlüssel eines anderen Systems sind auf diesem Server deaktiviert.",
-      "hint": "Sicherungen eines anderen Systems (mit anderem APP_ENCRYPTION_KEYS) können hier nicht wiederhergestellt werden: Diese Option ist abgeschaltet. Der Serverbetreiber kann sie aktivieren, indem er TIX_ALLOW_FOREIGN_BACKUP_KEYS=1 für die Anwendung setzt und sie neu startet. Warnung: Ist der Schalter aktiv, kann ein SUPER_ADMIN beliebiges SQL als Datenbankbenutzer ausführen (eine Wiederherstellung führt den Inhalt des Archivs als Datenbank-Superuser aus, und ein SUPER_ADMIN kann ein Archiv mit einem eigenen Schlüssel bauen). Aktiviere ihn nur vorübergehend für einen Umzug und nur, wenn alle SUPER_ADMINs voll vertrauenswürdig sind."
+      "title": "Die Wiederherstellung einer Sicherung eines anderen Systems ist abgeschaltet",
+      "intro": "Diese Sicherung stammt von einem anderen System und lässt sich nur mit dessen Verschlüsselungsschlüssel lesen. Die Eingabe eines solchen Schlüssels ist auf diesem Server abgeschaltet.",
+      "step1": "Öffne die .env-Datei dieser Installation (neben der docker-compose.yml) und füge diese Zeile hinzu:",
+      "step2": "Übernimm sie, indem du diesen Befehl im selben Ordner ausführst (ein einfaches „docker compose restart“ liest die .env-Datei NICHT neu ein):",
+      "step3": "Lade diese Seite neu. Danach erscheint hier ein Feld für den Verschlüsselungsschlüssel.",
+      "warning": "Sicherheit: Solange der Schalter aktiv ist, kann ein SUPER_ADMIN beliebiges SQL als Datenbankbenutzer ausführen (eine Wiederherstellung führt den Inhalt des Archivs als Datenbank-Superuser aus, und ein SUPER_ADMIN kann ein Archiv mit einem eigenen Schlüssel bauen). Aktiviere ihn nur für den Umzug und nur, wenn alle SUPER_ADMINs voll vertrauenswürdig sind. Entferne die Zeile danach wieder aus der .env und führe den Befehl erneut aus."
     },
     "summary": "Sicherung aus einem anderen System? Verschlüsselungsschlüssel eingeben",
-    "hint": "Nur nötig, wenn diese Sicherung von einer anderen Installation erstellt wurde (anderer APP_ENCRYPTION_KEYS). Füge den vollständigen APP_ENCRYPTION_KEYS-Wert des Quellsystems ein (alle Einträge, z. B. k1:...,k0:...). Der Schlüssel wird auf dem Server nur für diesen Schritt verwendet und nie wieder angezeigt. Nach einer erfolgreichen Wiederherstellung bleibt er in einer geschützten Datei auf dem Datenvolume als zusätzlicher Schlüssel erhalten, der nur entschlüsseln kann (neue Daten werden weiter mit dem eigenen Schlüssel dieses Systems verschlüsselt).",
+    "hint": "Füge den vollständigen APP_ENCRYPTION_KEYS-Wert des Quellsystems ein (alle Einträge, z. B. k1:...,k0:...). Der Schlüssel wird auf dem Server nur für diesen Schritt verwendet und nie wieder angezeigt. Das funktioniert auch, wenn das Quellsystem dieselbe Schlüssel-ID wie dieses System verwendet hat. Nach der Wiederherstellung bleibt der Schlüssel in einer geschützten Datei auf dem Datenvolume als zusätzlicher Schlüssel erhalten, der nur entschlüsseln kann – bis die Geheimnisse neu verschlüsselt wurden (siehe unten).",
     "label": "Verschlüsselungsschlüssel des Quellsystems",
     "check": "Schlüssel prüfen",
     "checking": "Prüfe…",
-    "conflictNote": "Eine Schlüssel-ID, die dieses System bereits mit einem anderen Schlüssel verwendet, kann nicht hinzugefügt werden. Gib dem eigenen Schlüssel dieses Systems in APP_ENCRYPTION_KEYS eine andere ID (z. B. k2), wenn es eine frische Installation ist.",
     "results": {
       "match": "Der Schlüssel passt zu dieser Sicherung.",
       "readable": "Diese Sicherung ist mit den eigenen Schlüsseln dieses Systems bereits lesbar; es wird kein weiterer Schlüssel benötigt.",
@@ -312,15 +334,54 @@
       "unknown": "Diese Sicherung wurde mit einer Schlüssel-ID erstellt, die nicht unter den eingegebenen Schlüsseln ist. Gib den vollständigen Schlüsselbund des Quellsystems ein.",
       "mismatch": "Der Schlüssel passt nicht zu dieser Sicherung (oder die Datei ist beschädigt).",
       "invalid": "Der eingegebene Text ist kein gültiger Schlüssel. Erwartet werden Einträge wie id:base64 (32 Bytes), getrennt durch Kommas oder Zeilen.",
-      "conflict": "Eine Schlüssel-ID wird von diesem System bereits mit einem anderen Schlüssel verwendet: {detail}",
       "notBackup": "Diese Datei ist kein Sicherungsarchiv.",
       "notFound": "Sicherung nicht gefunden.",
       "empty": "Gib zuerst den Schlüssel ein.",
       "rateLimited": "Zu viele Versuche. Bitte warte ein paar Minuten."
-    }
+    },
+    "otherSystem": "Diese Sicherung stammt von einem anderen System und ist mit dem Schlüssel dieses Systems nicht lesbar. Gib hier den Verschlüsselungsschlüssel jenes Systems ein: den Wert von APP_ENCRYPTION_KEYS aus dessen .env-Datei (zum Beispiel k1:AbC…=).",
+    "otherSystemUpload": "Ein abgelehnter Upload wird gelöscht: Lade die Datei erneut hoch und gib den Schlüssel im Upload-Dialog ein.",
+    "reencrypt": {
+      "label": "Danach alle Geheimnisse mit dem Schlüssel dieses Systems neu verschlüsseln (empfohlen)",
+      "hint": "Entschlüsselt die wiederhergestellten Geheimnisse (Bankzugang, API-Schlüssel, Signaturschlüssel, Einstellungen) mit dem Quellschlüssel, speichert sie unter dem eigenen Schlüssel dieses Systems und entfernt den Quellschlüssel danach von diesem System. Frühere Sicherungen (auch die, die du jetzt wiederherstellst) brauchen den Quellschlüssel weiterhin."
+    },
+    "stillMissing": "Hinweis: {count, plural, one {# Schlüssel} other {# Schlüssel}}, die die Geheimnisse dieser Sicherung verwenden, fehlen auch mit den eingegebenen Schlüsseln noch."
   },
   "additionalKeys": {
     "title": "Zusätzliche Entschlüsselungsschlüssel sind aktiv",
-    "text": "Eine Sicherung eines anderen Systems wurde wiederhergestellt. Die darin gespeicherten Geheimnisse (Bankzugang, API-Schlüssel, Ticket-Signaturschlüssel, Einstellungen) bleiben über diese zusätzlichen Schlüssel lesbar: {ids}. Sie liegen in einer geschützten Datei auf dem Datenvolume und können nur entschlüsseln; neue Daten werden mit dem eigenen Schlüssel dieses Systems verschlüsselt. Behalte sie, solange die wiederhergestellten Daten oder Sicherungen davon existieren. Ein Neuverschlüsseln aller Geheimnisse mit dem aktuellen Schlüssel wird nicht angeboten: Sie verteilen sich auf viele Tabellen, die zusätzlichen Schlüssel müssen daher erhalten bleiben."
+    "text": "Aus einem anderen System wiederhergestellte Geheimnisse (Bankzugang, API-Schlüssel, Ticket-Signaturschlüssel, Einstellungen) sind noch mit diesen zusätzlichen Schlüsseln verschlüsselt: {ids}. Sie liegen in einer geschützten Datei auf dem Datenvolume und können nur entschlüsseln; neue Daten werden mit dem eigenen Schlüssel dieses Systems verschlüsselt. „Jetzt neu verschlüsseln“ überführt jedes gespeicherte Geheimnis auf den Schlüssel dieses Systems und entfernt die zusätzlichen Schlüssel danach. Frühere Sicherungen brauchen weiterhin den Schlüssel des Quellsystems."
+  },
+  "reencrypt": {
+    "button": "Jetzt neu verschlüsseln",
+    "title": "Alle Geheimnisse mit dem Schlüssel dieses Systems neu verschlüsseln",
+    "description": "Jedes gespeicherte Geheimnis, das noch einen zusätzlichen Schlüssel braucht, wird entschlüsselt und mit dem Schlüssel dieses Systems erneut verschlüsselt. Erst wenn alles umgestellt und geprüft ist, werden die zusätzlichen Schlüssel entfernt. Der Shop läuft währenddessen weiter.",
+    "backupsNote": "Sicherungen, die vor diesem Schritt erstellt wurden (geplante, manuelle und die hochgeladene fremde), enthalten Geheimnisse noch unter dem alten Schlüssel: Bewahre dafür den Schlüssel des Quellsystems auf.",
+    "password": "Dein Passwort",
+    "code": "Authenticator- oder Wiederherstellungscode",
+    "passkeyHint": "Statt eines Codes kannst du mit deinem Passkey bestätigen.",
+    "passkeySubmit": "Mit Passkey neu verschlüsseln",
+    "submit": "Jetzt neu verschlüsseln",
+    "submitting": "Starte…",
+    "last": {
+      "title": "Letzte Neuverschlüsselung",
+      "complete": "Vollständig: Die zusätzlichen Schlüssel wurden entfernt ({keys}).",
+      "incomplete": "Unvollständig: {remaining} Geheimnisse konnten nicht umgestellt werden, die zusätzlichen Schlüssel wurden behalten.",
+      "table": "{table}: {reEncrypted} neu verschlüsselt, {skipped} unverändert, {unreadable} nicht lesbar",
+      "unreadableRow": "Nicht lesbar (unverändert gelassen): {table}, Zeile {pk}"
+    },
+    "keysUsedByBackups": "{count, plural, =0 {Keine der aufgelisteten Sicherungen verweist auf die zusätzlichen Schlüssel.} one {# aufgelistete Sicherung enthält Geheimnisse unter den zusätzlichen Schlüsseln, die entfernt werden.} other {# aufgelistete Sicherungen enthalten Geheimnisse unter den zusätzlichen Schlüsseln, die entfernt werden.}} {count, plural, =0 {} other {Sie lassen sich später nur wiederherstellen, wenn du den Schlüssel des Systems behältst, das sie erstellt hat; sonst bleiben ihre Geheimnisse unlesbar.}}",
+    "acknowledge": "Ich habe verstanden, dass die zusätzlichen Schlüssel entfernt werden und ältere Sicherungen danach den Schlüssel des Quellsystems brauchen.",
+    "backupsUnchecked": "{count, plural, one {# ältere Sicherung enthält} other {# ältere Sicherungen enthalten}} keine Schlüsselangaben und lässt sich nicht prüfen; behalte zur Sicherheit den Schlüssel des Quellsystems dafür."
+  },
+  "unreadableSecrets": {
+    "title": "Gespeicherte Geheimnisse nicht lesbar",
+    "text": "{count, plural, one {# gespeichertes Geheimnis} other {# gespeicherte Geheimnisse}} (zum Beispiel Mail-, Zahlungs- oder Bankzugänge) lassen sich mit den Verschlüsselungsschlüsseln dieses Systems nicht öffnen. Stelle die Sicherung erneut wieder her und gib dabei den Verschlüsselungsschlüssel des Systems ein, das sie erstellt hat, oder gib die betroffenen Zugangsdaten in den Einstellungen neu ein. Nach der Eingabe kannst du „Erneut prüfen“ wählen.",
+    "recheck": "Erneut prüfen"
+  },
+  "reencryptPending": {
+    "title": "Neuverschlüsselung ausstehend",
+    "text": "Die nach der Wiederherstellung eingeplante Neuverschlüsselung ist noch nicht gelaufen. Bis dahin hängen die wiederhergestellten Geheimnisse noch an den zusätzlichen Schlüsseln.",
+    "textGaveUp": "Die nach der Wiederherstellung eingeplante Neuverschlüsselung konnte nicht starten, weil ein anderer Sicherungsvorgang weiterlief. Starte sie von Hand mit „Jetzt neu verschlüsseln“, sobald dieser Vorgang beendet ist.",
+    "dismiss": "Ausblenden"
   }
 }

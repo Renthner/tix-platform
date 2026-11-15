@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { PgClient } from '@tix/db';
+import { createDb, PgClient } from '@tix/db';
 import { runMigrations } from '@tix/db/migrate';
+import { verifySecretsReadable } from '../secrets/reencrypt';
 import { BackupCryptoError } from './crypto';
 import { findBackup, writeBackupState } from './catalogue';
 import { extractDump, inspectArchive } from './inspect';
@@ -14,7 +15,7 @@ import {
   withDatabase,
   withPgClient,
 } from './pg';
-import { describeError, type BackupRuntime } from './runtime';
+import { archiveKeys, describeError, type BackupRuntime } from './runtime';
 import { withOperationLock, type Progress } from './state';
 
 const cryptoMessage = (err: BackupCryptoError): string => `${err.code}: ${err.message}`;
@@ -206,6 +207,23 @@ async function sanityCheck(
     if (counts[table] === undefined) problems.push(`${table}: table missing`);
     else key[table] = counts[table];
   }
+  // Would the secrets of this backup be readable with the keys this system has today?
+  const copy = createDb({
+    connectionString: target,
+    poolMax: 1,
+    applicationName: 'tix-backup-probe-secrets',
+    statementTimeoutMs: 60_000,
+  });
+  try {
+    const readable = await verifySecretsReadable(copy, rt.keyRing);
+    if (readable.unreadable > 0) {
+      problems.push(
+        `secrets: ${readable.unreadable} stored secret(s) cannot be opened with the keys of this system (${readable.tables.map((t) => t.id).join(', ')})`,
+      );
+    }
+  } finally {
+    await copy.close().catch(() => undefined);
+  }
   return { problems, counts: key, applied: Math.max(after.count - before.count, 0), newer: false };
 }
 
@@ -229,7 +247,7 @@ async function runVerification(
   await progress.step('CHECKSUM');
   try {
     const source = await rt.buckets.backups.getStream(archiveKey(directory));
-    const inspected = await inspectArchive(source.stream, rt.keyRing);
+    const inspected = await inspectArchive(source.stream, archiveKeys(rt));
     const problems: string[] = [];
     if (manifest.archive && inspected.sha256 !== manifest.archive.sha256) {
       problems.push('Checksum of the archive differs from the manifest');
@@ -274,7 +292,7 @@ async function runVerification(
     await admin.query(`CREATE DATABASE "${database}"`);
     const target = withDatabase(rt.databaseUrl, database);
     const source = await rt.buckets.backups.getStream(archiveKey(directory));
-    await pgRestoreFromStream(rt.pg, target, extractDump(source.stream, rt.keyRing), {
+    await pgRestoreFromStream(rt.pg, target, extractDump(source.stream, archiveKeys(rt)), {
       applicationName: 'tix-backup-verify-restore',
     });
     const counts = await withPgClient(target, 'tix-backup-verify-count', readExistingRowCounts);

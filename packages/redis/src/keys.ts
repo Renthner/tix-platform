@@ -102,6 +102,12 @@ export function createKeyspace(prefix: string) {
     /** Fixed-window rate limiter bucket. */
     rateLimit: (bucket: string, subject: string) =>
       `${prefix}:rl:${seg(bucket, 'bucket')}:${seg(subject, 'subject')}`,
+    /** STRING JSON state of the time-limited load test mode (token hash, expiry); see core/loadtest. */
+    loadTestState: () => `${prefix}:loadtest:state`,
+    /** STRING counter of requests that skipped a per-IP limit while the load test mode was on. */
+    loadTestBypassed: () => `${prefix}:loadtest:bypassed`,
+    /** Marker that makes the end-of-run audit entry (disable / expire) exactly-once per run. */
+    loadTestFinished: (runId: string) => `${prefix}:loadtest:finished:${seg(runId, 'runId')}`,
     /** Short-lived distributed mutex / leader lock. */
     mutex: (name: string) => `${prefix}:mutex:${seg(name, 'name')}`,
     /** Idempotency record for retried client requests (checkout submit, webhooks). */
@@ -122,6 +128,11 @@ export function createKeyspace(prefix: string) {
     // ── Backups ──────────────────────────────────────────────────────────
     /** STRING JSON maintenance flag (restore running); TTL + heartbeat, so it heals itself. */
     maintenance: () => `${prefix}:maintenance`,
+    /**
+     * STRING opaque token, no TTL: the realtime epoch. Rotated when the Redis seat state is replaced
+     * (restore); the gateway announces it so clients with a different one resync completely.
+     */
+    realtimeEpoch: () => `${prefix}:realtime:epoch`,
     /** STRING JSON marker without TTL: a restore replaced the database but did not finish. */
     restoreIncomplete: () => `${prefix}:maintenance:restore-incomplete`,
     /** STRING token (NX, TTL) of a queued restore request: at most one at a time. */
@@ -130,6 +141,10 @@ export function createKeyspace(prefix: string) {
     backupStatus: () => `${prefix}:backup:status`,
     /** STRING JSON last failed scheduled backup (dashboard alert, cleared by the next success). */
     backupFailure: () => `${prefix}:backup:failure`,
+    /** STRING JSON (no TTL): stored secrets no key of this system can open (set after a restore / re-encryption). */
+    backupSecretsUnreadable: () => `${prefix}:backup:secrets-unreadable`,
+    /** STRING JSON (no TTL): the follow-up re-encryption after a restore is queued but has not run yet. */
+    backupReEncryptPending: () => `${prefix}:backup:reencrypt-pending`,
 
     /** STRING JSON (no TTL): PayPal refunds must be reconciled with PayPal after a restore first. */
     refundReconcilePending: () => `${prefix}:refunds:reconcile-pending`,

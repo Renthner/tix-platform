@@ -103,7 +103,7 @@
     "reset": "Ganzen Plan anzeigen",
     "ariaLabel": "Saalplan",
     "remaining": "{count, plural, =0 {ausverkauft} one {# Platz frei} other {# Plätze frei}}",
-    "keyboardHelp": "Saalplan. Mit den Pfeiltasten wechselst du zwischen den Plätzen, mit Pos1 und Ende springst du an den Anfang oder das Ende einer Reihe, mit Bild auf und Bild ab wechselst du den Bereich, mit Enter oder der Leertaste wählst du einen Platz aus oder gibst ihn frei, mit Escape verlässt du den Plan. Alternativ wählst du die Liste statt des Plans."
+    "keyboardHelp": "Saalplan. Mit den Pfeiltasten wechselst du zwischen den Plätzen; am Rand eines Blocks geht es in den benachbarten Block in dieser Richtung weiter. Pos1 und Ende springen an den Anfang oder das Ende einer Reihe, Strg plus Pos1 oder Ende zum ersten oder letzten Platz des Plans, Bild auf und Bild ab wechseln den Block. Enter oder die Leertaste wählt einen Platz aus oder gibt ihn frei (bei einem Stehplatzbereich öffnet sie ihn), Escape verlässt den Plan. Alternativ wählst du die Liste statt des Plans."
   },
   "selection": {
     "maintenanceTitle": "Wartungsarbeiten",
@@ -112,6 +112,7 @@
     "row": "Reihe {label}",
     "seat": "Platz {label}",
     "from": "ab {price}",
+    "standingLabel": "Stehplatzbereich {name}",
     "legend": {
       "unavailable": "Verkauft",
       "selected": "Deine Auswahl",

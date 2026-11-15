@@ -80,7 +80,10 @@ export async function GET(request: Request) {
       };
     } else {
       const kind: CsvKind = query.kind;
-      const data = await loadAccountingData(core.db, range, timeZone, [kind]);
+      // DATEV never contains 0,00 bookings; only the simple CSV honours the zero-value setting.
+      const data = await loadAccountingData(core.db, range, timeZone, [kind], {
+        excludeZeroValueDocuments: settings.zeroValueDocuments === 'EXCLUDE',
+      });
       const labels: Record<string, string> = {
         number: t('csv.number'),
         type: t('csv.type'),

@@ -291,7 +291,8 @@
       "overpaymentRefundRequested": "Die Erstattung der Überzahlung wurde angelegt.",
       "adjustmentSettledByCredit": "Der Tarif wurde geändert und mit der Überzahlung verrechnet. Der Kunde hat die neuen Tickets per E-Mail erhalten.",
       "existingRefundRecorded": "Die vorhandene PayPal-Erstattung wurde erfasst: Tickets storniert, Gutschrift erstellt, an PayPal wurde nichts gesendet.",
-      "reconciliationSkipped": "Der PayPal-Abgleich wurde übersprungen. Automatische Erstattungen laufen wieder."
+      "reconciliationSkipped": "Der PayPal-Abgleich wurde übersprungen. Automatische Erstattungen laufen wieder.",
+      "reconciliationRequested": "Der Abgleich mit PayPal wurde gestartet."
     },
     "actions": {
       "keepReserved": {
@@ -455,7 +456,14 @@
         "mostlyNotFound": "PayPal kennt die meisten Bestellungen nicht. Die wiederhergestellten Daten gehören vermutlich zu einem anderen PayPal-Konto oder einer anderen Umgebung (Live/Sandbox). PayPal-Einstellungen prüfen.",
         "lastError": "Letzter Fehler: {error}",
         "skip": "Abgleich überspringen",
-        "skipConfirm": "Ich weiß: Erstattungen werden ohne Abgleich mit PayPal gesendet (Gefahr doppelter Erstattungen)."
+        "skipConfirm": "Ich weiß: Erstattungen werden ohne Abgleich mit PayPal gesendet (Gefahr doppelter Erstattungen).",
+        "notConfigured": "PayPal ist in diesem System nicht eingerichtet, die Erstattungen können daher nicht abgeglichen werden. Hinterlege die PayPal-Zugangsdaten (Einstellungen → Zahlungen); der Abgleich läuft dann automatisch. Automatische Erstattungen warten bis dahin.",
+        "credentials": "PayPal hat die gespeicherten Zugangsdaten abgelehnt. Korrigiere sie (Einstellungen → Zahlungen, „Verbindung testen“); der Abgleich wird automatisch wiederholt. Währenddessen wird keine Erstattung als fehlgeschlagen markiert.",
+        "retryNow": "Jetzt erneut versuchen",
+        "manualTitle": "Erstattungen mit PayPal abgleichen",
+        "manualText": "Prüft jede offene PayPal-Erstattung und jede noch erstattbare PayPal-Zahlung gegen PayPal und bucht, was PayPal bereits getan hat. Abweichungen erscheinen unten in der Prüfliste.",
+        "run": "Mit PayPal abgleichen",
+        "runHint": "Automatische Erstattungen pausieren, bis der Abgleich abgeschlossen ist."
       }
     },
     "seatChange": {

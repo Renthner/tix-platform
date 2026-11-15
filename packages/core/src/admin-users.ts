@@ -63,7 +63,7 @@ import { getSetting } from './settings';
 const MAX_PASSWORD_LENGTH = 1_024;
 const TOKEN_BYTES = 32;
 export const RECOVERY_CODE_COUNT = 10;
-const TOTP_SECRET_CONTEXT = (userId: string) => `admin-totp:${userId}`;
+export const TOTP_SECRET_CONTEXT = (userId: string) => `admin-totp:${userId}`;
 
 export interface AdminActor {
   /** Acting admin (null for system / unauthenticated flows that act on a user themselves). */

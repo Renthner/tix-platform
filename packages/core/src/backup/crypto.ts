@@ -24,7 +24,13 @@ const HKDF_INFO = 'tix-backup-v1';
 const FINAL_BIT = 0x8000_0000;
 
 export type BackupCryptoErrorCode =
-  'NOT_A_BACKUP' | 'KEY_UNKNOWN' | 'CORRUPT' | 'TRUNCATED' | 'BAD_ARCHIVE';
+  | 'NOT_A_BACKUP'
+  | 'KEY_UNKNOWN'
+  /** The key id is known but no key of that id opens the first block (other system, same id; or damage). */
+  | 'KEY_MISMATCH'
+  | 'CORRUPT'
+  | 'TRUNCATED'
+  | 'BAD_ARCHIVE';
 
 export class BackupCryptoError extends Error {
   override name = 'BackupCryptoError';
@@ -180,14 +186,17 @@ export async function* decryptStream(
     salt,
     prefix,
   ]);
-  const key = ring.find((k) => k.id === keyId);
-  if (!key) {
+  // Several keys of the ring may share this id (another system used the same id): the first
+  // frame tells which one is right.
+  const candidates = ring.filter((k) => k.id === keyId);
+  if (candidates.length === 0) {
     throw new BackupCryptoError(
       'KEY_UNKNOWN',
       `The archive was encrypted with key "${keyId}", which is not in APP_ENCRYPTION_KEYS or the additional keys`,
     );
   }
-  const fileKey = deriveKey(key.key, salt);
+  const fileKeys = candidates.map((k) => deriveKey(k.key, salt));
+  let fileKey = fileKeys[0]!;
 
   for (let index = 0; ; index += 1) {
     const head = await reader.readOrEnd(4);
@@ -197,13 +206,29 @@ export async function* decryptStream(
     const length = word & ~FINAL_BIT;
     if (length > BACKUP_CHUNK_BYTES) throw new BackupCryptoError('CORRUPT', 'Invalid chunk size');
     const body = await reader.read(length + TAG_BYTES);
-    const decipher = createDecipheriv('aes-256-gcm', fileKey, chunkNonce(prefix, index));
-    decipher.setAAD(chunkAad(header, index, final));
-    decipher.setAuthTag(body.subarray(length));
-    let plain: Buffer;
-    try {
-      plain = Buffer.concat([decipher.update(body.subarray(0, length)), decipher.final()]);
-    } catch {
+    const open = (candidate: Buffer): Buffer => {
+      const decipher = createDecipheriv('aes-256-gcm', candidate, chunkNonce(prefix, index));
+      decipher.setAAD(chunkAad(header, index, final));
+      decipher.setAuthTag(body.subarray(length));
+      return Buffer.concat([decipher.update(body.subarray(0, length)), decipher.final()]);
+    };
+    let plain: Buffer | undefined;
+    for (const candidate of index === 0 ? fileKeys : [fileKey]) {
+      try {
+        plain = open(candidate);
+        fileKey = candidate;
+        break;
+      } catch {
+        /* next candidate (only the first frame is ambiguous) */
+      }
+    }
+    if (!plain) {
+      if (index === 0) {
+        throw new BackupCryptoError(
+          'KEY_MISMATCH',
+          `No key with the id "${keyId}" opens this backup (made by another system with the same key id, or damaged)`,
+        );
+      }
       throw new BackupCryptoError(
         'CORRUPT',
         'The backup is corrupt or was modified (authentication failed)',

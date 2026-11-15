@@ -23,7 +23,7 @@ import { ensureEventSigningKey, eventPublicKeys } from '../tickets/keys';
 import type { ScannerDeviceAuth } from './devices';
 import { getSyncEpoch } from './sync';
 
-const lanAad = (eventId: string) => `scanner-lan:${eventId}`;
+export const scannerLanAad = (eventId: string) => `scanner-lan:${eventId}`;
 
 /**
  * The event's LAN shared secret (base64url, 32 random bytes), created on first use. Scanners at
@@ -37,7 +37,9 @@ export async function ensureEventLanSecret(ctx: CoreContext, eventId: string): P
       .select({ value: eventScannerSecrets.lanSecretEncrypted })
       .from(eventScannerSecrets)
       .where(eq(eventScannerSecrets.eventId, eventId));
-    return row ? secrets.decryptJson<{ secret: string }>(row.value, lanAad(eventId)).secret : null;
+    return row
+      ? secrets.decryptJson<{ secret: string }>(row.value, scannerLanAad(eventId)).secret
+      : null;
   };
   const existing = await read();
   if (existing) return existing;
@@ -45,7 +47,10 @@ export async function ensureEventLanSecret(ctx: CoreContext, eventId: string): P
     .insert(eventScannerSecrets)
     .values({
       eventId,
-      lanSecretEncrypted: secrets.encryptJson({ secret: generateToken(32) }, lanAad(eventId)),
+      lanSecretEncrypted: secrets.encryptJson(
+        { secret: generateToken(32) },
+        scannerLanAad(eventId),
+      ),
     })
     .onConflictDoNothing();
   const created = await read();

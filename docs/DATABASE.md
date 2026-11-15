@@ -101,14 +101,38 @@ Migrations live in [`packages/db/migrations`](../packages/db/migrations):
 | `bank_connections`             | Adapter per account: `FINTS`, `PSD2_GOCARDLESS`, `PSD2_FINAPI`, `FILE_IMPORT`, `IMAP`; config JSONB + encrypted credentials + runtime state |
 | `bank_sync_runs`               | Each polling / import run (max. one running per connection)                                                                                 |
 | `bank_tan_challenges`          | PSD2 TAN challenges shown in the Admin UI (the TAN itself is never stored)                                                                  |
-| `bank_statement_imports`       | Uploaded / mailed CAMT.052/053, MT940, CSV files (SHA-256 dedupe)                                                                           |
+| `bank_statement_imports`       | Uploaded / mailed CAMT.052/053/054, MT940/MT942, CSV files (SHA-256 dedupe)                                                                 |
 | `bank_transactions`            | Booked transactions with fingerprint dedupe across sources, match status, review reason, candidates                                         |
 | `bank_transaction_allocations` | Money ↔ order links (split and collective payments, reversible)                                                                             |
 
 Reconciliation (`packages/core/src/banking`): every adapter yields the same normalised
 transaction shape, so the `fingerprint` (booking date, signed amount, currency, counterparty
 IBAN, first 80 letters/digits of the remittance text + occurrence index) recognises the same
-booking whether it came via FinTS, finAPI, a camt/MT940/CSV upload or an IMAP attachment.
+booking whether it came via FinTS, finAPI, a camt/MT940/MT942/CSV upload or an IMAP attachment.
+**Interim and held rows** (`packages/core/src/banking/holds.ts`, no schema change): some rows are
+stored with status `IGNORED` and `raw_data.hold` set, so they never take part in matching,
+assignment or auto-fulfilment (the matcher, manual assignment and "run matching again" all refuse
+them). `INTERIM` = MT942 entry (a pending credit may never be booked; it has its own fingerprint
+namespace so it cannot shadow the final booking). When a final MT940 / camt booking arrives with the
+same signed amount and currency, a compatible counterparty IBAN, a booking date within 7 days and a
+similar remittance (or, after a rebooking with a changed text, the only candidate with that IBAN and
+amount) the interim row gets `raw_data.supersededBy` = the final row. Guarantee: interim rows never
+count as money. Limit: an interim row without a final counterpart stays visible but unpaid, and a
+final booking that differs in amount or IBAN is not linked (it is simply a new booking).
+`POSSIBLE_DUPLICATE` / `NO_BOOKING_DATE` (camt.054 only) are entries an admin must release
+("not a duplicate" = run matching again): the former looks identical to an entry of an earlier
+camt.054 file and has no reference to tell them apart, the latter lacks a booking date and any
+AcctSvcrRef / EndToEndId. Within the camt family an entry with the same AcctSvcrRef (or EndToEndId +
+date) + amount + IBAN + detail index as an earlier import is a duplicate; with different references
+two identical-looking payments both count. Limits: a genuine second payment arriving in a camt.054
+file after the same booking was imported from camt.053 / MT940 / FinTS is indistinguishable and is
+treated as the same booking (cross-source dedupe by fingerprint). `AGGREGATE` = a camt.052/053
+batch entry (several `TxDtls` not split by amount, or `NbOfTxs` > 1) whose same-day camt.054
+per-transaction rows add up to its amount exactly: the batch row is held, the single rows count;
+partial or differently grouped coverage is not detected and may double count, so check batch
+bookings if you import both. The same camt.054 message re-sent with other bytes is skipped when
+notification id, entry count and period equal an earlier import.
+
 Credits are matched by payment reference (Luhn check digit) and amount (setting
 `bankTransfer.autoMatchToleranceCents`); everything else becomes a Klärfall with a
 `review_reason` and scored `match_candidates`. Adapter specifics:

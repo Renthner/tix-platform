@@ -57,6 +57,7 @@ export async function saveAccountingSettingsAction(
     cashAccount: text(fd, 'cashAccount'),
     cardAccount: text(fd, 'cardAccount'),
     writeOffAccount: text(fd, 'writeOffAccount') || undefined,
+    zeroValueDocuments: text(fd, 'zeroValueDocuments'),
   };
   const parsed = accountingSchema.safeParse(input);
   if (!parsed.success) return fieldError(mapErrors(parsed.error));

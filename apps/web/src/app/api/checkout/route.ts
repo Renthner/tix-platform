@@ -10,7 +10,13 @@ import { checkoutInputSchema } from '@tix/shared';
 import { NextResponse } from 'next/server';
 import { getCore } from '@/server/core';
 import { getCustomerSession } from '@/server/customer-session';
-import { clientIp, enforceRateLimit, handle, parseBody } from '@/server/http';
+import {
+  clientIp,
+  enforceIpThroughputLimit,
+  enforceRateLimit,
+  handle,
+  parseBody,
+} from '@/server/http';
 import { readSessionId } from '@/server/session';
 import { getShopActor } from '@/server/shop-actor';
 
@@ -30,7 +36,7 @@ export async function POST(request: Request) {
     // that passed input validation, so malformed submissions do not use up the allowance.
     const { checkoutsPerIpPer10Min } = await getSetting(getCore(), 'checkout');
     if (checkoutsPerIpPer10Min) {
-      await enforceRateLimit('checkout-ip', await clientIp(), checkoutsPerIpPer10Min, 600_000);
+      await enforceIpThroughputLimit('checkout-ip', checkoutsPerIpPer10Min, 600_000);
     }
     const customer = await getCustomerSession();
     const core = getCore();

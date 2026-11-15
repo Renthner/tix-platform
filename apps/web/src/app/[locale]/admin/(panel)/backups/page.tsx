@@ -1,4 +1,9 @@
 import {
+  countAdminPasskeys,
+  countBackupsUsingKeys,
+  getReEncryptPending,
+  getSecretsUnreadable,
+  passkeysAvailable,
   getBackupFailure,
   getRestoreIncomplete,
   getSetting,
@@ -7,7 +12,9 @@ import {
   listCatalogue,
   readProbeHistory,
 } from '@tix/core';
-import { loadExtraKeys } from '@tix/shared/server';
+import { auditLogs } from '@tix/db';
+import { keyLabel, loadExtraKeys, type SecretBoxKey } from '@tix/shared/server';
+import { desc, eq } from 'drizzle-orm';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { BackupSettingsForm } from '@/components/admin/backups/backup-settings-form';
@@ -15,8 +22,10 @@ import {
   BackupNowButton,
   BackupStatusPanel,
   DeleteBackupButton,
+  DismissNoticeButton,
   DownloadLink,
   ProbeNowButton,
+  ReEncryptButton,
   RestoreButton,
   UploadBackupButton,
   VerifyButton,
@@ -38,8 +47,11 @@ import { requireAdmin } from '@/server/auth';
 import {
   backupNowAction,
   deleteBackupAction,
+  dismissReEncryptPendingAction,
+  recheckSecretsAction,
   previewRestoreAction,
   probeNowAction,
+  reEncryptNowAction,
   restoreBackupAction,
   saveBackupSettingsAction,
   testBackupTargetAction,
@@ -63,7 +75,7 @@ const formatSize = (bytes: number) => {
 
 export default async function BackupsPage({ params }: { params: Promise<{ locale: string }> }) {
   await resolveLocale(params);
-  await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
+  const session = await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
   const core = getCore();
   const [
     t,
@@ -76,6 +88,8 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
     failure,
     incomplete,
     probes,
+    unreadableSecrets,
+    reEncryptPending,
   ] = await Promise.all([
     getTranslations('backups'),
     getTranslations('backups.verifyDetail'),
@@ -87,14 +101,41 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
     getBackupFailure(core),
     getRestoreIncomplete(core),
     readProbeHistory(getBackupBuckets().backups),
+    getSecretsUnreadable(core),
+    getReEncryptPending(core),
   ]);
   const storage = getStorageInfo();
   const lastProbe = probes[0] ?? null;
   const keyId = core.secrets?.activeKeyId ?? '';
+  // Standalone re-encryption: same second factor as a restore; last run from the audit trail.
+  const [account, passkeyCount, [lastReEncrypt]] = await Promise.all([
+    core.db.query.adminUsers.findFirst({
+      columns: { totpSecretEncrypted: true },
+      where: (u, { eq: equals }) => equals(u.id, session.userId),
+    }),
+    countAdminPasskeys(core, session.userId),
+    core.db
+      .select({ at: auditLogs.createdAt, changes: auditLogs.changes })
+      .from(auditLogs)
+      .where(eq(auditLogs.action, 'secrets.reencrypt'))
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(1),
+  ]);
+  const lastRun = lastReEncrypt?.changes as
+    | {
+        complete: boolean;
+        removedKeyIds: string[];
+        remainingForeign: number;
+        tables: { id: string; reEncrypted: number; skipped: number; undecryptable: number }[];
+        undecryptable: { id: string; pk: string }[];
+      }
+    | undefined;
   // Ids only: keys of another system that a restore stored as additional decrypt-only keys.
   let additionalKeyIds: string[] = [];
+  let additionalKeys: SecretBoxKey[] = [];
   try {
-    additionalKeyIds = loadExtraKeys().map((k) => k.id);
+    additionalKeys = loadExtraKeys();
+    additionalKeyIds = additionalKeys.map(keyLabel);
   } catch {
     /* an unreadable file is reported at startup */
   }
@@ -127,6 +168,36 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
             <AlertTitle>{t('dashboardAlert.title')}</AlertTitle>
             <AlertDescription>
               {t('dashboardAlert.text', { message: failure.message })}
+            </AlertDescription>
+          </Alert>
+        )}
+        {unreadableSecrets && (
+          <Alert variant="destructive">
+            <AlertTitle>{t('unreadableSecrets.title')}</AlertTitle>
+            <AlertDescription>
+              {t('unreadableSecrets.text', { count: unreadableSecrets.count })}
+              <div className="mt-3">
+                <DismissNoticeButton
+                  action={recheckSecretsAction}
+                  label={t('unreadableSecrets.recheck')}
+                />
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        {reEncryptPending && (
+          <Alert className="border-warning-border bg-warning-soft text-warning">
+            <AlertTitle>{t('reencryptPending.title')}</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>
+                {t(
+                  reEncryptPending.gaveUp ? 'reencryptPending.textGaveUp' : 'reencryptPending.text',
+                )}
+              </p>
+              <DismissNoticeButton
+                action={dismissReEncryptPendingAction}
+                label={t('reencryptPending.dismiss')}
+              />
             </AlertDescription>
           </Alert>
         )}
@@ -172,14 +243,53 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
             ? t('storage.driverFs', { dir: storage.dir ?? '' })
             : t('storage.driverS3')}
         </p>
-        <BackupStatusPanel />
+        <BackupStatusPanel foreignKeysAllowed={foreignBackupKeysAllowed()} />
         {additionalKeyIds.length > 0 && (
           <Alert>
             <AlertTitle>{t('additionalKeys.title')}</AlertTitle>
-            <AlertDescription>
-              {t('additionalKeys.text', { ids: additionalKeyIds.join(', ') })}
+            <AlertDescription className="space-y-3">
+              <p>{t('additionalKeys.text', { ids: additionalKeyIds.join(', ') })}</p>
+              <ReEncryptButton
+                action={reEncryptNowAction}
+                twoFactor={Boolean(account?.totpSecretEncrypted) || passkeyCount > 0}
+                passkeys={passkeyCount > 0 && passkeysAvailable(core)}
+                backupsUsingKeys={countBackupsUsingKeys(
+                  entries.map((e) => e.manifest),
+                  additionalKeys,
+                )}
+                backupsUnchecked={entries.filter((e) => !e.manifest.secretKeys).length}
+              />
             </AlertDescription>
           </Alert>
+        )}
+        {lastRun && lastReEncrypt && (
+          <div className="space-y-1 rounded-lg border p-4 text-sm">
+            <p className="font-medium">
+              {t('reencrypt.last.title')} · {when(lastReEncrypt.at.toISOString())}
+            </p>
+            <p className={lastRun.complete ? 'text-success' : 'text-destructive'}>
+              {lastRun.complete
+                ? t('reencrypt.last.complete', { keys: lastRun.removedKeyIds.join(', ') || '-' })
+                : t('reencrypt.last.incomplete', { remaining: lastRun.remainingForeign })}
+            </p>
+            <ul className="list-disc pl-5 text-xs text-muted-foreground">
+              {lastRun.tables.map((row) => (
+                <li key={row.id}>
+                  {t('reencrypt.last.table', {
+                    table: row.id,
+                    reEncrypted: row.reEncrypted,
+                    skipped: row.skipped,
+                    unreadable: row.undecryptable,
+                  })}
+                </li>
+              ))}
+              {lastRun.undecryptable.map((row) => (
+                <li key={`${row.id}:${row.pk}`} className="text-destructive">
+                  {t('reencrypt.last.unreadableRow', { table: row.id, pk: row.pk })}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         <p className="text-sm text-muted-foreground">{t('keyNote', { keyId })}</p>
         <p className="text-sm text-muted-foreground">{t('upload.hint')}</p>

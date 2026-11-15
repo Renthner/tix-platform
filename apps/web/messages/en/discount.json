@@ -13,6 +13,8 @@
     "NOT_STACKABLE": "This code cannot be combined with another code.",
     "NOT_VALID_FOR_ITEMS": "This code is not valid for the tickets in your cart.",
     "MIN_ORDER_VALUE": "The minimum order value for this code is not reached.",
+    "PERCENT_CAP": "This code is not valid.",
+    "BELOW_MINIMUM_TOTAL": "This code cannot be used: the order total would fall below the minimum payable amount.",
     "RATE_LIMITED": "Too many attempts. Please wait a moment.",
     "GENERIC": "The code could not be applied."
   }

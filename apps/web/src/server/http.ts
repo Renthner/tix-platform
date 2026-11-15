@@ -1,6 +1,12 @@
 import { logger } from '@/server/logger';
 import 'server-only';
-import { DomainError } from '@tix/core';
+import {
+  DomainError,
+  LOAD_TEST_HEADER,
+  noteLoadTestBypass,
+  verifyLoadTestToken,
+  type LoadTestBypassBucket,
+} from '@tix/core';
 import { isDbBusyError, pgErrorCode } from '@tix/db';
 import { rateLimit } from '@tix/redis';
 import { headers } from 'next/headers';
@@ -151,6 +157,29 @@ export async function enforceRateLimit(
       retryAfterMs: result.retryAfterMs,
     });
   }
+}
+
+/**
+ * Per-IP THROUGHPUT limit that a sanctioned load test may skip: requests carrying the valid
+ * `X-Tix-Loadtest` token while the time-limited load test mode is on (Admin -> System). The header
+ * is ignored otherwise. Only the buckets in `LOAD_TEST_BYPASS_BUCKETS` are allowed (compile-time
+ * and unit-test enforced); never use this for authentication, per-session, per-e-mail or per-code
+ * limits.
+ */
+export async function enforceIpThroughputLimit(
+  bucket: LoadTestBypassBucket,
+  max: number,
+  windowMs: number,
+): Promise<void> {
+  const presented = (await headers()).get(LOAD_TEST_HEADER);
+  if (presented) {
+    const core = getCore();
+    if (await verifyLoadTestToken(core, presented)) {
+      noteLoadTestBypass(core);
+      return;
+    }
+  }
+  await enforceRateLimit(bucket, await clientIp(), max, windowMs);
 }
 
 export const uuidParam = z.uuid();

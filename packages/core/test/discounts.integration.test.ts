@@ -680,4 +680,190 @@ describe.skipIf(!adminUrl || !redisUrl)('discount codes (integration)', () => {
     expect(stats.discounts.total).toBeGreaterThan(0);
     expect(stats.discounts.byCode.map((c) => c.code)).toContain('SPRING10');
   });
+
+  describe('full discount policy (organiser settings)', () => {
+    const reset = async () => {
+      for (const key of ['checkout', 'invoicing', 'accounting'] as const) {
+        await saveSetting(ctx, key, {}, null);
+      }
+    };
+    afterEach(reset);
+
+    it('DISALLOW refuses a code that leaves nothing to pay, and checkout re-checks it', async () => {
+      await createDiscountCode(
+        handle.db,
+        codeInput('POLFREE', { value: 10_000, discountFees: true }),
+        null,
+      );
+      await createDiscountCode(handle.db, codeInput('POLHALF', { value: 5_000 }), null);
+      await saveSetting(ctx, 'checkout', { fullDiscountPolicy: 'DISALLOW' }, null);
+      const s1 = await cartWith([seatIds[5]!]);
+      await expect(applyDiscountCodeToCart(ctx, s1, 'POLFREE')).rejects.toMatchObject({
+        code: 'DISCOUNT_BELOW_MINIMUM_TOTAL',
+      });
+      const preview = await applyDiscountCodeToCart(ctx, s1, 'POLHALF');
+      expect(preview.total).toBe(1500);
+      await discardCart(ctx, s1);
+
+      // The policy is tightened after the code was entered: refused when the order is placed.
+      await reset();
+      const s2 = await cartWith([seatIds[5]!], 'POLFREE');
+      await saveSetting(ctx, 'checkout', { fullDiscountPolicy: 'DISALLOW' }, null);
+      await expect(
+        placeOrder(ctx, { sessionId: s2, input: buyer('BANK_TRANSFER', 0, 'pol@example.invalid') }),
+      ).rejects.toMatchObject({ code: 'DISCOUNT_BELOW_MINIMUM_TOTAL' });
+      await discardCart(ctx, s2);
+
+      // Default policy: unchanged behaviour (the cart accepts the full discount).
+      await reset();
+      const s3 = await cartWith([seatIds[5]!], 'POLFREE');
+      expect((await getCheckoutOptions(ctx, s3)).quotes.BANK_TRANSFER.totalGross).toBe(0);
+      await discardCart(ctx, s3);
+    });
+
+    it('minimum order total and percentage cap apply to the shop quote', async () => {
+      await createDiscountCode(handle.db, codeInput('POL60', { value: 6_000 }), null);
+      await createDiscountCode(handle.db, codeInput('POL10', { value: 1_000 }), null);
+      await createDiscountCode(
+        handle.db,
+        codeInput('POLFIX', { type: 'FIXED', value: 1_000 }),
+        null,
+      );
+      await saveSetting(
+        ctx,
+        'checkout',
+        { minimumOrderTotalAfterDiscounts: 2_000, maxDiscountPercent: 60 },
+        null,
+      );
+      const s = await cartWith([seatIds[5]!]); // 30.00 + 1.50 fee
+      await expect(applyDiscountCodeToCart(ctx, s, 'POLHALF')).rejects.toMatchObject({
+        code: 'DISCOUNT_BELOW_MINIMUM_TOTAL', // 15.00 + 1.50 < 20.00
+      });
+      await applyDiscountCodeToCart(ctx, s, 'POL10'); // 27.00 + 1.50
+      await removeDiscountCodeFromCart(ctx, s, 'POL10');
+      await applyDiscountCodeToCart(ctx, s, 'POLFIX'); // fixed amounts are not capped by percent
+      await removeDiscountCodeFromCart(ctx, s, 'POLFIX');
+      await saveSetting(ctx, 'checkout', { maxDiscountPercent: 50 }, null);
+      await expect(applyDiscountCodeToCart(ctx, s, 'POL60')).rejects.toMatchObject({
+        code: 'DISCOUNT_PERCENT_CAP',
+      });
+      await discardCart(ctx, s);
+    });
+
+    it('zero-value orders: invoice note, NO_INVOICE, cancellation and the accounting filter', async () => {
+      const [user] = await handle.db
+        .insert(adminUsers)
+        .values({ email: 'zero@example.invalid', displayName: 'Zero', roles: ['FINANCE'] })
+        .returning({ id: adminUsers.id });
+      await createDiscountCode(
+        handle.db,
+        codeInput('ZEROINV', { value: 10_000, discountFees: true }),
+        null,
+      );
+      const free = async (email: string) => {
+        const session = await cartWith([seatIds[5]!], 'ZEROINV');
+        return placeOrder(ctx, { sessionId: session, input: buyer('BANK_TRANSFER', 0, email) });
+      };
+      const cancel = (orderId: string) =>
+        cancelPaidOrder(ctx, { orderId, refundFees: true, notify: false, userId: user!.id });
+      const invoiceRow = async (invoiceId: string) =>
+        (await handle.db.select().from(invoices).where(eq(invoices.id, invoiceId)))[0]!;
+      const note = { de: 'Hinweis zur unentgeltlichen Abgabe', en: 'Free ticket note' };
+      await saveSetting(ctx, 'invoicing', { zeroValueInvoiceNote: note }, null);
+
+      // Default policy ALLOW: invoice of 0.00 as before, the note is not printed.
+      const a = await free('zero-a@example.invalid');
+      const invoiceA = (await issueInvoice(ctx, a.orderId))!;
+      const rowA = await invoiceRow(invoiceA.invoiceId);
+      expect(rowA.totalGross).toBe(0);
+      expect(rowA.legalNotes).not.toContain(note.de);
+      await cancel(a.orderId);
+
+      // ALLOW_WITH_NOTE: the organiser's text in the language of the order is frozen into the invoice.
+      await saveSetting(ctx, 'checkout', { fullDiscountPolicy: 'ALLOW_WITH_NOTE' }, null);
+      const b = await free('zero-b@example.invalid');
+      const invoiceB = (await issueInvoice(ctx, b.orderId))!;
+      expect((await invoiceRow(invoiceB.invoiceId)).legalNotes).toContain(note.de);
+      // Changing the text later never alters the issued invoice (GoBD).
+      await saveSetting(ctx, 'invoicing', { zeroValueInvoiceNote: { de: 'Neuer Text' } }, null);
+      expect((await invoiceRow(invoiceB.invoiceId)).legalNotes).toContain(note.de);
+
+      // Accounting: the simple export keeps the 0.00 invoice unless the organiser leaves it out.
+      const range = { from: '2000-01-01', to: '2100-01-01' };
+      const all = await loadAccountingData(handle.db, range, 'Europe/Berlin', ['documents']);
+      expect(all.documents.some((d) => d.number === invoiceB.invoiceNumber)).toBe(true);
+      const filtered = await loadAccountingData(handle.db, range, 'Europe/Berlin', ['documents'], {
+        excludeZeroValueDocuments: true,
+      });
+      expect(filtered.documents.some((d) => d.totalGross === 0)).toBe(false);
+      expect(filtered.documents.length).toBeLessThan(all.documents.length);
+      await cancel(b.orderId);
+
+      // NO_INVOICE: no invoice is issued (nor backfilled), the order can still be cancelled.
+      await saveSetting(ctx, 'invoicing', { zeroValueInvoice: 'NO_INVOICE' }, null);
+      const c = await free('zero-c@example.invalid');
+      expect(await issueInvoice(ctx, c.orderId)).toBeNull();
+      const none = () => handle.db.select().from(invoices).where(eq(invoices.orderId, c.orderId));
+      expect(await none()).toHaveLength(0);
+      await cancel(c.orderId);
+      expect(await none()).toHaveLength(0);
+
+      // A free order that later received real money (e.g. paid tariff upgrade) keeps the method
+      // FREE but must be invoiced although the policy is NO_INVOICE (decided on money).
+      const d = await free('zero-d@example.invalid');
+      expect(await issueInvoice(ctx, d.orderId)).toBeNull();
+      await handle.db.insert(payments).values({
+        orderId: d.orderId,
+        method: 'BANK_TRANSFER',
+        status: 'CAPTURED',
+        amount: 500,
+        currency: 'EUR',
+        capturedAt: new Date(),
+      });
+      const [orderD] = await handle.db.select().from(orders).where(eq(orders.id, d.orderId));
+      expect(orderD!.paymentMethod).toBe('FREE');
+      expect(await issueInvoice(ctx, d.orderId)).not.toBeNull();
+      await cancel(d.orderId); // releases the seat for the following tests
+    });
+
+    it('prints the note on every discounted invoice when switched on', async () => {
+      const [user] = await handle.db
+        .insert(adminUsers)
+        .values({ email: 'zero2@example.invalid', displayName: 'Zero2', roles: ['FINANCE'] })
+        .returning({ id: adminUsers.id });
+      await saveSetting(
+        ctx,
+        'invoicing',
+        { zeroValueInvoiceNote: { de: 'Rabatthinweis' }, discountNoteOnAllInvoices: true },
+        null,
+      );
+      const session = await cartWith([seatIds[5]!], 'POLHALF');
+      const total = (await getCheckoutOptions(ctx, session)).quotes.BANK_TRANSFER.totalGross;
+      expect(total).toBe(1650);
+      const placed = await placeOrder(ctx, {
+        sessionId: session,
+        input: buyer('BANK_TRANSFER', total, 'half@example.invalid'),
+      });
+      await recordPayment(ctx, {
+        orderId: placed.orderId,
+        amount: total,
+        currency: 'EUR',
+        method: 'BANK_TRANSFER',
+        actor: { type: 'SYSTEM' },
+      });
+      const issued = (await issueInvoice(ctx, placed.orderId))!;
+      const [row] = await handle.db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, issued.invoiceId));
+      expect(row!.totalGross).toBe(1650);
+      expect(row!.legalNotes).toContain('Rabatthinweis');
+      await cancelPaidOrder(ctx, {
+        orderId: placed.orderId,
+        refundFees: true,
+        notify: false,
+        userId: user!.id,
+      });
+    });
+  });
 });

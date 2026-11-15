@@ -110,6 +110,13 @@
     "cardAccount": "Karte (Geldtransit)",
     "writeOffAccount": "Ausgebuchte Restbeträge",
     "writeOffHint": "Standard: 8730 / 4730 (Gewährte Skonti). Alternativ ein Forderungsverlust-Konto – bitte mit der Steuerberatung abstimmen.",
+    "zeroValueTitle": "Bestellungen über 0,00",
+    "zeroValueDocuments": "Rechnungen über 0,00 in der Beleg-CSV",
+    "zeroValueDocumentsHint": "Kostenlose Bestellungen (kostenlose Tarife, 100 % Rabatt) haben eine Rechnung über 0,00. Wenn Sie sie weglassen, wirken die Rechnungsnummern in der CSV lückenhaft. Die DATEV-Datei enthält nie 0,00-Buchungen. Wie Gratistickets umsatzsteuerlich zu behandeln sind, entscheidet Ihre Steuerberatung.",
+    "zeroValueOptions": {
+      "INCLUDE": "Aufnehmen",
+      "EXCLUDE": "Weglassen"
+    },
     "save": "Buchhaltungseinstellungen speichern"
   }
 }

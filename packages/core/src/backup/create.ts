@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PgClient } from '@tix/db';
+import { collectSecretKeyFingerprints } from '../secrets/reencrypt';
 import { InvalidStorageKeyError, validateStorageKey } from '../storage-fs';
 import { writeArchive, type ArchiveEntry } from './archive';
 import { applyRetention, writeBackupState } from './catalogue';
@@ -68,6 +69,14 @@ export async function createBackup(
     const lastMigration = await readMigrationInfo(snapshotClient, rt.migrationsDir);
     const version = await snapshotClient.query<{ server_version: string }>('SHOW server_version');
 
+    // Which keys do the stored secrets depend on? (cheap sample; a failure never blocks the backup)
+    let secretKeys: string[] = [];
+    try {
+      secretKeys = await collectSecretKeyFingerprints(rt.ctx, rt.keyRing);
+    } catch (err) {
+      rt.logger.warn({ err: describeError(err) }, 'backup: secret key fingerprints not recorded');
+    }
+
     const id = randomUUID();
     const createdAt = new Date().toISOString();
     const inner: BackupManifest = {
@@ -82,6 +91,7 @@ export async function createBackup(
       encryption: { algorithm: 'AES-256-GCM-STREAM', keyId: active.id },
       rowCounts,
       createdByUserId: params.userId,
+      ...(secretKeys.length > 0 ? { secretKeys } : {}),
     };
     const directory = backupDirectory(inner);
 

@@ -1,13 +1,265 @@
 # Load test
 
-`scripts/load/` is a self-contained load generator plus invariant checker for the high-concurrency
-promise of the platform: more than 1,000 buyers competing for the same seats without double
-bookings, race conditions or deadlocks.
+The promise of the platform is **more than 1,000 buyers competing for the same seats without double
+bookings, race conditions or deadlocks**. There are two tools for two questions:
 
-The runner starts an **isolated copy of the stack** (separate Docker Compose project `tixload` with
-its own volumes and host ports), seeds the demo event, runs the scenarios, verifies the invariants
-in Redis and PostgreSQL, scans the logs for deadlocks and tears everything down again. It never
-touches the regular stack (project `tix`, port 8080).
+| Tool                            | Question                                                                                                   | Needs                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `scripts/load/journey.mjs`      | How does **this** server (production-like, with proxy / CDN / WAF) behave under 1,000+ realistic shoppers? | a running server, the **load test mode token**, a published test event |
+| `scripts/load/run.mjs` (Part B) | Are the seat-locking, waiting-room and checkout **invariants** intact (Redis + PostgreSQL cross-checks)?   | Docker; builds and tears down its own isolated stack                   |
+
+German edition of this page: [LOAD-TEST.de.md](LOAD-TEST.de.md).
+
+## Part A - journey test against a real server
+
+### What it does
+
+`journey.mjs` starts several generator processes (default `min(CPUs, ceil(users/250))`, at most 8)
+that together simulate N shoppers. Each shopper has its own session cookie and runs the journey of
+a real visitor:
+
+1. shop home page and (with `--event-slug`) the event page,
+2. `POST /enter` and, when a waiting room is on, polling `/queue` and `/claim` until admitted,
+3. seat map and availability,
+4. WebSocket (Socket.io) subscription to the seat events,
+5. a fight for the same **hot seats** (default 20, three tries each),
+6. best available (default 30 % of the shoppers), one or two random seats, some give a seat back,
+7. keeping the cart for about a minute (cart reads), then `DELETE /api/cart` (cleanup),
+8. optionally a bank-transfer checkout (`--checkout-ratio`, dedicated copy only, see below).
+
+What is measured and asserted:
+
+- p50 / p95 / p99 / max latency, status and error-code counts per endpoint, requests per second;
+- rates of 5xx / network errors, **429** (an IP limit distorted the test) and **503** (system busy);
+- **WebSocket fan-out latency**: from sending a seat lock until the `seats:delta` arrives at the
+  generator's own sockets (same host clock, so no clock skew);
+- **hot-seat exclusivity**: every lock response and every release is recorded with timestamps; two
+  different sessions certainly holding the same seat at the same time is a double booking and
+  fails the run (checked for hot, random and best-available seats alike);
+- **no leaked locks**: after all carts were emptied no seat is held that was not held before;
+- optional `--database-url`: read-only SQL check (a read-only session) that no seat is in two active
+  order items; private / LAN database hosts are refused unless `--allow-private` is given;
+- snapshots of `/__tix/health` and (with `--metrics-token`) `/api/metrics` before and after, and
+  peaks sampled every 10 s (memory, database connections, Redis memory / clients, sockets, locks).
+
+Output: a human summary on stdout and a machine-readable JSON (`scripts/load/results/journey.json`
+or `--out`). Exit code `0` all assertions held, `1` an assertion failed, `2` refused / could not
+run. The token never appears in the output or the JSON.
+
+### Safety rails of the generator
+
+- `--target` is mandatory and has no default; `http://localhost:8080` and `:3000` (the regular
+  stack and the dev server) are refused.
+- A real run needs `--yes` **and** the load test token (`--loadtest-token`, or better the
+  environment variable `TIX_LOADTEST_TOKEN`, which does not show up in the process list).
+- `--dry-run` prints the plan and sends nothing.
+- The run aborts itself when more than 20 % of the requests answer 429 (wrong token, mode not
+  active, or a proxy in front limits the generator) and still cleans up the carts.
+- `Ctrl+C` stops the shoppers gracefully and empties the carts; the cart timer (lock TTL) is the
+  safety net for anything that could not be cleaned up.
+- Orders need `--checkout-ratio` **and** `--allow-orders`: checkout creates real orders and queues
+  real e-mails to `load-...@example.invalid`. Only on a dedicated copy with an SMTP sink, never on
+  production.
+
+### Load test mode (server side)
+
+Per-IP limits are the right protection against scripted abuse, and exactly what blocks a load
+generator that comes from a single address. Admin -> **System** -> _Load test mode_ switches them
+off **for requests that carry a secret token, for a limited time**:
+
+1. Sign in as SUPER_ADMIN (an authenticator app or a passkey must be set up on the account).
+2. Choose the duration (5 minutes to 4 hours, default 60), enter your password **and a fresh second
+   factor** (authenticator or recovery code, or a passkey confirmation bound to this action - the
+   mere existence of a second factor on the account is not enough), click **Enable**.
+3. Copy the token. It is shown once; only its SHA-256 hash is stored (in Redis, with a TTL).
+4. While active, a red banner shows on every admin page and the System page has a **Disable now**
+   button. The mode ends by itself. `loadtest.enable`, `loadtest.disable` and `loadtest.expire` are
+   in the audit log (with the number of bypassed requests, never the token).
+
+What a request with the header `X-Tix-Loadtest: <token>` skips while the mode is active, and
+nothing else:
+
+| Limit (Redis bucket) | Meaning                                                                           |
+| -------------------- | --------------------------------------------------------------------------------- |
+| `shop-ip`            | seat / standing / best-available requests per IP (setting "seat requests per IP") |
+| `checkout-ip`        | orders per IP (setting "checkouts per IP", off by default)                        |
+| `enter-ip`           | entering the shop / waiting room                                                  |
+| `realtime-token-ip`  | realtime token for the WebSocket                                                  |
+
+Deliberately **not** skipped: sign-in, two-factor, passkey, password-reset and other failed-auth
+limits, scanner authentication, VIP-code and discount-code guessing limits (`code-ip`,
+`discount-code-ip`), waiting-list mail limits, ticket self-service and transfer limits, PayPal
+webhook limits, per-session limits (`shop-session`, `checkout`, `presence`), per-e-mail and
+per-code limits, order limits, the seat-lock engine itself, and the CSRF / origin checks. The
+header is ignored when the mode is off, a wrong token behaves as no header, the comparison is
+constant time (hash of the token), and the header is redacted in the logs. A unit test pins the
+bypass to exactly these four buckets. A disable takes effect within about a second (each process
+caches the state for one second).
+
+Anonymous shoppers cannot open DRAFT events (that is a super-admin privilege and the token does
+**not** widen it), so the target must be a **published** event, ideally an unlisted test event
+(see "Cleanup").
+
+### Which environment?
+
+| Option                                                     | When                                                                                                                                                                           |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Dedicated copy** (own stack, backup restored, SMTP sink) | Default recommendation: capacity tests, checkout tests, anything that creates orders, anything you may break.                                                                  |
+| **Production**                                             | Only to verify the real chain (CDN, WAF, proxy, TLS, limits) with a _published test event_, outside sales, cart only (no checkout), short and ramped. Never during an on-sale. |
+| Isolated stack of Part B                                   | Invariant checks and regression runs on a laptop / CI.                                                                                                                         |
+
+A laptop on a home connection cannot honestly produce 1,000 users at production request rates; run
+the generator on a VPS in the same region as the server and give it one vCPU per ~250 users.
+
+### Step by step for production
+
+1. **Prepare a test event.** Create an event with a small plan (a few hundred seats), publish it,
+   open sales, set the order limits generously and the orphan-seat rule off. Keep it unlisted
+   (for example a far-future presale with an access code, or simply do not link it) and leave the
+   waiting room settings of real events alone. Note the event id (in the URL of the admin event page).
+2. **Generator address.** Run the generator on a machine with a fixed public IP, here
+   `203.0.113.7`.
+3. **Cloudflare** (if the shop is behind it): _Security -> WAF -> Custom rules_, action **Skip**
+   (all rate limiting rules, Bot Fight Mode / Super Bot Fight Mode, Security Level, managed rules as
+   needed), expression
+   `(ip.src eq 203.0.113.7 and any(http.request.headers["x-tix-loadtest"][*] ne ""))`.
+   Do not enable "I'm Under Attack" during the test. Cloudflare sees the generator as one very busy
+   visitor, and its terms ask you to inform them before large tests on proxied hostnames. A cleaner
+   option is a DNS-only (grey cloud) test hostname that points to the origin, which also takes the
+   CDN out of the measurement. This shop never marks `/api/*` or its HTML as cacheable (`no-store`),
+   but check the `cf-cache-status` header.
+4. **Traefik / your reverse proxy.** Remove or bypass per-IP rate limit and in-flight middleware for
+   the generator, for example with a higher-priority router without the middleware:
+
+   ```yaml
+   - traefik.http.routers.tix-loadtest.rule=Host(`shop.example.org`) && ClientIP(`203.0.113.7/32`)
+   - traefik.http.routers.tix-loadtest.priority=100
+   - traefik.http.routers.tix-loadtest.service=tix
+   ```
+
+   (no `rateLimit` / `inFlightReq` middleware on it). nginx: `map $remote_addr $limit_key { 203.0.113.7 ""; default $binary_remote_addr; }`
+   and `limit_req_zone $limit_key ...` (an empty key is not limited); raise `worker_connections` for
+   1,000+ WebSockets. The proxy must pass `Upgrade` / `Connection` and must not strip unknown
+   request headers (none of the common ones do; the built-in proxy of the image forwards
+   `X-Tix-Loadtest` untouched, which a unit test pins).
+
+5. **CrowdSec / fail2ban.** CrowdSec: `cscli allowlists create loadtest -d "load test"`, then
+   `cscli allowlists add loadtest 203.0.113.7`. fail2ban: `fail2ban-client set <jail> addignoreip 203.0.113.7`
+   for every jail that reads the proxy access log. Remove both after the test.
+6. **`TRUSTED_PROXIES` and the built-in proxy.** The client address the application sees comes from
+   `X-Forwarded-For` of a trusted proxy (`TRUSTED_PROXIES`, see INSTALL.md); behind Cloudflare /
+   Traefik it is the generator's public IP. Do **not** try to spoof client addresses: a forged
+   `X-Forwarded-For` is ignored unless the peer is a trusted proxy, and the load test token is the
+   sanctioned way past the per-IP limits. The built-in proxy additionally caps the concurrent
+   connections per client address that is _not_ a trusted proxy (`TIX_PROXY_MAX_CONNS_PER_IP`,
+   default 200); connections that arrive through a trusted proxy are exempt. If the generator talks
+   to the container **directly** (a staging copy without a proxy in front), every user holds an
+   HTTP connection and a WebSocket: set `TIX_PROXY_MAX_CONNS_PER_IP=0` (or at least twice the number
+   of users) for the duration of the test and restore the default afterwards. Do not weaken the
+   default permanently.
+7. **Enable the load test mode** (see above). Copy the token and note the end time.
+8. **Metrics (optional, recommended).** Settings -> Security -> Prometheus endpoint: create a
+   metrics token and pass it as `TIX_METRICS_TOKEN`.
+9. **Dry run, then a small run.**
+
+   ```bash
+   export TIX_LOADTEST_TOKEN=...   # from the admin page
+   node scripts/load/journey.mjs --target https://shop.example.org --event-id <uuid> --dry-run
+   node scripts/load/journey.mjs --target https://shop.example.org --event-id <uuid> --yes \
+        --vus 100 --ramp 30s --duration 2m
+   ```
+
+   Continue only when this passes with 429 = 0.
+
+10. **The real run**, for example 1,200 users, ramp 90 s, five minutes:
+    `node scripts/load/journey.mjs --target ... --event-id ... --event-slug <slug> --yes --vus 1200 --ramp 90s --duration 5m --metrics-token ...`
+    Watch Admin -> System (database connections, Redis, sockets, locks) next to it.
+11. **Disable** the load test mode (button on the System page), then remove the Cloudflare rule, the
+    proxy exemptions, the CrowdSec / fail2ban entries and the `TIX_PROXY_MAX_CONNS_PER_IP` change.
+12. **Cleanup.** Without `--checkout-ratio` the journey leaves no orders; carts were emptied and any
+    remaining lock expires by TTL. Archive or unpublish the test event. With `--checkout-ratio`,
+    cancel the orders on the dedicated copy and delete the event there (an event with orders cannot
+    be deleted on a live system, GoBD).
+
+### Options
+
+| Option                                                                                                       | Meaning                                                                               |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `--target`, `--event-id`, `--event-slug`                                                                     | server, event, optional public event page                                             |
+| `--yes`, `--dry-run`                                                                                         | confirm / only print the plan                                                         |
+| `--loadtest-token` / `TIX_LOADTEST_TOKEN`                                                                    | token of the load test mode                                                           |
+| `--vus` (1000), `--workers`, `--ramp` (60s), `--ramp-profile`                                                | users, processes, ramp-up (`linear`, `step` = 5 batches, `spike` = everybody at once) |
+| `--duration` (4m), `--hold` (60s, max 8m)                                                                    | total run time including the ramp, average cart hold time                             |
+| `--hot` (20), `--best-available` (0.3), `--ws-ratio` (1)                                                     | contention seats, share using best available / WebSockets                             |
+| `--checkout-ratio` with `--allow-orders`                                                                     | share placing a bank-transfer order (dedicated copy only)                             |
+| `--metrics-token` / `TIX_METRICS_TOKEN`, `--database-url`                                                    | resource snapshots, optional read-only double-booking SQL check                       |
+| `--max-failure-rate` (0.01), `--max-429-rate` (0.001), `--max-503-rate` (0.02), `--max-fanout-p95-ms` (2000) | assertion limits                                                                      |
+
+Keep the hold time well below the cart timer (default 10 minutes): a lock that expires during the
+test can legitimately be taken by someone else, which the exclusivity check cannot tell from a
+double booking.
+
+### Reading the results
+
+- **A failing exclusivity or leak check is the only real "bug" signal**; everything else is capacity.
+- **429 above 0.1 %**: the limiter, not the system, was measured. Wrong token or expired mode, a
+  WAF / proxy / CrowdSec in front, or a limit that the bypass does not cover (see the endpoint column).
+- **503 / `BUSY`**: database lock timeouts or pool exhaustion under contention; see "Tuning" below
+  (`WEB_DATABASE_POOL_MAX`, PostgreSQL `max_connections`).
+- **5xx and `TIMEOUT` with low CPU on the server**: the generator itself (CPU, `ulimit -n`) or the
+  network path; look at the generator CPU and raise `--workers`.
+- **LOCK_HOT** is a contention number (all users on 20 seats); `LOCK_RANDOM` and `SEATMAP` are closer
+  to normal browsing. A healthy fan-out p95 is well below one second.
+- Latency includes the network between generator and server; measure from the same region.
+
+### Caveats
+
+- A CDN or WAF may rate limit or challenge the generator even with the token; the `statuses`
+  columns show 403 / 429 / 5xx answers from it.
+- The generator reports what it sees from outside; server saturation shows in the System page and
+  the metrics snapshots.
+- The per-IP limits themselves are not exercised with the token on. Test them separately without
+  it (a small run with a wrong token must answer 429).
+- A test event adds seat locks, sockets and shop sessions to a live system; the dashboard
+  ("shoppers right now") shows them.
+
+### Sizing hints
+
+- The web part is CPU-bound: one web process saturates about one core at 1,200 simultaneous
+  checkouts, pages are rendered per request. Budget 2-4 vCPU for the container for a 1,000-user
+  presale, plus PostgreSQL and Redis on the same host (see "Reference results" and "Tuning" in Part B).
+- Database connections: replicas x `WEB_DATABASE_POOL_MAX` + worker + realtime must stay below
+  PostgreSQL `max_connections`.
+- Redis is not the bottleneck at this scale (the Lua locks are O(1)); watch
+  `tix_redis_used_memory_bytes` and the client count.
+- About one WebSocket per shopper on the seating plan; the realtime gateway is one Node process
+  (`tix_realtime_sockets`, fan-out latency).
+
+### Measured locally
+
+Throwaway single-image container (`--target app`) with PostgreSQL 18 and Redis 8 on the same
+Windows 11 developer machine as the generator (24 logical CPUs, other work and other test runs
+were going on at the same time, so read the numbers as an order of magnitude), demo event with
+391 plain seats and 120 standing places, 20 hot seats, load test mode on, `TIX_PROXY_MAX_CONNS_PER_IP=0`,
+generator direct to the container (one client address):
+
+| Run                           | Result                                        | Highlights                                                                                                                                                                                                                                |
+| ----------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 300 users, ramp 30 s, 2 min   | PASS                                          | ~6,000 requests (~80/s), 0 x 5xx / 429 / 503, 34 hot-seat locks granted and 815 refused on 20 seats, 631 hold intervals without overlap, fan-out p50 88 ms / p95 0.6 s, 0 leaked locks                                                    |
+| 1,000 users, ramp 30 s, 100 s | all invariants PASS, fan-out p95 limit FAILED | ~18,900 requests (~210/s), 0 x 5xx / 429 / 503, 40 hot-seat locks granted and 2,899 refused, 761 intervals without overlap, 0 leaked locks. One container on a busy machine saturated: p95 of several endpoints 1-18 s, fan-out p95 2.8 s |
+
+Checks of the mode itself on the same stack: without the header (or with a wrong one) 300 rapid
+`POST /enter` from one address answered 120 x 200 and 180 x 429 (limit 120 per minute); with the
+token 600 x 200 (counted as bypassed requests); after **Disable** the token was refused like any
+other (120 x 200, then 429); an expired run is closed by the worker with a `loadtest.expire`
+audit entry within a second; the token appears neither in Redis, the audit log nor the logs.
+
+## Part B - isolated stack with invariant checks
+
+`scripts/load/run.mjs` is a self-contained runner plus invariant checker. It starts an **isolated copy of
+the stack** (separate Docker Compose project `tixload` with its own volumes and host ports), seeds the
+demo event, runs the scenarios, verifies the invariants in Redis and PostgreSQL, scans the logs for
+deadlocks and tears everything down again. It never touches the regular stack (project `tix`, port 8080).
 
 ## Quick start (Windows PowerShell)
 
@@ -19,8 +271,7 @@ touches the regular stack (project `tix`, port 8080).
 ```
 
 If Windows PowerShell refuses to run the script (execution policy), start it with
-`powershell -ExecutionPolicy Bypass -File scriptsload
-un.ps1 -Vus 200` or use `pwsh`.
+`powershell -ExecutionPolicy Bypass -File scripts/load/run.ps1 -Vus 200` or use `pwsh`.
 
 Linux / macOS: `scripts/load/run.sh --vus 1200` (same options, `--no-build`, `--keep`, ...).
 
@@ -103,7 +354,7 @@ visitors. Never set this on a system whose clients could forge addresses.
 The generator only sends the header when started with `--fake-ip` (the runner does for the isolated
 stack).
 
-Note for operators: the limits are constants in code and not configurable in the admin portal.
+Note for operators: most limits are constants in code; only "seat requests per IP per minute" and "checkouts per IP" are settings. For tests of a real server use the **load test mode** of Part A instead of spoofing addresses.
 
 ## What the runner changes in the isolated database
 

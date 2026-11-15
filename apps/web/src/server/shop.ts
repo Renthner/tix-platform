@@ -11,7 +11,7 @@ import {
   type ShopActor,
 } from '@tix/core';
 import { getCore } from './core';
-import { clientIp, enforceRateLimit, uuidParam } from './http';
+import { enforceIpThroughputLimit, enforceRateLimit, uuidParam } from './http';
 import { ensureSessionId, readPassToken, writePassToken } from './session';
 import { getShopActor } from './shop-actor';
 
@@ -41,7 +41,7 @@ export async function authorizeShopMutation(
     enforceRateLimit('shop-session', sid, 120, 60_000),
     // Safety net per IP address (configurable, off when empty / 0).
     seatRequestsPerIpPerMinute
-      ? enforceRateLimit('shop-ip', await clientIp(), seatRequestsPerIpPerMinute, 60_000)
+      ? enforceIpThroughputLimit('shop-ip', seatRequestsPerIpPerMinute, 60_000)
       : Promise.resolve(),
   ]);
   await requireShopAccess(core, event, sid, await readPassToken(event.id), actor);

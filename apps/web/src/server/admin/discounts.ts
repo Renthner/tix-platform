@@ -13,6 +13,7 @@ import { withTransaction } from '@tix/db';
 import {
   discountBulkInputSchema,
   discountCodeInputSchema,
+  exceedsPercentCap,
   parseFeeAmountToCents,
   parsePercentToBp,
 } from '@tix/shared';
@@ -115,6 +116,18 @@ export async function saveDiscountCodeAction(
   const bulk = !codeId && text(fd, 'mode') === 'bulk';
   const { errors, data } = await parseForm(fd, bulk);
   if (!codeId && !bulk && !text(fd, 'code')) errors.code = 'required';
+  // Organiser policy: percentage codes above the configured cap cannot be saved.
+  if (
+    data &&
+    !errors.value &&
+    exceedsPercentCap(
+      data.type,
+      data.value,
+      (await getSetting(core, 'checkout')).maxDiscountPercent,
+    )
+  ) {
+    errors.value = 'percentCap';
+  }
   if (Object.keys(errors).length > 0 || !data) return fieldError(errors);
   try {
     if (codeId) {

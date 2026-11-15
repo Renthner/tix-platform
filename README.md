@@ -16,7 +16,7 @@ English | [Deutsch](README.de.md)
   <img src="docs/img/shop-event.webp" alt="Event page of the ticket shop" width="900">
 </p>
 
-> **Status:** pre-release (`1.0.0-alpha.29`). Feature-complete, but not yet declared stable. Take a
+> **Status:** pre-release (`1.0.0-alpha.30`). Feature-complete, but not yet declared stable. Take a
 > backup before every update (a database backup is also taken automatically before schema changes)
 > and read the [CHANGELOG](CHANGELOG.md). Update with the `tix-update.sh` script of the release
 > ([install guide](docs/INSTALL.md#updating-and-backups)).
@@ -30,7 +30,7 @@ English | [Deutsch](README.de.md)
   </tr>
   <tr>
     <td><img src="docs/img/shop-cart.webp" alt="Shopping cart"><br><b>Multi-event cart.</b> One cart and one order can span several events. Reduced, wheelchair or companion tariffs are chosen per seat; proofs are checked at the door.</td>
-    <td><img src="docs/img/shop-checkout.webp" alt="Checkout"><br><b>PayPal and bank transfer.</b> Guest checkout or optional customer accounts. Bank transfers are matched automatically (FinTS, finAPI, camt.052/053, MT940, CSV, IMAP); unclear payments land in a review queue.</td>
+    <td><img src="docs/img/shop-checkout.webp" alt="Checkout"><br><b>PayPal and bank transfer.</b> Guest checkout or optional customer accounts. Bank transfers are matched automatically (FinTS, finAPI, camt.052/053/054, MT940/MT942, CSV, IMAP); unclear payments land in a review queue.</td>
   </tr>
   <tr>
     <td><img src="docs/img/admin-seat-editor.webp" alt="Seating plan editor"><br><b>Visual seating plan editor.</b> Draw blocks, rows, tables and standing areas. Reusable venue templates, copied and adjustable per event.</td>
@@ -111,7 +111,7 @@ and troubleshooting is [docs/INSTALL.md](docs/INSTALL.md).
 
 ```bash
 # 1. Download the two files of the release
-export TIX_VERSION=1.0.0-alpha.29
+export TIX_VERSION=1.0.0-alpha.30
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example

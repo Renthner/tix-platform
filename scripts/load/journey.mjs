@@ -1,0 +1,473 @@
+// Realistic journey load test for a running server (production-like or a dedicated copy).
+//
+//   node scripts/load/journey.mjs --target https://shop.example.org --event-id <uuid> \
+//        --yes --vus 1000 --ramp 60s --duration 4m          (token via TIX_LOADTEST_TOKEN)
+//   node scripts/load/journey.mjs --target ... --event-id <uuid> --dry-run
+//
+// Simulates N shoppers (multiple worker processes): shop pages, waiting room, seat map,
+// WebSocket subscription (fan-out latency), contention on the SAME hot seats, best available,
+// cart churn and cleanup, optional checkout. Verifies hot-seat exclusivity from the hold intervals
+// of all sessions, optionally double bookings in the database, and scrapes /api/metrics and
+// /__tix/health before / during / after. See docs/LOAD-TEST.md. Exit code 0 = all assertions held,
+// 1 = an assertion failed, 2 = refused / failed to run.
+import { fork } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { Vu, buildConfig, openDb, parseArgs, sleep } from './lib/common.mjs';
+import {
+  EndpointStats,
+  Histogram,
+  checkDatabaseTarget,
+  checkTarget,
+  evaluateAssertions,
+  findOverlaps,
+  looksLikeToken,
+  parseDuration,
+  parsePrometheus,
+  redact,
+  sliceUsers,
+} from './lib/stats.mjs';
+import { loadWorld } from './lib/world.mjs';
+
+const args = parseArgs(process.argv.slice(2));
+const worker = fileURLToPath(new URL('./journey-worker.mjs', import.meta.url));
+const resultsDir = new URL('./results/', import.meta.url);
+
+const HELP = `Journey load test (see docs/LOAD-TEST.md)
+
+  --target <url>            server under test (required; never the regular stack on :8080/:3000)
+  --event-id <uuid>         event to shop on (required; a PUBLISHED, ideally unlisted test event)
+  --event-slug <slug>       also fetch the public event page (optional)
+  --loadtest-token <t>      token of Admin -> System -> Load test mode (or env TIX_LOADTEST_TOKEN)
+  --yes                     confirm that you are allowed to load this server
+  --dry-run                 print the plan, change and send nothing
+  --vus <n>                 virtual users (default 1000)
+  --workers <n>             generator processes (default min(cpus, ceil(vus/250)), max 8)
+  --ramp <dur>              ramp-up time (default 60s)   --ramp-profile linear|step|spike
+  --duration <dur>          total run time incl. ramp (default 4m)
+  --hold <dur>              average time a shopper keeps the cart (default 60s, max 8m)
+  --hot <n>                 number of hot seats everybody fights for (default 20)
+  --best-available <0..1>   share using best available (default 0.3)
+  --ws-ratio <0..1>         share of users with a WebSocket (default 1)
+  --checkout-ratio <0..1>   share placing a bank-transfer order (default 0; creates REAL orders and
+                            e-mails - dedicated copy with an SMTP sink only; needs --allow-orders)
+  --metrics-token <t>       token of /api/metrics (or env TIX_METRICS_TOKEN)
+  --database-url <url>      optional read-only double-booking check against the database
+                            (read-only session; private / LAN hosts are refused unless --allow-private)
+  --allow-private           allow a private / LAN database host for --database-url
+  --locale <de|en>          locale prefix of the pages (default: none = the shop's default locale)
+  --out <file>              result JSON (default scripts/load/results/journey.json)
+  --max-failure-rate / --max-429-rate / --max-503-rate / --max-fanout-p95-ms   assertion limits
+`;
+
+function refuse(message) {
+  console.error(`ERROR: ${message}`);
+  process.exit(2);
+}
+
+if (args.help || args.h) {
+  console.log(HELP);
+  process.exit(0);
+}
+
+// ── safety ────────────────────────────────────────────────────────────────────────
+const targetCheck = checkTarget(args.target);
+if (!targetCheck.ok) refuse(targetCheck.reason);
+if (args['database-url']) {
+  const dbCheck = checkDatabaseTarget(args['database-url'], {
+    allowPrivate: Boolean(args['allow-private']),
+  });
+  if (!dbCheck.ok) refuse(dbCheck.reason);
+}
+const eventId = args['event-id'];
+if (!eventId || !/^[0-9a-f-]{36}$/i.test(String(eventId))) refuse('--event-id <uuid> is required');
+const dryRun = Boolean(args['dry-run']);
+const token = dryRun
+  ? null
+  : String(args['loadtest-token'] ?? process.env.TIX_LOADTEST_TOKEN ?? '') || null;
+if (!dryRun) {
+  if (!args.yes) {
+    refuse(
+      `this sends heavy load to ${targetCheck.url.origin}. Re-run with --yes once you own the target or have permission, or use --dry-run.`,
+    );
+  }
+  if (!token || !looksLikeToken(token)) {
+    refuse(
+      'the load test token is required (Admin -> System -> Load test mode; pass --loadtest-token or env TIX_LOADTEST_TOKEN). Without it the per-IP limits would distort the test.',
+    );
+  }
+}
+const checkoutRatio = Number(args['checkout-ratio'] ?? 0);
+if (checkoutRatio > 0 && !args['allow-orders']) {
+  refuse(
+    '--checkout-ratio creates real orders and e-mails: add --allow-orders (dedicated copy only)',
+  );
+}
+
+const vus = Math.max(1, Math.floor(Number(args.vus ?? 1000)));
+const workers = Math.max(
+  1,
+  Math.min(8, Math.floor(Number(args.workers ?? Math.min(os.cpus().length, Math.ceil(vus / 250))))),
+);
+const durationMs = parseDuration(args.duration, 240_000);
+const rampMs = Math.min(parseDuration(args.ramp, 60_000), durationMs);
+const holdMs = Math.min(parseDuration(args.hold, 60_000), 8 * 60_000);
+const plan = {
+  runId: Math.random().toString(36).slice(2, 10),
+  seed: Number(args.seed ?? 42),
+  locale: args.locale ? String(args.locale) : '',
+  eventSlug: args['event-slug'] ? String(args['event-slug']) : null,
+  durationMs,
+  rampMs,
+  rampProfile: String(args['ramp-profile'] ?? 'linear'),
+  holdMs,
+  hotTries: 3,
+  bestAvailableRatio: Number(args['best-available'] ?? 0.3),
+  churnRatio: 0.15,
+  wsRatio: Math.min(1, Math.max(0, Number(args['ws-ratio'] ?? 1))),
+  checkoutRatio,
+  queueMaxWaitMs: Math.min(durationMs, 5 * 60_000),
+};
+const limits = {
+  maxFailureRate: Number(args['max-failure-rate'] ?? 0.01),
+  max429Rate: Number(args['max-429-rate'] ?? 0.001),
+  max503Rate: Number(args['max-503-rate'] ?? 0.02),
+  maxFanoutP95Ms: Number(args['max-fanout-p95-ms'] ?? 2000),
+};
+const cfg = {
+  ...buildConfig({
+    ...args,
+    target: targetCheck.url.origin,
+    vus: String(vus),
+    hot: args.hot ?? 20,
+  }),
+  loadtestToken: token,
+  fakeIp: false, // never spoof client addresses against a real target: the token is the sanctioned way
+};
+
+console.log(`Journey load test
+  target        ${targetCheck.url.origin}
+  event         ${eventId}${plan.eventSlug ? ` (${plan.eventSlug})` : ''}
+  virtual users ${vus} in ${workers} process(es), ramp ${plan.rampProfile} ${rampMs / 1000}s, run ${durationMs / 1000}s, hold ~${holdMs / 1000}s
+  hot seats     ${cfg.hot}, best-available ${plan.bestAvailableRatio}, websocket ${plan.wsRatio}, checkout ${checkoutRatio}
+  token         ${token ? 'provided (sent as X-Tix-Loadtest header)' : 'not provided'}
+  limits        ${JSON.stringify(limits)}`);
+if (dryRun) {
+  console.log('\nDRY RUN: nothing was sent. Steps of a real run:');
+  console.log(
+    ' 1. GET /__tix/health and /api/health, scrape /api/metrics (if a metrics token is given)\n' +
+      ' 2. load the seat map and pick hot seats\n' +
+      ' 3. ramp up the shoppers (pages, enter / waiting room, seat map, WebSocket, hot-seat fights,\n' +
+      '    best available, cart churn, cart cleanup)\n' +
+      ' 4. verify hot-seat exclusivity from the hold intervals, check leaked locks, optional DB check\n' +
+      ' 5. write the JSON result + summary',
+  );
+  process.exit(0);
+}
+
+// ── probes ────────────────────────────────────────────────────────────────────────
+const metricsToken = args['metrics-token'] ?? process.env.TIX_METRICS_TOKEN ?? null;
+async function getJson(path, headers = {}) {
+  try {
+    const res = await fetch(cfg.base + path, {
+      headers,
+      signal: AbortSignal.timeout(10_000),
+      redirect: 'manual',
+    });
+    const text = await res.text();
+    return { status: res.status, text };
+  } catch (err) {
+    return { status: 0, text: '', error: redact(err?.message ?? err, token) };
+  }
+}
+async function snapshot() {
+  const health = await getJson('/__tix/health');
+  const out = { at: new Date().toISOString(), health: null, metrics: null };
+  try {
+    out.health = health.status ? { status: health.status, body: JSON.parse(health.text) } : null;
+  } catch {
+    out.health = { status: health.status };
+  }
+  if (metricsToken) {
+    const m = await getJson('/api/metrics', { authorization: `Bearer ${metricsToken}` });
+    out.metrics = m.status === 200 ? parsePrometheus(m.text) : { error: `HTTP ${m.status}` };
+  }
+  return out;
+}
+
+const NOTABLE = [
+  'tix_process_resident_memory_bytes',
+  'tix_process_heap_used_bytes',
+  'tix_postgres_connections',
+  'tix_postgres_longest_query_seconds',
+  'tix_redis_used_memory_bytes',
+  'tix_redis_connected_clients',
+  'tix_redis_ops_per_second',
+  'tix_realtime_sockets',
+  'tix_seat_locks',
+  'tix_shop_sessions',
+];
+
+let aborted = false;
+const children = [];
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => {
+    if (aborted) process.exit(2);
+    aborted = true;
+    console.log(`\n${sig}: stopping shoppers and cleaning up carts (press again to force quit)`);
+    for (const c of children) c.send({ type: 'stop' });
+  });
+}
+
+async function main() {
+  const before = await snapshot();
+  if (!before.health || before.health.status !== 200) {
+    console.log(
+      `warning: /__tix/health did not answer 200 (${before.health?.status ?? 'unreachable'}); continuing`,
+    );
+  }
+  const probeStats = new EndpointStats();
+  const probe = new Vu(cfg, 3_000_000, probeStats);
+  const enter = await probe.call('SETUP_ENTER', 'POST', `/api/events/${eventId}/enter`);
+  if (enter.status !== 200) {
+    throw new Error(
+      `cannot enter the event shop (HTTP ${enter.status} ${enter.code}). Is the event published and the id right?`,
+    );
+  }
+  const world = await loadWorld(cfg, probe, eventId);
+  if (world.hotSeats.length === 0) throw new Error('no usable seats on the event');
+  const lockedBefore = new Set(
+    (await probe.call('SETUP_AVAILABILITY', 'GET', `/api/events/${eventId}/availability`)).body
+      ?.locked ?? [],
+  );
+  console.log(
+    `event: ${world.usable.length} plain seats (${world.hotSeats.length} hot), standing ${world.ga?.available ?? 0}, ${lockedBefore.size} seats held by others before the run`,
+  );
+
+  // ── resource sampling ──
+  const peaks = {};
+  let sampling = true;
+  const sampler = (async () => {
+    while (sampling) {
+      await sleep(10_000);
+      if (!sampling || !metricsToken) continue;
+      const m = await getJson('/api/metrics', { authorization: `Bearer ${metricsToken}` });
+      if (m.status !== 200) continue;
+      for (const [k, v] of Object.entries(parsePrometheus(m.text))) {
+        if (NOTABLE.some((n) => k.startsWith(n))) peaks[k] = Math.max(peaks[k] ?? 0, v);
+      }
+    }
+  })();
+
+  // ── workers ──
+  const slices = sliceUsers(vus, workers);
+  const t0 = Date.now();
+  const results = [];
+  const progress = new Map();
+  // private seats of the fan-out probes (4 per process), not used by the shoppers' random picks
+  const probeSeats = world.coldSeats.splice(-(slices.length * 4));
+  const slim = {
+    hotSeats: world.hotSeats,
+    coldSeats: world.coldSeats,
+    categories: world.categories,
+  };
+  let abortReason = null;
+  const finished = new Set();
+  const runs = slices.map(
+    (slice, w) =>
+      new Promise((resolve, reject) => {
+        const child = fork(worker, [], { stdio: ['inherit', 'inherit', 'inherit', 'ipc'] });
+        children.push(child);
+        child.on('message', (msg) => {
+          if (msg.type === 'progress') progress.set(w, msg);
+          else if (msg.type === 'done') {
+            finished.add(w);
+            results.push(msg);
+            resolve();
+          } else if (msg.type === 'error') reject(new Error(redact(msg.message, token)));
+        });
+        child.on('exit', (code) => {
+          if (code !== 0 && !finished.has(w)) reject(new Error(`worker ${w} exit ${code}`));
+        });
+        child.send({
+          type: 'start',
+          cfg,
+          eventId,
+          world: slim,
+          slice: { ...slice, index: w },
+          plan: { ...plan, wsRatio: plan.wsRatio },
+          probeSeats: probeSeats.slice(w * 4, w * 4 + 4),
+        });
+      }),
+  );
+  const status = setInterval(() => {
+    let active = 0;
+    let reqs = 0;
+    let limited = 0;
+    for (const p of progress.values()) {
+      active += p.active ?? 0;
+      reqs += p.reqs ?? 0;
+      limited += p.limited ?? 0;
+    }
+    // A flood of 429s means the token is not accepted / the mode is off / a WAF limits us:
+    // continuing would only measure the limiter, so stop (carts are cleaned up).
+    if (!abortReason && reqs > 500 && limited / reqs > 0.2) {
+      abortReason = `${Math.round((limited / reqs) * 100)} % of the requests were rate limited (429): load test mode not active, wrong token, or a proxy / WAF in front limits this generator`;
+      console.log(`
+ABORT: ${abortReason}`);
+      for (const c of children) c.send({ type: 'stop' });
+    }
+    process.stdout.write(
+      `\r[${Math.round((Date.now() - t0) / 1000)}s] active shoppers ${active}   `,
+    );
+  }, 2000);
+  try {
+    await Promise.all(runs);
+  } finally {
+    clearInterval(status);
+    sampling = false;
+    await sampler;
+    for (const c of children) if (c.exitCode === null) c.kill();
+  }
+  process.stdout.write('\n');
+
+  // ── aggregate ──
+  const total = new EndpointStats().merge(probeStats);
+  const fanout = new Histogram();
+  const counters = {};
+  const intervals = [];
+  const hot = { attempts: 0, won: 0, lost: 0 };
+  const hotWonSeats = new Set();
+  let ws = 0;
+  for (const r of results) {
+    total.merge(EndpointStats.fromJSON(r.stats));
+    fanout.merge(Histogram.fromJSON(r.fanout));
+    for (const [k, v] of Object.entries(r.counters)) counters[k] = (counters[k] ?? 0) + v;
+    for (const iv of r.intervals) intervals.push(iv);
+    hot.attempts += r.hot.attempts;
+    hot.won += r.hot.won;
+    hot.lost += r.hot.lost;
+    for (const s of r.hot.wonSeats) hotWonSeats.add(s);
+    ws += r.wsConnectedMax;
+  }
+  const seconds = (Date.now() - t0) / 1000;
+  const summary = total.summary(seconds);
+  const overlaps = findOverlaps(intervals);
+
+  // ── post-run checks ──
+  await sleep(1500);
+  const after = await snapshot();
+  const availAfter = (await getJson(`/api/events/${eventId}/availability`)).text;
+  let lockedAfter = new Set();
+  try {
+    lockedAfter = new Set(JSON.parse(availAfter).locked ?? []);
+  } catch {
+    /* reported below */
+  }
+  const leaked = [...lockedAfter].filter((s) => !lockedBefore.has(s));
+  const ledger = {
+    intervals: intervals.length,
+    hotSeats: world.hotSeats.length,
+    hotWon: hot.won,
+    hotLost: hot.lost,
+    hotContenders: vus,
+  };
+  const rt = {
+    connected: ws,
+    samples: fanout.n,
+    p50: round(fanout.percentile(50)),
+    p95: round(fanout.percentile(95)),
+    p99: round(fanout.percentile(99)),
+    max: round(fanout.max),
+  };
+  const checks = evaluateAssertions({ summary, overlaps, limits, ledger, rt });
+  checks.push({
+    title: 'no seat lock leaked after every shopper emptied the cart',
+    ok: leaked.length === 0,
+    detail: `${leaked.length} seats still held${leaked.length ? ' (carts that could not be cleared expire by TTL)' : ''}`,
+  });
+  if (args['database-url']) {
+    try {
+      const db = await openDb(String(args['database-url']), { readOnly: true });
+      const { rows } = await db.query(
+        `SELECT seat_id, count(*)::int AS n FROM order_items
+          WHERE seat_id IS NOT NULL AND status IN ('PENDING','CONFIRMED')
+          GROUP BY seat_id HAVING count(*) > 1`,
+      );
+      await db.end();
+      checks.push({
+        title: 'database: no seat in two active order items (double booking)',
+        ok: rows.length === 0,
+        detail: `${rows.length} seats`,
+      });
+    } catch (err) {
+      checks.push({
+        title: 'database check',
+        ok: false,
+        detail: redact(`could not run: ${err?.message ?? err}`, token),
+      });
+    }
+  }
+  if (abortReason) checks.push({ title: 'run was not aborted', ok: false, detail: abortReason });
+  const passed = checks.every((c) => c.ok);
+  const out = {
+    tool: 'journey',
+    startedAt: new Date(t0).toISOString(),
+    target: cfg.base,
+    eventId,
+    plan: { ...plan, vus, workers, limits },
+    seconds: Math.round(seconds * 10) / 10,
+    summary,
+    hotSeats: { ...hot, seatsWon: hotWonSeats.size, of: world.hotSeats.length },
+    realtime: rt,
+    counters,
+    overlaps: overlaps.slice(0, 20).map((o) => ({ seat: o.seat, a: o.a.sid, b: o.b.sid })),
+    leakedLocks: leaked.length,
+    resources: { before, after, peaksDuringRun: peaks },
+    checks,
+    passed,
+    aborted: aborted || Boolean(abortReason),
+    abortReason,
+  };
+  mkdirSync(resultsDir, { recursive: true });
+  const outFile = args.out ? String(args.out) : fileURLToPath(new URL('journey.json', resultsDir));
+  writeFileSync(outFile, JSON.stringify(out, null, 2));
+  print(out, outFile);
+  process.exit(passed ? 0 : 1);
+}
+
+const round = (v) => (v === null || v === undefined ? null : Math.round(v * 10) / 10);
+
+function print(o, file) {
+  const line = (s = '') => console.log(s);
+  line(`\n=== journey: ${o.plan.vus} virtual users, ${o.seconds} s ===`);
+  line(
+    `requests ${o.summary.requests} (${o.summary.requestsPerSecond}/s)  5xx+network ${o.summary.failures5xxOrNetwork}  429 ${o.summary.rateLimited429}  503 ${o.summary.unavailable503}`,
+  );
+  line('endpoint                 reqs     p50     p95     p99     max   statuses');
+  for (const [label, e] of Object.entries(o.summary.endpoints)) {
+    line(
+      `${label.padEnd(22)} ${String(e.requests).padStart(6)} ${String(e.p50).padStart(7)} ${String(e.p95).padStart(7)} ${String(e.p99).padStart(7)} ${String(e.max).padStart(7)}   ${JSON.stringify(e.statuses)}`,
+    );
+  }
+  line(
+    `\nrealtime fan-out (lock request -> delta received): ${o.realtime.samples} deliveries, p50 ${o.realtime.p50} ms, p95 ${o.realtime.p95} ms, p99 ${o.realtime.p99} ms, max ${o.realtime.max} ms; sockets ${o.realtime.connected}`,
+  );
+  line(`hot seats: ${JSON.stringify(o.hotSeats)}`);
+  line(`counters: ${JSON.stringify(o.counters)}`);
+  const peak = Object.entries(o.resources.peaksDuringRun);
+  if (peak.length)
+    line(`peaks (sampled /api/metrics): ${JSON.stringify(Object.fromEntries(peak))}`);
+  line('\nassertions:');
+  for (const c of o.checks)
+    line(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.title}${c.detail ? ` - ${c.detail}` : ''}`);
+  line(o.passed ? '\nRESULT: PASS' : '\nRESULT: FAIL');
+  line(`JSON: ${file}`);
+}
+
+main().catch((err) => {
+  console.error(`\nERROR: ${redact(err?.stack ?? err, token)}`);
+  for (const c of children) if (c.exitCode === null) c.kill();
+  process.exit(2);
+});

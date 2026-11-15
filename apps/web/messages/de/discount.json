@@ -13,6 +13,8 @@
     "NOT_STACKABLE": "Dieser Code lässt sich nicht mit einem anderen Code kombinieren.",
     "NOT_VALID_FOR_ITEMS": "Dieser Code gilt nicht für die Tickets in deinem Warenkorb.",
     "MIN_ORDER_VALUE": "Der Mindestbestellwert für diesen Code ist nicht erreicht.",
+    "PERCENT_CAP": "Dieser Code ist nicht gültig.",
+    "BELOW_MINIMUM_TOTAL": "Dieser Code kann nicht verwendet werden: Die Bestellsumme fiele unter den Mindestzahlbetrag.",
     "RATE_LIMITED": "Zu viele Versuche. Bitte warte einen Moment.",
     "GENERIC": "Der Code konnte nicht eingelöst werden."
   }

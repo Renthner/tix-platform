@@ -17,6 +17,8 @@ function create(): Logger {
         '*.token',
         '*.authorization',
         '*.cookie',
+        '*.x-tix-loadtest',
+        'headers["x-tix-loadtest"]',
         '*.set-cookie',
         '*.iban',
       ],

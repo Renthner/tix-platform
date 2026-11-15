@@ -44,6 +44,9 @@ export function createRefundsProcessor(deps: WorkerDeps) {
       case REFUND_JOBS.reconcile: {
         const result = await reconcileRefundsAfterRestore(deps.core, { force: true });
         deps.logger.info(result, 'refunds reconciled after restore');
+        // PayPal cannot be asked (no / rejected credentials): the sweeper repeats the pass once an
+        // admin fixed the settings; BullMQ retries within minutes would not help.
+        if (result.blocked) return result;
         if (!result.complete) throw new Error('refund reconciliation incomplete, will be retried');
         return result;
       }

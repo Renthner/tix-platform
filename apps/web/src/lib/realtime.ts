@@ -1,5 +1,6 @@
 'use client';
 
+import { observeEpoch, shouldRunFullResync, spreadDelayMs } from '@tix/shared';
 import { io, type Socket } from 'socket.io-client';
 
 /**
@@ -31,6 +32,9 @@ interface RealtimeState {
   needsResync: boolean;
   /** A maintenance interrupted the connection: the seat map itself may have changed (restore). */
   needsFullResync: boolean;
+  /** Last epoch the gateway announced (null until the first announcement). */
+  epoch: string | null;
+  lastFullResyncAt: number | null;
 }
 
 /** `full`: after maintenance (reload everything); otherwise availability is enough. */
@@ -52,6 +56,8 @@ const state: RealtimeState = {
   maintenanceTimer: null,
   needsResync: false,
   needsFullResync: false,
+  epoch: null,
+  lastFullResyncAt: null,
 };
 
 const MAINTENANCE_POLL_MS = 4_000;
@@ -91,7 +97,7 @@ function scheduleMaintenancePoll(delay: number): void {
       }
       setMaintenance(false);
       // Spread the reconnects of everybody who was connected over a window of 15 s.
-      setTimeout(() => state.socket?.connect(), Math.random() * MAINTENANCE_RECONNECT_SPREAD_MS);
+      setTimeout(() => state.socket?.connect(), spreadDelayMs(MAINTENANCE_RECONNECT_SPREAD_MS));
     });
   }, delay);
 }
@@ -154,8 +160,19 @@ function connect(): Promise<Socket> {
         const info: ResyncInfo = { full: state.needsFullResync };
         state.needsResync = false;
         state.needsFullResync = false;
+        if (info.full) state.lastFullResyncAt = Date.now();
         for (const l of state.resyncListeners) l(info);
       }
+    });
+    // The seat state behind the gateway was replaced (restore): drop everything we show, also when
+    // this tab never noticed the maintenance (sleeping device, long outage).
+    socket.on('realtime:epoch', (payload: unknown) => {
+      const seen = observeEpoch(state.epoch, (payload as { epoch?: unknown } | null)?.epoch);
+      if (!seen) return;
+      state.epoch = seen.known;
+      if (!seen.changed || !shouldRunFullResync(Date.now(), state.lastFullResyncAt)) return;
+      state.lastFullResyncAt = Date.now();
+      for (const l of state.resyncListeners) l({ full: true });
     });
     socket.on('disconnect', (reason) => {
       state.needsResync = true;
@@ -168,7 +185,7 @@ function connect(): Promise<Socket> {
           () => {
             if (!state.maintenance) socket.connect();
           },
-          1_000 + Math.random() * 2_000,
+          1_000 + spreadDelayMs(2_000),
         );
       }
     });

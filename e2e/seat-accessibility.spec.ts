@@ -106,6 +106,67 @@ test.describe('accessible seat selection', () => {
     await expect(page.getByTestId('seat-view-toggle')).toBeFocused();
   });
 
+  test('arrow keys cross block boundaries; Ctrl+Home / Ctrl+End; standing area is a control', async ({
+    page,
+  }) => {
+    await openEvent(page);
+    await tabIntoChart(page);
+    const sectionOf = async () => ((await activeSeat(page)).label.split(', ')[0] ?? '').trim();
+
+    // Ctrl+Home / Ctrl+End: first and last seat of the whole plan (different blocks).
+    await page.keyboard.press('Control+End');
+    const lastSection = await sectionOf();
+    const lastId = (await activeSeat(page)).id;
+    await page.keyboard.press('Control+Home');
+    const firstSection = await sectionOf();
+    const firstId = (await activeSeat(page)).id;
+    expect(lastId).not.toBe(firstId);
+    expect(lastSection).not.toBe(firstSection);
+
+    // Only arrow keys: keep going down until the block changes.
+    let crossed = false;
+    for (let i = 0; i < 40 && !crossed; i += 1) {
+      await page.keyboard.press('ArrowDown');
+      crossed = (await sectionOf()) !== firstSection;
+    }
+    expect(crossed).toBe(true);
+    const second = await sectionOf();
+    expect(second).not.toBe(firstSection);
+    // ...and back up again with the arrow key.
+    for (let i = 0; i < 40 && (await sectionOf()) !== firstSection; i += 1) {
+      await page.keyboard.press('ArrowUp');
+    }
+    expect(await sectionOf()).toBe(firstSection);
+
+    // Select a seat in the second block using only the keyboard.
+    await page.keyboard.press('Control+Home');
+    for (let i = 0; i < 40 && (await sectionOf()) === firstSection; i += 1) {
+      await page.keyboard.press('ArrowDown');
+    }
+    expect(await sectionOf()).toBe(second);
+    await arrowToSelectableSeat(page);
+    expect(await sectionOf()).toBe(second);
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('listitem').filter({ hasText: SELECTION_ITEM })).toHaveCount(1);
+    await expect(page.getByRole('status').filter({ hasText: /selected\./ })).toBeAttached();
+    await page.keyboard.press(' ');
+    await expect(page.getByRole('listitem').filter({ hasText: SELECTION_ITEM })).toHaveCount(0);
+
+    // The standing area is reachable (Page Down) as a button and opens its quantity panel.
+    for (let i = 0; i < 6; i += 1) {
+      if ((await activeSeat(page)).label.startsWith('Standing area')) break;
+      await page.keyboard.press('PageDown');
+    }
+    const standing = await page.evaluate(() => {
+      const el = document.activeElement;
+      return { id: el?.getAttribute('data-seat-nav') ?? '', role: el?.getAttribute('role') };
+    });
+    expect(standing.id.startsWith('ga:')).toBe(true);
+    expect(standing.role).toBe('button');
+    await page.keyboard.press('Enter');
+    await expect(page.getByText('Standing tickets')).toBeVisible();
+  });
+
   test('axe: no serious violations with the keyboard focus inside the chart', async ({ page }) => {
     await openEvent(page);
     await tabIntoChart(page);

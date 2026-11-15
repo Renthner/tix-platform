@@ -12,6 +12,7 @@ import {
   EMAIL_HEADER_LOGO_HEIGHT_MAX,
   EMAIL_HEADER_LOGO_HEIGHT_MIN,
 } from '../email-header';
+import { FULL_DISCOUNT_POLICIES } from '../discount-policy';
 import { accountingSchema } from './accounting';
 import { GERMAN_STATES } from '../payments/business-days';
 import {
@@ -206,6 +207,9 @@ const numberPattern = z
   .max(64)
   .refine((p) => /\{SEQ(?::\d{1,2})?\}/.test(p), 'Pattern must contain a {SEQ} token');
 
+export const ZERO_VALUE_INVOICE_MODES = ['INVOICE', 'NO_INVOICE'] as const;
+export type ZeroValueInvoiceMode = (typeof ZERO_VALUE_INVOICE_MODES)[number];
+
 const invoicingSchema = z.object({
   issueInvoices: z.boolean().default(true),
   orderNumberPattern: numberPattern.default('{YYYY}-{SEQ:6}'),
@@ -214,6 +218,22 @@ const invoicingSchema = z.object({
   invoiceFooter: z.string().max(4_000).optional(),
   /** Box office: above this gross total (cents) an invoice needs the buyer's name and address (Kleinbetragsrechnung limit). */
   smallAmountInvoiceLimit: z.number().int().min(0).max(100_000_000).default(25_000),
+  /**
+   * Orders of 0 EUR (payment method FREE: free tickets, 100 % discount): INVOICE issues a 0 EUR
+   * invoice like for any paid order (default), NO_INVOICE issues none. Complimentary box-office
+   * tickets never get an invoice.
+   */
+  zeroValueInvoice: z.enum(ZERO_VALUE_INVOICE_MODES).default('INVOICE'),
+  /**
+   * Free text per locale (missing = shop default locale) printed on the invoice of an order that a
+   * discount code reduced to 0 EUR when the full-discount policy is ALLOW_WITH_NOTE. The organiser
+   * words it (e.g. for the VAT treatment of free tickets agreed with the tax adviser).
+   */
+  zeroValueInvoiceNote: z
+    .partialRecord(z.enum(SUPPORTED_LOCALES), z.string().trim().max(1_000))
+    .default({}),
+  /** Print the note on every invoice that contains a discount code, not only on 0 EUR orders. */
+  discountNoteOnAllInvoices: z.boolean().default(false),
 });
 
 const checkoutSchema = z.object({
@@ -253,6 +273,16 @@ const checkoutSchema = z.object({
    * can change it per cancellation).
    */
   refundFeesByDefault: z.boolean().default(false),
+  /**
+   * Discount codes that reduce an order to 0 EUR (see `discount-policy.ts`): ALLOW (default),
+   * ALLOW_WITH_NOTE (the invoice carries the invoicing zero-value note) or DISALLOW (codes that
+   * push the total below the minimum payable amount are refused).
+   */
+  fullDiscountPolicy: z.enum(FULL_DISCOUNT_POLICIES).default('ALLOW'),
+  /** Minimum payable total (cents) after discount codes; 0 = unrestricted (DISALLOW: at least 1 cent). */
+  minimumOrderTotalAfterDiscounts: z.number().int().min(0).max(100_000_000).default(0),
+  /** Highest percentage of a PERCENT discount code (100 = no cap). */
+  maxDiscountPercent: z.number().int().min(1).max(100).default(100),
 });
 
 const bankTransferSchema = z

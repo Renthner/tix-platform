@@ -110,6 +110,13 @@
     "cardAccount": "Card (money in transit)",
     "writeOffAccount": "Written-off shortfalls",
     "writeOffHint": "Default: 8730 / 4730 (Gewährte Skonti). Alternatively a bad-debt account – to be confirmed by your tax advisor.",
+    "zeroValueTitle": "Orders of 0.00",
+    "zeroValueDocuments": "Invoices of 0.00 in the documents CSV",
+    "zeroValueDocumentsHint": "Free orders (free tariffs, 100 % discount) have an invoice of 0.00. Leaving them out makes the invoice numbers in the CSV look like they have gaps. The DATEV file never contains 0,00 bookings. How free tickets are treated for VAT is for your tax adviser to decide.",
+    "zeroValueOptions": {
+      "INCLUDE": "Include",
+      "EXCLUDE": "Leave out"
+    },
     "save": "Save accounting settings"
   }
 }

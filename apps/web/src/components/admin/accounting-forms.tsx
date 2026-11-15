@@ -1,6 +1,11 @@
 'use client';
 
-import { accountingPreset, ACCOUNTING_CHARTS, type AccountingChart } from '@tix/shared';
+import {
+  accountingPreset,
+  ACCOUNTING_CHARTS,
+  ACCOUNTING_ZERO_VALUE_DOCUMENTS,
+  type AccountingChart,
+} from '@tix/shared';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -165,6 +170,8 @@ export function AccountingExportForm({
 
 // ─── Settings ───────────────────────────────────────────────────────────────
 
+type ZeroValueDocuments = (typeof ACCOUNTING_ZERO_VALUE_DOCUMENTS)[number];
+
 export interface AccountingFormValues {
   chart: AccountingChart;
   consultantNumber?: number;
@@ -183,6 +190,7 @@ export interface AccountingFormValues {
   cashAccount: string;
   cardAccount: string;
   writeOffAccount: string;
+  zeroValueDocuments: ZeroValueDocuments;
 }
 
 interface Row {
@@ -431,6 +439,27 @@ export function AccountingSettingsForm({
           {account('cardAccount', t('cardAccount'))}
           {account('writeOffAccount', t('writeOffAccount'), t('writeOffHint'))}
         </div>
+      </div>
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium">{t('zeroValueTitle')}</h3>
+        <Field
+          label={t('zeroValueDocuments')}
+          htmlFor="zeroValueDocuments"
+          error={err('zeroValueDocuments')}
+          hint={t('zeroValueDocumentsHint')}
+        >
+          <NativeSelect
+            id="zeroValueDocuments"
+            name="zeroValueDocuments"
+            defaultValue={initial.zeroValueDocuments}
+          >
+            {ACCOUNTING_ZERO_VALUE_DOCUMENTS.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`zeroValueOptions.${mode}`)}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
       </div>
       <SubmitButton>{t('save')}</SubmitButton>
     </ActionForm>

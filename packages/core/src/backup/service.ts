@@ -15,10 +15,11 @@ import {
   type BackupKind,
   type BackupManifest,
 } from './manifest';
-import { sendBackupAlert, describeError, type BackupRuntime } from './runtime';
+import { archiveKeys, sendBackupAlert, describeError, type BackupRuntime } from './runtime';
 import { isBackupDue, latestScheduledSlot } from './schedule';
 import {
   clearBackupFailure,
+  clearReEncryptPending,
   createProgress,
   getBackupFailure,
   getRestoreIncomplete,
@@ -28,6 +29,7 @@ import {
   isStatusStale,
   readStatus,
   recordBackupFailure,
+  setReEncryptPending,
   withOperationLock,
 } from './state';
 
@@ -41,6 +43,8 @@ export const BACKUP_JOBS = {
   restore: 'restore-backup',
   /** `{ uploadId, userId }` – validates an uploaded archive and adds it to the catalogue. */
   import: 'import-backup',
+  /** `{ userId, trigger }` – re-encrypts all stored secrets with the primary key (see backup/reencrypt.ts). */
+  reencrypt: 're-encrypt-secrets',
   /** Every minute: starts the scheduled backup when it is due. */
   tick: 'backup-tick',
   /** `{ userId }` – probe restore of the newest backup now. */
@@ -129,6 +133,8 @@ export async function requestRestore(
   userId: string,
   /** Token of staged source-system keys (`stageSourceKeys`); the keys themselves never travel in the job. */
   keyToken?: string,
+  /** After a restore with source keys: re-encrypt the secrets with this system's key (default on). */
+  reencrypt = false,
 ): Promise<void> {
   await assertBackupIdle(ctx, { allowIncompleteRestore: true });
   // At most one queued restore at a time (also against double clicks / replays).
@@ -144,13 +150,72 @@ export async function requestRestore(
     await requireCapability(ctx, 'jobs').add(
       QUEUE_NAMES.backups,
       BACKUP_JOBS.restore,
-      { backupId, userId, requestedAt: Date.now(), ...(keyToken ? { keyToken } : {}) },
+      {
+        backupId,
+        userId,
+        requestedAt: Date.now(),
+        ...(keyToken ? { keyToken } : {}),
+        ...(reencrypt ? { reencrypt: true } : {}),
+      },
       SINGLE_ATTEMPT,
     );
   } catch (err) {
     await ctx.redis.del(ctx.keys.restoreRequest());
     throw err;
   }
+}
+
+/** Standalone "Re-encrypt now" (also enqueued by the worker after a restore with source keys). */
+export async function requestReEncrypt(
+  ctx: CoreContext,
+  userId: string | null,
+  trigger: 'RESTORE' | 'MANUAL' = 'MANUAL',
+): Promise<void> {
+  await assertBackupIdle(ctx);
+  await enqueueReEncrypt(ctx, userId, trigger);
+}
+
+/** Enqueue without the idle check (the worker calls it right after a restore released its lock). */
+export async function enqueueReEncrypt(
+  ctx: CoreContext,
+  userId: string | null,
+  trigger: 'RESTORE' | 'MANUAL',
+  delayMs = 0,
+): Promise<void> {
+  // The follow-up of a restore must not silently never run when the operation lock happens to be
+  // busy: the worker re-delays the job (bounded, see `shouldRetryBusyReEncrypt`) and a "pending"
+  // notice shows meanwhile. A manual request is not retried (the admin sees "busy" and presses
+  // the button again).
+  const followUp = trigger === 'RESTORE';
+  if (followUp) await setReEncryptPending(ctx, { since: new Date().toISOString() });
+  try {
+    await requireCapability(ctx, 'jobs').add(
+      QUEUE_NAMES.backups,
+      BACKUP_JOBS.reencrypt,
+      { userId, trigger },
+      delayMs > 0 ? { ...SINGLE_ATTEMPT, delay: delayMs } : SINGLE_ATTEMPT,
+    );
+  } catch (err) {
+    if (followUp) await clearReEncryptPending(ctx).catch(() => undefined);
+    throw err;
+  }
+}
+
+/** The re-encryption queued by a restore waits at most this many times for a busy lock ... */
+export const REENCRYPT_FOLLOW_UP_ATTEMPTS = 20;
+/** ... this far apart (20 x 30 s = about 10 minutes). */
+export const REENCRYPT_FOLLOW_UP_RETRY_MS = 30_000;
+
+/**
+ * The operation lock was busy for a queued re-encryption: wait again (true) or give up (false, the
+ * "pending" notice stays until the admin runs it by hand or dismisses it). `waited` = how often
+ * the job was re-delayed already. The worker re-delays (no failed attempt, no error log).
+ */
+export function shouldRetryBusyReEncrypt(
+  trigger: 'RESTORE' | 'MANUAL' | undefined,
+  waited: number,
+): boolean {
+  return trigger === 'RESTORE' && waited < REENCRYPT_FOLLOW_UP_ATTEMPTS;
 }
 
 /** A restore request older than this is dropped by the worker (an admin confirmed it back then). */
@@ -346,7 +411,7 @@ export async function importUploadedBackup(
   const bucket = rt.buckets.backups;
   try {
     const source = await bucket.getStream(archiveKey(directory));
-    const inspected = await inspectArchive(source.stream, rt.keyRing);
+    const inspected = await inspectArchive(source.stream, archiveKeys(rt));
     const manifest = backupManifestSchema.parse({
       ...inspected.manifest,
       id: uploadId,

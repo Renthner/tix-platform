@@ -39,7 +39,7 @@ export interface EventPublicKey {
 }
 
 const MAX_KEY_ID_ATTEMPTS = 5;
-const aad = (rowId: string) => `signing-key:${rowId}`;
+export const signingKeyAad = (rowId: string) => `signing-key:${rowId}`;
 const lockSql = (eventId: string) =>
   sql`SELECT pg_advisory_xact_lock(hashtext(${`signing-key:${eventId}`}))`;
 
@@ -49,7 +49,10 @@ function newKeyId(): string {
 
 function toSigningKey(ctx: CoreContext, row: SigningKeyRow): TicketSigningKey {
   const secrets = requireCapability(ctx, 'secrets');
-  const material = secrets.decryptJson<{ seed: string }>(row.privateKeyEncrypted, aad(row.id));
+  const material = secrets.decryptJson<{ seed: string }>(
+    row.privateKeyEncrypted,
+    signingKeyAad(row.id),
+  );
   const seed = Buffer.from(material.seed, 'base64url');
   if (publicKeyFromSeed(seed) !== row.publicKey) {
     throw new Error(`Signing key ${row.id} is corrupt: stored public key does not match the seed`);
@@ -75,7 +78,7 @@ async function insertActiveKey(
         keyId: newKeyId(),
         algorithm: 'Ed25519',
         publicKey: material.publicKey,
-        privateKeyEncrypted: secrets.encryptJson({ seed: material.seed }, aad(id)),
+        privateKeyEncrypted: secrets.encryptJson({ seed: material.seed }, signingKeyAad(id)),
         status: 'ACTIVE',
       })
       .onConflictDoNothing({ target: [eventSigningKeys.eventId, eventSigningKeys.keyId] })

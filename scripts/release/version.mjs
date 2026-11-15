@@ -1,12 +1,13 @@
 // Shared helpers for the release scripts: SemVer parsing and the Android versionCode.
 //
 // versionCode = MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + stage
-//   alpha.N -> N (1-29)   beta.N -> 30+N (N 1-29)   rc.N -> 60+N (N 1-29)   final -> 99
+//   alpha.N -> N (1-49)   beta.N -> 50+N (N 1-19)   rc.N -> 70+N (N 1-19)   final -> 99
 // MINOR and PATCH <= 99 keep the fields from overlapping; MAJOR <= 2000 keeps the result below
 // Android's 2_100_000_000 limit.
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/;
-const STAGE_BASE = { alpha: 0, beta: 30, rc: 60 };
+const STAGE_BASE = { alpha: 0, beta: 50, rc: 70 };
+const STAGE_MAX_N = { alpha: 49, beta: 19, rc: 19 };
 
 export function parseVersion(version) {
   const m = SEMVER.exec(version);
@@ -21,7 +22,9 @@ export function parseVersion(version) {
   if (patch > 99) throw new Error(`PATCH must be <= 99 (got ${patch})`);
   const tag = m[4] ?? null;
   const n = m[5] === undefined ? null : Number(m[5]);
-  if (tag && (n < 1 || n > 29)) throw new Error(`${tag}.N: N must be between 1 and 29 (got ${n})`);
+  if (tag && (n < 1 || n > STAGE_MAX_N[tag])) {
+    throw new Error(`${tag}.N: N must be between 1 and ${STAGE_MAX_N[tag]} (got ${n})`);
+  }
   return { major, minor, patch, tag, n, prerelease: tag !== null };
 }
 

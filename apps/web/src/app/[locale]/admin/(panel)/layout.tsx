@@ -1,8 +1,8 @@
 import { LogOut, Store } from 'lucide-react';
 import { NextIntlClientProvider } from 'next-intl';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
-import { getSetting } from '@tix/core';
+import { getLoadTestStatus, getSetting } from '@tix/core';
 import { APP_VERSION } from '@tix/shared';
 import { logoutAction } from '@/components/admin/admin-actions';
 import { AdminNav } from '@/components/admin/admin-nav';
@@ -33,9 +33,13 @@ export default async function AdminPanelLayout({
     allowTwoFactorSetup: true,
     allowIncompleteRestore: true,
   });
-  const [t, general] = await Promise.all([
+  const [t, tSystem, format, general, loadTest] = await Promise.all([
     getTranslations('admin'),
+    getTranslations('system.loadTest'),
+    getFormatter(),
     getSetting(getCore(), 'general'),
+    // Banner while the load test mode is on (one Redis read; never blocks the panel).
+    getLoadTestStatus(getCore()).catch(() => ({ active: false as const })),
   ]);
   return (
     <NextIntlClientProvider
@@ -131,6 +135,22 @@ export default async function AdminPanelLayout({
                 </Button>
               </div>
             </div>
+            {loadTest.active && 'expiresAt' in loadTest && loadTest.expiresAt && (
+              <div
+                role="alert"
+                data-testid="load-test-banner"
+                className="flex flex-wrap items-center justify-between gap-2 border-b bg-destructive px-4 py-2 text-sm text-white"
+              >
+                <span>
+                  {tSystem('banner', {
+                    time: format.dateTime(loadTest.expiresAt, { timeStyle: 'short' }),
+                  })}
+                </span>
+                <Link href="/admin/system" className="font-medium underline">
+                  {tSystem('bannerLink')}
+                </Link>
+              </div>
+            )}
             <main>
               {session.twoFactorSetupRequired ? (
                 <AccountContent userId={session.userId} setupRequired />

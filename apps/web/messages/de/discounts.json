@@ -45,6 +45,9 @@
     "unlimited": "Leer = unbegrenzt.",
     "minOrderValue": "Leer = kein Mindestwert. Zählt nur die berechtigten Tickets.",
     "bulkSingleUse": "Erzeugte Codes können genau einmal eingelöst werden.",
+    "fullPercent": "Ein 100-%-Code macht Tickets kostenlos. Je nach Richtlinie in Einstellungen → Kasse („Volle Rabatte“) ist eine solche Bestellung erlaubt, erhält einen Rechnungshinweis oder der Code wird abgelehnt.",
+    "fixedMayCover": "Ein fester Betrag, der mindestens so hoch ist wie der Ticketpreis, macht die Bestellung kostenlos. Je nach Richtlinie in Einstellungen → Kasse („Volle Rabatte“) ist eine solche Bestellung erlaubt, erhält einen Rechnungshinweis oder der Code wird abgelehnt.",
+    "percentCap": "Dieser Prozentsatz liegt über dem in Einstellungen → Kasse festgelegten Maximum von {max} %. Der Code kann nicht gespeichert werden.",
     "note": "Wird Kund:innen nie angezeigt."
   },
   "types": {

@@ -31,6 +31,18 @@
     "NEEDS_REVIEW": "Needs review",
     "IGNORED": "Ignored"
   },
+  "hold": {
+    "INTERIM": "Interim (not booked yet)",
+    "POSSIBLE_DUPLICATE": "Possible duplicate – review",
+    "NO_BOOKING_DATE": "No booking date – review",
+    "AGGREGATE": "Covered by single entries"
+  },
+  "holdHint": {
+    "INTERIM": "Interim report entry (MT942). It is never matched or paid automatically; the final statement supersedes it.",
+    "POSSIBLE_DUPLICATE": "Looks identical to an entry of an earlier camt.054 file and has no reference to tell them apart. Not matched until you release it.",
+    "NO_BOOKING_DATE": "camt.054 entry without booking date or reference. Not matched until you release it.",
+    "AGGREGATE": "Batch entry whose single payments were imported as camt.054 entries – not counted twice."
+  },
   "reason": {
     "NO_REFERENCE": "No payment reference",
     "UNKNOWN_REFERENCE": "Unknown reference",
@@ -82,7 +94,7 @@
     "FINTS": "FinTS (online banking)",
     "PSD2_GOCARDLESS": "PSD2 (GoCardless – discontinued)",
     "PSD2_FINAPI": "PSD2 via finAPI",
-    "FILE_IMPORT": "File import (camt / MT940 / CSV)",
+    "FILE_IMPORT": "File import (camt / MT940 / MT942 / CSV)",
     "IMAP": "E-mail inbox (IMAP)"
   },
   "adapterHint": {
@@ -106,9 +118,9 @@
   },
   "format": {
     "AUTO": "Detect automatically",
-    "CAMT052": "camt.052",
+    "CAMT052": "camt.052 / camt.054",
     "CAMT053": "camt.053",
-    "MT940": "MT940",
+    "MT940": "MT940 / MT942",
     "CSV": "CSV"
   },
   "accounts": {
@@ -355,6 +367,7 @@
     "fullyAllocated": "This transfer is already fully allocated, so it cannot be assigned again. Refund the excess amount on the order, then mark the case as resolved.",
     "openOrder": "Open order {order} (refund)",
     "rematch": "Run matching again",
+    "releaseHold": "Not a duplicate – release for matching",
     "details": "Details",
     "reference": "Reference found",
     "reversedInfo": "Reversed by {who} on {when}",
@@ -416,7 +429,7 @@
   },
   "imports": {
     "title": "Statement imports",
-    "description": "Upload camt.053 / camt.052 (XML), MT940 or CSV exports of your bank – also as ZIP. Files already imported are recognised, as are bookings that arrived through another channel.",
+    "description": "Upload camt.053 / camt.052 / camt.054 (XML), MT940 / MT942 or CSV exports of your bank – also as ZIP; the format is detected automatically. Interim reports are fine too: MT942 entries are only shown as \"interim\" and never paid automatically (the final statement counts); camt.052 / camt.054 booked entries are matched and recognised again later. Files already imported are recognised, as are bookings that arrived through another channel.",
     "account": "Receiving account",
     "noAccounts": "Create a receiving account first.",
     "drop": "Drop statement files here or click to choose",

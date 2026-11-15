@@ -11,7 +11,7 @@ English | [Deutsch](README.de.md)
 | [RELEASES.md](RELEASES.md)     | Version scheme, channels (`next`, `stable`), verifying downloads, updates                                     |
 | [ACCOUNTING.md](ACCOUNTING.md) | Accounting export (DATEV, CSV) and bookkeeping rules                                                          |
 | [SCANNER.md](SCANNER.md)       | Check-in device API, pairing, sync rules                                                                      |
-| [LOAD-TEST.md](LOAD-TEST.md)   | How the load test works and how to run it                                                                     |
+| [LOAD-TEST.md](LOAD-TEST.md)   | How the load test works and how to run it (journey test with load test mode, isolated stack)                  |
 
 ## For developers
 

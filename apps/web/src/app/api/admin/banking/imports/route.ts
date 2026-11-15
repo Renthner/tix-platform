@@ -35,7 +35,7 @@ export interface UploadResponse {
 }
 
 /**
- * POST multipart/form-data `accountId` + `files[]` – imports camt.052/053, MT940, CSV (also
+ * POST multipart/form-data `accountId` + `files[]` – imports camt.052/053/054, MT940/MT942, CSV (also
  * ZIP archives) for a receiving account and runs the matcher on the new credits. A route
  * handler instead of a server action: statement files exceed the server-action body limit.
  */

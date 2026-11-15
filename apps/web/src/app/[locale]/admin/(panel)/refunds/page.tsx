@@ -12,6 +12,7 @@ import {
   ResetTariffButton,
   RecordExistingRefundForm,
   ResolveRestoreReviewButton,
+  ReconcileNowForm,
   SkipReconciliationForm,
 } from '@/components/admin/adjustment-actions';
 import { RefundBatchList, type RefundBatchData } from '@/components/admin/refund-batches';
@@ -80,12 +81,28 @@ export default async function OpenRefundsPage({ params }: { params: Promise<{ lo
               {reconcile.alert === 'MOSTLY_NOT_FOUND' && (
                 <p className="font-medium text-destructive">{t('reconcile.mostlyNotFound')}</p>
               )}
+              {reconcile.alert === 'PAYPAL_NOT_CONFIGURED' && (
+                <p className="font-medium text-destructive">{t('reconcile.notConfigured')}</p>
+              )}
+              {reconcile.alert === 'PAYPAL_CREDENTIALS' && (
+                <p className="font-medium text-destructive">{t('reconcile.credentials')}</p>
+              )}
               {reconcile.lastError && (
                 <p className="font-mono text-xs">
                   {t('reconcile.lastError', { error: reconcile.lastError })}
                 </p>
               )}
+              <ReconcileNowForm pending />
               {hasRole(session, ['SUPER_ADMIN']) && <SkipReconciliationForm />}
+            </CardContent>
+          </Card>
+        )}
+        {!reconcile.pending && (
+          <Card>
+            <CardContent className="space-y-2 pt-6 text-sm">
+              <h2 className="text-base font-semibold">{t('reconcile.manualTitle')}</h2>
+              <p className="text-muted-foreground">{t('reconcile.manualText')}</p>
+              <ReconcileNowForm pending={false} />
             </CardContent>
           </Card>
         )}

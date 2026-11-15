@@ -2,7 +2,9 @@ import { discountCodes, orderDiscounts, orders, type Executor } from '@tix/db';
 import {
   DISCOUNT_USAGE_ORDER_STATUSES,
   applyDiscountRules,
+  exceedsPercentCap,
   normalizeDiscountCode,
+  violatesMinimumTotal,
   type DiscountLine,
   type DiscountRejection,
 } from '@tix/shared';
@@ -29,6 +31,8 @@ export type DiscountRejectionReason =
   | 'USAGE_LIMIT'
   | 'EMAIL_LIMIT'
   | 'NOT_STACKABLE'
+  | 'PERCENT_CAP'
+  | 'BELOW_MINIMUM_TOTAL'
   | DiscountRejection;
 
 export interface RejectedDiscount {
@@ -253,6 +257,8 @@ export function planDiscounts(params: {
   usage?: { total: Map<string, number>; perEmail: Map<string, number> };
   hasEmail?: boolean;
   isTest?: boolean;
+  /** Organiser policy (Settings -> Checkout); omitted = unrestricted. */
+  policy?: { minimumTotal: number; maxDiscountPercent: number };
 }): DiscountPlan {
   const rejected: RejectedDiscount[] = [];
   const candidates: DiscountCodeRow[] = [];
@@ -280,9 +286,39 @@ export function planDiscounts(params: {
       rejected.push({ code, reason: 'NOT_STACKABLE' });
       continue;
     }
+    // Codes above the configured percentage cap are refused (never clamped).
+    if (params.policy && exceedsPercentCap(row.type, row.value, params.policy.maxDiscountPercent)) {
+      rejected.push({ code, reason: 'PERCENT_CAP' });
+      continue;
+    }
     candidates.push(row);
   }
-  const result = applyDiscountRules(candidates, params.lines);
+  let result = applyDiscountRules(candidates, params.lines);
+  // Minimum payable total: codes are dropped from the last to the first until the order stays at
+  // or above the floor. Only codes are refused - an order that is free without a code is not.
+  if (params.policy && params.policy.minimumTotal > 0) {
+    const linesTotal = params.lines.reduce((sum, l) => sum + l.gross, 0);
+    const total = () => linesTotal - result.perLine.reduce((sum, p) => sum + p, 0);
+    const kept = [...candidates];
+    while (
+      result.applied.length > 0 &&
+      violatesMinimumTotal(
+        total(),
+        result.perLine.reduce((sum, p) => sum + p, 0),
+        params.policy.minimumTotal,
+      )
+    ) {
+      // The last code that actually took effect goes first: a candidate the rules never applied
+      // (e.g. minimum order value) must not be blamed for the floor.
+      const dropped = result.applied[result.applied.length - 1]!.rule;
+      kept.splice(
+        kept.findIndex((c) => c.id === dropped.id),
+        1,
+      );
+      rejected.push({ code: dropped.code, reason: 'BELOW_MINIMUM_TOTAL' });
+      result = applyDiscountRules(kept, params.lines);
+    }
+  }
   for (const r of result.rejected) {
     rejected.push({
       code: r.rule.code,

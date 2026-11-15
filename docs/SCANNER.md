@@ -373,8 +373,8 @@ key), also for the GitHub releases.
 - Tags are `v<semver>` (`MAJOR.MINOR.PATCH[-(alpha|beta|rc).N]`); the release is ordered by SemVer, never by
   date. Required assets: `tix-checkin-<version>.apk` and `SHA256SUMS.txt` (lines `<sha256>  <filename>`); releases
   lacking one of them are skipped. Both assets' `browser_download_url` must start with
-  `https://github.com/<repository>/releases/download/<tag>/` (any other URL skips the release). `versionCode = MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + stage` (alpha.N -> N,
-  beta.N -> 30+N, rc.N -> 60+N, final -> 99; `scripts/release/version.mjs`, mirrored in `:core` `AppVersion`).
+  `https://github.com/<repository>/releases/download/<tag>/` (any other URL skips the release). `versionCode = MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + stage` (alpha.N -> N (1-49),
+  beta.N -> 50+N, rc.N -> 70+N (1-19), final -> 99; `scripts/release/version.mjs`, mirrored in `:core` `AppVersion`).
 - Download: the asset `browser_download_url` redirects to `*.githubusercontent.com`. Redirects are followed only for
   this source, https only, at most 5 hops, to `github.com`, `api.github.com` and `*.githubusercontent.com`.
 - Verification before the installer: SHA-256 of the file against `SHA256SUMS.txt`, package name, `versionCode`

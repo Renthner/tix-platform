@@ -1,7 +1,16 @@
-import { getSystemStats, isMetricsEnabled, listAlertHistory } from '@tix/core';
+import {
+  countAdminPasskeys,
+  getLoadTestStatus,
+  getSystemStats,
+  isMetricsEnabled,
+  listAlertHistory,
+  passkeysAvailable,
+  reapExpiredLoadTest,
+} from '@tix/core';
 import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/admin/form-controls';
 import { AlertHistory } from '@/components/admin/system/alert-history';
+import { LoadTestCard } from '@/components/admin/system/load-test-card';
 import { SystemMonitor } from '@/components/admin/system/system-monitor';
 import { resolveLocale } from '@/i18n/locale';
 import { requireAdmin } from '@/server/auth';
@@ -14,13 +23,17 @@ export async function generateMetadata() {
 
 export default async function SystemPage({ params }: { params: Promise<{ locale: string }> }) {
   await resolveLocale(params);
-  await requireAdmin(['SUPER_ADMIN']);
+  const session = await requireAdmin(['SUPER_ADMIN']);
   const core = getCore();
-  const [t, stats, metricsEnabled, alerts] = await Promise.all([
+  // Closes a run whose time is up (exactly-once audit entry) even if no worker is running.
+  await reapExpiredLoadTest(core).catch(() => false);
+  const [t, stats, metricsEnabled, alerts, loadTest, passkeyCount] = await Promise.all([
     getTranslations('system'),
     getSystemStats(core),
     isMetricsEnabled(core).catch(() => false),
     listAlertHistory(core, 50).catch(() => []),
+    getLoadTestStatus(core).catch(() => ({ active: false as const })),
+    countAdminPasskeys(core, session.userId).catch(() => 0),
   ]);
   return (
     <>
@@ -29,6 +42,15 @@ export default async function SystemPage({ params }: { params: Promise<{ locale:
         <SystemMonitor initial={stats} metricsEnabled={metricsEnabled} />
         <div className="mt-6">
           <AlertHistory rows={alerts} />
+        </div>
+        <div className="mt-6">
+          <LoadTestCard
+            initial={{
+              active: loadTest.active,
+              expiresAt: 'expiresAt' in loadTest ? loadTest.expiresAt?.toISOString() : undefined,
+            }}
+            passkeys={passkeyCount > 0 && passkeysAvailable(core)}
+          />
         </div>
       </div>
     </>

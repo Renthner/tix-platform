@@ -1,5 +1,13 @@
 import {
   BACKUP_JOBS,
+  BackupCryptoError,
+  enqueueReEncrypt,
+  runReEncryptSecrets,
+  clearReEncryptPending,
+  REENCRYPT_FOLLOW_UP_RETRY_MS,
+  setReEncryptPending,
+  shouldRetryBusyReEncrypt,
+  summariseReEncrypt,
   BACKUP_PROBE_TICK_INTERVAL_MS,
   BACKUP_TICK_INTERVAL_MS,
   RestoreRejectedError,
@@ -35,7 +43,7 @@ const PAUSE_RECHECK_MS = 30_000;
 const KEEPALIVE_MS = 30_000;
 
 export function createBackupsProcessor(rt: BackupRuntime) {
-  return async (job: Job): Promise<unknown> => {
+  return async (job: Job, token?: string): Promise<unknown> => {
     const { ctx } = rt;
     switch (job.name) {
       case BACKUP_JOBS.tick:
@@ -89,11 +97,12 @@ export function createBackupsProcessor(rt: BackupRuntime) {
             'Restore job was interrupted and is not re-run automatically',
           );
         }
-        const { backupId, userId, requestedAt, keyToken } = job.data as {
+        const { backupId, userId, requestedAt, keyToken, reencrypt } = job.data as {
           backupId: string;
           userId: string | null;
           requestedAt?: number;
           keyToken?: string;
+          reencrypt?: boolean;
         };
         // The admin confirmed this restore a while ago: an old job must never run unattended.
         if (!requestedAt || Date.now() - requestedAt > RESTORE_REQUEST_TTL_SECONDS * 1000) {
@@ -112,15 +121,28 @@ export function createBackupsProcessor(rt: BackupRuntime) {
               const sourceKeys = keyToken ? await takeSourceKeys(ctx, keyToken) : [];
               const result = await restoreBackup(rt, { backupId, userId, progress, sourceKeys });
               await progress.succeeded();
+              // Optional follow-up as its OWN job: the restore is complete and stays so whatever happens.
+              if (reencrypt && sourceKeys.length > 0) {
+                // A short delay: this job still holds the operation lock for a moment.
+                await enqueueReEncrypt(ctx, userId, 'RESTORE', 5_000).catch((err) =>
+                  rt.logger.warn({ err: describeError(err) }, 'could not queue the re-encryption'),
+                );
+              }
               return result;
             } catch (err) {
               const rejected =
                 err instanceof RestoreRejectedError || err instanceof SourceKeysError;
               await progress.failed(
                 err instanceof RestoreRejectedError
-                  ? `REJECTED_${err.code}`
+                  ? err.code === 'KEY_UNKNOWN' && keyToken
+                    ? 'REJECTED_KEY_WRONG'
+                    : `REJECTED_${err.code}`
                   : err instanceof SourceKeysError
-                    ? 'REJECTED_KEY_UNKNOWN'
+                    ? err.code === 'DISABLED'
+                      ? 'REJECTED_KEYS_DISABLED'
+                      : err.code === 'EXPIRED'
+                        ? 'REJECTED_KEYS_EXPIRED'
+                        : 'REJECTED_KEYS_INVALID'
                     : 'FAILED',
                 describeError(err),
               );
@@ -159,7 +181,19 @@ export function createBackupsProcessor(rt: BackupRuntime) {
             await rt.buckets.backups
               .deletePrefix(incomingDirectory(uploadId))
               .catch(() => undefined);
-            await progress.failed('IMPORT_FAILED', describeError(err));
+            await progress.failed(
+              err instanceof BackupCryptoError &&
+                (err.code === 'KEY_UNKNOWN' || err.code === 'KEY_MISMATCH')
+                ? keyToken
+                  ? 'IMPORT_KEY_WRONG'
+                  : 'IMPORT_KEY_UNKNOWN'
+                : err instanceof SourceKeysError
+                  ? err.code === 'DISABLED'
+                    ? 'IMPORT_KEYS_DISABLED'
+                    : 'IMPORT_KEYS_EXPIRED'
+                  : 'IMPORT_FAILED',
+              describeError(err),
+            );
             throw err;
           }
         });
@@ -168,6 +202,57 @@ export function createBackupsProcessor(rt: BackupRuntime) {
         await rt.buckets.backups.deletePrefix(incomingDirectory(uploadId)).catch(() => undefined);
         await reportBusy(ctx, 'IMPORT', uploadId);
         return { busy: true };
+      }
+
+      case BACKUP_JOBS.reencrypt: {
+        const { userId, trigger } = job.data as {
+          userId: string | null;
+          trigger?: 'RESTORE' | 'MANUAL';
+        };
+        const progress = createProgress(ctx, 'REENCRYPT', null);
+        const keepalive = setInterval(
+          () => void progress.touch().catch(() => undefined),
+          KEEPALIVE_MS,
+        );
+        try {
+          const run = await withOperationLock(ctx, async () => {
+            try {
+              const outcome = await runReEncryptSecrets(rt, {
+                userId,
+                trigger: trigger ?? 'MANUAL',
+                progress,
+              });
+              if (outcome.complete) await progress.succeeded('DONE', summariseReEncrypt(outcome));
+              else await progress.failed('REENCRYPT_INCOMPLETE', summariseReEncrypt(outcome));
+              return outcome.complete;
+            } catch (err) {
+              await progress.failed('FAILED', describeError(err));
+              // The status panel shows the failure: the "queued" notice is obsolete.
+              if (trigger === 'RESTORE') await clearReEncryptPending(ctx).catch(() => undefined);
+              throw err;
+            }
+          });
+          if (run.ran) return run.value;
+          // Queued by a restore: the lock is held by another operation right now, try again later
+          // (bounded) instead of completing without ever having run.
+          const waited = (job.data as { waited?: number }).waited ?? 0;
+          if (token && shouldRetryBusyReEncrypt(trigger, waited)) {
+            // Re-delayed (no failed attempt, no error log) instead of completing unrun.
+            await job.updateData({ ...(job.data as object), waited: waited + 1 });
+            await job.moveToDelayed(Date.now() + REENCRYPT_FOLLOW_UP_RETRY_MS, token);
+            throw new DelayedError();
+          }
+          if (trigger === 'RESTORE') {
+            await setReEncryptPending(ctx, {
+              since: new Date().toISOString(),
+              gaveUp: true,
+            }).catch(() => undefined);
+          }
+          await reportBusy(ctx, 'REENCRYPT', null);
+          return { busy: true };
+        } finally {
+          clearInterval(keepalive);
+        }
       }
 
       default:

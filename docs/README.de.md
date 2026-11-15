@@ -6,14 +6,14 @@ Die meisten technischen Dokumente sind nur auf Englisch verfügbar.
 
 ## Für Betreiber
 
-| Dokument                       | Inhalt                                                                                    |
-| ------------------------------ | ----------------------------------------------------------------------------------------- |
-| [INSTALL.de.md](INSTALL.de.md) | TIX Schritt für Schritt auf einem Linux-Server installieren, HTTPS-Varianten, Fehlersuche |
-| [BACKUP.md](BACKUP.md)         | Inhalt eines Backups, Zeitplan, externes S3-Ziel, Wiederherstellung (Englisch)            |
-| [RELEASES.md](RELEASES.md)     | Versionsschema, Kanäle (`next`, `stable`), Downloads prüfen, Updates (Englisch)           |
-| [ACCOUNTING.md](ACCOUNTING.md) | Buchhaltungsexport (DATEV, CSV) (Englisch)                                                |
-| [SCANNER.md](SCANNER.md)       | Schnittstelle der Check-in-Geräte, Kopplung, Abgleich (Englisch)                          |
-| [LOAD-TEST.md](LOAD-TEST.md)   | Wie der Lasttest funktioniert (Englisch)                                                  |
+| Dokument                           | Inhalt                                                                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [INSTALL.de.md](INSTALL.de.md)     | TIX Schritt für Schritt auf einem Linux-Server installieren, HTTPS-Varianten, Fehlersuche                                                  |
+| [BACKUP.md](BACKUP.md)             | Inhalt eines Backups, Zeitplan, externes S3-Ziel, Wiederherstellung (Englisch)                                                             |
+| [RELEASES.md](RELEASES.md)         | Versionsschema, Kanäle (`next`, `stable`), Downloads prüfen, Updates (Englisch)                                                            |
+| [ACCOUNTING.md](ACCOUNTING.md)     | Buchhaltungsexport (DATEV, CSV) (Englisch)                                                                                                 |
+| [SCANNER.md](SCANNER.md)           | Schnittstelle der Check-in-Geräte, Kopplung, Abgleich (Englisch)                                                                           |
+| [LOAD-TEST.de.md](LOAD-TEST.de.md) | Lasttest gegen einen echten Server (Lasttest-Modus, Journey-Test); [LOAD-TEST.md](LOAD-TEST.md) (Englisch) mit isoliertem Stack und Tuning |
 
 ## Für Entwickler
 

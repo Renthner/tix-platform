@@ -48,7 +48,11 @@ import {
   completeManualRefund,
   retryRefundBatch,
   countOpenRefunds,
+  clearSecretSetting,
   createCoreContext,
+  DomainError,
+  PayPalApiError,
+  PayPalCredentialsError,
   enterShop,
   ensureOrderTickets,
   getCheckoutOptions,
@@ -59,6 +63,8 @@ import {
   listRefundRestoreReviews,
   markRefundsForReconciliation,
   reconcileRefundsAfterRestore,
+  reconcileFailureKind,
+  requestRefundReconciliation,
   recordExistingPayPalOverpaymentRefund,
   recordExistingPayPalRefund,
   refundOverpayment,
@@ -1223,6 +1229,109 @@ describe.skipIf(!adminUrl || !redisUrl)('refunds & credit notes (integration)', 
       expect(await isRefundReconcilePending(ctx)).toBe(true);
       await redis.del(ctx.keys.refundReconcileLock());
       expect(await run()).toMatchObject({ complete: true });
+    });
+
+    it('without PayPal credentials the pass waits with a notice (no retry storm, nothing marked FAILED); it completes once PayPal is configured', async () => {
+      mockPayPal();
+      const o = await paidOrder([seat()], 'PAYPAL');
+      const r = (await cancelOne(o.orderId)).refunds[0]!;
+      await withProviderOrder(o.orderId);
+      await clearSecretSetting(ctx, 'paypal.credentials');
+      try {
+        await markRefundsForReconciliation(ctx, 'test');
+        const result = await run();
+        expect(result).toMatchObject({
+          complete: false,
+          blocked: 'NOT_CONFIGURED',
+          alert: 'PAYPAL_NOT_CONFIGURED',
+        });
+        expect(await isRefundReconcilePending(ctx)).toBe(true);
+        expect((await getRefundReconcileStatus(ctx)).alert).toBe('PAYPAL_NOT_CONFIGURED');
+        expect((await load(o.orderId)).refundRows[0]).toMatchObject({
+          id: r.id,
+          status: 'PENDING',
+        });
+        expect(posts()).toHaveLength(0);
+      } finally {
+        await saveSecretSetting(ctx, 'paypal.credentials', { clientSecret: 'client-secret' }, null);
+      }
+      expect(await run()).toMatchObject({ complete: true });
+      expect(await isRefundReconcilePending(ctx)).toBe(false);
+    });
+
+    it('rejected PayPal credentials stop the pass early and never mark a refund FAILED', async () => {
+      mockPayPal();
+      const a = await paidOrder([seat()], 'PAYPAL');
+      const b = await paidOrder([seat()], 'PAYPAL');
+      const ra = (await cancelOne(a.orderId)).refunds[0]!;
+      await withProviderOrder(a.orderId);
+      await withProviderOrder(b.orderId);
+      const good = globalThis.fetch;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: string | URL, init?: RequestInit) =>
+          String(input).endsWith('/v1/oauth2/token')
+            ? new Response(JSON.stringify({ error: 'invalid_client' }), {
+                status: 401,
+                headers: { 'content-type': 'application/json' },
+              })
+            : good(input, init),
+        ),
+      );
+      await saveSecretSetting(ctx, 'paypal.credentials', { clientSecret: 'rejected-secret' }, null);
+      try {
+        await markRefundsForReconciliation(ctx, 'test');
+        const result = await run();
+        expect(result).toMatchObject({
+          complete: false,
+          blocked: 'CREDENTIALS',
+          alert: 'PAYPAL_CREDENTIALS',
+          checked: 1, // stopped at the first order
+        });
+        expect((await load(a.orderId)).refundRows[0]).toMatchObject({
+          id: ra.id,
+          status: 'PENDING',
+        });
+        expect(await isRefundReconcilePending(ctx)).toBe(true);
+      } finally {
+        await saveSecretSetting(ctx, 'paypal.credentials', { clientSecret: 'client-secret' }, null);
+        vi.stubGlobal('fetch', good);
+      }
+    });
+
+    it('manual request: arms the marker, queues the job, and only re-queues an already pending reconciliation', async () => {
+      mockPayPal();
+      jobs.add.mockClear();
+      expect(await isRefundReconcilePending(ctx)).toBe(false);
+      expect(await requestRefundReconciliation(ctx)).toEqual({ armed: true });
+      expect(await isRefundReconcilePending(ctx)).toBe(true);
+      expect((await getRefundReconcileStatus(ctx)).reason).toBe('manual');
+      expect(jobs.add).toHaveBeenCalledWith(
+        'refunds',
+        'reconcile-refunds',
+        {},
+        expect.objectContaining({ attempts: 3 }),
+      );
+      expect(await requestRefundReconciliation(ctx)).toEqual({ armed: false });
+      expect(jobs.add).toHaveBeenCalledTimes(2);
+      // The forced pass (the job) completes and lifts the pause again.
+      expect(await run()).toMatchObject({ complete: true });
+      expect(await isRefundReconcilePending(ctx)).toBe(false);
+    });
+
+    it('classifies failures: credentials / not configured are not generic transient errors', () => {
+      expect(
+        reconcileFailureKind(
+          new DomainError('PAYPAL_NOT_CONFIGURED', 'PayPal is not configured', 503),
+        ),
+      ).toBe('NOT_CONFIGURED');
+      expect(reconcileFailureKind(new PayPalCredentialsError('sandbox', 401, 'x'))).toBe(
+        'CREDENTIALS',
+      );
+      expect(reconcileFailureKind(new PayPalApiError(404, 'X', null, 'x'))).toBe('NOT_FOUND');
+      expect(reconcileFailureKind(new PayPalApiError(422, 'X', null, 'x'))).toBe('PERMANENT');
+      expect(reconcileFailureKind(new PayPalApiError(503, 'X', null, 'x'))).toBe('TRANSIENT');
+      expect(reconcileFailureKind(new Error('network'))).toBe('TRANSIENT');
     });
 
     it('a FAILED local row whose PayPal refund is still pending goes back to PENDING; FAILED rows get their attempt counter raised', async () => {

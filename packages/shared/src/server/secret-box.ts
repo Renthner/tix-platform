@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
 /**
  * Authenticated encryption (AES-256-GCM) for secrets persisted in PostgreSQL
@@ -7,7 +7,9 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
  * Envelope format (ASCII, safe for TEXT columns):
  *   v1.<keyId>.<iv b64url>.<authTag b64url>.<ciphertext b64url>
  *
- * The key ring supports rotation: the first key encrypts, all keys decrypt.
+ * The key ring supports rotation: the first key encrypts, all keys decrypt. A ring may hold
+ * several keys under ONE id (two installations that both used e.g. `k1`; see `key-ring.ts`):
+ * decrypting tries every candidate of the envelope's id, encrypting always uses the first key.
  * `context` is bound as additional authenticated data so a ciphertext copied into a
  * different row/column fails to decrypt.
  */
@@ -31,7 +33,19 @@ export class SecretBoxError extends Error {
  * the active encryption key. Example: `k2:3q…=,k1:9f…=`
  */
 export function parseKeyRing(spec: string): SecretBoxKey[] {
-  const keys = spec
+  const keys = parseKeyRingLoose(spec);
+  if (keys.length === 0) throw new SecretBoxError('Key ring is empty');
+  const ids = new Set(keys.map((k) => k.id));
+  if (ids.size !== keys.length) throw new SecretBoxError('Duplicate key ids in key ring');
+  return keys;
+}
+
+/**
+ * Like `parseKeyRing` but accepts an empty list and the same id more than once (the additional,
+ * decrypt-only keys of other systems may reuse an id of this one).
+ */
+export function parseKeyRingLoose(spec: string): SecretBoxKey[] {
+  return spec
     .split(',')
     .map((part) => part.trim())
     .filter(Boolean)
@@ -48,10 +62,19 @@ export function parseKeyRing(spec: string): SecretBoxKey[] {
       }
       return { id, key };
     });
-  if (keys.length === 0) throw new SecretBoxError('Key ring is empty');
-  const ids = new Set(keys.map((k) => k.id));
-  if (ids.size !== keys.length) throw new SecretBoxError('Duplicate key ids in key ring');
-  return keys;
+}
+
+/** Short stable label of a key (reveals nothing useful): 8 hex chars of SHA-256 over id + material. */
+export function keyFingerprint(key: SecretBoxKey): string {
+  return createHash('sha256').update(key.id).update('\0').update(key.key).digest('hex').slice(0, 8);
+}
+
+/** Display label that tells equal ids apart, e.g. `k1 (1a2b3c4d)`. The fingerprint is not key material. */
+export const keyLabel = (key: SecretBoxKey): string => `${key.id} (${keyFingerprint(key)})`;
+
+/** Order independent fingerprint of a whole ring (detects that a reloaded ring changed). */
+export function ringFingerprint(keys: readonly SecretBoxKey[]): string {
+  return keys.map(keyFingerprint).sort().join(',');
 }
 
 export interface SecretBox {
@@ -60,14 +83,19 @@ export interface SecretBox {
   decrypt(envelope: string, context: string): string;
   encryptJson(value: unknown, context: string): string;
   decryptJson<T = unknown>(envelope: string, context: string): T;
-  /** True when the envelope was produced with a non-active key and should be re-encrypted. */
+  /**
+   * True when the envelope names a non-active key id and should be re-encrypted. It compares ids
+   * only (a different key under the active id is not detected): the re-encryption routine tries
+   * the active key itself instead.
+   */
   needsReEncryption(envelope: string): boolean;
 }
 
 export function createSecretBox(keys: SecretBoxKey[]): SecretBox {
   const [active] = keys;
   if (!active) throw new SecretBoxError('At least one encryption key is required');
-  const byId = new Map(keys.map((k) => [k.id, k.key]));
+  const byId = new Map<string, Buffer[]>();
+  for (const k of keys) byId.set(k.id, [...(byId.get(k.id) ?? []), k.key]);
 
   const encrypt = (plaintext: string, context: string): string => {
     const iv = randomBytes(IV_BYTES);
@@ -90,21 +118,25 @@ export function createSecretBox(keys: SecretBoxKey[]): SecretBox {
       throw new SecretBoxError('Unsupported secret envelope format');
     }
     const [, keyId, ivB64, tagB64, dataB64] = parts as [string, string, string, string, string];
-    const key = byId.get(keyId);
-    if (!key) throw new SecretBoxError(`Unknown encryption key id "${keyId}"`);
-    try {
-      const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivB64, 'base64url'));
-      decipher.setAAD(Buffer.from(context, 'utf8'));
-      decipher.setAuthTag(Buffer.from(tagB64, 'base64url'));
-      return Buffer.concat([
-        decipher.update(Buffer.from(dataB64, 'base64url')),
-        decipher.final(),
-      ]).toString('utf8');
-    } catch {
-      throw new SecretBoxError(
-        'Secret could not be decrypted (wrong key or context, or tampered data)',
-      );
+    const candidates = byId.get(keyId);
+    if (!candidates) throw new SecretBoxError(`Unknown encryption key id "${keyId}"`);
+    // Several keys can share an id: the one that authenticates is the right one (AES-GCM tag).
+    for (const key of candidates) {
+      try {
+        const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivB64, 'base64url'));
+        decipher.setAAD(Buffer.from(context, 'utf8'));
+        decipher.setAuthTag(Buffer.from(tagB64, 'base64url'));
+        return Buffer.concat([
+          decipher.update(Buffer.from(dataB64, 'base64url')),
+          decipher.final(),
+        ]).toString('utf8');
+      } catch {
+        /* try the next candidate */
+      }
     }
+    throw new SecretBoxError(
+      'Secret could not be decrypted (wrong key or context, or tampered data)',
+    );
   };
 
   return {

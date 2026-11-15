@@ -44,10 +44,11 @@ export default async function DiscountDetailPage({
   const core = getCore();
   const code = await getDiscountCode(core.db, id);
   if (!code) notFound();
-  const [t, format, general, usages, eventRows, categories, tariffs] = await Promise.all([
+  const [t, format, general, checkout, usages, eventRows, categories, tariffs] = await Promise.all([
     getTranslations('discounts'),
     getFormatter(),
     getSetting(core, 'general'),
+    getSetting(core, 'checkout'),
     listDiscountUsages(core.db, id),
     core.db
       .select({ id: events.id, title: events.title })
@@ -109,6 +110,7 @@ export default async function DiscountDetailPage({
               options={{ events: eventRows, categories, tariffs }}
               timeZone={zone}
               currency={general.defaultCurrency}
+              policy={checkout}
               initial={{
                 code: code.code,
                 type: code.type,

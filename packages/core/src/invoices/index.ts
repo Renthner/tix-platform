@@ -23,7 +23,10 @@ import { nextNumber } from '../numbering';
 import { orderNetPaid } from '../orders/net-paid';
 import { getSetting } from '../settings';
 import { buildInvoiceDraft } from './build';
+import { discountInvoiceNote } from './discount-note';
 import { renderInvoicePdfDocument } from './pdf';
+
+export { discountInvoiceNote } from './discount-note';
 
 export { buildInvoiceDraft, type InvoiceDraft, type InvoiceLineDraft } from './build';
 export { renderInvoicePdfDocument, type InvoicePdfInput } from './pdf';
@@ -94,6 +97,22 @@ export async function enqueueInvoiceRender(ctx: CoreContext, invoiceId: string):
   );
 }
 
+/** True when real money (> 0) was ever captured for the order. */
+async function hasReceivedMoney(tx: Transaction, orderId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ one: sql`1` })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.orderId, orderId),
+        sql`${payments.amount} > 0`,
+        inArray(payments.status, ['CAPTURED', 'PARTIALLY_REFUNDED', 'REFUNDED']),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
 /**
  * Transaction-bound core of `issueInvoice` (the refund workflow issues a missing invoice in the
  * same transaction as the credit note). Locks the order row; the caller enqueues the render
@@ -108,9 +127,10 @@ export async function issueInvoiceInTransaction(
 ): Promise<{ invoiceId: string; invoiceNumber: string; created: boolean } | null> {
   const invoicing = await getSetting(ctx, 'invoicing');
   if (!invoicing.issueInvoices && !options.force) return null;
-  const [general, organizer] = await Promise.all([
+  const [general, organizer, checkout] = await Promise.all([
     getSetting(ctx, 'general'),
     getSetting(ctx, 'organizer'),
+    getSetting(ctx, 'checkout'),
   ]);
 
   // Row lock: concurrent calls for the same order serialise here (one invoice per order).
@@ -119,6 +139,7 @@ export async function issueInvoiceInTransaction(
       id: orders.id,
       paidAt: orders.paidAt,
       paymentMethod: orders.paymentMethod,
+      totalGross: orders.totalGross,
       isTest: orders.isTest,
     })
     .from(orders)
@@ -127,6 +148,18 @@ export async function issueInvoiceInTransaction(
   if (!order) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
   // Complimentary tickets (Freikarten) are free of charge: no sale, no invoice.
   if (order.paymentMethod === 'COMPLIMENTARY') return null;
+  // Orders of 0 EUR (free tariffs, discount code up to 0): the organiser decides whether they get
+  // an invoice at all (`invoicing.zeroValueInvoice`) - before `force`, like the cases above.
+  // Decided on money, not on the method: a 0 EUR order that later received real money (tariff
+  // upgrade paid by PayPal/bank transfer) keeps paymentMethod FREE but must be invoiced. Same
+  // condition as the backfill below (total > 0 or money received).
+  if (
+    order.paymentMethod === 'FREE' &&
+    invoicing.zeroValueInvoice === 'NO_INVOICE' &&
+    order.totalGross === 0 &&
+    !(await hasReceivedMoney(tx, orderId))
+  )
+    return null;
   // Test orders (super-admin purchases on draft events) are no sales: no invoice and – above all –
   // no number from the gapless GoBD series, not even with `force`.
   if (order.isTest) return null;
@@ -232,10 +265,20 @@ export async function issueInvoiceInTransaction(
             date: formatDate(paidAt, data.order.locale, general.defaultTimeZone, 'medium'),
             method: methods,
           });
+  const discountNote = discountInvoiceNote({
+    policy: checkout.fullDiscountPolicy,
+    notes: invoicing.zeroValueInvoiceNote,
+    onAllDiscounted: invoicing.discountNoteOnAllInvoices,
+    orderLocale: data.order.locale,
+    defaultLocale: general.defaultLocale,
+    hasDiscount: data.discounts.length > 0,
+    totalGross: draft.totalGross,
+  });
   const legalNotes = [
     ...new Set(draft.taxBreakdown.flatMap((entry) => (entry.note ? [entry.note] : []))),
     t('invoice.notes.serviceDate'),
     paidNote,
+    ...(discountNote ? [discountNote] : []),
   ].join('\n');
 
   const [invoice] = await tx
@@ -592,7 +635,8 @@ export async function backfillMissingInvoices(
   } = {},
 ): Promise<{ issued: number; failed: number }> {
   const result = { issued: 0, failed: 0 };
-  if (!(await getSetting(ctx, 'invoicing')).issueInvoices) return result;
+  const invoicing = await getSetting(ctx, 'invoicing');
+  if (!invoicing.issueInvoices) return result;
   const candidates = await ctx.db
     .select({ id: orders.id })
     .from(orders)
@@ -600,6 +644,14 @@ export async function backfillMissingInvoices(
       and(
         inArray(orders.status, ['PAID', 'PARTIALLY_REFUNDED']),
         sql`${orders.paymentMethod} <> 'COMPLIMENTARY'`,
+        // Orders of 0 EUR the organiser chose not to invoice would be retried forever.
+        // ...but not when real money arrived later (upgrade of a free order paid afterwards).
+        invoicing.zeroValueInvoice === 'NO_INVOICE'
+          ? sql`(${orders.paymentMethod} <> 'FREE' OR ${orders.totalGross} > 0 OR EXISTS (
+              SELECT 1 FROM ${payments}
+              WHERE ${payments.orderId} = ${orders.id} AND ${payments.amount} > 0
+                AND ${payments.status} IN ('CAPTURED', 'PARTIALLY_REFUNDED', 'REFUNDED')))`
+          : undefined,
         eq(orders.isTest, false),
         sql`${orders.paidAt} >= ${new Date(Date.now() - INVOICE_BACKFILL_WINDOW_MS)}`,
         notExists(

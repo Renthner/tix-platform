@@ -350,4 +350,23 @@ describe('invoice PDF', () => {
     expect(texts).toContain('Previously paid: €58.00');
     expect(texts).toContain('nothing is due');
   });
+
+  it('prints the organiser-worded note of a discount-reduced invoice of 0.00', async () => {
+    const note = 'Free ticket: VAT treatment as agreed with the organiser tax adviser.';
+    const texts = (
+      await extractPdfText(
+        await renderInvoicePdfDocument(
+          {
+            ...input,
+            lines: lines.slice(0, 1),
+            locale: 'en',
+            legalNotes: `Paid.
+${note}`,
+          },
+          mailTranslator('en'),
+        ),
+      )
+    ).join(' ');
+    expect(texts).toContain('Free ticket: VAT treatment');
+  });
 });

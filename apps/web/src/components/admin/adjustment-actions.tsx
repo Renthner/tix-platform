@@ -8,6 +8,7 @@ import { cancelAdjustmentAction, repairInvoiceAction } from '@/server/admin/adju
 import type { OrderActionState } from '@/server/admin/orders';
 import {
   recordExistingRefundAction,
+  requestRefundReconciliationAction,
   resolveRestoreReviewAction,
   skipRefundReconciliationAction,
 } from '@/server/admin/refunds';
@@ -173,6 +174,23 @@ export function RecordExistingRefundForm({
         <SubmitButton size="sm">{t('submit')}</SubmitButton>
       </ActionForm>
     </details>
+  );
+}
+
+/** Finance: compare refunds with PayPal now (also retries a pending reconciliation). */
+export function ReconcileNowForm({ pending }: { pending: boolean }) {
+  const t = useTranslations('orders.admin.refundsPage.reconcile');
+  const [state, action] = useActionState(requestRefundReconciliationAction, {
+    status: 'idle',
+  } as OrderActionState);
+  useActionToasts(state);
+  return (
+    <ActionForm action={action} className="flex flex-wrap items-center gap-3 text-sm">
+      <SubmitButton size="sm" variant="outline">
+        {pending ? t('retryNow') : t('run')}
+      </SubmitButton>
+      {!pending && <span className="text-muted-foreground">{t('runHint')}</span>}
+    </ActionForm>
   );
 }
 

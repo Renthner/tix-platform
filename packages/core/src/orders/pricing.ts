@@ -1,6 +1,7 @@
 import { bankAccounts, events, fees, taxRates, venues } from '@tix/db';
 import {
   ONLINE_PAYMENT_METHODS,
+  effectiveMinimumTotal,
   splitGross,
   type FeeScope,
   type OnlinePaymentMethod,
@@ -130,6 +131,8 @@ interface PricingContext {
     rows: Map<string, DiscountCodeRow>;
     usage: Awaited<ReturnType<typeof discountUsageCounts>>;
     hasEmail: boolean;
+    /** Organiser policy for full discounts (Settings -> Checkout). */
+    policy: { minimumTotal: number; maxDiscountPercent: number };
   } | null;
 }
 
@@ -163,7 +166,17 @@ async function loadPricingContext(
       options.email ?? null,
       options.excludeCartSessionId ?? null,
     );
-    pc.discount = { codes, rows, usage, hasEmail: Boolean(options.email) };
+    const checkout = await getSetting(ctx, 'checkout');
+    pc.discount = {
+      codes,
+      rows,
+      usage,
+      hasEmail: Boolean(options.email),
+      policy: {
+        minimumTotal: effectiveMinimumTotal(checkout),
+        maxDiscountPercent: checkout.maxDiscountPercent,
+      },
+    };
   }
   return pc;
 }
@@ -393,6 +406,7 @@ function buildQuote(
       now: new Date(),
       usage: pc.discount.usage,
       hasEmail: pc.discount.hasEmail,
+      policy: pc.discount.policy,
       isTest: [...pc.eventRows.values()].every(isDraftEvent),
       lines: [
         ...allItems.map((i) => ({

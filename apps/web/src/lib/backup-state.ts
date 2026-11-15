@@ -24,7 +24,6 @@ export type BackupActionState =
         | 'endpointNotAllowed'
         | 'protected'
         | 'sourceKeysInvalid'
-        | 'sourceKeysConflict'
         | 'sourceKeysDisabled'
         | 'twoFactorSetupRequired';
       /** Technical detail of connection errors (never contains secrets). */
@@ -46,6 +45,12 @@ export interface RestorePreview {
   twoFactorSetupRequired: boolean;
   /** The operator allows keys of another system (`TIX_ALLOW_FOREIGN_BACKUP_KEYS`). */
   foreignKeysAllowed: boolean;
+  /** This system's own keys cannot read the archive: it was made by another system, its key is needed. */
+  needsSourceKey: boolean;
+  /** Additional (foreign) keys currently stored on this system (re-encryption candidates). */
+  additionalKeys: number;
+  /** Secret key fingerprints (`id:8hex`) the backup's stored secrets use that this system does not have. */
+  secretKeysMissing: string[];
 }
 
 /** Result of the "check key" step in the restore dialog (nothing is started or stored). */
@@ -61,11 +66,11 @@ export type SourceKeyCheck =
         | 'empty'
         | 'readable'
         | 'disabled';
+      /** Keys the backup's secrets use that are missing even with the entered keys (match / readable). */
+      stillMissing?: number;
     }
-  | { result: 'conflict'; detail: string }
   | { result: 'rateLimited' };
 
 /** Result of parking the typed source keys before an upload (returns an opaque single-use token). */
 export type StageKeysResult =
-  | { ok: true; token: string }
-  | { ok: false; error: 'invalid' | 'conflict' | 'rateLimited' | 'disabled' };
+  { ok: true; token: string } | { ok: false; error: 'invalid' | 'rateLimited' | 'disabled' };

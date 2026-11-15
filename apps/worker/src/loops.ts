@@ -1,5 +1,6 @@
 import {
   createMaintenanceProbe,
+  reapExpiredLoadTest,
   sweepExpiredLocks,
   tickWaitingRooms,
   type CoreContext,
@@ -46,6 +47,8 @@ export function startLoops(ctx: CoreContext, workerId: string, logger: Logger): 
       const released = await sweepExpiredLocks(ctx);
       if (released > 0) logger.debug({ released }, 'expired seat locks released');
       await tickWaitingRooms(ctx);
+      // Load test mode: exactly-once "expired" audit entry once the time is up (one Redis GET).
+      await reapExpiredLoadTest(ctx);
     } catch (err) {
       logger.error({ err }, 'loop iteration failed');
     }

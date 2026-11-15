@@ -110,7 +110,7 @@ export function createMaintenanceProbe(ctx: RedisCtx, ttlMs = 1_500) {
  * Progress of the running / last operation (Redis only, 7 days).
  * ------------------------------------------------------------------------------------- */
 
-export type BackupOperation = 'BACKUP' | 'VERIFY' | 'RESTORE' | 'IMPORT' | 'PROBE';
+export type BackupOperation = 'BACKUP' | 'VERIFY' | 'RESTORE' | 'IMPORT' | 'PROBE' | 'REENCRYPT';
 
 export interface BackupStatus {
   operation: BackupOperation;
@@ -164,7 +164,7 @@ export function createProgress(ctx: RedisCtx, operation: BackupOperation, backup
   return {
     /** Re-announces the current step (liveness while one step runs for minutes). */
     touch: () => emit('RUNNING', currentStep),
-    step: (step: string) => emit('RUNNING', step),
+    step: (step: string, detail?: string) => emit('RUNNING', step, detail),
     succeeded: (step = 'DONE', detail?: string) => emit('SUCCEEDED', step, detail),
     failed: async (step: string, detail: string) => {
       await emit('FAILED', step, detail);
@@ -200,6 +200,63 @@ export async function getBackupFailure(ctx: RedisCtx): Promise<BackupFailure | n
   if (!raw) return null;
   try {
     return JSON.parse(raw) as BackupFailure;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Stored secrets (SMTP / PayPal / bank credentials, signing keys, 2FA seeds ...) that no key of this
+ * system can open – found by the verification pass after a restore or a re-encryption. Persistent
+ * (Redis, no TTL) until a later pass finds none, so the admin cannot miss it.
+ */
+export interface SecretsUnreadableNotice {
+  count: number;
+  at: string;
+  source: 'RESTORE' | 'REENCRYPT';
+}
+
+export async function setSecretsUnreadable(
+  ctx: RedisCtx,
+  notice: SecretsUnreadableNotice,
+): Promise<void> {
+  await ctx.redis.set(ctx.keys.backupSecretsUnreadable(), JSON.stringify(notice));
+}
+
+export async function clearSecretsUnreadable(ctx: RedisCtx): Promise<void> {
+  await ctx.redis.del(ctx.keys.backupSecretsUnreadable());
+}
+
+export async function getSecretsUnreadable(ctx: RedisCtx): Promise<SecretsUnreadableNotice | null> {
+  const raw = await ctx.redis.get(ctx.keys.backupSecretsUnreadable());
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SecretsUnreadableNotice;
+  } catch {
+    return null;
+  }
+}
+
+/** The follow-up re-encryption after a restore is queued and has not run yet ("pending" notice). */
+export interface ReEncryptPending {
+  since: string;
+  /** Set once the queued job gave up (the operation lock stayed busy). */
+  gaveUp?: boolean;
+}
+
+export async function setReEncryptPending(ctx: RedisCtx, value: ReEncryptPending): Promise<void> {
+  await ctx.redis.set(ctx.keys.backupReEncryptPending(), JSON.stringify(value));
+}
+
+export async function clearReEncryptPending(ctx: RedisCtx): Promise<void> {
+  await ctx.redis.del(ctx.keys.backupReEncryptPending());
+}
+
+export async function getReEncryptPending(ctx: RedisCtx): Promise<ReEncryptPending | null> {
+  const raw = await ctx.redis.get(ctx.keys.backupReEncryptPending());
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ReEncryptPending;
   } catch {
     return null;
   }

@@ -1,6 +1,15 @@
 'use client';
 
-import { DISCOUNT_BULK_MAX, formatHundredths, type DiscountCodeType } from '@tix/shared';
+import {
+  DISCOUNT_BULK_MAX,
+  exceedsPercentCap,
+  formatHundredths,
+  fullDiscountWarning,
+  parseFeeAmountToCents,
+  parsePercentToBp,
+  type DiscountCodeType,
+  type FullDiscountPolicy,
+} from '@tix/shared';
 import { useTranslations } from 'next-intl';
 import { useActionState, useState } from 'react';
 import { Input } from '@/components/ui/input';
@@ -82,12 +91,15 @@ export function DiscountForm({
   options,
   timeZone,
   currency,
+  policy,
   initial,
 }: {
   action: Action;
   options: DiscountScopeOptions;
   timeZone: string;
   currency: string;
+  /** Organiser policy (Settings -> Checkout) the code is checked against. */
+  policy: { fullDiscountPolicy: FullDiscountPolicy; maxDiscountPercent: number };
   /** Present when editing (the code itself cannot change). */
   initial?: DiscountFormValues;
 }) {
@@ -98,6 +110,20 @@ export function DiscountForm({
   const [selectedScope, setSelectedScope] = useState(initial ? !initial.allEvents : false);
   const err = (n: string) => errorOf(state, n);
   const editing = Boolean(initial);
+  const [valueText, setValueText] = useState(
+    initial
+      ? formatHundredths(initial.value, initial.type === 'PERCENT' ? 'percent' : 'money')
+      : '',
+  );
+  // Live hint for codes that can make an order free (or exceed the percentage cap).
+  const parsedValue =
+    type === 'PERCENT' ? parsePercentToBp(valueText) : parseFeeAmountToCents(valueText);
+  const overCap =
+    parsedValue !== null && exceedsPercentCap(type, parsedValue, policy.maxDiscountPercent);
+  const fullWarning =
+    parsedValue !== null && !overCap
+      ? fullDiscountWarning({ type, value: parsedValue }, null)
+      : null;
   const titleOf = (id: string) => options.events.find((e) => e.id === id)?.title ?? '';
   const inScope = (_eventId: string) => true;
   const initialValue = initial
@@ -195,9 +221,22 @@ export function DiscountForm({
             name="value"
             inputMode="decimal"
             defaultValue={initialValue}
+            onChange={(e) => setValueText(e.target.value)}
             required
           />
         </Field>
+        {(overCap || (fullWarning && policy.fullDiscountPolicy !== 'ALLOW')) && (
+          <p
+            className={`text-sm md:col-span-3 ${overCap ? 'text-destructive' : 'text-warning'}`}
+            role="status"
+          >
+            {overCap
+              ? t('hints.percentCap', { max: policy.maxDiscountPercent })
+              : fullWarning === 'FULL_PERCENT'
+                ? t('hints.fullPercent')
+                : t('hints.fixedMayCover')}
+          </p>
+        )}
         <Field
           label={t('fields.validFrom')}
           htmlFor="dc-from"

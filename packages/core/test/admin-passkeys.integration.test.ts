@@ -636,6 +636,83 @@ describe.skipIf(!adminUrl || !redisUrl)('admin passkeys (integration)', () => {
     );
   });
 
+  it('load test confirmation: its own purpose, bound to user + action, not usable for a restore (and back)', async () => {
+    const userId = await makeUser('loadtest@example.org', ['SUPER_ADMIN']);
+    const other = await makeUser('loadtest-other@example.org', ['SUPER_ADMIN']);
+    const authenticator = new SoftwareAuthenticator(RP);
+    await addPasskey(userId, authenticator);
+    await addPasskey(other, new SoftwareAuthenticator(RP), 'Other');
+    const bind = bindFromSecret('loadtest-enable');
+    const verify = (
+      challengeId: string,
+      response: unknown,
+      purpose: 'restore' | 'loadtest',
+      expectedUserId: string,
+      bindValue = bind,
+    ) =>
+      verifyPasskeyAuthentication(ctx, {
+        purpose,
+        challengeId,
+        response,
+        bind: bindValue,
+        expectedUserId,
+      });
+
+    // happy path, single use
+    const ok = await beginPasskeyReauth(ctx, userId, bind, 'loadtest');
+    const assertion = authenticator.assert(ok.options.challenge);
+    await expect(verify(ok.challengeId, assertion, 'loadtest', userId)).resolves.toEqual({
+      userId,
+    });
+    await expectCode(verify(ok.challengeId, assertion, 'loadtest', userId), 'PASSKEY_INVALID');
+
+    // a load test challenge does not confirm a restore ...
+    const forLoadTest = await beginPasskeyReauth(ctx, userId, bind, 'loadtest');
+    await expectCode(
+      verify(
+        forLoadTest.challengeId,
+        authenticator.assert(forLoadTest.options.challenge),
+        'restore',
+        userId,
+      ),
+      'PASSKEY_INVALID',
+    );
+    // ... and a restore challenge does not enable the load test mode
+    const forRestore = await beginPasskeyReauth(ctx, userId, bind, 'restore');
+    await expectCode(
+      verify(
+        forRestore.challengeId,
+        authenticator.assert(forRestore.options.challenge),
+        'loadtest',
+        userId,
+      ),
+      'PASSKEY_INVALID',
+    );
+
+    // bound to the user and to the action
+    const forUser = await beginPasskeyReauth(ctx, userId, bind, 'loadtest');
+    await expectCode(
+      verify(
+        forUser.challengeId,
+        authenticator.assert(forUser.options.challenge),
+        'loadtest',
+        other,
+      ),
+      'PASSKEY_INVALID',
+    );
+    const forAction = await beginPasskeyReauth(ctx, userId, bind, 'loadtest');
+    await expectCode(
+      verify(
+        forAction.challengeId,
+        authenticator.assert(forAction.options.challenge),
+        'loadtest',
+        userId,
+        bindFromSecret('restore:backup-a'),
+      ),
+      'PASSKEY_INVALID',
+    );
+  });
+
   it('recovery codes work for passkey-only users; reset clears passkeys and codes', async () => {
     const userId = await makeUser('recovery@example.org');
     const { recoveryCodes } = await addPasskey(userId, new SoftwareAuthenticator(RP));

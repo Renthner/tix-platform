@@ -685,6 +685,37 @@ describe.skipIf(!adminUrl || !redisUrl)('invoices & e-mail (integration)', () =>
     expect(sender.sent[0]!.subject).toBe('Reset your password for Example Theatre Tickets');
   });
 
+  it('marks SENT without rewriting the stored variables (re-encryption between read and write)', async () => {
+    const { messageId } = await enqueueEmail(ctx, {
+      key: 'CUSTOMER_PASSWORD_RESET',
+      to: 'race@example.org',
+      locale: 'en',
+      variables: { resetUrl: 'https://shop.example.org/r?token=abc', firstName: 'Sam' },
+    });
+    const sender = jsonSender();
+    const send = sender.transporter.sendMail.bind(sender.transporter);
+    sender.transporter.sendMail = (async (mail: Parameters<typeof send>[0]) => {
+      // Simulates the re-encryption job replacing the envelope while the mail is being sent.
+      await handle.db
+        .update(emailMessages)
+        .set({
+          attachments: sql`jsonb_set(${emailMessages.attachments}, '{variables}', '"re-encrypted-envelope"'::jsonb)`,
+        })
+        .where(eq(emailMessages.id, messageId));
+      return send(mail);
+    }) as typeof sender.transporter.sendMail;
+    await deliverEmailMessage(ctx, messageId, { sender });
+    const [row] = await handle.db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.id, messageId));
+    expect(row!.status).toBe('SENT');
+    expect(row!.attachments).toMatchObject({
+      variables: 're-encrypted-envelope',
+      sentFiles: [],
+    });
+  });
+
   it('re-queues transient failures, fails on the last attempt and on permanent errors', async () => {
     const messageId = await createEmailMessage(ctx, ctx.db, {
       key: 'SMTP_TEST',

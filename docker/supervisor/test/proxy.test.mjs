@@ -438,3 +438,17 @@ test('absolute-form request targets are rejected with 400', async () => {
     await r.close();
   }
 });
+
+test('load test header passes through the proxy untouched (trusted or not)', () => {
+  const incoming = {
+    host: 'shop.example.org',
+    'x-tix-loadtest': 'abc-DEF_123',
+    'x-forwarded-for': '1.2.3.4',
+  };
+  for (const trusted of [none, priv]) {
+    const { headers } = buildUpstreamHeaders(incoming, '10.0.0.5', trusted, {
+      requestId: () => 'req-12345678',
+    });
+    assert.equal(headers['x-tix-loadtest'], 'abc-DEF_123');
+  }
+});

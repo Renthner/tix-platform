@@ -8,6 +8,124 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.30] - 2026-11-16
+
+### Upgrade note
+
+- **Pre-release numbering widened:** `alpha.N` may now go up to 49 (beta `1-19`, rc `1-19`; Android version codes of released alphas are unchanged). The check-in app of **alpha.29 and older cannot parse `alpha.30`** and therefore does not offer it as an automatic update: install the alpha.30 APK once by hand (admin → Scanners or the GitHub release); later updates work again.
+
+### Added
+
+- **Manual "Reconcile with PayPal" and clearer PayPal reconciliation after a restore.** Open refunds now has a
+  button that compares all open PayPal refunds and all still refundable PayPal payments with PayPal on demand
+  (finance / super admin, audited; automatic refunds pause until it is done, like after a restore) and a "Retry
+  now" button while a reconciliation is pending. A restore into a system without PayPal credentials, or with
+  rejected credentials, no longer loops with errors: the pass stops, shows a notice with the fix, marks nothing
+  as failed and repeats automatically once PayPal is configured. Limit: PayPal offers no cheap time-based
+  listing of payments, so a capture made at PayPal after the backup time but unknown here is not discovered by
+  this comparison (see docs/BACKUP.md).
+- **Realtime epoch after a restore.** The realtime gateway announces an opaque epoch (rotated when the Redis
+  seat state is wiped by a restore) to every client on connect and to all connected clients when it changes.
+  A browser that saw another epoch before drops its view of seats, locks and cart and reloads everything, even
+  if it slept or was offline during the maintenance window. Reconnect and poll spreading now uses one tested
+  helper.
+
+### Fixed
+
+- **Keyboard navigation across blocks in the seating plan:** the arrow keys were limited to one block. At the
+  edge of a block they now continue into the neighbouring block in that direction (nearest seat within a 60
+  degree cone by the real seat coordinates, so offset, staggered, rotated and curved layouts work). Ctrl+Home /
+  Ctrl+End jump to the first / last seat of the whole plan; Page Up / Page Down still change the block.
+  Standing areas are now keyboard controls on the plan too (Enter opens the quantity panel). Keyboard help text
+  updated (EN/DE).
+
+### Added
+
+- **Configurable handling of full discounts (orders of 0.00).** Organisers now decide how the shop treats free
+  tickets; the software takes no tax position (whether a free ticket is a gift without consideration is for each
+  organiser's tax adviser). Settings → Checkout: policy "Full discounts" (`ALLOW` default = unchanged,
+  `ALLOW_WITH_NOTE`, `DISALLOW`), "Minimum order total after discounts" (default 0 = unrestricted; `DISALLOW`
+  always needs at least 0.01) and "Maximum percentage of a code" (default 100). A code that would push the total
+  below the minimum is refused when entered and again at checkout (stacked codes are dropped from the last one;
+  orders that are free without any code are never refused); percentage codes above the cap are refused in the shop
+  and cannot be saved. The discount code form warns about 100 % / fixed amounts when the policy is not `ALLOW`.
+  Settings → Invoices: "Invoice for orders of 0.00" (issue an invoice as before, or none), a translatable invoice
+  note per language (frozen into the invoice text when it is issued) printed on invoices of discount-reduced 0.00
+  orders under `ALLOW_WITH_NOTE`, and optionally on every discounted invoice. Admin → Accounting: leave 0.00
+  invoices out of the simple documents CSV (the DATEV file never contains 0,00 bookings). No database migration.
+  Docs: `docs/ACCOUNTING.md`.
+- **Load test mode and journey load test.** Admin → System has a new card "Load test mode" (SUPER_ADMIN with a
+  second factor or passkey, password re-entered): it creates a random token (shown once, only its hash is stored in
+  Redis with a TTL) for 5 minutes to 4 hours, shows a banner in the admin while active and writes `loadtest.enable`,
+  `loadtest.disable` and `loadtest.expire` audit entries (the expiry exactly once, by the worker or the System
+  page). While active, requests carrying `X-Tix-Loadtest: <token>` skip only the per-IP throughput limits of the shop
+  (`shop-ip` seat requests, `checkout-ip`, `enter-ip`, `realtime-token-ip`); login, two-factor, scanner, per-session,
+  per-e-mail and per-code limits, seat locking, order limits and CSRF checks are untouched, and the header is ignored
+  when the mode is off. New generator `scripts/load/journey.mjs` (several worker processes, ramp profiles, pages, waiting room, seat map, WebSocket fan-out latency, contention on hot seats, best available, cart churn, hot-seat
+  exclusivity check, `/api/metrics` and `/__tix/health` snapshots, JSON + text report) refuses to run without `--yes`
+  and the token. `docs/LOAD-TEST.md` rewritten for production-like targets (Cloudflare, Traefik, CrowdSec / fail2ban,
+  `TIX_PROXY_MAX_CONNS_PER_IP`), German edition `docs/LOAD-TEST.de.md`. `pnpm test:load` runs its unit tests.
+
+- **Bank statement import: camt.054 and MT942.** Debit/credit notifications (camt.054, versions .001.02 to
+  .001.08) and SWIFT interim transaction reports (MT942) can be dropped into the file import, a ZIP or an IMAP
+  attachment like any other statement; the format is detected automatically. Only booked camt.054 entries are
+  imported (pending ones are reported and skipped); MT942 totals (`:90D:`/`:90C:`) are ignored. Duplicate
+  detection works across formats, so a later camt.053 / MT940 of the same bookings creates no duplicates and
+  leaves matching and allocations untouched. **MT942 entries are interim (often pending credits) and never pay
+  an order:** they are stored as "interim (not booked yet)", are never matched, assigned or auto-fulfilled, and
+  are linked to the final MT940 / camt booking (same IBAN, signed amount and currency, within 7 days, similar
+  text) when it arrives, so the credit counts once. camt.054: entries without booking date and without bank /
+  end-to-end reference are held ("needs review", release by hand); two identical-looking entries from different
+  camt.054 files without a reference are stored as "possible duplicate – review" instead of being dropped (with
+  different references both count); the same notification re-sent is recognised by its id; a camt.053 batch entry
+  is not counted again when its payments were imported as camt.054 entries. No schema change (markers live in
+  `raw_data`, status `IGNORED`); see `docs/DATABASE.md` for the guarantees and limits.
+
+### Changed
+
+- **Restoring a backup from another system works with equal key ids and can re-encrypt the secrets.** The key
+  ring now keeps several candidate keys per id (decryption tries all, encryption always uses the first key of
+  `APP_ENCRYPTION_KEYS`), so a source system that also uses `k1` is accepted; the "key id already used"
+  rejection is gone. New: **re-encryption of all secrets with this system's key** - as a checkbox of the restore
+  dialog (default on, runs as its own job after the restore) and as a standalone "Re-encrypt now" action on the
+  Backups page (SUPER_ADMIN, password + second factor). A central secret registry (settings secrets, bank
+  connections, ticket signing keys, scanner LAN secrets, admin TOTP secrets, queued e-mail variables) drives a
+  batched, idempotent, verified routine; the additional keys are removed only when everything was converted and
+  verified, rows no key opens are reported and left untouched. Tests fail when a new encrypted column or
+  `encrypt(` call site is not registered. Counts per table are shown on the Backups page and in the
+  `secrets.reencrypt` audit entry (no values, no key material). Clearer hints: when this system cannot read an
+  uploaded or selected backup the dialogs and the status panel explain that it was made by another system and
+  either ask for its `APP_ENCRYPTION_KEYS` or show the exact `TIX_ALLOW_FOREIGN_BACKUP_KEYS=1` line and the
+  command to apply it (`docker compose up -d`, not `restart`). The opt-in stays off by default. No database
+  migration. Docs: `docs/BACKUP.md`.
+
+### Security
+
+- **Load test mode needs a fresh second factor.** Enabling it required only that the account has 2FA; now the
+  password **and** a fresh authenticator / recovery code or a passkey assertion (challenge bound to this action
+  only) are checked, with the same shared re-authentication helper as restore and re-encryption. Docs updated.
+- **Archives open with the configured keys only unless the foreign-key opt-in is on.** Additional keys already
+  stored in the key file no longer decrypt backup archives (upload, restore, verify, probe) while
+  `TIX_ALLOW_FOREIGN_BACKUP_KEYS` is off; the secrets stored in the database keep using them.
+
+### Fixed
+
+- **0.00 orders that later received real money get an invoice.** The "no invoice for 0.00 orders" policy is now
+  decided on money, not on the payment method: a free order that was upgraded to a paying tariff and paid by
+  PayPal / bank transfer (method stays FREE) is invoiced, also by the backfill.
+- **A restore no longer silently loses secrets.** After every restore all stored secrets are opened with this
+  system's keys; unreadable ones raise a persistent notice on the Backups page and an alert mail. Manifests list
+  the key fingerprints their secrets depend on (restore dialog notice, "check key" shows what is still missing),
+  "Re-encrypt now" shows how many catalogued backups reference the keys to be removed and needs an explicit
+  acknowledgement, the probe's deep check opens the secrets of its copy, and the re-encryption queued after a
+  restore is retried while the operation lock is busy and shows a "pending" notice meanwhile.
+- **Sent e-mails no longer overwrite re-encrypted variables.** Marking a mail as sent merges only the new keys
+  in SQL, so a re-encryption between reading and writing is never undone.
+- **Load test mode writes its audit entry reliably.** Enabling rolls back if the entry cannot be written, ending
+  keeps the run until the entry is stored, and a late bypass counter gets a TTL. `scripts/load/journey.mjs`
+  checks the database in a read-only session and refuses private / LAN database hosts without `--allow-private`.
+- **Discount minimum total blames the right code,** and the percentage cap help text says it applies per code.
+
 ## [1.0.0-alpha.29] - 2026-11-16
 
 ### Changed

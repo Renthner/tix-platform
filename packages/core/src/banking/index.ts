@@ -4,6 +4,7 @@ export * from './fingerprint';
 export * from './parsers';
 export * from './connections';
 export * from './runs';
+export * from './holds';
 export * from './importer';
 export * from './matching';
 export * from './tan';

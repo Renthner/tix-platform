@@ -6,6 +6,7 @@ import {
   createSeatNavigator,
   seatPlanLabel,
   type PublicSeat,
+  type PublicSection,
   type SeatNavKey,
   type PublicSeatMap,
   type SeatMapSettingsInput,
@@ -29,9 +30,12 @@ import {
   ElementLayer,
   EntranceLayer,
   RowLabelLayer,
+  STANDING_NAV_PREFIX,
   SectionLayer,
+  StandingNavLayer,
   SymbolDefs,
   contentBounds,
+  standingNavPoint,
   symbolRef,
 } from './shapes';
 import { usePanZoom } from './use-pan-zoom';
@@ -85,6 +89,8 @@ export interface SeatChartProps {
   seatLabel?: (seat: PublicSeat, availability: SeatAvailability) => string;
   /** Keyboard instructions (read by screen readers when the chart gets focus). */
   keyboardHelp?: string;
+  /** Accessible name of a standing section (keyboard control that opens its quantity panel). */
+  standingLabel?: (section: PublicSection) => string;
   /** Enter / Space on a seat that cannot be selected (sold, in another cart, blocked). */
   onUnavailableSeat?: (seat: PublicSeat) => void;
   /** The focused seat changed (null = focus left the chart). */
@@ -103,6 +109,7 @@ const KEY_MAP: Record<string, SeatNavKey> = {
   ArrowDown: 'down',
   Home: 'home',
   End: 'end',
+  // Ctrl+Home / Ctrl+End are mapped to 'first' / 'last' in the key handler.
   PageUp: 'pageUp',
   PageDown: 'pageDown',
 };
@@ -418,13 +425,33 @@ export function SeatChart(props: SeatChartProps) {
   // slow): exactly one seat has tabindex 0 – the last focused one, initially the first available.
   const accessible = !!props.seatLabel;
   const helpId = useId();
+  // Standing sections take part as one keyboard node each (placed at the section centre).
+  const standingNodes = useMemo(
+    () =>
+      props.standingLabel
+        ? map.sections
+            .filter((s) => s.type === 'STANDING' && s.priceCategoryId && standingNavPoint(s))
+            .map((s) => ({ section: s, point: standingNavPoint(s)! }))
+        : [],
+    [map.sections, props.standingLabel],
+  );
   const navigator = useMemo(
     () =>
       createSeatNavigator(
-        map.seats.filter((s) => s.c),
+        [
+          ...map.seats.filter((s) => s.c),
+          ...standingNodes.map(({ section, point }) => ({
+            i: `${STANDING_NAV_PREFIX}${section.id}`,
+            s: section.id,
+            r: null,
+            p: null,
+            x: point.x,
+            y: point.y,
+          })),
+        ],
         map.sections.map((s) => s.id),
       ),
-    [map.seats, map.sections],
+    [map.seats, map.sections, standingNodes],
   );
   const tabStop = useRef<string | null>(null);
   const seatEl = useCallback(
@@ -445,17 +472,28 @@ export function SeatChart(props: SeatChartProps) {
     },
     [seatEl],
   );
+  /** Plan position of a keyboard node (seat or standing section). */
+  const nodePoint = useCallback(
+    (id: string): { x: number; y: number } | null => {
+      const seat = seatById.get(id);
+      if (seat) return seat;
+      return (
+        standingNodes.find((n) => `${STANDING_NAV_PREFIX}${n.section.id}` === id)?.point ?? null
+      );
+    },
+    [seatById, standingNodes],
+  );
   const focusSeat = useCallback(
     (id: string) => {
-      const seat = seatById.get(id);
+      const point = nodePoint(id);
       const el = seatEl(id);
-      if (!seat || !el) return;
+      if (!point || !el) return;
       setTabStop(id);
       el.focus({ preventScroll: true });
-      pan.ensureVisible(seat.x, seat.y, radius * 4);
+      pan.ensureVisible(point.x, point.y, radius * 4);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pan.ensureVisible, radius, seatById, seatEl, setTabStop],
+    [pan.ensureVisible, radius, nodePoint, seatEl, setTabStop],
   );
   // Keep a valid tab stop after the plan or the seat states changed.
   const { statusVersion } = props;
@@ -474,19 +512,26 @@ export function SeatChart(props: SeatChartProps) {
     if (id) setTabStop(id);
   }, [accessible, map, statusVersion, seatEl, setTabStop]);
 
-  const { onFocusSeat, onEscape, onUnavailableSeat, onSeatClick, interactive } = props;
+  const { onFocusSeat, onEscape, onUnavailableSeat, onSeatClick, onSectionClick, interactive } =
+    props;
   const onKeyDown = (e: KeyboardEvent<SVGSVGElement>) => {
-    if (!accessible || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!accessible || e.altKey || e.metaKey) return;
+    // Ctrl only combines with Home / End (first / last seat of the plan); other chords stay native.
+    if (e.ctrlKey && e.key !== 'Home' && e.key !== 'End') return;
     const el = (e.target as Element).closest?.('[data-seat-nav]');
     const id = el?.getAttribute('data-seat-nav');
     if (!el || !id) return;
-    const navKey = KEY_MAP[e.key];
+    const navKey = e.ctrlKey ? (e.key === 'Home' ? 'first' : 'last') : KEY_MAP[e.key];
     if (navKey) {
       e.preventDefault();
       const next = navigator.move(id, navKey);
       if (next) focusSeat(next);
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      if (id.startsWith(STANDING_NAV_PREFIX)) {
+        if (interactive) onSectionClick(id.slice(STANDING_NAV_PREFIX.length));
+        return;
+      }
       const seat = seatById.get(id);
       if (!seat || !interactive) return;
       if (el.hasAttribute('data-seat')) onSeatClick(seat);
@@ -507,8 +552,8 @@ export function SeatChart(props: SeatChartProps) {
     setTabStop(id);
     // Tab entry / Shift+Tab into a seat that is off screen: bring it into view.
     if (el.matches(':focus-visible')) {
-      const seat = seatById.get(id);
-      if (seat) pan.ensureVisible(seat.x, seat.y, radius * 4);
+      const point = nodePoint(id);
+      if (point) pan.ensureVisible(point.x, point.y, radius * 4);
     }
     onFocusSeat?.(id);
   };
@@ -585,6 +630,12 @@ export function SeatChart(props: SeatChartProps) {
           sellBlocked={props.sellBlocked}
           seatLabel={props.seatLabel}
         />
+        {standingNodes.length > 0 && props.standingLabel && (
+          <StandingNavLayer
+            sections={standingNodes.map((n) => n.section)}
+            label={props.standingLabel}
+          />
+        )}
         <g aria-hidden="true">
           <ElementLayer elements={textElements} />
         </g>

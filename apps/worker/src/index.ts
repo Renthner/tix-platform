@@ -7,6 +7,7 @@ import {
   backupBucketsFromEnv,
   cleanupStaleTestDatabases,
   createCoreContext,
+  foreignBackupKeysAllowed,
   startShopCacheSync,
   getRestoreIncomplete,
   objectStorageFromEnv,
@@ -22,7 +23,7 @@ import {
   writeWorkerHeartbeat,
 } from '@tix/redis';
 import { APP_VERSION } from '@tix/shared';
-import { createReloadingSecretBox, loadKeyRing } from '@tix/shared/server';
+import { createReloadingSecretBox, loadKeyRing, parseKeyRing } from '@tix/shared/server';
 import { resolve } from 'node:path';
 import { Queue, Worker } from 'bullmq';
 import { loadEnv } from './env';
@@ -84,6 +85,13 @@ async function main(): Promise<void> {
     // Re-read on every use: a restore can add additional (decrypt-only) keys at any time.
     get keyRing() {
       return loadKeyRing(env.APP_ENCRYPTION_KEYS);
+    },
+    // Archives open with the configured keys only (additional keys of other systems only while
+    // the operator opted in); the secrets in the database keep using the full ring above.
+    get archiveKeyRing() {
+      return foreignBackupKeysAllowed()
+        ? loadKeyRing(env.APP_ENCRYPTION_KEYS)
+        : parseKeyRing(env.APP_ENCRYPTION_KEYS);
     },
     databaseUrl: env.DATABASE_URL,
     migrationsDir: env.MIGRATIONS_DIR ?? resolve(process.cwd(), '../../packages/db/migrations'),

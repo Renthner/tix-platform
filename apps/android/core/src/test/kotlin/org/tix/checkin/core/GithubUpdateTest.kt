@@ -25,8 +25,8 @@ class AppVersionTest {
     fun `versionCode derivation`() {
         assertEquals(1_000_001, AppVersion.parse("1.0.0-alpha.1")!!.versionCode)
         assertEquals(1_000_002, AppVersion.parse("1.0.0-alpha.2")!!.versionCode)
-        assertEquals(1_000_031, AppVersion.parse("1.0.0-beta.1")!!.versionCode)
-        assertEquals(1_000_061, AppVersion.parse("1.0.0-rc.1")!!.versionCode)
+        assertEquals(1_000_051, AppVersion.parse("1.0.0-beta.1")!!.versionCode)
+        assertEquals(1_000_071, AppVersion.parse("1.0.0-rc.1")!!.versionCode)
         assertEquals(1_000_099, AppVersion.parse("1.0.0")!!.versionCode)
         assertEquals(1_020_399, AppVersion.parse("1.2.3")!!.versionCode)
         assertEquals(2_000_000_000 + 99 * 10_000 + 99 * 100 + 99, AppVersion.parse("2000.99.99")!!.versionCode)
@@ -34,15 +34,24 @@ class AppVersionTest {
 
     @Test
     fun `versionCode order equals version order`() {
-        val versions = listOf("1.0.0-alpha.2", "1.0.0-beta.1", "1.0.0-rc.29", "1.0.0", "1.0.1-alpha.1", "1.1.0")
+        val versions = listOf("1.0.0-alpha.2", "1.0.0-beta.1", "1.0.0-rc.19", "1.0.0", "1.0.1-alpha.1", "1.1.0")
             .map { AppVersion.parse(it)!! }
         assertEquals(versions.sorted(), versions)
         assertEquals(versions.map { it.versionCode }.sorted(), versions.map { it.versionCode })
     }
 
     @Test
+    fun `stage limits keep the version codes apart`() {
+        assertEquals(1_000_030, AppVersion.parse("1.0.0-alpha.30")!!.versionCode)
+        assertEquals(1_000_049, AppVersion.parse("1.0.0-alpha.49")!!.versionCode)
+        assertEquals(1_000_069, AppVersion.parse("1.0.0-beta.19")!!.versionCode)
+        assertEquals(1_000_089, AppVersion.parse("1.0.0-rc.19")!!.versionCode)
+        assertEquals(1_000_099, AppVersion.parse("1.0.0")!!.versionCode)
+    }
+
+    @Test
     fun `invalid versions are rejected`() {
-        for (bad in listOf("", "1", "1.2", "1.2.3.4", "v1.2.3", "1.2.3-alpha", "1.2.3-alpha.0", "1.2.3-alpha.30", "1.2.3-dev.1",
+        for (bad in listOf("", "1", "1.2", "1.2.3.4", "v1.2.3", "1.2.3-alpha", "1.2.3-alpha.0", "1.2.3-alpha.50", "1.2.3-beta.20", "1.2.3-rc.20", "1.2.3-dev.1",
             "1.2.3-ALPHA.1", "1.100.0", "1.0.100", "2001.0.0", "01.2.3x", "1.2.3+build", "1.2.3-rc.1-x", " 1.2.3")) {
             assertNull(AppVersion.parse(bad), "should be rejected: '$bad'")
         }

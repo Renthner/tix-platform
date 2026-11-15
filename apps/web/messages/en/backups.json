@@ -48,7 +48,8 @@
       "VERIFY": "Verification",
       "RESTORE": "Restore",
       "IMPORT": "Importing uploaded file",
-      "PROBE": "Probe restore"
+      "PROBE": "Probe restore",
+      "REENCRYPT": "Re-encrypting secrets"
     },
     "state": {
       "RUNNING": "Running",
@@ -87,7 +88,23 @@
       "REJECTED_NOT_FOUND": "Rejected: backup not found",
       "ERASURE_REPLAY": "Replaying recorded erasures…",
       "SANITY": "Migrating the copy and checking key tables…",
-      "CLEANUP": "Cleaning up old test databases…"
+      "CLEANUP": "Cleaning up old test databases…",
+      "REENCRYPT": "Re-encrypting stored secrets…",
+      "REENCRYPT_CLEANUP": "Removing the additional keys that are no longer used…",
+      "REENCRYPT_INCOMPLETE": "Re-encryption incomplete – the additional keys were kept so nothing becomes unreadable",
+      "IMPORT_KEY_UNKNOWN": "Rejected: this backup was made by another system and cannot be read with this system’s key",
+      "IMPORT_KEY_WRONG": "Rejected: the entered encryption key does not open this backup",
+      "IMPORT_KEYS_DISABLED": "Rejected: entering the key of another system is switched off here",
+      "IMPORT_KEYS_EXPIRED": "Rejected: the entered key was no longer available – upload the file again",
+      "REJECTED_KEYS_DISABLED": "Rejected: entering the key of another system is switched off here",
+      "REJECTED_KEYS_EXPIRED": "Rejected: the entered key was no longer available – enter it again",
+      "REJECTED_KEYS_INVALID": "Rejected: the entered key is not valid",
+      "REJECTED_KEY_WRONG": "Rejected: the entered encryption key does not open this backup"
+    },
+    "reencrypt": {
+      "done": "{reEncrypted} secrets re-encrypted, {skipped} already used this system’s key. Additional keys removed: {removed}.",
+      "incomplete": "{remaining} secrets still need an additional key ({unreadable} of them cannot be read by any known key). The additional keys were kept.",
+      "table": "{table}: {reEncrypted} re-encrypted, {skipped} unchanged, {unreadable} unreadable"
     }
   },
   "list": {
@@ -133,7 +150,8 @@
     "BAD_ARCHIVE": "The archive structure is invalid.",
     "SANITY_FAILED": "The test restore worked, but the restored copy failed the sanity checks.",
     "MIGRATION_NEWER": "The backup was made by a newer version of the software than the one running now.",
-    "PROBE_FAILED": "The probe restore could not be completed."
+    "PROBE_FAILED": "The probe restore could not be completed.",
+    "KEY_MISMATCH": "No stored key opens this backup (made by another system with the same key id, or damaged)."
   },
   "restore": {
     "title": "Restore this backup?",
@@ -153,7 +171,8 @@
     "passkeyHint": "Instead of a code you can confirm with your passkey.",
     "passkeySubmit": "Restore with passkey",
     "passkeyWaiting": "Waiting for passkey…",
-    "twoFactorSetupLink": "Open my account"
+    "twoFactorSetupLink": "Open my account",
+    "secretKeysMissing": "This backup holds secrets under encryption keys this system does not have ({keys}). Enter the key of the source system below, otherwise those secrets stay unreadable after the restore."
   },
   "deleteConfirm": {
     "title": "Delete this backup?",
@@ -168,9 +187,9 @@
     "dialog": {
       "title": "Upload a backup file",
       "description": "Upload a .tixbak file, for example from another server or the external target. It is checked completely before it appears in the list.",
-      "keyHint": "A backup of another system is encrypted with that system's key and cannot be read without it: enter the key below, otherwise the file is rejected and deleted. The key is only used to check the file; you will be asked again when you restore it.",
+      "keyHint": "If this backup was made by another system, enter that system’s encryption key (the APP_ENCRYPTION_KEYS value of its .env file) below. Without it the file is rejected and deleted. The key is only used to check the file; you will be asked again when you restore it.",
       "choose": "Choose file and upload",
-      "keyFailed": "The entered key text is not valid or collides with a key of this system."
+      "keyFailed": "The entered key text is not valid."
     }
   },
   "settings": {
@@ -243,7 +262,6 @@
     "protected": "The newest verified backup cannot be deleted.",
     "twoFactorSetupRequired": "Restoring requires two-factor authentication. Set it up in your account first.",
     "sourceKeysInvalid": "The entered encryption key is not valid. Expected entries like id:base64, separated by commas or lines.",
-    "sourceKeysConflict": "A key id of the entered key is already used by this system with a different key. Give this system's own key another id first.",
     "sourceKeysDisabled": "Restoring with the key of another system is disabled on this server. The operator can enable it with TIX_ALLOW_FOREIGN_BACKUP_KEYS=1 (see the backup documentation)."
   },
   "dashboardAlert": {
@@ -297,14 +315,18 @@
   "sourceKey": {
     "disabled": {
       "short": "Keys of another system are disabled on this server.",
-      "hint": "Backups of another system (with a different APP_ENCRYPTION_KEYS) cannot be restored here: this option is switched off. The server operator can enable it by setting TIX_ALLOW_FOREIGN_BACKUP_KEYS=1 for the application and restarting it. Warning: with this switch on, a SUPER_ADMIN can run arbitrary SQL as the database user (a restore executes the contents of the archive as the database superuser, and a SUPER_ADMIN can build an archive under their own key). Enable it only temporarily for a migration and only if all SUPER_ADMINs are fully trusted."
+      "title": "Restoring a backup of another system is switched off",
+      "intro": "This backup was made by another system, so it can only be read with that system’s encryption key. Entering such a key is switched off on this server.",
+      "step1": "Open the .env file of this installation (next to docker-compose.yml) and add this line:",
+      "step2": "Apply it by running this command in the same folder (a plain “docker compose restart” does NOT re-read the .env file):",
+      "step3": "Reload this page. A field for the encryption key then appears here.",
+      "warning": "Security: while this switch is on, a SUPER_ADMIN can run arbitrary SQL as the database user (a restore executes the contents of the archive as the database superuser, and a SUPER_ADMIN can build an archive under their own key). Enable it only for the migration and only if all SUPER_ADMINs are fully trusted. Afterwards remove the line from .env and run the command again."
     },
     "summary": "Backup from another system? Enter its encryption key",
-    "hint": "Only needed when this backup was made by a different installation (a different APP_ENCRYPTION_KEYS). Paste the complete APP_ENCRYPTION_KEYS value of the source system (all entries, e.g. k1:...,k0:...). The key is used on the server only for this step and is never shown again. After a successful restore it is kept in a protected file on the data volume as an additional key that can only decrypt (new data is still encrypted with this system's own key).",
+    "hint": "Paste the complete APP_ENCRYPTION_KEYS value of the source system (all entries, e.g. k1:...,k0:...). The key is used on the server only for this step and is never shown again. It also works when the source system used the same key id as this one. After the restore the key is kept in a protected file on the data volume as an additional key that can only decrypt, until the secrets were re-encrypted (below).",
     "label": "Encryption key(s) of the source system",
     "check": "Check key",
     "checking": "Checking…",
-    "conflictNote": "A key id that this system already uses with a different key cannot be added. If this is a fresh installation, give this system's own key a different id (for example k2) in APP_ENCRYPTION_KEYS.",
     "results": {
       "match": "The key matches this backup.",
       "readable": "This backup is already readable with this system's own keys; no other key is needed.",
@@ -312,15 +334,54 @@
       "unknown": "This backup was made with a key id that is not among the entered keys. Enter the complete key ring of the source system.",
       "mismatch": "The key does not match this backup (or the file is damaged).",
       "invalid": "The entered text is not a valid key. Expected entries like id:base64 (32 bytes), separated by commas or lines.",
-      "conflict": "A key id is already used by this system with a different key: {detail}",
       "notBackup": "This file is not a backup archive.",
       "notFound": "Backup not found.",
       "empty": "Enter the key first.",
       "rateLimited": "Too many attempts. Please wait a few minutes."
-    }
+    },
+    "otherSystem": "This backup was made by another system and cannot be read with this system’s key. Enter the encryption key of that system here: the value of APP_ENCRYPTION_KEYS from its .env file (for example k1:AbC…=).",
+    "otherSystemUpload": "A rejected upload is deleted: upload the file again and enter the key in the upload dialog.",
+    "reencrypt": {
+      "label": "Re-encrypt all secrets with this system’s key afterwards (recommended)",
+      "hint": "Decrypts the restored secrets (bank access, API keys, signing keys, settings) with the source key, stores them under this system’s own key and then removes the source key from this system. Backups made before that (including the one you restore now) still need the source key."
+    },
+    "stillMissing": "Note: {count, plural, one {# key} other {# keys}} that the secrets of this backup use are still missing, even with the entered keys."
   },
   "additionalKeys": {
     "title": "Additional decryption keys are active",
-    "text": "A backup of another system was restored. Its stored secrets (bank access, API keys, ticket signing keys, settings) stay readable through these additional keys: {ids}. They are kept in a protected file on the data volume and can only decrypt; new data is encrypted with this system's own key. Keep them as long as the restored data or backups of it exist. Re-encrypting all secrets with the current key is not offered: they are spread over many tables, so the additional keys must stay."
+    "text": "Secrets restored from another system (bank access, API keys, ticket signing keys, settings) are still encrypted with these additional keys: {ids}. They are kept in a protected file on the data volume and can only decrypt; new data is encrypted with this system’s own key. “Re-encrypt now” moves every stored secret to this system’s key and removes the additional keys afterwards. Backups made before that still need the source system’s key."
+  },
+  "reencrypt": {
+    "button": "Re-encrypt now",
+    "title": "Re-encrypt all secrets with this system’s key",
+    "description": "Every stored secret that still needs an additional key is decrypted and encrypted again with this system’s key. Only when everything was converted and verified are the additional keys removed. The shop keeps running meanwhile.",
+    "backupsNote": "Backups made before this step (scheduled, manual and the uploaded foreign one) still contain secrets under the old key: keep the source system’s key for them.",
+    "password": "Your password",
+    "code": "Authenticator or recovery code",
+    "passkeyHint": "Instead of a code you can confirm with your passkey.",
+    "passkeySubmit": "Re-encrypt with passkey",
+    "submit": "Re-encrypt now",
+    "submitting": "Starting…",
+    "last": {
+      "title": "Last re-encryption",
+      "complete": "Complete: the additional keys were removed ({keys}).",
+      "incomplete": "Incomplete: {remaining} secrets could not be converted, the additional keys were kept.",
+      "table": "{table}: {reEncrypted} re-encrypted, {skipped} unchanged, {unreadable} unreadable",
+      "unreadableRow": "Unreadable (kept as is): {table}, row {pk}"
+    },
+    "keysUsedByBackups": "{count, plural, =0 {None of the listed backups refers to the additional keys.} one {# listed backup holds secrets under the additional keys that will be removed.} other {# listed backups hold secrets under the additional keys that will be removed.}} {count, plural, =0 {} other {Restoring them later only works if you keep the key of the system that made them; otherwise their secrets stay unreadable.}}",
+    "acknowledge": "I understand that the additional keys are removed and older backups then need the source system's key.",
+    "backupsUnchecked": "{count, plural, one {# older backup carries} other {# older backups carry}} no key information and cannot be checked; keep the source system's key for them to be safe."
+  },
+  "unreadableSecrets": {
+    "title": "Stored secrets cannot be read",
+    "text": "{count, plural, one {# stored secret} other {# stored secrets}} (for example mail, payment or bank credentials) cannot be opened with the encryption keys of this system. Restore the backup again and enter the encryption key of the system that made it, or enter the affected credentials anew in the settings. After you entered them, use \"Check again\".",
+    "recheck": "Check again"
+  },
+  "reencryptPending": {
+    "title": "Re-encryption pending",
+    "text": "The re-encryption queued after the restore has not run yet. Until it has, the restored secrets still depend on the additional keys.",
+    "textGaveUp": "The re-encryption queued after the restore could not start because another backup operation kept running. Start it by hand with \"Re-encrypt now\" once that operation has finished.",
+    "dismiss": "Dismiss"
   }
 }

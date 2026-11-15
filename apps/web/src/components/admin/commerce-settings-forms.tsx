@@ -1,6 +1,12 @@
 'use client';
 
-import { GERMAN_STATES, SMTP_SECURITY_MODES, SUPPORTED_LOCALES } from '@tix/shared';
+import {
+  GERMAN_STATES,
+  SMTP_SECURITY_MODES,
+  SUPPORTED_LOCALES,
+  ZERO_VALUE_INVOICE_MODES,
+  type ZeroValueInvoiceMode,
+} from '@tix/shared';
 import { useTranslations } from 'next-intl';
 import { useActionState, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -197,6 +203,9 @@ export interface InvoicingValues {
   creditNoteNumberPattern: string;
   invoiceFooter?: string;
   smallAmountInvoiceLimit: number;
+  zeroValueInvoice: ZeroValueInvoiceMode;
+  zeroValueInvoiceNote: Partial<Record<string, string>>;
+  discountNoteOnAllInvoices: boolean;
 }
 
 export function InvoicingSettingsForm({
@@ -207,6 +216,7 @@ export function InvoicingSettingsForm({
   initial: InvoicingValues;
 }) {
   const t = useTranslations('admin.settings.invoicing');
+  const tl = useTranslations('common.locale');
   const tc = useTranslations('common.actions');
   const { state, formAction, err } = useSettingsForm(action);
   return (
@@ -265,6 +275,52 @@ export function InvoicingSettingsForm({
           defaultValue={initial.invoiceFooter ?? ''}
         />
       </Field>
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium">{t('zeroValueTitle')}</h3>
+        <Field
+          label={t('zeroValueInvoice')}
+          htmlFor="zeroValueInvoice"
+          error={err('zeroValueInvoice')}
+          hint={t('zeroValueInvoiceHint')}
+        >
+          <NativeSelect
+            id="zeroValueInvoice"
+            name="zeroValueInvoice"
+            defaultValue={initial.zeroValueInvoice}
+          >
+            {ZERO_VALUE_INVOICE_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`zeroValueOptions.${mode}`)}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <div className="grid gap-4 md:grid-cols-2">
+          {SUPPORTED_LOCALES.map((loc) => (
+            <Field
+              key={loc}
+              label={`${t('zeroValueInvoiceNote')} (${tl(loc)})`}
+              htmlFor={`zeroValueInvoiceNote-${loc}`}
+              error={err(`zeroValueInvoiceNote.${loc}`)}
+              hint={t('zeroValueInvoiceNoteHint')}
+            >
+              <Textarea
+                id={`zeroValueInvoiceNote-${loc}`}
+                name={`zeroValueInvoiceNote.${loc}`}
+                rows={3}
+                maxLength={1000}
+                defaultValue={initial.zeroValueInvoiceNote[loc] ?? ''}
+              />
+            </Field>
+          ))}
+        </div>
+        <SwitchRow
+          name="discountNoteOnAllInvoices"
+          defaultChecked={initial.discountNoteOnAllInvoices}
+          label={t('discountNoteOnAllInvoices')}
+          hint={t('discountNoteOnAllInvoicesHint')}
+        />
+      </div>
       <SubmitButton>{tc('save')}</SubmitButton>
     </ActionForm>
   );

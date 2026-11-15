@@ -103,7 +103,7 @@
     "reset": "Fit plan",
     "ariaLabel": "Seating plan",
     "remaining": "{count, plural, =0 {sold out} one {# spot left} other {# spots left}}",
-    "keyboardHelp": "Seating plan. Use the arrow keys to move between seats, Home and End to jump to the ends of a row, Page Up and Page Down to change section, Enter or Space to select or release a seat and Escape to leave the plan. Alternatively choose the list instead of the plan."
+    "keyboardHelp": "Seating plan. Use the arrow keys to move between seats; at the edge of a block they continue into the neighbouring block in that direction. Home and End jump to the ends of a row, Control plus Home or End to the first or last seat of the plan, Page Up and Page Down change the block. Enter or Space selects or releases a seat (or opens a standing area), Escape leaves the plan. Alternatively choose the list instead of the plan."
   },
   "selection": {
     "maintenanceTitle": "Maintenance in progress",
@@ -112,6 +112,7 @@
     "row": "Row {label}",
     "seat": "Seat {label}",
     "from": "from {price}",
+    "standingLabel": "Standing area {name}",
     "legend": {
       "unavailable": "Sold",
       "selected": "Your selection",

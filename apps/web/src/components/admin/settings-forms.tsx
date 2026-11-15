@@ -2,6 +2,8 @@
 
 import {
   COOKIE_NOTICE_TEXT_MAX,
+  FULL_DISCOUNT_POLICIES,
+  type FullDiscountPolicy,
   SEO_DESCRIPTION_MAX,
   SEAT_SELECTION_STYLES,
   START_PAGE_LAYOUTS,
@@ -24,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { IDLE, type ActionState, type FieldErrorCode } from '@/lib/action-state';
+import { centsToInput } from '@/lib/money';
 import {
   ActionForm,
   ActionFeedback,
@@ -266,6 +269,9 @@ export interface CheckoutValues {
   requirePhone: boolean;
   requireBillingAddress: boolean;
   refundFeesByDefault: boolean;
+  fullDiscountPolicy: FullDiscountPolicy;
+  minimumOrderTotalAfterDiscounts: number;
+  maxDiscountPercent: number;
 }
 
 export function CheckoutSettingsForm({
@@ -484,6 +490,61 @@ export function CheckoutSettingsForm({
           label={t('refundFeesByDefault')}
           hint={t('refundFeesByDefaultHint')}
         />
+      </div>
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium">{t('discountsTitle')}</h3>
+        <Alert>
+          <AlertDescription>{t('discountsNotice')}</AlertDescription>
+        </Alert>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field
+            label={t('fullDiscountPolicy')}
+            htmlFor="fullDiscountPolicy"
+            error={err('fullDiscountPolicy')}
+            hint={t('fullDiscountPolicyHint')}
+          >
+            <NativeSelect
+              id="fullDiscountPolicy"
+              name="fullDiscountPolicy"
+              defaultValue={initial.fullDiscountPolicy}
+            >
+              {FULL_DISCOUNT_POLICIES.map((policy) => (
+                <option key={policy} value={policy}>
+                  {t(`fullDiscountOptions.${policy}`)}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field
+            label={t('minimumOrderTotal')}
+            htmlFor="minimumOrderTotalAfterDiscounts"
+            error={err('minimumOrderTotalAfterDiscounts')}
+            hint={t('minimumOrderTotalHint')}
+          >
+            <Input
+              id="minimumOrderTotalAfterDiscounts"
+              name="minimumOrderTotalAfterDiscounts"
+              inputMode="decimal"
+              defaultValue={centsToInput(initial.minimumOrderTotalAfterDiscounts)}
+            />
+          </Field>
+          <Field
+            label={t('maxDiscountPercent')}
+            htmlFor="maxDiscountPercent"
+            error={err('maxDiscountPercent')}
+            hint={t('maxDiscountPercentHint')}
+          >
+            <Input
+              id="maxDiscountPercent"
+              name="maxDiscountPercent"
+              type="number"
+              min={1}
+              max={100}
+              defaultValue={initial.maxDiscountPercent}
+              required
+            />
+          </Field>
+        </div>
       </div>
       <SubmitButton>{tc('save')}</SubmitButton>
     </ActionForm>

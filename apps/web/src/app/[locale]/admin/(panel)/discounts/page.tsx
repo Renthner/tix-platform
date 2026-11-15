@@ -47,10 +47,11 @@ export default async function DiscountsPage({
   const q = sp.q?.trim().slice(0, 100) || undefined;
   const batch = sp.batch && /^[0-9a-f-]{36}$/i.test(sp.batch) ? sp.batch : undefined;
   const core = getCore();
-  const [t, format, general, list, eventRows, categories, tariffs] = await Promise.all([
+  const [t, format, general, checkout, list, eventRows, categories, tariffs] = await Promise.all([
     getTranslations('discounts'),
     getFormatter(),
     getSetting(core, 'general'),
+    getSetting(core, 'checkout'),
     listDiscountCodes(core.db, { q, batchId: batch, page, pageSize }),
     core.db
       .select({ id: events.id, title: events.title })
@@ -106,6 +107,7 @@ export default async function DiscountsPage({
               options={{ events: eventRows, categories, tariffs }}
               timeZone={general.defaultTimeZone}
               currency={general.defaultCurrency}
+              policy={checkout}
             />
           </CardContent>
         </Card>

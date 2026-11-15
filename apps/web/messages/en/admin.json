@@ -51,6 +51,7 @@
     "required": "This field is required.",
     "pngOnly": "Only PNG images are allowed here (Apple Wallet requirement).",
     "hostNotAllowed": "This host is not allowed: it must not be this machine, a link-local or cloud-metadata address, or an internal service of this stack. Private network addresses are fine.",
+    "percentCap": "This percentage is above the maximum allowed by the discount policy (Settings → Checkout).",
     "invalid": "This value is not valid.",
     "tooLong": "This text is too long.",
     "tooSmall": "This value is too small.",
@@ -1061,7 +1062,20 @@
         "order": "After “Place binding order” the order holds the seats: for bank transfer until the cancellation deadline (Payments → Bank transfer), for PayPal until the approval time limit (Payments → PayPal)."
       },
       "refundFeesByDefault": "Refund fees when cancelling paid orders by default",
-      "refundFeesByDefaultHint": "Pre-selects “Refund fees” in the cancel & refund form of an order. The admin can change it for every cancellation."
+      "refundFeesByDefaultHint": "Pre-selects “Refund fees” in the cancel & refund form of an order. The admin can change it for every cancellation.",
+      "discountsTitle": "Discount codes",
+      "discountsNotice": "Whether a free ticket (an order reduced to 0.00 by a discount code) has tax or accounting consequences, for example as a gift without consideration (unentgeltliche Wertabgabe), has to be clarified by your organisation with its own tax adviser. These switches let you choose how the shop behaves.",
+      "fullDiscountPolicy": "Full discounts (orders of 0.00)",
+      "fullDiscountPolicyHint": "What happens when a discount code reduces an order to 0.00. Orders that are free without any code (free tariffs) are not affected.",
+      "fullDiscountOptions": {
+        "ALLOW": "Allow",
+        "ALLOW_WITH_NOTE": "Allow and print the invoice note",
+        "DISALLOW": "Disallow (codes must leave a payable amount)"
+      },
+      "minimumOrderTotal": "Minimum order total after discounts",
+      "minimumOrderTotalHint": "A code that would push the total below this amount is refused. 0.00 = unrestricted. With “Disallow” at least 0.01 always applies.",
+      "maxDiscountPercent": "Maximum percentage of a code (%)",
+      "maxDiscountPercentHint": "The cap applies per code: percentage codes above this value cannot be saved and are refused in the shop. 100 = no cap. Several stackable codes can still add up to more than the cap."
     },
     "seatDisplay": {
       "title": "Seating chart colours",
@@ -1202,7 +1216,18 @@
       "invoiceFooter": "Invoice footer",
       "invoiceFooterHint": "Optional text at the bottom of every invoice page, e.g. bank details or a greeting.",
       "smallAmountInvoiceLimit": "Small-amount invoice limit",
-      "smallAmountInvoiceLimitHint": "Box office: above this gross total an invoice needs the buyer's name and full address (default 250.00, the German Kleinbetragsrechnung limit). Complimentary tickets are exempt."
+      "smallAmountInvoiceLimitHint": "Box office: above this gross total an invoice needs the buyer's name and full address (default 250.00, the German Kleinbetragsrechnung limit). Complimentary tickets are exempt.",
+      "zeroValueTitle": "Orders of 0.00",
+      "zeroValueInvoice": "Invoice for orders of 0.00",
+      "zeroValueInvoiceHint": "Applies to orders without anything to pay (free tariffs, discount code up to 0.00). Complimentary box-office tickets never get an invoice.",
+      "zeroValueOptions": {
+        "INVOICE": "Issue an invoice over 0.00",
+        "NO_INVOICE": "Do not issue an invoice"
+      },
+      "zeroValueInvoiceNote": "Invoice note for orders reduced to 0.00",
+      "zeroValueInvoiceNoteHint": "Printed on the invoice of an order that a discount code reduced to 0.00 when “Full discounts” (Settings → Checkout) is set to “Allow and print the invoice note”. Word it as agreed with your tax adviser. Empty = no note. Missing languages use the shop default language.",
+      "discountNoteOnAllInvoices": "Print the note on every discounted invoice",
+      "discountNoteOnAllInvoicesHint": "Also prints the note on invoices that contain a discount code but still have an amount to pay."
     },
     "bankTransfer": {
       "title": "Bank transfer (prepayment)",

@@ -27,11 +27,11 @@ Derived deterministically so it always increases:
 
 ```
 versionCode = MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + stage
-stage: alpha.N -> N (1-29)   beta.N -> 30+N (N 1-29)   rc.N -> 60+N (N 1-29)   final -> 99
+stage: alpha.N -> N (1-49)   beta.N -> 50+N (N 1-19)   rc.N -> 70+N (N 1-19)   final -> 99
 ```
 
 Examples: `1.0.0-alpha.1` -> 1000001, `1.0.0-beta.1` -> 1000031, `1.0.0` -> 1000099. MINOR and PATCH
-must be at most 99, N between 1 and 29; the script rejects anything else.
+must be at most 99, N between 1 and 49 (alpha) or 1 and 19 (beta, rc); the script rejects anything else.
 
 ## Cutting a release
 

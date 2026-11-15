@@ -7,10 +7,13 @@ import {
   bindFromSecret,
   countAdminPasskeys,
   passkeysAvailable,
-  verifyPasskeyAuthentication,
-  checkAdminPassword,
   clearSecretSetting,
   assertBackupIdle,
+  clearReEncryptPending,
+  clearSecretsUnreadable,
+  setSecretsUnreadable,
+  verifySecretsReadable,
+  secretKeysMissingFrom,
   archiveKey,
   checkBackupKey,
   countRestoreLoss,
@@ -20,6 +23,7 @@ import {
   hasSecretSetting,
   requestBackup,
   requestProbe,
+  requestReEncrypt,
   requestRestore,
   requestVerify,
   saveSecretSetting,
@@ -29,10 +33,15 @@ import {
   stageSourceKeys,
   parseSourceKeys,
   testExternalTarget,
-  verifyAdminSecondFactor,
 } from '@tix/core';
 import { parseSetting } from '@tix/shared';
-import { loadKeyRing, type SecretBoxKey } from '@tix/shared/server';
+import {
+  loadExtraKeys,
+  loadKeyRing,
+  mergeKeyRings,
+  parseKeyRing,
+  type SecretBoxKey,
+} from '@tix/shared/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
@@ -50,6 +59,7 @@ import { clientIp, enforceRateLimit, uuidParam } from '@/server/http';
 import { logger } from '@/server/logger';
 import { audit } from './audit';
 import { fieldError, flag, success, text, zodFieldErrors } from './form';
+import { reauthenticate as reauthWith } from './reauth';
 
 const fail = (
   code: Extract<BackupActionState, { status: 'error' }>['code'],
@@ -302,7 +312,36 @@ export async function previewRestoreAction(id: string): Promise<RestorePreview |
     passkeys: passkeyCount > 0 && passkeysAvailable(core),
     twoFactorSetupRequired: settings.restoreRequiresTwoFactor && !twoFactor,
     foreignKeysAllowed: foreignBackupKeysAllowed(),
+    // Cheap header + first block check with this system's own keys: tells the dialog up front
+    // that the backup comes from another system and needs its key.
+    needsSourceKey: await needsSourceKey(entry.directory),
+    additionalKeys: additionalKeyCount(),
+    // Secrets inside the backup that depend on keys this system does not have.
+    secretKeysMissing: secretKeysMissingFrom(entry.manifest, currentKeyRing()),
   };
+}
+
+async function needsSourceKey(directory: string): Promise<boolean> {
+  try {
+    return (
+      (await checkBackupKey(
+        getBackupBuckets().backups,
+        archiveKey(directory),
+        archiveKeyRing(),
+      )) !== 'MATCH'
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Number of additional (foreign) decrypt keys on this system's data volume. */
+function additionalKeyCount(): number {
+  try {
+    return loadExtraKeys().length;
+  } catch {
+    return 0;
+  }
 }
 
 /** Binds a restore passkey challenge to this restore confirmation (action + backup). */
@@ -329,6 +368,21 @@ export async function restorePasskeyOptionsAction(id: string): Promise<RestorePa
   }
 }
 
+/** Fresh password + second factor / passkey for a backup action (shared helper). */
+async function reauthenticate(
+  core: ReturnType<typeof getCore>,
+  session: Awaited<ReturnType<typeof requireAdmin>>,
+  fd: FormData,
+  bind: string,
+): Promise<BackupActionState | null> {
+  const denied = await reauthWith(core, session, fd, {
+    purpose: 'restore',
+    bind,
+    requireTwoFactor: (await getSetting(core, 'backup')).restoreRequiresTwoFactor,
+  });
+  return denied ? fail(denied) : null;
+}
+
 /**
  * Restore: fresh password, authenticator / recovery code when the user has 2FA, explicit
  * acknowledgement. Everything else (validation, safety backup, maintenance mode) runs in the worker.
@@ -346,59 +400,8 @@ export async function restoreBackupAction(
     await enforceRateLimit('backup-restore-ip', await clientIp(), 20, 15 * 60_000);
 
     if (!flag(fd, 'acknowledge')) return fail('acknowledge');
-    const password = fd.get('password');
-    // Unknown / inactive / locked accounts and wrong passwords all answer "invalid".
-    const check = await checkAdminPassword(
-      core,
-      session.email,
-      typeof password === 'string' ? password : '',
-      await clientIp(),
-    );
-    if (check.status !== 'ok' || check.userId !== session.userId) return fail('password');
-    if ((await getSetting(core, 'backup')).restoreRequiresTwoFactor && !check.twoFactor) {
-      return fail('twoFactorSetupRequired');
-    }
-    if (check.twoFactor) {
-      // Either a fresh passkey assertion (challenge bound to this restore, single use) or a
-      // TOTP / recovery code.
-      const passkeyResponse = text(fd, 'passkeyResponse');
-      const code = text(fd, 'code');
-      if (passkeyResponse) {
-        let response: unknown;
-        try {
-          response = JSON.parse(passkeyResponse);
-        } catch {
-          return fail('passkeyInvalid');
-        }
-        const ip = await clientIp();
-        try {
-          const { userId } = await verifyPasskeyAuthentication(core, {
-            purpose: 'restore',
-            challengeId: text(fd, 'passkeyChallengeId'),
-            response,
-            bind: restoreBind(backupId),
-            expectedUserId: session.userId,
-            ipAddress: ip === '0.0.0.0' ? null : ip,
-          });
-          if (userId !== session.userId) return fail('passkeyInvalid');
-        } catch (err) {
-          if (err instanceof DomainError) {
-            return fail(err.code === 'ACCOUNT_LOCKED' ? 'locked' : 'passkeyInvalid');
-          }
-          throw err;
-        }
-      } else {
-        if (!code) return fail('twoFactorRequired');
-        try {
-          await verifyAdminSecondFactor(core, session.userId, code);
-        } catch (err) {
-          if (err instanceof DomainError) {
-            return fail(err.code === 'ACCOUNT_LOCKED' ? 'locked' : 'twoFactorInvalid');
-          }
-          throw err;
-        }
-      }
-    }
+    const denied = await reauthenticate(core, session, fd, restoreBind(backupId));
+    if (denied) return denied;
 
     const entry = await findBackup(getBackupBuckets().backups, backupId);
     if (!entry) return fail('notFound');
@@ -410,26 +413,23 @@ export async function restoreBackupAction(
     let keyToken: string | undefined;
     if (typeof sourceKeysText === 'string' && sourceKeysText.trim() !== '') {
       try {
-        keyToken = await stageSourceKeys(core, sourceKeysText, currentKeyRing());
+        keyToken = await stageSourceKeys(core, sourceKeysText);
       } catch (err) {
         if (err instanceof SourceKeysError) {
-          return fail(
-            err.code === 'CONFLICT'
-              ? 'sourceKeysConflict'
-              : err.code === 'DISABLED'
-                ? 'sourceKeysDisabled'
-                : 'sourceKeysInvalid',
-          );
+          return fail(err.code === 'DISABLED' ? 'sourceKeysDisabled' : 'sourceKeysInvalid');
         }
         throw err;
       }
     }
 
-    await requestRestore(core, backupId, session.userId, keyToken);
+    // Checkbox, default on in the dialog: only meaningful together with source keys.
+    const reencrypt = Boolean(keyToken) && flag(fd, 'reencrypt');
+    await requestRestore(core, backupId, session.userId, keyToken, reencrypt);
     await audit(core.db, session, 'backup.restore.requested', 'backup', backupId, {
       backupCreatedAt: entry.manifest.createdAt,
       // Whether an extra key was supplied, never the key itself.
       sourceKeysSupplied: Boolean(keyToken),
+      reencrypt,
     });
     return queued();
   });
@@ -437,8 +437,15 @@ export async function restoreBackupAction(
 
 // ─── Keys of another system ───────────────────────────────────────────────────────────
 
-/** The ring of THIS system (configured keys + additional keys already stored). */
+/** The ring of THIS system (configured keys + additional keys already stored): for stored secrets. */
 const currentKeyRing = () => loadKeyRing(getEnv().APP_ENCRYPTION_KEYS);
+
+/**
+ * Keys that may open ARCHIVES: the configured keys, plus additional keys of other systems only
+ * while the operator allows them (`TIX_ALLOW_FOREIGN_BACKUP_KEYS`), like the worker does.
+ */
+const archiveKeyRing = () =>
+  foreignBackupKeysAllowed() ? currentKeyRing() : parseKeyRing(getEnv().APP_ENCRYPTION_KEYS);
 
 /**
  * "Check key": does the entered source key decrypt this backup? Reads only the header and the
@@ -459,14 +466,10 @@ export async function checkSourceKeysAction(id: string, keysText: string): Promi
   let current: SecretBoxKey[];
   let pasted: SecretBoxKey[];
   try {
-    current = currentKeyRing();
-    pasted = parseSourceKeys(keysText, current);
+    current = archiveKeyRing();
+    pasted = parseSourceKeys(keysText);
   } catch (err) {
-    if (err instanceof SourceKeysError) {
-      return err.code === 'CONFLICT'
-        ? { result: 'conflict', detail: err.message }
-        : { result: 'invalid' };
-    }
+    if (err instanceof SourceKeysError) return { result: 'invalid' };
     throw err;
   }
   const buckets = getBackupBuckets();
@@ -474,8 +477,13 @@ export async function checkSourceKeysAction(id: string, keysText: string): Promi
   if (!entry) return { result: 'notFound' };
   const archive = archiveKey(entry.directory);
   // Already readable with this system's own keys: the pasted keys are not needed for the archive.
+  // Secrets of the backup whose key is neither among this system's keys nor among the pasted ones.
+  const stillMissing = secretKeysMissingFrom(
+    entry.manifest,
+    mergeKeyRings(currentKeyRing(), pasted),
+  ).length;
   if ((await checkBackupKey(buckets.backups, archive, current)) === 'MATCH') {
-    return { result: 'readable' };
+    return { result: 'readable', stillMissing };
   }
   // Only the pasted keys decide the outcome (the own keys were tried above).
   const outcome = await checkBackupKey(buckets.backups, archive, pasted);
@@ -488,6 +496,7 @@ export async function checkSourceKeysAction(id: string, keysText: string): Promi
           : outcome === 'NOT_A_BACKUP'
             ? 'notBackup'
             : 'mismatch',
+    stillMissing,
   };
 }
 
@@ -506,16 +515,91 @@ export async function stageUploadKeysAction(keysText: string): Promise<StageKeys
   try {
     return {
       ok: true,
-      token: await stageSourceKeys(getCore(), String(keysText), currentKeyRing()),
+      token: await stageSourceKeys(getCore(), String(keysText)),
     };
   } catch (err) {
     if (err instanceof SourceKeysError) {
-      return {
-        ok: false,
-        error:
-          err.code === 'CONFLICT' ? 'conflict' : err.code === 'DISABLED' ? 'disabled' : 'invalid',
-      };
+      return { ok: false, error: err.code === 'DISABLED' ? 'disabled' : 'invalid' };
     }
     throw err;
   }
+}
+
+// ─── Re-encryption of secrets ─────────────────────────────────────────────────────────
+
+/** Binds a passkey challenge to "re-encrypt secrets" (separate from any restore). */
+const reEncryptBind = () => bindFromSecret('reencrypt-secrets');
+
+/** Step 1 of confirming "re-encrypt now" with a passkey. */
+export async function reEncryptPasskeyOptionsAction(): Promise<RestorePasskeyOptions> {
+  const session = await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
+  const core = getCore();
+  try {
+    await enforceRateLimit('backup-reencrypt-options', session.userId, 20, 15 * 60_000);
+    return { ok: true, ...(await beginPasskeyReauth(core, session.userId, reEncryptBind())) };
+  } catch (err) {
+    if (err instanceof DomainError) {
+      return { ok: false, error: err.code === 'RATE_LIMITED' ? 'rateLimited' : 'failed' };
+    }
+    throw err;
+  }
+}
+
+/**
+ * "Re-encrypt now": moves every stored secret that still depends on an additional key to this
+ * system's key (worker job), then drops the unused additional keys. Fresh password + second factor
+ * like a restore; audited (the worker adds counts per table).
+ */
+export async function reEncryptNowAction(
+  _prev: BackupActionState,
+  fd: FormData,
+): Promise<BackupActionState> {
+  const session = await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
+  return guarded(async () => {
+    const core = getCore();
+    await enforceRateLimit('backup-reencrypt', session.userId, 5, 15 * 60_000);
+    await enforceRateLimit('backup-reencrypt-ip', await clientIp(), 20, 15 * 60_000);
+    // Removing the additional keys is irreversible for older backups: explicit acknowledgement.
+    if (additionalKeyCount() > 0 && !flag(fd, 'acknowledge')) return fail('acknowledge');
+    const denied = await reauthenticate(core, session, fd, reEncryptBind());
+    if (denied) return denied;
+    await requestReEncrypt(core, session.userId, 'MANUAL');
+    await audit(core.db, session, 'secrets.reencrypt.requested', 'secrets', null, {
+      additionalKeys: additionalKeyCount(),
+      acknowledgedKeyRemoval: additionalKeyCount() > 0,
+    });
+    revalidatePath('/admin/backups');
+    return queued();
+  });
+}
+
+/**
+ * "Check again" for the "stored secrets cannot be read" notice: re-runs the verification pass with
+ * this system's keys (e.g. after the affected credentials were entered anew) and clears the notice
+ * when nothing is unreadable any more, otherwise updates the count.
+ */
+export async function recheckSecretsAction(): Promise<BackupActionState> {
+  await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
+  const core = getCore();
+  const readable = await verifySecretsReadable(core, currentKeyRing());
+  if (readable.unreadable === 0) await clearSecretsUnreadable(core);
+  else {
+    await setSecretsUnreadable(core, {
+      count: readable.unreadable,
+      at: new Date().toISOString(),
+      source: 'RESTORE',
+    });
+  }
+  revalidatePath('/admin/backups');
+  return { status: 'idle' };
+}
+
+/** Hides the "re-encryption pending" notice (it stays gone; "Re-encrypt now" still works). */
+export async function dismissReEncryptPendingAction(): Promise<BackupActionState> {
+  const session = await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
+  const core = getCore();
+  await clearReEncryptPending(core);
+  await audit(core.db, session, 'secrets.reencrypt.pending.dismissed', 'secrets', null);
+  revalidatePath('/admin/backups');
+  return { status: 'idle' };
 }

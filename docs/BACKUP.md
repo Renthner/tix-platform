@@ -160,9 +160,11 @@ To restore it on a system with a different `APP_ENCRYPTION_KEYS`:
 > archive can therefore contain `COPY ... TO PROGRAM` or similar and run commands inside the database
 > container. With this system's own keys only someone who already holds them can build such an archive; the
 > "key of another system" feature lets a SUPER_ADMIN supply a key of their own. So the operator must opt in:
-> set `TIX_ALLOW_FOREIGN_BACKUP_KEYS=1` (or `true`) in `.env` and restart, migrate, then remove it again.
+> add the line `TIX_ALLOW_FOREIGN_BACKUP_KEYS=1` (or `true`) to `.env`, apply it with `docker compose up -d` (a plain
+> `docker compose restart` does **not** re-read `.env`), migrate, then remove the line and run `docker compose up -d` again.
 > **With the switch on, a SUPER_ADMIN has the power of the database superuser.** While it is off, the key
-> section of the upload and restore dialogs is replaced by a hint, and the server refuses staged keys, key
+> section of the upload and restore dialogs is replaced by a hint that shows exactly this line and command (also
+> where an upload or restore was rejected because the archive is from another system), and the server refuses staged keys, key
 > checks, uploads that carry a key token and restores with keys (web actions, upload route and worker alike).
 > Keys that an earlier restore already stored in the additional-keys file keep working.
 
@@ -170,15 +172,19 @@ To restore it on a system with a different `APP_ENCRYPTION_KEYS`:
    "maximum upload size"). In the same dialog paste the source system's complete `APP_ENCRYPTION_KEYS` value
    (all entries, `id:base64`, separated by commas or lines; a pasted `APP_ENCRYPTION_KEYS=` prefix is fine).
    The file is checked completely (every block authenticated, checksum, manifest) before it appears in the
-   list; without the key the import is rejected and the file deleted. Nothing is persisted at this step.
-2. **Restore**: open the restore dialog of the backup, expand "Backup from another system", paste the key again
+   list; without the key the import is rejected and the file deleted (the status panel then says that this backup
+   was made by another system and where to enter its key - upload the file again with the key). Nothing is
+   persisted at this step.
+2. **Restore**: open the restore dialog of the backup (when this system's own keys cannot read the archive the key
+   section opens by itself and says why), paste the key again
    and use **Check key**. The check reads only the archive header and the first encrypted block and reports
    "matches" / "key id not among the entered keys" / "does not match (or file damaged)"; it starts and stores
    nothing. It tests only the keys you pasted; if this system's own keys (including stored additional keys) can
    already read the archive it says so ("already readable by this system") instead of "matches". It proves the
    archive key only: paste the complete ring, because secrets inside the database may
    use older key ids of the source ring. The restore itself needs the usual confirmation (password, 2FA or
-   passkey, acknowledgement) - unchanged.
+   passkey, acknowledgement) - unchanged. Leave **Re-encrypt all secrets with this system's key afterwards** ticked
+   (default) unless you want to keep the source key in use for now.
 3. **After the restore** the entered entries stay available as **additional, decrypt-only keys** in
    `<TIX_SECRETS_DIR, default /data/secrets>/extra-encryption-keys` (override: `TIX_EXTRA_KEYS_FILE`; one
    `id:base64` per line, mode 0600, on the data volume). The shared key-ring loader reads the file together with
@@ -202,42 +208,108 @@ token, and the worker consumes it once (`GETDEL`). The key is never logged, neve
 status or error messages (the audit entry records only that a key was supplied, and the ids of stored keys), and
 is never echoed back to the browser. Rate limits apply to the check and staging actions.
 
-**Key id collisions.** Envelopes and archives carry only the key id, so one id cannot stand for two different
-keys. If the source ring uses an id that this system already uses with a different key (e.g. both are `k1`,
-the id older versions of the key generator always used), the entry is rejected with a clear message. The
-`keygen` command now picks a random id (`k` + 6 hex characters), so separate systems rarely collide. For a
-target system with a `k1` key, give its own key another id (e.g. `k2:...`) in `APP_ENCRYPTION_KEYS` before
-first use and restore again. An alternative
-that avoids the rename (several keys per id, picked by trial decryption) is deliberately not implemented.
+**Key id collisions are not a problem.** Envelopes and archives carry only the key id, but the key ring keeps a
+LIST of candidate keys per id: decrypting tries every candidate stored under the id (AES-GCM authentication
+tells the right one, the first block of an archive likewise), encrypting always uses the first key of
+`APP_ENCRYPTION_KEYS`. So the source system may use the same id as this one (both `k1`, the id older versions of
+the key generator always used) and a second foreign key may share the id of an earlier one. Only
+`APP_ENCRYPTION_KEYS` itself still refuses duplicate ids (it is the operator's own ring); the additional keys
+file may repeat an id. Entries that are identical (same id and material) are stored once.
 
-The same applies to the additional-keys file: if you restored the backup of system A (key id `k1`) and later
-want to restore the backup of system B whose ring also uses `k1` with a different key, the second restore is
-**rejected** because `k1` is already stored with other material. Be aware of the real limitation: one system
-cannot hold two different keys under one id, and the ids inside existing archives and database values cannot be
-rewritten. Workarounds, in order of preference: (1) restore B into a fresh installation whose own key has a
-different id; (2) if A's data is no longer needed on this system (the restore of B replaces the whole database,
-so the live data will only contain B's secrets), stop using A: delete the `k1:` line from the additional-keys
-file and restore B. Note that this also makes A's backups, and the automatic safety backup created before the
-restore (it contains A's secrets under `k1`), unreadable for their embedded secrets unless you keep a copy of A's
-line elsewhere. Re-saving secrets (re-entering a bank PIN or API key) only re-encrypts the value you save with
-this system's own key; it does not change old ids.
+### Re-encrypting the secrets with this system's key
+
+After a restore with a source key the restored secrets (bank PINs, API credentials, settings secrets, ticket
+signing keys, scanner LAN secrets, admin TOTP secrets, queued e-mail variables) are still encrypted with the
+source key. **Re-encryption** moves every one of them to this system's own (first) key and then removes the
+source key from this system:
+
+- **Automatically after the restore**: the restore dialog has the option "Re-encrypt all secrets with this
+  system's key afterwards" (default on, shown with the key field). The worker queues it as its own job after
+  the restore has finished - a failure there never fails the restore and never leaves the restore-incomplete
+  marker behind.
+- **Later, by hand**: while additional keys exist the Backups page shows them with a **Re-encrypt now** button
+  (SUPER_ADMIN, fresh password plus second factor / passkey like a restore). The same worker job runs; progress
+  and the result (counts per table) are shown in the status panel, the last result stays on the page.
+
+What the job does (`packages/core/src/secrets`, `packages/core/src/backup/reencrypt.ts`):
+
+1. For every entry of the **secret registry** (table, primary key, value column or jsonb key, context string)
+   it reads the rows in keyset order, in batches of 200 with one transaction and `FOR UPDATE` row locks each.
+2. A value the primary key already opens is left untouched. Otherwise it is decrypted with the full ring
+   (configured + additional keys, all candidates per id), encrypted with the primary key and decrypted again
+   with the primary key only; the update is a compare-and-swap on the old envelope and is read back inside the
+   transaction before it commits. Rows that no known key opens are **not** touched; they are reported by table
+   and primary key (never by value) and make the run "incomplete".
+3. The job is idempotent and resumable without a stored cursor (a re-run only finds what is left); a failure
+   rolls back only the current batch, everything stays readable with the full ring.
+4. Only if a final verification pass finds **every** registered value readable with the primary key alone and
+   nothing was reported unreadable are the additional keys removed (the file is deleted when no entry is left).
+   Otherwise they are kept and the page says so.
+5. Counts, table names and key **ids** go into the audit entry `secrets.reencrypt`; values and key material are
+   never logged or stored. Re-encryption changes `updated_at` only where a trigger does so.
+
+The registry covers: `system_settings.encrypted_value`, `bank_connections.credentials_encrypted`,
+`event_signing_keys.private_key_encrypted`, `event_scanner_secrets.lan_secret_encrypted`,
+`admin_users.totp_secret_encrypted`, `admin_users.totp_pending_secret_encrypted` and the `variables` key of
+`email_messages.attachments`. Redis-only ciphertext (staged source keys, bank TAN responses) is short-lived and
+never part of a backup.
+
+**For developers: adding an encrypted value.** Add an entry to `SECRET_COLUMNS` in
+`packages/core/src/secrets/registry.ts` (export the context helper instead of copying the string) and the call
+site to `ENCRYPT_CALL_SITES` (or to `TRANSIENT_ENCRYPT_CALL_SITES` for Redis-only values). Tests fail until you
+do: `secrets-registry.test.ts` checks every `*encrypted*` column of the Drizzle schema and every source file
+that calls `encrypt(` / `encryptJson(`, and `backup-source-keys.integration.test.ts` sweeps the live schema for
+envelope-shaped values and needs a fixture row per entry.
+
+**What still needs the source key after re-encryption.** The source key is no longer needed _by this system_
+for its live data, but every backup that was made earlier still contains secrets under it: the foreign archive
+you restored from, and any backup this system made between the restore and the re-encryption (scheduled,
+manual, the pre-restore safety backup and pre-update backups). Restoring one of those on a system that does not
+have the source key needs the key again (the same dialog). Keep a copy of the source system's
+`APP_ENCRYPTION_KEYS` for as long as such backups exist. Backups made after the re-encryption contain only this
+system's key.
+
+**Safeguards against losing secrets.**
+
+- **Archives and secrets use different rings.** Backup _archives_ (upload, restore, verify, probe) are opened
+  with the configured `APP_ENCRYPTION_KEYS` only; additional keys that are already stored in the key file
+  open archives **only while `TIX_ALLOW_FOREIGN_BACKUP_KEYS` is on**. Without the switch, someone who once pasted a
+  key can not later build an archive under it (the restore runs as the database superuser). The secrets
+  _inside_ the database keep using the additional keys either way. A refused archive fails with the usual key
+  step codes (`REJECTED_KEY_UNKNOWN`, `IMPORT_KEY_UNKNOWN`, verify `KEY_...`).
+- **Verification after every restore.** The worker opens every registered secret with the keys this system has.
+  If some stay unreadable (a wrong or incomplete source key, a backup holding secrets of a third system) the
+  Backups page shows a persistent red notice "N stored secrets cannot be read", an alert mail goes to the backup
+  alert address, and the audit entry `backup.restore` carries the count. The notice disappears when a complete
+  re-encryption or a later restore finds nothing unreadable, or after **Check again** (re-runs the pass, e.g. once
+  the affected credentials were entered anew in the settings).
+  The probe restore's deep check does the same for its throwaway copy and fails the probe.
+- **Key fingerprints in manifests.** Each new backup's manifest lists `secretKeys` - fingerprints
+  (`<keyId>:<8 hex>`, SHA-256 of id + material, not key material) of the keys that open a sample of its stored
+  secrets (one envelope per registry column and key id; `<keyId>:unreadable` when no key opened it); pre-update
+  backups record them too. Older backups have none: "Re-encrypt now" says how many catalogued backups cannot be
+  checked for that reason. The restore dialog shows a notice when the chosen backup holds secrets under keys this system
+  does not have, and the "check key" step says how many are still missing even with the entered keys.
+- **Removing the additional keys.** "Re-encrypt now" counts the catalogued backups whose manifests reference the
+  keys about to be removed and requires an explicit acknowledgement (tick-box) before it starts; after the run
+  those backups need the source key again.
+- **Follow-up job busy.** The re-encryption queued by a restore is re-delayed every 30 seconds (up to 20 times,
+  about ten minutes; no failed attempt, no error log) while another backup operation holds the lock. A "Re-encryption pending" notice (with a dismiss
+  button) shows on the Backups page until it ran; if it gave up, start it with "Re-encrypt now".
 
 **Limitations.**
 
-- The additional keys must be kept as long as the restored data (or backups of it) exist: the database still
-  contains secrets encrypted with them. A **"re-encrypt everything with the current key"** action is **not
-  offered**: encrypted values are spread over many tables with individual context strings (settings, bank
-  connections, TAN challenges, ticket signing keys, scanner LAN secrets, admin TOTP secrets, ...), so a safe
-  generic routine would be a separate project. Values are re-encrypted with the current key whenever they are
-  saved again (for example by re-entering a bank PIN or API key).
-- The "Verify" button of an imported foreign backup works only after a restore stored the key (verification of
-  a backup that needs a key you have not stored fails with "key unknown"). The scheduled probe restore uses the
-  stored additional keys as well.
-- A backup made AFTER such a restore is encrypted with this system's key, but the secrets inside still use the
-  source key id: restoring it elsewhere needs both keys.
+- The "Verify" button of an imported foreign backup works only while the key is stored (before re-encryption,
+  or after you entered it again for a restore) **and** `TIX_ALLOW_FOREIGN_BACKUP_KEYS` is on; otherwise it fails
+  with "key unknown". The scheduled probe restore follows the same rule.
 - Docker: the file lives on the data volume (`/data/secrets`), shared by web and worker in the all-in-one
   image. With separate containers they must share that directory (or set `TIX_EXTRA_KEYS_FILE` on a shared
-  path), otherwise only the process that ran the restore can read the restored secrets.
+  path), otherwise only the process that ran the restore can read the restored secrets. Only the worker
+  writes (and removes) the file.
+- Running web processes keep a removed key in memory until they restart; that is harmless because nothing
+  stored needs it any more.
+- Rows that nobody can open (for example secrets of a third system) keep the run "incomplete" and the keys
+  in place; they are listed on the page. Deleting or re-entering those values lets the next run complete.
 
 ### Live seat chart during a restore
 
@@ -245,6 +317,12 @@ While the maintenance flag is set the realtime gateway tells every connected bro
 (`maintenance:start`, retry hint 5 s), closes the sockets and refuses new connections. The seat
 chart shows the maintenance notice, polls `/api/maintenance` and reconnects when the restore is
 over (random delays spread the reconnects); every reconnect triggers a refetch of seat availability (after maintenance also the seat map; the cart and the waiting-room state are refreshed too, box office and seat change reload), so no missed delta can leave stale seat colours behind.
+
+In addition the gateway keeps a **realtime epoch** (`<prefix>:realtime:epoch`, an opaque token). The restore
+rotates it together with the Redis cleanup (locks and carts are wiped). The gateway sends it to every client
+right after connecting and to all connected clients when it changes; a client that saw a different epoch before
+reloads everything even if it never noticed the maintenance window (sleeping device, long outage). Reconnects
+stay spread out (random delay up to 15 s after maintenance, Socket.io back-off with jitter otherwise).
 
 ### Scanner devices after a restore
 
@@ -308,6 +386,12 @@ the next restore on that server replays it. Ledger entries only contain customer
     attempts are shown on **Open refunds** and the dashboard). If PayPal does not know most orders
     (wrong PayPal account/environment restored) the marker stays and an alert is shown. A SUPER_ADMIN
     can skip the reconciliation (audited) – at the risk of double refunds.
+    Without PayPal credentials (restore into a fresh system) or with credentials PayPal rejects, the
+    pass stops at once, shows a notice on **Open refunds**, marks no refund as failed and is repeated by
+    the sweeper after the settings are fixed. **Reconcile with PayPal** on **Open refunds** (finance /
+    super admin) runs the same comparison on demand. Limit: PayPal has no cheap time-based listing of
+    payments, so the comparison starts from the PayPal orders known locally (refunds are listed per order);
+    a PayPal capture that happened after the backup time and is unknown here is not discovered.
   - **Review.** Findings are not booked automatically: refunds PayPal has but we do not (lost window,
     PayPal dashboard, also announced by a webhook), more than one completed PayPal refund for one
     request, amount mismatches, local refunds PayPal does not show, orders PayPal does not know or

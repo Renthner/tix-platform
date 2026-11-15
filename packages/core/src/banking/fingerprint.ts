@@ -40,6 +40,9 @@ export function fingerprintBatch(transactions: readonly ParsedTransaction[]): st
     const base = fingerprintBase(tx);
     const occurrence = seen.get(base) ?? 0;
     seen.set(base, occurrence + 1);
-    return createHash('sha256').update(`v1|${base}|${occurrence}`).digest('hex');
+    // Interim (MT942) rows get their own namespace: they must never occupy the fingerprint of
+    // the final booking, or the final row would be dropped as a duplicate.
+    const version = tx.raw?.interim === true ? 'v1i' : 'v1';
+    return createHash('sha256').update(`${version}|${base}|${occurrence}`).digest('hex');
   });
 }

@@ -20,6 +20,12 @@ export interface BackupRuntime {
   buckets: BackupBuckets;
   /** Raw key ring (`APP_ENCRYPTION_KEYS`); the first key encrypts new archives. */
   keyRing: readonly SecretBoxKey[];
+  /**
+   * Keys that may open ARCHIVES (backup files): the configured keys, plus additional keys of other
+   * systems only while `TIX_ALLOW_FOREIGN_BACKUP_KEYS` is on. `keyRing` (with the additional keys)
+   * stays the ring for the secrets stored in the database. Absent = `keyRing` (tests).
+   */
+  archiveKeyRing?: readonly SecretBoxKey[];
   databaseUrl: string;
   /** Directory with the SQL migrations and `meta/_journal.json`. */
   migrationsDir: string;
@@ -28,6 +34,11 @@ export interface BackupRuntime {
   /** Wait after the maintenance flag was set (default 10 s); tests use 0. */
   drainGraceMs?: number;
   logger: BackupLogger;
+}
+
+/** The ring used to decrypt archives (see `BackupRuntime.archiveKeyRing`). */
+export function archiveKeys(rt: Pick<BackupRuntime, 'keyRing' | 'archiveKeyRing'>) {
+  return rt.archiveKeyRing ?? rt.keyRing;
 }
 
 export interface ExternalTarget {
@@ -137,6 +148,41 @@ export async function sendBackupAlert(
     to,
     subject: text.subject(general.shopName),
     text: text.body(general.shopName, message),
+  });
+  return true;
+}
+
+const SECRETS_ALERT_TEXT = {
+  en: {
+    subject: (shop: string) => `${shop}: stored secrets cannot be read`,
+    body: (shop: string, count: number) =>
+      `After the restore, ${count} stored secret(s) of ${shop} (for example mail, payment or bank credentials) cannot be opened with the encryption keys of this system.
+
+Open the admin area under "Backups" and restore again with the encryption key of the system that made the backup, or enter the affected credentials anew.`,
+  },
+  de: {
+    subject: (shop: string) => `${shop}: Gespeicherte Geheimnisse nicht lesbar`,
+    body: (shop: string, count: number) =>
+      `Nach der Wiederherstellung lassen sich ${count} gespeicherte(s) Geheimnis(se) von ${shop} (zum Beispiel Mail-, Zahlungs- oder Bankzugänge) mit den Verschlüsselungsschlüsseln dieses Systems nicht oeffnen.
+
+Öffne im Admin-Bereich "Sicherungen" und stelle erneut mit dem Verschlüsselungsschlüssel des Systems wieder her, das die Sicherung erstellt hat, oder gib die betroffenen Zugangsdaten neu ein.`,
+  },
+} as const;
+
+/** Alert mail: a restore left stored secrets that this system's keys cannot open. */
+export async function sendSecretsUnreadableAlert(
+  ctx: CoreContext,
+  to: string,
+  count: number,
+): Promise<boolean> {
+  const general = await getSetting(ctx, 'general');
+  const text = SECRETS_ALERT_TEXT[normalizeLocale(general.defaultLocale)];
+  const sender = await smtpSender(ctx);
+  await sender.transporter.sendMail({
+    from: sender.from,
+    to,
+    subject: text.subject(general.shopName),
+    text: text.body(general.shopName, count),
   });
   return true;
 }

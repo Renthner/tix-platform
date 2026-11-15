@@ -3,12 +3,18 @@
  *
  * Seats are grouped into rows (seats without a row form one pseudo row per section, ordered by x).
  * Left / right follow the row on screen, up / down go to the neighbouring row of the same section
- * and pick the seat nearest by x, Home / End jump to the row ends, PageUp / PageDown move between
- * sections (in plan order).
+ * and pick the seat nearest by x. At the edge of a section the arrows continue into the section
+ * that lies in that direction (nearest seat inside a 60 degree cone by real coordinates). Home / End
+ * jump to the row ends, Ctrl+Home / Ctrl+End (first / last) to the first / last seat of the plan,
+ * PageUp / PageDown move between sections (in plan order).
  */
 import type { PublicSeat } from './public';
 
-export type SeatNavKey = 'left' | 'right' | 'up' | 'down' | 'home' | 'end' | 'pageUp' | 'pageDown';
+export type SeatNavKey =
+  'left' | 'right' | 'up' | 'down' | 'home' | 'end' | 'first' | 'last' | 'pageUp' | 'pageDown';
+
+/** tan(60 deg): half-width of the search cone for cross-section moves. */
+const CONE_TAN = Math.tan(Math.PI / 3);
 
 type NavSeat = Pick<PublicSeat, 'i' | 's' | 'r' | 'p' | 'x' | 'y'>;
 
@@ -88,27 +94,60 @@ export function createSeatNavigator(
     return best;
   };
 
+  /**
+   * Nearest seat of ANOTHER section in a screen direction: inside a cone of +-CONE_HALF_ANGLE around
+   * the direction, ranked by distance along the axis plus twice the sideways offset (so a seat
+   * straight ahead beats a nearer one far off to the side; staggered / offset / curved layouts work).
+   */
+  const crossSection = (from: NavSeat, dx: number, dy: number): string | null => {
+    let best: string | null = null;
+    let bestScore = Infinity;
+    for (const seat of seats) {
+      if (seat.s === from.s || !rowOfSeat.has(seat.i)) continue;
+      const along = (seat.x - from.x) * dx + (seat.y - from.y) * dy;
+      if (along <= 0) continue;
+      const side = Math.abs((seat.x - from.x) * dy - (seat.y - from.y) * dx);
+      if (side > along * CONE_TAN) continue;
+      const score = along + 2 * side;
+      if (score < bestScore) {
+        bestScore = score;
+        best = seat.i;
+      }
+    }
+    return best;
+  };
+  const plan = usedSections.flatMap((id) =>
+    (rowsBySection.get(id) ?? []).flatMap((row) => row.seats),
+  );
+
   return {
     sections: usedSections,
     move(fromId, key) {
       const at = rowOfSeat.get(fromId);
       if (!at) return null;
       const { row, index } = at;
+      const here = row.seats[index]!;
       switch (key) {
         case 'left':
-          return row.seats[index - 1]?.i ?? null;
+          return row.seats[index - 1]?.i ?? crossSection(here, -1, 0);
         case 'right':
-          return row.seats[index + 1]?.i ?? null;
+          return row.seats[index + 1]?.i ?? crossSection(here, 1, 0);
         case 'home':
           return row.seats[0]!.i;
         case 'end':
           return row.seats[row.seats.length - 1]!.i;
+        case 'first':
+          return plan[0]?.i ?? null;
+        case 'last':
+          return plan[plan.length - 1]?.i ?? null;
         case 'up':
         case 'down': {
           const sectionRows = rowsBySection.get(row.section) ?? [];
           const pos = sectionRows.indexOf(row);
           const target = sectionRows[pos + (key === 'up' ? -1 : 1)];
-          return target ? nearestByX(target, row.seats[index]!.x).i : null;
+          return target
+            ? nearestByX(target, here.x).i
+            : crossSection(here, 0, key === 'up' ? -1 : 1);
         }
         case 'pageUp':
         case 'pageDown': {

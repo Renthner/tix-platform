@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import {
+  existsSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -21,8 +22,11 @@ import {
   loadKeyRing,
   mergeKeyRings,
   parseKeyRing,
+  parseKeyRingLoose,
   parseKeyRingText,
   persistExtraKeys,
+  removeExtraKeys,
+  ringFingerprint,
 } from '../src/server';
 
 const entry = (id: string) => `${id}:${randomBytes(32).toString('base64')}`;
@@ -64,12 +68,44 @@ describe('additional (decrypt-only) key ring', () => {
     }
   });
 
-  it('merges identical entries and rejects the same id with different material', () => {
+  it('merges identical entries and keeps the same id with different material as a candidate', () => {
     const a = parseKeyRing(entry('k1'));
     expect(mergeKeyRings(a, a)).toHaveLength(1);
     const other = parseKeyRing(entry('k1'));
-    expect(() => mergeKeyRings(a, other)).toThrow(/different key/);
+    const merged = mergeKeyRings(a, other);
+    expect(merged.map((k) => k.id)).toEqual(['k1', 'k1']);
+    // The first ring keeps the first position (it encrypts).
+    expect(merged[0]!.key.equals(a[0]!.key)).toBe(true);
     expect(mergeKeyRings(a, parseKeyRing(entry('k2'))).map((k) => k.id)).toEqual(['k1', 'k2']);
+  });
+
+  it('the env ring still refuses duplicate ids, the loose parser accepts them', () => {
+    expect(() => parseKeyRing(`${entry('k1')},${entry('k1')}`)).toThrow(/Duplicate key ids/);
+    expect(parseKeyRingLoose(`${entry('k1')},${entry('k1')}`)).toHaveLength(2);
+    expect(parseKeyRingLoose('')).toEqual([]);
+  });
+
+  it('a secret box tries every candidate of an id and always encrypts with the first key', () => {
+    const own = parseKeyRing(entry('k1'));
+    const foreign = parseKeyRing(entry('k1'));
+    const foreignBox = createSecretBox(foreign);
+    const envelope = foreignBox.encrypt('from the other system', 'ctx');
+    const box = createSecretBox(mergeKeyRings(own, foreign));
+    expect(box.decrypt(envelope, 'ctx')).toBe('from the other system');
+    expect(() => box.decrypt(envelope, 'other-context')).toThrow(SecretBoxError);
+    // Encrypts with the own key: the own-only box opens it, the foreign box does not.
+    const fresh = box.encrypt('x', 'ctx');
+    expect(createSecretBox(own).decrypt(fresh, 'ctx')).toBe('x');
+    expect(() => foreignBox.decrypt(fresh, 'ctx')).toThrow(SecretBoxError);
+    // Only the own key: the foreign envelope has the same id but cannot be opened.
+    expect(() => createSecretBox(own).decrypt(envelope, 'ctx')).toThrow(/could not be decrypted/);
+  });
+
+  it('ring fingerprints ignore order and notice a different key under the same id', () => {
+    const a = parseKeyRing(entry('k1'));
+    const b = parseKeyRing(entry('k1'));
+    expect(ringFingerprint([...a, ...b])).toBe(ringFingerprint([...b, ...a]));
+    expect(ringFingerprint(a)).not.toBe(ringFingerprint(b));
   });
 
   it('persists additional keys (mode 0600), keeps existing entries and is idempotent', () => {
@@ -91,17 +127,29 @@ describe('additional (decrypt-only) key ring', () => {
     expect(readFileSync(extraKeysPath(env), 'utf8')).not.toContain('cur:');
   });
 
-  it('rejects collisions with the configured ring and with the file, writing nothing', () => {
+  it('stores a key with the same id but other material as a further candidate (no collision error)', () => {
     const configured = parseKeyRing(entry('k1'));
-    expect(() => persistExtraKeys(parseKeyRing(entry('k1')), configured, env)).toThrow(
-      SecretBoxError,
-    );
-    expect(loadExtraKeys(extraKeysPath(env))).toEqual([]);
-    persistExtraKeys(parseKeyRing(entry('s1')), configured, env);
-    expect(() => persistExtraKeys(parseKeyRing(entry('s1')), configured, env)).toThrow(
-      SecretBoxError,
-    );
+    const foreign = parseKeyRing(entry('k1'));
+    expect(persistExtraKeys(foreign, configured, env)).toEqual(['k1']);
+    // Same id AND material as the configured key: nothing to store; same as the file: idempotent.
+    expect(persistExtraKeys(configured, configured, env)).toEqual([]);
+    expect(persistExtraKeys(foreign, configured, env)).toEqual([]);
     expect(loadExtraKeys(extraKeysPath(env))).toHaveLength(1);
+    const ring = mergeKeyRings(configured, loadExtraKeys(extraKeysPath(env)));
+    expect(ring).toHaveLength(2);
+    expect(ring[0]!.key.equals(configured[0]!.key)).toBe(true);
+  });
+
+  it('removeExtraKeys removes selected entries, deletes the file when none is left', () => {
+    const configured = parseKeyRing(entry('cur'));
+    const a = parseKeyRing(entry('s1'));
+    const b = parseKeyRing(entry('s2'));
+    persistExtraKeys([...a, ...b], configured, env);
+    expect(removeExtraKeys(a, env)).toBe(1);
+    expect(loadExtraKeys(extraKeysPath(env)).map((k) => k.id)).toEqual(['s2']);
+    expect(removeExtraKeys(undefined, env)).toBe(1);
+    expect(existsSync(extraKeysPath(env))).toBe(false);
+    expect(removeExtraKeys(undefined, env)).toBe(0);
   });
 
   it('loadKeyRing keeps the configured key first and appends the additional ones', () => {
@@ -110,9 +158,26 @@ describe('additional (decrypt-only) key ring', () => {
     persistExtraKeys(src, parseKeyRing(spec), env);
     const ring = loadKeyRing(spec, env);
     expect(ring.map((k) => k.id)).toEqual(['cur', 'src']);
-    // A colliding extra file is an error, not a silent override.
+    // An extra entry with the id of the configured key is a further candidate, never the encryption key.
     writeFileSync(extraKeysPath(env), `cur:${randomBytes(32).toString('base64')}\n`);
-    expect(() => loadKeyRing(spec, env)).toThrow(SecretBoxError);
+    expect(loadKeyRing(spec, env).map((k) => k.id)).toEqual(['cur', 'cur']);
+  });
+
+  it('the reloading box picks up a foreign key that shares the id of the configured one (auth failure, no unknown id)', () => {
+    const spec = entry('k1');
+    const foreignSpec = entry('k1');
+    const envelope = createSecretBox(parseKeyRing(foreignSpec)).encryptJson({ pin: '1' }, 'ctx');
+    const box = createReloadingSecretBox(spec, env);
+    expect(() => box.decryptJson(envelope, 'ctx')).toThrow(SecretBoxError);
+    persistExtraKeys(parseKeyRing(foreignSpec), parseKeyRing(spec), env);
+    const realNow = Date.now;
+    Date.now = () => realNow() + 10_000;
+    try {
+      expect(box.decryptJson(envelope, 'ctx')).toEqual({ pin: '1' });
+    } finally {
+      Date.now = realNow;
+    }
+    expect(box.encrypt('x', 'c').startsWith('v1.k1.')).toBe(true);
   });
 
   it('a broken file fails loudly and names the path, never the content', () => {

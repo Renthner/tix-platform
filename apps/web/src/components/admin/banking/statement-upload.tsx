@@ -130,14 +130,14 @@ export function StatementUpload({
         <Upload className="size-6 text-muted-foreground" />
         <span>{busy ? t('uploading') : dragging ? t('dropActive') : t('drop')}</span>
         <span className="text-xs text-muted-foreground">
-          camt.053 · camt.052 · MT940 · CSV · ZIP
+          camt.053 · camt.052 · camt.054 · MT940 · MT942 · CSV · ZIP
         </span>
         <input
           ref={input}
           type="file"
           multiple
           hidden
-          accept=".xml,.sta,.txt,.mt940,.940,.csv,.zip"
+          accept=".xml,.sta,.txt,.mt940,.940,.mt942,.942,.csv,.zip"
           onChange={(e) => e.target.files && void upload(e.target.files)}
         />
       </div>

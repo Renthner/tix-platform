@@ -291,7 +291,8 @@
       "overpaymentRefundRequested": "The overpayment refund was created.",
       "adjustmentSettledByCredit": "The tariff was changed and settled with the overpayment. The customer was e-mailed the new tickets.",
       "existingRefundRecorded": "The existing PayPal refund was recorded: tickets cancelled, credit note issued, nothing was sent to PayPal.",
-      "reconciliationSkipped": "The PayPal reconciliation was skipped. Automatic refunds resume."
+      "reconciliationSkipped": "The PayPal reconciliation was skipped. Automatic refunds resume.",
+      "reconciliationRequested": "The comparison with PayPal was started."
     },
     "actions": {
       "keepReserved": {
@@ -455,7 +456,14 @@
         "mostlyNotFound": "PayPal does not know most of the orders. The restored data probably belongs to another PayPal account or environment (live/sandbox). Check the PayPal settings.",
         "lastError": "Last error: {error}",
         "skip": "Skip reconciliation",
-        "skipConfirm": "I understand: refunds are sent without comparing them with PayPal (risk of double refunds)."
+        "skipConfirm": "I understand: refunds are sent without comparing them with PayPal (risk of double refunds).",
+        "notConfigured": "PayPal is not configured in this system, so the refunds cannot be compared. Enter the PayPal credentials (Settings → Payments); the comparison then runs automatically. Automatic refunds wait until then.",
+        "credentials": "PayPal rejected the saved credentials. Correct them (Settings → Payments, \"Test connection\"); the comparison is repeated automatically. No refund is marked as failed meanwhile.",
+        "retryNow": "Retry now",
+        "manualTitle": "Compare refunds with PayPal",
+        "manualText": "Checks every open PayPal refund and every PayPal payment that can still be refunded against PayPal and books what PayPal already did. Differences end up in the review list below.",
+        "run": "Reconcile with PayPal",
+        "runHint": "Automatic refunds pause until the comparison is done."
       }
     },
     "seatChange": {

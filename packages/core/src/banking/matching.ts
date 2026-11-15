@@ -28,6 +28,7 @@ import {
   type RecordPaymentResult,
 } from '../orders/fulfillment';
 import { getSetting } from '../settings';
+import { heldReason, isReleasableHold } from './holds';
 import { withMutex } from './runs';
 
 /**
@@ -217,6 +218,8 @@ async function matchLocked(
     .from(bankTransactions)
     .where(eq(bankTransactions.id, transactionId));
   if (!tx) return null;
+  // Held rows (interim MT942, possible duplicates, aggregates …) never take part in matching.
+  if (heldReason(tx.rawData)) return outcome(tx);
   const repaired = await repairMissingAllocations(ctx.db, tx.id);
   const already = await allocatedAmount(ctx.db, tx.id);
   // More money allocated than the transfer holds (an earlier double assignment, now visible
@@ -886,6 +889,15 @@ export async function assignBankTransaction(
       .where(eq(bankTransactions.id, params.transactionId));
     if (!tx) throw new DomainError('TX_NOT_FOUND', 'Bank transaction not found', 404);
     if (tx.amount <= 0) throw new DomainError('TX_NOT_CREDIT', 'Only credits can be assigned', 422);
+    const hold = heldReason(tx.rawData);
+    if (hold) {
+      throw new DomainError(
+        'TX_HELD',
+        'This transaction is on hold (interim, possible duplicate or covered entry) and cannot be assigned',
+        409,
+        { hold },
+      );
+    }
     await repairMissingAllocations(ctx.db, tx.id);
     const already = await allocatedAmount(ctx.db, tx.id);
     const unassigned = tx.amount - already;
@@ -1113,11 +1125,30 @@ export async function rematchBankTransaction(
       id: bankTransactions.id,
       matchStatus: bankTransactions.matchStatus,
       amount: bankTransactions.amount,
+      rawData: bankTransactions.rawData,
     })
     .from(bankTransactions)
     .where(eq(bankTransactions.id, transactionId));
   if (!tx) throw new DomainError('TX_NOT_FOUND', 'Bank transaction not found', 404);
   if (tx.amount <= 0) throw new DomainError('TX_NOT_CREDIT', 'Only credits are reconciled', 422);
+  const hold = heldReason(tx.rawData);
+  if (hold) {
+    if (!isReleasableHold(hold)) {
+      throw new DomainError(
+        'TX_HELD',
+        'Interim and covered entries cannot be matched – the final booking counts',
+        409,
+        { hold },
+      );
+    }
+    // The admin confirms the entry is genuine ("not a duplicate" / date accepted): release it.
+    await ctx.db
+      .update(bankTransactions)
+      .set({
+        rawData: sql`(coalesce(${bankTransactions.rawData}, '{}'::jsonb) - 'hold') || ${JSON.stringify({ holdReleased: hold })}::jsonb`,
+      })
+      .where(eq(bankTransactions.id, tx.id));
+  }
   const result = await matchBankTransaction(ctx, transactionId, { force: true });
   if (!result) throw new DomainError('BUSY', 'The transaction is being processed – try again', 409);
   return result;

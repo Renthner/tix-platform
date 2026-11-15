@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import type { BankingActionState, BankingFieldError } from '@/lib/banking-action-state';
+import type { BankTxHold } from '@/lib/banking-hold';
 import { cn } from '@/lib/utils';
 
 export function bankingError(
@@ -121,6 +122,16 @@ const MATCH_VARIANT: Record<
 export function MatchStatusBadge({ status }: { status: BankTxMatchStatus }) {
   const t = useTranslations('banking.status');
   return <Badge variant={MATCH_VARIANT[status]}>{t(status)}</Badge>;
+}
+
+/** "Interim (not booked yet)" etc.: stored but never matched automatically. */
+export function HoldBadge({ hold }: { hold: BankTxHold }) {
+  const t = useTranslations('banking');
+  return (
+    <Badge variant="secondary" title={t(`holdHint.${hold}`)}>
+      {t(`hold.${hold}`)}
+    </Badge>
+  );
 }
 
 export function ReasonBadge({ reason }: { reason: BankTxReviewReason }) {

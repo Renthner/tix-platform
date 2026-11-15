@@ -152,6 +152,8 @@
     "DISCOUNT_NOT_STACKABLE": "Dieser Rabattcode lässt sich nicht mit einem anderen Code kombinieren.",
     "DISCOUNT_NOT_VALID_FOR_ITEMS": "Dieser Rabattcode gilt nicht für die Tickets in deinem Warenkorb.",
     "DISCOUNT_MIN_ORDER_VALUE": "Der Mindestbestellwert dieses Rabattcodes ist nicht erreicht.",
+    "DISCOUNT_PERCENT_CAP": "Dieser Rabattcode ist nicht gültig.",
+    "DISCOUNT_BELOW_MINIMUM_TOTAL": "Dieser Rabattcode kann nicht verwendet werden, weil die Bestellsumme unter den Mindestzahlbetrag fiele.",
     "DISCOUNT_TOO_MANY_CODES": "Zu viele Rabattcodes.",
     "ITEM_DISCOUNTED": "Mit einem Rabattcode gekaufte Tickets können nicht auf einen anderen Tarif umgestellt werden."
   },

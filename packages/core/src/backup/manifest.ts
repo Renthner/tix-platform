@@ -45,6 +45,11 @@ export const backupManifestSchema = z.object({
   /** Row counts of key tables taken in the same snapshot as the dump. */
   rowCounts: z.record(z.string(), z.number().int().min(0)),
   createdByUserId: z.uuid().nullable().default(null),
+  /**
+   * Fingerprints (`<keyId>:<8 hex>`; `<keyId>:unreadable` when no key opened the sample) of the keys
+   * the stored secrets depended on when the backup was made. Optional (older backups have none).
+   */
+  secretKeys: z.array(z.string().max(40)).max(20).optional(),
   /** Set for archives that were uploaded by an admin (id of the original backup). */
   originalId: z.uuid().optional(),
   /** Known only after the archive was written. */

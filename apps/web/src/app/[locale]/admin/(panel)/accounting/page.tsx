@@ -62,6 +62,7 @@ export default async function AccountingPage({ params }: { params: Promise<{ loc
                 cashAccount: settings.cashAccount,
                 cardAccount: settings.cardAccount,
                 writeOffAccount: settings.writeOffAccount,
+                zeroValueDocuments: settings.zeroValueDocuments,
               }}
             />
           </CardContent>

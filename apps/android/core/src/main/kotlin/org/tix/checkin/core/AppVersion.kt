@@ -4,8 +4,8 @@ package org.tix.checkin.core
  * Release version of the app: `MAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH-(alpha|beta|rc).N`.
  *
  * Mirrors `scripts/release/version.mjs` (the same inputs give the same versionCode and ordering):
- * versionCode = MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + stage with alpha.N -> N, beta.N -> 30+N,
- * rc.N -> 60+N and the final release -> 99.
+ * versionCode = MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + stage with alpha.N -> N (1-49), beta.N -> 50+N
+ * (N 1-19), rc.N -> 70+N (N 1-19) and the final release -> 99.
  */
 data class AppVersion(
     val major: Int,
@@ -15,7 +15,11 @@ data class AppVersion(
     val n: Int?,
 ) : Comparable<AppVersion> {
     /** Declaration order is the SemVer precedence of pre-release stages. */
-    enum class Stage(val wire: String, val base: Int) { ALPHA("alpha", 0), BETA("beta", 30), RC("rc", 60) }
+    enum class Stage(val wire: String, val base: Int, val maxN: Int) {
+        ALPHA("alpha", 0, 49),
+        BETA("beta", 50, 19),
+        RC("rc", 70, 19),
+    }
 
     val prerelease: Boolean get() = stage != null
 
@@ -48,8 +52,8 @@ data class AppVersion(
             if (major > 2000 || minor > 99 || patch > 99) return null
             val stageWire = m.groups[4]?.value ?: return AppVersion(major, minor, patch, null, null)
             val n = m.groupValues[5].toIntOrNull() ?: return null
-            if (n < 1 || n > 29) return null
             val stage = Stage.entries.first { it.wire == stageWire }
+            if (n < 1 || n > stage.maxN) return null
             return AppVersion(major, minor, patch, stage, n)
         }
 

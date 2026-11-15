@@ -8,10 +8,11 @@ import {
   type CsvProfile,
   type StatementFormatHint,
 } from '@tix/shared';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, ne, or } from 'drizzle-orm';
 import { requireCapability, type CoreContext } from '../context';
 import type { BankAccountRow } from './connections';
 import { fingerprintBatch } from './fingerprint';
+import { linkHeldRows, type HoldReason, type LinkRow } from './holds';
 import {
   detectStatementFormat,
   expandStatementFiles,
@@ -26,16 +27,70 @@ export const MAX_STATEMENT_FILE_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 500;
 
 export interface StoredBatch {
-  /** Ids of newly inserted transactions (credits only are relevant for matching). */
+  /** Ids of newly inserted transactions that the matcher may act on (credits, not held). */
   insertedIds: string[];
   fetched: number;
   duplicates: number;
+  /** Rows stored but held back from matching, per reason (see `holds.ts`). */
+  held: Partial<Record<HoldReason, number>>;
+  /** Interim rows linked to a final booking by this batch. */
+  superseded: number;
+  /** Aggregate (batch) entries covered by per-transaction camt.054 rows. */
+  aggregatesCovered: number;
+}
+
+const isCamtFamily = (source: unknown) => source === 'camt' || source === 'camt054';
+
+const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+
+/** Bank/end-to-end reference that identifies one entry (camt family). */
+function stableIds(row: { externalId: string | null; endToEndId: string | null }): {
+  ref: string | null;
+  e2e: string | null;
+} {
+  return {
+    ref: row.externalId?.slice(0, 200) || null,
+    e2e: row.endToEndId?.slice(0, 200) || null,
+  };
+}
+
+const iban = (v: string | null | undefined) => (v ?? '').replace(/\s/g, '').toUpperCase();
+
+/**
+ * Secondary duplicate key within the camt family. An AcctSvcrRef identifies the entry on its
+ * own (+ amount, currency, IBAN, detail index); an EndToEndId alone is reused by standing
+ * orders, so it additionally needs the same booking date.
+ */
+function secondaryKey(row: {
+  externalId: string | null;
+  endToEndId: string | null;
+  amount: number;
+  currency: string;
+  counterpartyIban: string | null;
+  bookingDate: string;
+  detailIndex: unknown;
+}): string | null {
+  const { ref, e2e } = stableIds(row);
+  const tail = `${row.amount}|${row.currency}|${iban(row.counterpartyIban)}|${String(row.detailIndex ?? '')}`;
+  if (ref) return `ref|${ref}|${tail}`;
+  if (e2e) return `e2e|${e2e}|${row.bookingDate}|${tail}`;
+  return null;
 }
 
 /**
  * Inserts parsed transactions; rows whose fingerprint already exists for the account are
  * skipped (ON CONFLICT DO NOTHING). Debits are stored as IGNORED – only credits are
  * reconciled.
+ *
+ * Additional rules (no schema change, existing fingerprints are never altered):
+ *  - MT942 (interim) entries get their own fingerprint namespace and are stored held
+ *    (INTERIM): never matched; superseded by the final booking when it arrives.
+ *  - camt family: before inserting, an entry with the same AcctSvcrRef (or EndToEndId + date)
+ *    + amount + IBAN as a row of an earlier import is a duplicate.
+ *  - camt.054: an entry whose fingerprint equals one of an *earlier camt.054 file* is a
+ *    separate payment when both carry different references, otherwise it is stored held as
+ *    POSSIBLE_DUPLICATE and reported (a re-import of the same file/message is caught earlier).
+ *  - camt.054 without booking date and without any reference is held (NO_BOOKING_DATE).
  */
 export async function storeTransactions(
   ctx: Pick<CoreContext, 'db'>,
@@ -44,17 +99,150 @@ export async function storeTransactions(
     importId?: string | null;
     syncRunId?: string | null;
     transactions: readonly ParsedTransaction[];
+    interimWindowDays?: number;
   },
 ): Promise<StoredBatch> {
-  const fingerprints = fingerprintBatch(params.transactions);
+  const txs = params.transactions;
+  const fingerprints = fingerprintBatch(txs);
+  const sourceOf = (tx: ParsedTransaction) => tx.raw?.source;
+  const detailOf = (tx: ParsedTransaction) => tx.raw?.detailIndex;
+
+  // Look up earlier camt rows (secondary key + fingerprint collisions of camt.054 rows).
+  type Existing = {
+    id: string;
+    fingerprint: string;
+    importId: string | null;
+    externalId: string | null;
+    endToEndId: string | null;
+    amount: number;
+    currency: string;
+    counterpartyIban: string | null;
+    bookingDate: string;
+    source: unknown;
+    detailIndex: unknown;
+  };
+  const camtIndexes = txs.map((tx, i) => i).filter((i) => isCamtFamily(sourceOf(txs[i]!)));
+  const bySecondary = new Map<string, Existing>();
+  const byFingerprint = new Map<string, Existing>();
+  const existingCols = {
+    id: bankTransactions.id,
+    fingerprint: bankTransactions.fingerprint,
+    importId: bankTransactions.importId,
+    externalId: bankTransactions.externalId,
+    endToEndId: bankTransactions.endToEndId,
+    amount: bankTransactions.amount,
+    currency: bankTransactions.currency,
+    counterpartyIban: bankTransactions.counterpartyIban,
+    bookingDate: bankTransactions.bookingDate,
+    raw: bankTransactions.rawData,
+  };
+  const toExisting = (r: {
+    id: string;
+    fingerprint: string;
+    importId: string | null;
+    externalId: string | null;
+    endToEndId: string | null;
+    amount: number;
+    currency: string;
+    counterpartyIban: string | null;
+    bookingDate: string;
+    raw: unknown;
+  }): Existing => {
+    const raw = (typeof r.raw === 'object' && r.raw ? r.raw : {}) as Record<string, unknown>;
+    return { ...r, source: raw.source, detailIndex: raw.detailIndex };
+  };
+  for (let i = 0; i < camtIndexes.length; i += INSERT_CHUNK) {
+    const slice = camtIndexes.slice(i, i + INSERT_CHUNK);
+    const refs = [...new Set(slice.map((k) => txs[k]!.externalId).filter((v): v is string => !!v))];
+    const e2es = [...new Set(slice.map((k) => txs[k]!.endToEndId).filter((v): v is string => !!v))];
+    const fps = slice.filter((k) => sourceOf(txs[k]!) === 'camt054').map((k) => fingerprints[k]!);
+    const conditions = [
+      refs.length ? inArray(bankTransactions.externalId, refs) : undefined,
+      e2es.length ? inArray(bankTransactions.endToEndId, e2es) : undefined,
+      fps.length ? inArray(bankTransactions.fingerprint, fps) : undefined,
+    ].filter((c): c is NonNullable<typeof c> => !!c);
+    if (conditions.length === 0) continue;
+    const rows = await ctx.db
+      .select(existingCols)
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.bankAccountId, params.bankAccountId), or(...conditions)));
+    for (const r of rows) {
+      const ex = toExisting(r);
+      if (isCamtFamily(ex.source)) {
+        const key = secondaryKey(ex);
+        if (key && !bySecondary.has(key)) bySecondary.set(key, ex);
+      }
+      byFingerprint.set(ex.fingerprint, ex);
+    }
+  }
+
+  interface Plan {
+    skip: boolean;
+    fingerprint: string;
+    hold: HoldReason | null;
+  }
+  const plans: Plan[] = txs.map((tx, i) => {
+    let fingerprint = fingerprints[i]!;
+    let hold: HoldReason | null = null;
+    const source = sourceOf(tx);
+    const row = { ...tx, externalId: tx.externalId ?? null, endToEndId: tx.endToEndId ?? null };
+    const key = isCamtFamily(source)
+      ? secondaryKey({
+          ...row,
+          counterpartyIban: tx.counterpartyIban ?? null,
+          detailIndex: detailOf(tx),
+        })
+      : null;
+    if (key) {
+      const ex = bySecondary.get(key);
+      if (ex && (ex.importId === null || ex.importId !== (params.importId ?? null))) {
+        return { skip: true, fingerprint, hold };
+      }
+    }
+    if (tx.raw?.interim === true) hold = 'INTERIM';
+    if (source === 'camt054') {
+      const { ref, e2e } = stableIds(row);
+      const hasId = !!(ref || e2e);
+      const ex = byFingerprint.get(fingerprint);
+      if (
+        ex &&
+        ex.source === 'camt054' &&
+        ex.importId &&
+        params.importId &&
+        ex.importId !== params.importId
+      ) {
+        const exIds = stableIds(ex);
+        const differ =
+          (ref && exIds.ref ? ref !== exIds.ref : false) ||
+          (!(ref && exIds.ref) && e2e && exIds.e2e ? e2e !== exIds.e2e : false);
+        if (differ) {
+          // Two genuinely different payments that look identical: give the second its own
+          // fingerprint (derived from the references) so it is not dropped.
+          fingerprint = sha(`v1x|${fingerprint}|${ref ?? ''}|${e2e ?? ''}`);
+        } else {
+          fingerprint = sha(`v1d|${fingerprint}|${params.importId}`);
+          hold = 'POSSIBLE_DUPLICATE';
+        }
+      }
+      if (!hold && tx.raw?.noBookingDate === true && !hasId) hold = 'NO_BOOKING_DATE';
+    }
+    return { skip: false, fingerprint, hold };
+  });
+
   const insertedIds: string[] = [];
+  const linkRows: LinkRow[] = [];
+  const held: Partial<Record<HoldReason, number>> = {};
   let inserted = 0;
-  for (let i = 0; i < params.transactions.length; i += INSERT_CHUNK) {
-    const chunk = params.transactions.slice(i, i + INSERT_CHUNK).map((tx, j) => ({
+  let skipped = 0;
+  const kept = txs.map((tx, i) => ({ tx, plan: plans[i]! })).filter((e) => !e.plan.skip);
+  skipped = txs.length - kept.length;
+  for (let i = 0; i < kept.length; i += INSERT_CHUNK) {
+    const slice = kept.slice(i, i + INSERT_CHUNK);
+    const chunk = slice.map(({ tx, plan }) => ({
       bankAccountId: params.bankAccountId,
       importId: params.importId ?? null,
       syncRunId: params.syncRunId ?? null,
-      fingerprint: fingerprints[i + j]!,
+      fingerprint: plan.fingerprint,
       externalId: tx.externalId?.slice(0, 200) ?? null,
       bookingDate: tx.bookingDate,
       valueDate: tx.valueDate ?? null,
@@ -66,8 +254,12 @@ export async function storeTransactions(
       remittanceInformation: tx.remittanceInformation ?? null,
       endToEndId: tx.endToEndId ?? null,
       bankTransactionCode: tx.bankTransactionCode ?? null,
-      rawData: { ...(tx.raw ?? {}), ...(tx.bookingText ? { bookingText: tx.bookingText } : {}) },
-      matchStatus: tx.amount > 0 ? ('UNMATCHED' as const) : ('IGNORED' as const),
+      rawData: {
+        ...(tx.raw ?? {}),
+        ...(tx.bookingText ? { bookingText: tx.bookingText } : {}),
+        ...(plan.hold ? { hold: plan.hold } : {}),
+      },
+      matchStatus: tx.amount > 0 && !plan.hold ? ('UNMATCHED' as const) : ('IGNORED' as const),
     }));
     const rows = await ctx.db
       .insert(bankTransactions)
@@ -75,15 +267,67 @@ export async function storeTransactions(
       .onConflictDoNothing({
         target: [bankTransactions.bankAccountId, bankTransactions.fingerprint],
       })
-      .returning({ id: bankTransactions.id, amount: bankTransactions.amount });
+      .returning({ id: bankTransactions.id, fingerprint: bankTransactions.fingerprint });
     inserted += rows.length;
-    for (const row of rows) if (row.amount > 0) insertedIds.push(row.id);
+    const byFp = new Map(slice.map((e) => [e.plan.fingerprint, e]));
+    for (const row of rows) {
+      const entry = byFp.get(row.fingerprint)!;
+      const { tx, plan } = entry;
+      if (plan.hold) held[plan.hold] = (held[plan.hold] ?? 0) + 1;
+      if (tx.amount > 0 && !plan.hold) insertedIds.push(row.id);
+      linkRows.push({
+        id: row.id,
+        amount: tx.amount,
+        currency: tx.currency,
+        bookingDate: tx.bookingDate,
+        counterpartyIban: tx.counterpartyIban ?? null,
+        remittanceInformation: tx.remittanceInformation ?? null,
+        hold: plan.hold,
+        interim: tx.raw?.interim === true,
+        source: typeof tx.raw?.source === 'string' ? tx.raw.source : null,
+        aggregate: tx.raw?.aggregate === true,
+      });
+    }
   }
+  const linked = await linkHeldRows(
+    ctx.db,
+    params.bankAccountId,
+    linkRows,
+    params.interimWindowDays,
+  );
   return {
     insertedIds,
-    fetched: params.transactions.length,
-    duplicates: params.transactions.length - inserted,
+    fetched: txs.length,
+    duplicates: skipped + (kept.length - inserted),
+    held,
+    superseded: linked.superseded,
+    aggregatesCovered: linked.aggregatesCovered,
   };
+}
+
+/** Human-readable import report lines for held / linked rows. */
+export function heldWarnings(stored: StoredBatch): string[] {
+  const out: string[] = [];
+  const h = stored.held;
+  if (h.INTERIM)
+    out.push(
+      `${h.INTERIM} interim (MT942) entries stored as "interim – not booked yet": they are never matched or paid automatically; the final statement supersedes them`,
+    );
+  if (h.POSSIBLE_DUPLICATE)
+    out.push(
+      `${h.POSSIBLE_DUPLICATE} camt.054 entries look identical to entries of an earlier camt.054 file without a reference: stored as "possible duplicate – review" and not matched`,
+    );
+  if (h.NO_BOOKING_DATE)
+    out.push(
+      `${h.NO_BOOKING_DATE} camt.054 entries without booking date and reference: stored as "needs review" and not matched`,
+    );
+  if (stored.superseded > 0)
+    out.push(`${stored.superseded} interim entries were superseded by final bookings`);
+  if (stored.aggregatesCovered > 0)
+    out.push(
+      `${stored.aggregatesCovered} batch entries are covered by per-transaction camt.054 entries and were not counted twice`,
+    );
+  return out;
 }
 
 export type StatementImportStatus = 'COMPLETED' | 'FAILED' | 'DUPLICATE_FILE' | 'UNSUPPORTED';
@@ -291,11 +535,6 @@ async function importOne(
       );
     }
     const transactions = parsed.statements.flatMap((s) => s.transactions);
-    const stored = await storeTransactions(ctx, {
-      bankAccountId: params.account.id,
-      importId,
-      transactions,
-    });
     const from = parsed.statements
       .map((s) => s.periodFrom)
       .filter((d): d is string => !!d)
@@ -305,18 +544,59 @@ async function importOne(
       .filter((d): d is string => !!d)
       .sort()
       .at(-1);
+    const statementIds =
+      parsed.statements
+        .map((s) => s.statementId)
+        .filter(Boolean)
+        .join(', ')
+        .slice(0, 500) || null;
+
+    // The same camt.054 message re-sent with different bytes (new creation timestamp …) is a
+    // re-import: same notification id + entry count + period → nothing is stored again.
+    if (
+      statementIds &&
+      transactions.length > 0 &&
+      transactions.every((t) => t.raw?.source === 'camt054')
+    ) {
+      const [sameMessage] = await ctx.db
+        .select({ id: bankStatementImports.id })
+        .from(bankStatementImports)
+        .where(
+          and(
+            eq(bankStatementImports.bankAccountId, params.account.id),
+            eq(bankStatementImports.statementId, statementIds),
+            eq(bankStatementImports.status, 'COMPLETED'),
+            eq(bankStatementImports.transactionCount, transactions.length),
+            from ? eq(bankStatementImports.periodFrom, from) : undefined,
+            to ? eq(bankStatementImports.periodTo, to) : undefined,
+            ne(bankStatementImports.id, importId),
+          ),
+        )
+        .limit(1);
+      if (sameMessage) {
+        await ctx.db.delete(bankStatementImports).where(eq(bankStatementImports.id, importId));
+        return {
+          ...failure(fileName, format, null, sameMessage.id),
+          status: 'DUPLICATE_FILE',
+          errorCode: null,
+          errorMessage: null,
+        };
+      }
+    }
+
+    const stored = await storeTransactions(ctx, {
+      bankAccountId: params.account.id,
+      importId,
+      transactions,
+    });
+    parsed.warnings.push(...heldWarnings(stored));
     const imported = stored.fetched - stored.duplicates;
     await ctx.db
       .update(bankStatementImports)
       .set({
         status: 'COMPLETED',
         format: parsed.format,
-        statementId:
-          parsed.statements
-            .map((s) => s.statementId)
-            .filter(Boolean)
-            .join(', ')
-            .slice(0, 500) || null,
+        statementId: statementIds,
         periodFrom: from ?? null,
         periodTo: to ?? null,
         transactionCount: transactions.length,

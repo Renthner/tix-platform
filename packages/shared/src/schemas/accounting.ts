@@ -10,6 +10,8 @@ import { z } from 'zod';
 export const ACCOUNTING_CHARTS = ['SKR03', 'SKR04', 'CUSTOM'] as const;
 export type AccountingChart = (typeof ACCOUNTING_CHARTS)[number];
 
+export const ACCOUNTING_ZERO_VALUE_DOCUMENTS = ['INCLUDE', 'EXCLUDE'] as const;
+
 /** Ledger account digits (DATEV accounts have at most 9 digits). */
 const accountSchema = z.string().regex(/^[0-9]{1,9}$/, 'invalid');
 
@@ -128,6 +130,12 @@ export const accountingSchema = z
     cardAccount: accountSchema.default(PRESETS.SKR03.cardAccount),
     /** Shortfalls written off when settling an order; empty = chart default (to be confirmed). */
     writeOffAccount: accountSchema.optional(),
+    /**
+     * Invoices / credit notes with a total of 0 EUR (free tickets, 100 % discount): INCLUDE keeps
+     * them in the simple documents CSV (default), EXCLUDE leaves them out. The DATEV file never
+     * contains 0,00 bookings either way.
+     */
+    zeroValueDocuments: z.enum(ACCOUNTING_ZERO_VALUE_DOCUMENTS).default('INCLUDE'),
   })
   .superRefine((v, ctx) => {
     const issue = (path: (string | number)[]) =>

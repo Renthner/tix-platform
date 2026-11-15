@@ -225,6 +225,10 @@ async function readInput(
       const perOrder = text(fd, 'maxTicketsPerOrder');
       if (perOrder !== undefined && !Number.isInteger(Number(perOrder)))
         errors.maxTicketsPerOrder = 'invalid';
+      // Empty = unrestricted (0.00).
+      const minimumRaw = text(fd, 'minimumOrderTotalAfterDiscounts');
+      const minimumTotal = minimumRaw === undefined ? 0 : parseMoneyToCents(minimumRaw);
+      if (minimumTotal === null) errors.minimumOrderTotalAfterDiscounts = 'money';
       return {
         input: {
           cartLockTtlSeconds: requiredInt(fd, 'cartLockTtlSeconds', errors),
@@ -243,6 +247,9 @@ async function readInput(
           requirePhone: flag(fd, 'requirePhone'),
           requireBillingAddress: flag(fd, 'requireBillingAddress'),
           refundFeesByDefault: flag(fd, 'refundFeesByDefault'),
+          fullDiscountPolicy: text(fd, 'fullDiscountPolicy'),
+          minimumOrderTotalAfterDiscounts: minimumTotal ?? undefined,
+          maxDiscountPercent: requiredInt(fd, 'maxDiscountPercent', errors),
         },
       };
     }
@@ -360,6 +367,12 @@ async function readInput(
     case 'invoicing': {
       const limit = parseMoneyToCents(text(fd, 'smallAmountInvoiceLimit') ?? '');
       if (limit === null) errors.smallAmountInvoiceLimit = 'money';
+      // Only locales with a text are stored (empty = no note in that language).
+      const zeroValueInvoiceNote: Record<string, string> = {};
+      for (const loc of SUPPORTED_LOCALES) {
+        const value = text(fd, `zeroValueInvoiceNote.${loc}`);
+        if (value !== undefined) zeroValueInvoiceNote[loc] = value;
+      }
       return {
         input: {
           smallAmountInvoiceLimit: limit ?? undefined,
@@ -368,6 +381,9 @@ async function readInput(
           invoiceNumberPattern: text(fd, 'invoiceNumberPattern') ?? '',
           creditNoteNumberPattern: text(fd, 'creditNoteNumberPattern') ?? '',
           invoiceFooter: text(fd, 'invoiceFooter'),
+          zeroValueInvoice: text(fd, 'zeroValueInvoice'),
+          zeroValueInvoiceNote,
+          discountNoteOnAllInvoices: flag(fd, 'discountNoteOnAllInvoices'),
         },
       };
     }

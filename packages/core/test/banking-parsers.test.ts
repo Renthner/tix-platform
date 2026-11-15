@@ -282,11 +282,12 @@ describe('MT940', () => {
     expect(tags.get('MREF')).toBe('M1');
   });
 
-  it('skips MT942 interim reports', () => {
+  it('imports MT942 interim reports (see banking-camt054-mt942.test.ts)', () => {
     const file = parseMt940(
       ':20:X\n:25:37040044/0532013000\n:28C:1\n:34F:EURD0,\n:61:2603020302C1,00NMSCNONREF\n-',
     );
-    expect(file.statements).toHaveLength(0);
+    expect(file.statements).toHaveLength(1);
+    expect(file.statements[0]!.transactions).toHaveLength(1);
     expect(file.warnings[0]).toMatch(/MT942/);
   });
 });
@@ -357,9 +358,9 @@ describe('format detection, ZIP archives and fingerprints', () => {
     expect(detectStatementFormat(camt052)).toBe('CAMT052');
     expect(detectStatementFormat(mt940)).toBe('MT940');
     expect(detectStatementFormat('Buchungstag;Betrag\n02.03.2026;1,00', 'x.csv')).toBe('CSV');
-    expect(() =>
+    expect(
       detectStatementFormat('<?xml version="1.0"?><Document><BkToCstmrDbtCdtNtfctn/></Document>'),
-    ).toThrow(/camt.054/);
+    ).toBe('CAMT052');
   });
 
   it('unpacks ZIP archives (deflate + stored)', () => {

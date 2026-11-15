@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Link } from '@/i18n/navigation';
 import { BANKING_IDLE } from '@/lib/banking-action-state';
+import { isReleasableBankTxHold, type BankTxHold } from '@/lib/banking-hold';
 import { parseMoneyToCents } from '@/lib/money';
 import {
   assignAdjustmentAction,
@@ -28,6 +29,7 @@ import { ReverseAllocationButton } from './reverse-allocation';
 import {
   BankField,
   BankingFeedback,
+  HoldBadge,
   MatchStatusBadge,
   Money,
   ReasonBadge,
@@ -82,9 +84,12 @@ const PAYABLE = ['PENDING', 'AWAITING_PAYMENT', 'PAID'];
 export function ReviewCase({
   view,
   showDetailsLink = true,
+  hold = null,
 }: {
   view: ReviewCaseView;
   showDetailsLink?: boolean;
+  /** Importer hold (interim, possible duplicate …): the entry is never matched automatically. */
+  hold?: BankTxHold | null;
 }) {
   const t = useTranslations('banking.review');
   const tr = useTranslations('banking.candidateReason');
@@ -133,7 +138,7 @@ export function ReviewCase({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <MatchStatusBadge status={view.matchStatus} />
+            {hold ? <HoldBadge hold={hold} /> : <MatchStatusBadge status={view.matchStatus} />}
             {view.reviewReason && view.matchStatus === 'NEEDS_REVIEW' ? (
               <ReasonBadge reason={view.reviewReason} />
             ) : null}
@@ -334,11 +339,12 @@ export function ReviewCase({
           ) : null}
           {credit &&
           !fullyAllocated &&
+          (!hold || isReleasableBankTxHold(hold)) &&
           view.matchStatus !== 'AUTO_MATCHED' &&
           view.matchStatus !== 'MANUALLY_MATCHED' ? (
             <BankingActionButton
               action={rematchTransactionAction.bind(null, view.id)}
-              label={t('rematch')}
+              label={hold ? t('releaseHold') : t('rematch')}
               icon="refresh"
             />
           ) : null}

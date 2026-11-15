@@ -334,6 +334,119 @@ describe.skipIf(!adminUrl || !redisUrl)('bank reconciliation (integration)', () 
     });
   });
 
+  it('imports camt.054 and MT942 and dedupes them against later camt.053 / MT940 (no double payment)', async () => {
+    const order = await createOrder(2345);
+    const entry = { amount: 2345, name: 'Hans Müller', iban: PAYER_IBAN, text: order.reference };
+    const asCamt054 = (e: Entry[]) =>
+      new Uint8Array(
+        Buffer.from(
+          Buffer.from(camt(e))
+            .toString()
+            .replace('camt.053', 'camt.054')
+            .replaceAll('BkToCstmrStmt', 'BkToCstmrDbtCdtNtfctn')
+            .replaceAll('<Stmt>', '<Ntfctn>')
+            .replaceAll('</Stmt>', '</Ntfctn>'),
+        ),
+      );
+    const mt = (kind: '942' | '940', e: Entry) =>
+      new Uint8Array(
+        Buffer.from(
+          [
+            `:20:T${kind}`,
+            `:25:37040044/0532013000`,
+            kind === '942' ? ':34F:EURD0,' : ':60F:C260301EUR0,00',
+            `:61:2603020302CR${(e.amount / 100).toFixed(2).replace('.', ',')}NTRFNONREF`,
+            `:86:166?00GUTSCHRIFT?20SVWZ+${e.text}?31${e.iban}?32${e.name}`,
+            kind === '940' ? ':62F:C260302EUR23,45' : ':90C:1EUR23,45',
+            '-',
+          ].join('\n'),
+        ),
+      );
+    const account = { id: accountId, iban: OWN_IBAN, currency: 'EUR' };
+
+    // 1) camt.054 notification: booking is stored and matched.
+    const [first] = await importStatementFile(ctx, {
+      account,
+      source: 'UPLOAD',
+      fileName: 'notification.xml',
+      bytes: asCamt054([entry]),
+    });
+    expect(first).toMatchObject({ status: 'COMPLETED', format: 'CAMT052', importedCount: 1 });
+    await matchBankTransactions(ctx, first!.insertedIds);
+    expect((await orderRow(order.id)).status).toBe('PAID');
+
+    // 2) Same booking as camt.053 and the final MT940 → duplicates. An MT942 arriving later is
+    // stored held ("interim", never matched) and linked to the booking it repeats.
+    const [late942] = await importStatementFile(ctx, {
+      account,
+      source: 'UPLOAD',
+      fileName: 'intraday.mt942',
+      bytes: mt('942', entry),
+    });
+    expect(late942).toMatchObject({ status: 'COMPLETED', importedCount: 1, insertedIds: [] });
+    for (const [fileName, bytes] of [
+      ['day.xml', camt([entry])],
+      ['day.sta', mt('940', entry)],
+    ] as const) {
+      const [r] = await importStatementFile(ctx, {
+        account,
+        source: 'UPLOAD',
+        fileName,
+        bytes,
+      });
+      expect(r, fileName).toMatchObject({
+        status: 'COMPLETED',
+        transactionCount: 1,
+        importedCount: 0,
+        duplicateCount: 1,
+        insertedIds: [],
+      });
+    }
+    const paymentRows = await handle.db
+      .select()
+      .from(payments)
+      .where(eq(payments.orderId, order.id));
+    expect(paymentRows).toHaveLength(1);
+
+    // 3) The other direction: MT942 first, final MT940 later.
+    const order2 = await createOrder(2345);
+    const entry2 = { ...entry, text: order2.reference, date: '2026-03-02' };
+    const [intraday] = await importStatementFile(ctx, {
+      account,
+      source: 'UPLOAD',
+      fileName: 'intraday2.942',
+      bytes: mt('942', entry2),
+    });
+    expect(intraday).toMatchObject({ status: 'COMPLETED', format: 'MT940', importedCount: 1 });
+    // MT942 entries are never matched: the order is not paid by an interim entry.
+    expect(intraday!.insertedIds).toEqual([]);
+    await matchBankTransactions(ctx, intraday!.insertedIds);
+    expect((await orderRow(order2.id)).status).toBe('AWAITING_PAYMENT');
+    const [final] = await importStatementFile(ctx, {
+      account,
+      source: 'UPLOAD',
+      fileName: 'final2.sta',
+      bytes: mt('940', entry2),
+    });
+    // The final statement counts (own fingerprint) and pays the order; the interim row is linked.
+    expect(final).toMatchObject({ importedCount: 1, duplicateCount: 0 });
+    await matchBankTransactions(ctx, final!.insertedIds);
+    expect((await orderRow(order2.id)).status).toBe('PAID');
+
+    // Malformed camt.054 fails cleanly without storing transactions.
+    const [broken] = await importStatementFile(ctx, {
+      account,
+      source: 'UPLOAD',
+      fileName: 'broken.xml',
+      bytes: new Uint8Array(
+        Buffer.from(
+          '<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.054.001.02"><BkToCstmrDbtCdtNtfctn><Ntfctn>',
+        ),
+      ),
+    });
+    expect(broken).toMatchObject({ status: 'FAILED', errorCode: 'INVALID_XML' });
+  });
+
   it('rejects files of another account', async () => {
     const xml = Buffer.from(camt([{ amount: 100, text: 'x' }]))
       .toString()

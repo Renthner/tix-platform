@@ -16,6 +16,7 @@ import {
   getPayPalRefundDetails,
   listPayPalOrderRefunds,
   PayPalApiError,
+  PayPalCredentialsError,
   type PayPalOrderRefund,
 } from '../payments/paypal';
 import { failRefund } from './refunds';
@@ -73,6 +74,10 @@ interface Flag {
 }
 
 const MOSTLY_NOT_FOUND = 'MOSTLY_NOT_FOUND';
+/** PayPal is not configured (e.g. a restore into a fresh system): the pass waits for credentials. */
+export const PAYPAL_NOT_CONFIGURED_ALERT = 'PAYPAL_NOT_CONFIGURED';
+/** PayPal rejected the credentials (typed error): nothing is marked FAILED, the pass waits. */
+export const PAYPAL_CREDENTIALS_ALERT = 'PAYPAL_CREDENTIALS';
 
 // ─── Marker ─────────────────────────────────────────────────────────────────
 
@@ -212,6 +217,21 @@ export async function skipRefundReconciliation(
 
 // ─── Job ────────────────────────────────────────────────────────────────────
 
+/**
+ * Manual "Reconcile with PayPal" (admin): arms the marker when it is not set (automatic refunds
+ * pause until the comparison is done, exactly like after a restore) and queues the job; an already
+ * pending reconciliation is only re-queued (the job ignores the retry back-off).
+ */
+export async function requestRefundReconciliation(
+  ctx: CoreContext,
+  reason = 'manual',
+): Promise<{ armed: boolean }> {
+  const status = await getRefundReconcileStatus(ctx);
+  if (!status.pending) await markRefundsForReconciliation(ctx, reason);
+  await enqueueRefundReconcile(ctx);
+  return { armed: !status.pending };
+}
+
 /** Queues the reconcile job (the refunds sweeper repeats it, with back-off, until it succeeds). */
 export async function enqueueRefundReconcile(ctx: Pick<CoreContext, 'jobs'>): Promise<void> {
   if (!ctx.jobs) return;
@@ -246,6 +266,11 @@ export interface RefundReconcileResult {
   /** False when the marker was kept (errors, alert) or the pass did not run. */
   complete: boolean;
   skipped?: 'NOT_PENDING' | 'LOCKED' | 'BACKOFF';
+  /**
+   * The pass stopped because PayPal cannot be asked (no credentials / credentials rejected). The
+   * marker stays, the sweeper repeats the pass; retrying right away would not help.
+   */
+  blocked?: 'NOT_CONFIGURED' | 'CREDENTIALS';
 }
 
 const emptyResult = (): RefundReconcileResult => ({
@@ -259,8 +284,12 @@ const emptyResult = (): RefundReconcileResult => ({
   complete: false,
 });
 
-type Failure = 'NOT_FOUND' | 'PERMANENT' | 'TRANSIENT';
-function classify(err: unknown): Failure {
+export type ReconcileFailure =
+  'NOT_FOUND' | 'PERMANENT' | 'TRANSIENT' | 'NOT_CONFIGURED' | 'CREDENTIALS';
+type Failure = ReconcileFailure;
+export function reconcileFailureKind(err: unknown): Failure {
+  if (err instanceof DomainError && err.code === 'PAYPAL_NOT_CONFIGURED') return 'NOT_CONFIGURED';
+  if (err instanceof PayPalCredentialsError) return 'CREDENTIALS';
   if (err instanceof PayPalApiError) {
     if (err.status === 404) return 'NOT_FOUND';
     if ([400, 410, 422].includes(err.status)) return 'PERMANENT';
@@ -364,8 +393,17 @@ export async function reconcileRefundsAfterRestore(
           result.settled += outcome.settled;
           if (outcome.findings > 0) result.reviewed += 1;
         } catch (err) {
-          const kind = classify(err);
+          const kind = reconcileFailureKind(err);
           const message = err instanceof Error ? err.message : String(err);
+          if (kind === 'NOT_CONFIGURED' || kind === 'CREDENTIALS') {
+            // Every further order would fail the same way: stop, keep the marker, tell the admin.
+            result.errors += 1;
+            result.blocked = kind;
+            result.alert =
+              kind === 'NOT_CONFIGURED' ? PAYPAL_NOT_CONFIGURED_ALERT : PAYPAL_CREDENTIALS_ALERT;
+            firstError = message;
+            break pages;
+          }
           if (kind === 'TRANSIENT') {
             result.errors += 1;
             firstError ??= message;
@@ -403,7 +441,11 @@ export async function reconcileRefundsAfterRestore(
     }
 
     // Most orders unknown to PayPal: wrong environment / account restored – keep the marker.
-    if (result.checked >= MIN_CHECKED_FOR_ALERT && result.notFound * 2 > result.checked) {
+    if (
+      !result.blocked &&
+      result.checked >= MIN_CHECKED_FOR_ALERT &&
+      result.notFound * 2 > result.checked
+    ) {
       result.alert = MOSTLY_NOT_FOUND;
     }
     result.complete = result.errors === 0 && result.alert === null;

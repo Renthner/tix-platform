@@ -7,6 +7,7 @@ import {
   type BestAvailableArrangement,
   type EventAvailability,
   type PublicSeat,
+  type PublicSection,
   type PublicSeatMap,
   type SeatDeltaMessage,
 } from '@tix/shared';
@@ -339,6 +340,23 @@ export function SeatSelection({
     [lookups, priceRangeLabel, seatName, seatTypeLabel, t],
   );
 
+  /** Accessible name of a standing section on the plan (keyboard control, opens its quantity panel). */
+  const standingLabel = useCallback(
+    (section: PublicSection) => {
+      const category = section.priceCategoryId
+        ? lookups?.categories.get(section.priceCategoryId)
+        : undefined;
+      return [
+        t('standingLabel', { name: section.name }),
+        category ? `${category.name}, ${priceRangeLabel(category.id)}` : null,
+        t('standing.remaining', { count: inv.ga[section.id] ?? 0 }),
+      ]
+        .filter(Boolean)
+        .join(', ');
+    },
+    [inv.ga, lookups, priceRangeLabel, t],
+  );
+
   const isSeatUnavailable = useCallback((seat: PublicSeat) => {
     const current = invRef.current;
     return (
@@ -617,6 +635,7 @@ export function SeatSelection({
             seatTitle={seatTitle}
             seatLabel={seatLabel}
             keyboardHelp={tChart('keyboardHelp')}
+            standingLabel={standingLabel}
             onUnavailableSeat={(seat) => void toggleSeat(seat)}
             onFocusSeat={handleFocusSeat}
             onEscape={() => viewToggleRef.current?.focus()}

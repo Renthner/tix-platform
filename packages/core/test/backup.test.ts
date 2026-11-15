@@ -70,7 +70,7 @@ describe('backup encryption (streaming AES-256-GCM)', () => {
     await expect(
       bytes(decryptStream(from(enc), [{ id: 'k1', key: randomBytes(32) }])),
     ).rejects.toMatchObject({
-      code: 'CORRUPT',
+      code: 'KEY_MISMATCH',
     });
     await expect(bytes(decryptStream(from(enc), [key('other')]))).rejects.toMatchObject({
       code: 'KEY_UNKNOWN',
@@ -119,7 +119,7 @@ describe('backup encryption (streaming AES-256-GCM)', () => {
     enc.copy(swapped, headerLength, headerLength + frame, headerLength + 2 * frame);
     enc.copy(swapped, headerLength + frame, headerLength, headerLength + frame);
     await expect(bytes(decryptStream(from(swapped), [k]))).rejects.toMatchObject({
-      code: 'CORRUPT',
+      code: 'KEY_MISMATCH',
     });
     await expect(
       bytes(decryptStream(from(Buffer.concat([enc, Buffer.from([1])])), [k])),

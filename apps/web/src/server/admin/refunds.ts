@@ -8,6 +8,7 @@ import {
   recordExistingPayPalOverpaymentRefund,
   recordExistingPayPalRefund,
   refundOverpayment,
+  requestRefundReconciliation,
   resolveRefundRestoreReview,
   skipRefundReconciliation,
   retryRefund,
@@ -219,6 +220,35 @@ export async function recordExistingRefundAction(
   } catch (err) {
     if (err instanceof DomainError) return fail(err.code);
     logger.error({ err }, '[admin/refunds] record existing refund failed');
+    return fail('INTERNAL_ERROR');
+  }
+}
+
+/** Finance/SUPER_ADMIN: compare the refunds with PayPal now (arms the pause like after a restore, audited). */
+export async function requestRefundReconciliationAction(
+  _prev: OrderActionState,
+  _fd: FormData,
+): Promise<OrderActionState> {
+  const session = await requireAdmin(['FINANCE']);
+  try {
+    const core = getCore();
+    const { armed } = await requestRefundReconciliation(core);
+    await audit(
+      core.db,
+      session,
+      'refund.reconciliation_requested',
+      'refund_reconcile_state',
+      null,
+      {
+        armed,
+      },
+    );
+    revalidatePath('/[locale]/admin/refunds', 'layout');
+    revalidatePath('/[locale]/admin', 'layout');
+    return ok('reconciliationRequested');
+  } catch (err) {
+    if (err instanceof DomainError) return fail(err.code);
+    logger.error({ err }, '[admin/refunds] request reconciliation failed');
     return fail('INTERNAL_ERROR');
   }
 }
