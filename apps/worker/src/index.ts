@@ -22,7 +22,7 @@ import {
   writeWorkerHeartbeat,
 } from '@tix/redis';
 import { APP_VERSION } from '@tix/shared';
-import { createSecretBox, parseKeyRing } from '@tix/shared/server';
+import { createReloadingSecretBox, loadKeyRing } from '@tix/shared/server';
 import { resolve } from 'node:path';
 import { Queue, Worker } from 'bullmq';
 import { loadEnv } from './env';
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
   const startedAt = new Date().toISOString();
 
   // Fail fast on a broken key ring – bank / PayPal / SMTP credentials are decrypted here.
-  const secrets = createSecretBox(parseKeyRing(env.APP_ENCRYPTION_KEYS));
+  const secrets = createReloadingSecretBox(env.APP_ENCRYPTION_KEYS);
 
   const dbHandle = createDb({
     connectionString: env.DATABASE_URL,
@@ -81,7 +81,10 @@ async function main(): Promise<void> {
   const backups: BackupRuntime = {
     ctx: core,
     buckets: backupBucketsFromEnv(env),
-    keyRing: parseKeyRing(env.APP_ENCRYPTION_KEYS),
+    // Re-read on every use: a restore can add additional (decrypt-only) keys at any time.
+    get keyRing() {
+      return loadKeyRing(env.APP_ENCRYPTION_KEYS);
+    },
     databaseUrl: env.DATABASE_URL,
     migrationsDir: env.MIGRATIONS_DIR ?? resolve(process.cwd(), '../../packages/db/migrations'),
     appVersion: VERSION,
@@ -171,7 +174,7 @@ async function main(): Promise<void> {
       .writeHead(healthy ? 200 : 503, { 'content-type': 'application/json' })
       .end(JSON.stringify({ status: healthy ? 'ok' : 'unhealthy', workerId }));
   });
-  healthServer.listen(env.WORKER_HEALTH_PORT, '0.0.0.0');
+  healthServer.listen(env.WORKER_HEALTH_PORT, env.WORKER_HEALTH_HOST);
 
   logger.info(
     { version: APP_VERSION, workerId, queues: workers.map((w) => w.name) },

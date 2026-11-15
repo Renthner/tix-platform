@@ -7,8 +7,11 @@ scripts: [`seat-engine.ts`](../packages/redis/src/seat-engine.ts),
 [`queue-engine.ts`](../packages/redis/src/queue-engine.ts) ·
 tests: [`engine.integration.test.ts`](../packages/redis/test/engine.integration.test.ts).
 
-Server settings ([`docker/redis/redis.conf`](../docker/redis/redis.conf)): `maxmemory-policy noeviction`
-(locks and jobs are never evicted), AOF with per-second fsync.
+Server settings (the `command:` of the `redis` service in `deploy/docker-compose.yml`; the development
+file uses [`docker/redis/redis.conf`](../docker/redis/redis.conf)): `maxmemory-policy noeviction` (locks
+and jobs are never evicted), AOF with per-second fsync and `aof-load-corrupt-tail-max-size` so Redis starts
+again after a power loss. Redis is not published and runs without a password inside the Docker network
+(`REDIS_URL` defaults to `redis://redis:6379/0`).
 
 ## Key layout
 

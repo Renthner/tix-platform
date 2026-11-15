@@ -1,7 +1,13 @@
 {
+  "storage": {
+    "driverFs": "File storage: local directory {dir}",
+    "driverS3": "File storage: S3-compatible object storage",
+    "localOnlyTitle": "Backups are only stored on this server",
+    "localOnlyText": "Backups on the same volume do not survive the loss of the disk or the server. Configure an external target under \"External S3 copy\" below so every backup is also stored elsewhere."
+  },
   "title": "Backups",
-  "description": "Full backups of the database and all stored files (images, invoices, tickets, bank statements). Backups are encrypted and kept in their own storage bucket; an external S3 target is optional.",
-  "keyNote": "Archives are encrypted with the key ring of this installation (key \"{keyId}\"). To restore a backup on another server, that server needs the same APP_ENCRYPTION_KEYS – keep a copy of them outside this system.",
+  "description": "Full backups of the database and all stored files (images, invoices, tickets, bank statements). Backups are encrypted and kept in the local storage; an external S3 target is optional.",
+  "keyNote": "Archives are encrypted with the key ring of this installation (key \"{keyId}\"). To restore a backup on another server, enter these keys there when restoring (or use the same APP_ENCRYPTION_KEYS) – keep a copy of them outside this system.",
   "maintenance": {
     "title": "Maintenance in progress",
     "text": "The system is being restored from a backup and is briefly unavailable. This page reloads automatically.",
@@ -155,10 +161,17 @@
     "external": "Also delete the copy on the external target"
   },
   "upload": {
-    "hint": "Restore a backup from another server or from the external target: upload the .tixbak file. It is checked completely before it appears in the list. Restoring requires the same encryption keys.",
+    "hint": "Restore a backup from another server or from the external target: upload the .tixbak file. It is checked completely before it appears in the list. For a backup of another system you need its encryption key (enter it in the upload dialog and again when restoring).",
     "accepted": "Upload received – the file is being checked.",
     "failed": "The upload failed.",
-    "notABackup": "This file is not a backup archive."
+    "notABackup": "This file is not a backup archive.",
+    "dialog": {
+      "title": "Upload a backup file",
+      "description": "Upload a .tixbak file, for example from another server or the external target. It is checked completely before it appears in the list.",
+      "keyHint": "A backup of another system is encrypted with that system's key and cannot be read without it: enter the key below, otherwise the file is rejected and deleted. The key is only used to check the file; you will be asked again when you restore it.",
+      "choose": "Choose file and upload",
+      "keyFailed": "The entered key text is not valid or collides with a key of this system."
+    }
   },
   "settings": {
     "title": "Schedule, retention and external copy",
@@ -228,7 +241,10 @@
     "connectionIncomplete": "Please enter endpoint, bucket and both access keys first.",
     "endpointNotAllowed": "This endpoint is not allowed: use https and a public address (or enable the matching option below).",
     "protected": "The newest verified backup cannot be deleted.",
-    "twoFactorSetupRequired": "Restoring requires two-factor authentication. Set it up in your account first."
+    "twoFactorSetupRequired": "Restoring requires two-factor authentication. Set it up in your account first.",
+    "sourceKeysInvalid": "The entered encryption key is not valid. Expected entries like id:base64, separated by commas or lines.",
+    "sourceKeysConflict": "A key id of the entered key is already used by this system with a different key. Give this system's own key another id first.",
+    "sourceKeysDisabled": "Restoring with the key of another system is disabled on this server. The operator can enable it with TIX_ALLOW_FOREIGN_BACKUP_KEYS=1 (see the backup documentation)."
   },
   "dashboardAlert": {
     "title": "The last scheduled backup failed",
@@ -277,5 +293,34 @@
     },
     "seconds": "{seconds} s",
     "counts": "{events} events, {orders} orders, {tickets} tickets · {migrations} migrations applied"
+  },
+  "sourceKey": {
+    "disabled": {
+      "short": "Keys of another system are disabled on this server.",
+      "hint": "Backups of another system (with a different APP_ENCRYPTION_KEYS) cannot be restored here: this option is switched off. The server operator can enable it by setting TIX_ALLOW_FOREIGN_BACKUP_KEYS=1 for the application and restarting it. Warning: with this switch on, a SUPER_ADMIN can run arbitrary SQL as the database user (a restore executes the contents of the archive as the database superuser, and a SUPER_ADMIN can build an archive under their own key). Enable it only temporarily for a migration and only if all SUPER_ADMINs are fully trusted."
+    },
+    "summary": "Backup from another system? Enter its encryption key",
+    "hint": "Only needed when this backup was made by a different installation (a different APP_ENCRYPTION_KEYS). Paste the complete APP_ENCRYPTION_KEYS value of the source system (all entries, e.g. k1:...,k0:...). The key is used on the server only for this step and is never shown again. After a successful restore it is kept in a protected file on the data volume as an additional key that can only decrypt (new data is still encrypted with this system's own key).",
+    "label": "Encryption key(s) of the source system",
+    "check": "Check key",
+    "checking": "Checking…",
+    "conflictNote": "A key id that this system already uses with a different key cannot be added. If this is a fresh installation, give this system's own key a different id (for example k2) in APP_ENCRYPTION_KEYS.",
+    "results": {
+      "match": "The key matches this backup.",
+      "readable": "This backup is already readable with this system's own keys; no other key is needed.",
+      "disabled": "Keys of another system are disabled on this server.",
+      "unknown": "This backup was made with a key id that is not among the entered keys. Enter the complete key ring of the source system.",
+      "mismatch": "The key does not match this backup (or the file is damaged).",
+      "invalid": "The entered text is not a valid key. Expected entries like id:base64 (32 bytes), separated by commas or lines.",
+      "conflict": "A key id is already used by this system with a different key: {detail}",
+      "notBackup": "This file is not a backup archive.",
+      "notFound": "Backup not found.",
+      "empty": "Enter the key first.",
+      "rateLimited": "Too many attempts. Please wait a few minutes."
+    }
+  },
+  "additionalKeys": {
+    "title": "Additional decryption keys are active",
+    "text": "A backup of another system was restored. Its stored secrets (bank access, API keys, ticket signing keys, settings) stay readable through these additional keys: {ids}. They are kept in a protected file on the data volume and can only decrypt; new data is encrypted with this system's own key. Keep them as long as the restored data or backups of it exist. Re-encrypting all secrets with the current key is not offered: they are spread over many tables, so the additional keys must stay."
   }
 }

@@ -19,7 +19,7 @@ import {
 } from './manifest';
 import { pgDumpStream, readExistingRowCounts, readMigrationInfo, type PgBinaries } from './pg';
 import { describeError } from './runtime';
-import type { S3Bucket } from './s3';
+import type { BackupBucket } from './bucket';
 
 /**
  * Pre-update backup: a database-only archive (same encrypted format and catalogue as the admin
@@ -42,7 +42,7 @@ export interface PreUpdateBackupParams {
   keyRing: readonly BackupKey[];
   pg: PgBinaries;
   /** Backups bucket; null = go straight to the local directory. */
-  bucket: S3Bucket | null;
+  bucket: BackupBucket | null;
   /** Fallback directory (volume `pre-update-backups`); null = no fallback. */
   localDir: string | null;
   /** Pre-update backups to keep per location (default 3, at least 1). */
@@ -199,7 +199,11 @@ async function writeLocal(
   return { path: target, sizeBytes: (await stat(target)).size };
 }
 
-async function pruneBucket(bucket: S3Bucket, keep: number, logger: PreUpdateLogger): Promise<void> {
+async function pruneBucket(
+  bucket: BackupBucket,
+  keep: number,
+  logger: PreUpdateLogger,
+): Promise<void> {
   try {
     const entries = (await listCatalogue(bucket)).filter((e) => e.manifest.kind === 'PRE_UPDATE');
     for (const entry of selectPreUpdateToDelete(entries, keep)) {
@@ -245,6 +249,49 @@ export function isMountPointIn(mountinfo: string, dir: string): boolean {
   return false;
 }
 
+const NON_PERSISTENT_FS = new Set([
+  'overlay',
+  'aufs',
+  'tmpfs',
+  'devtmpfs',
+  'ramfs',
+  'proc',
+  'sysfs',
+  'devpts',
+  'mqueue',
+  'cgroup',
+  'cgroup2',
+]);
+
+/**
+ * `true` when `dir` is on persistent storage according to the text of /proc/self/mountinfo: inside
+ * a mounted volume (a mount at or above `dir`, not `/` and not a memory/overlay file system). On a
+ * host whose root file system is not a container layer (no overlay/aufs at `/`) everything counts as
+ * persistent. Used for the filesystem storage directory, which lives inside one volume.
+ */
+export function isOnPersistentVolumeIn(mountinfo: string, dir: string): boolean {
+  const wanted = dir.length > 1 ? dir.replace(/\/+$/, '') : dir;
+  let rootType: string | undefined;
+  let best = false;
+  for (const line of mountinfo.split('\n')) {
+    const [head, tail] = line.split(' - ');
+    const field = head?.split(' ')[4];
+    const type = tail?.split(' ')[0];
+    if (field === undefined || type === undefined) continue;
+    const point = field.replace(/\\([0-7]{3})/g, (_, oct: string) =>
+      String.fromCharCode(Number.parseInt(oct, 8)),
+    );
+    if (point === '/') {
+      rootType = type;
+      continue;
+    }
+    if (NON_PERSISTENT_FS.has(type)) continue;
+    if (wanted === point || wanted.startsWith(`${point}/`)) best = true;
+  }
+  if (rootType !== undefined && !['overlay', 'aufs'].includes(rootType)) return true;
+  return best;
+}
+
 export type PreUpdateOutcome =
   | { kind: 'skipped'; reason: 'opt-out' | 'old-compose' }
   | { kind: 'created'; result: PreUpdateBackupResult };
@@ -255,12 +302,18 @@ export interface PreUpdatePolicyParams {
   /** TIX_COMPOSE_VERSION: empty = docker-compose.yml of an older release without backup support. */
   composeVersion: string | undefined;
   /** Builds the bucket; may throw (e.g. unreadable credentials) or return null (not configured). */
-  makeBucket: () => S3Bucket | null;
+  makeBucket: () => BackupBucket | null;
   /** Local fallback directory, used only when it is a real mount (never the container layer). */
   localDir: string | null;
   isMountPoint: (dir: string) => Promise<boolean>;
+  /**
+   * Filesystem bucket (`bucket.localPath`): must be inside a persistent volume, otherwise it would
+   * live in the container layer and vanish with it - then it counts as no bucket. Default: the
+   * stricter `isMountPoint`.
+   */
+  isOnVolume?: (dir: string) => Promise<boolean>;
   create: (target: {
-    bucket: S3Bucket | null;
+    bucket: BackupBucket | null;
     localDir: string | null;
   }) => Promise<PreUpdateBackupResult>;
   logger: PreUpdateLogger;
@@ -275,13 +328,33 @@ export interface PreUpdatePolicyParams {
 export async function runPreUpdatePolicy(params: PreUpdatePolicyParams): Promise<PreUpdateOutcome> {
   if (params.skip) return { kind: 'skipped', reason: 'opt-out' };
   const oldCompose = (params.composeVersion ?? '').trim() === '';
-  let bucket: S3Bucket | null = null;
+  let bucket: BackupBucket | null = null;
   try {
     bucket = params.makeBucket();
   } catch (err) {
     params.logger.warn(
       `[pre-update-backup] object storage credentials are not usable (${describeError(err)}); no bucket`,
     );
+  }
+  if (bucket?.localPath) {
+    const onVolume = params.isOnVolume ?? params.isMountPoint;
+    let persistent = false;
+    try {
+      persistent = await onVolume(bucket.localPath);
+    } catch {
+      // unreadable mountinfo = not a volume
+    }
+    if (persistent) {
+      params.logger.warn(
+        `[pre-update-backup] the backups live on the local storage volume (${bucket.localPath}), the same disk as the application files: they survive container updates but not the loss of that disk. Configure an external backup target under Admin > Backups.`,
+      );
+    } else {
+      params.logger.warn(
+        `[pre-update-backup] ${bucket.localPath} is not on a mounted volume; it is not used (it would live inside the container and vanish with it)`,
+      );
+      bucket.destroy();
+      bucket = null;
+    }
   }
   let localDir: string | null = null;
   if (params.localDir) {

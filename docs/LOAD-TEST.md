@@ -95,11 +95,11 @@ heartbeats per session, and so on (code constants in `apps/web`). A single gener
 one address, so without precautions most requests would get HTTP 429 and you would test the rate
 limiter instead of the seat locking.
 
-The isolated stack therefore uses `scripts/load/Caddyfile.load` (via
-`scripts/load/docker-compose.load.yml`): the proxy trusts the private-range peer (the Docker host)
+The isolated stack therefore sets `TRUSTED_PROXIES=private_ranges` (see `scripts/load/run.mjs`): the
+built-in proxy of the `tix` container trusts the private-range peer (the Docker host)
 and takes the client address from the `X-Forwarded-For` header the generator sends, one distinct
 address per VU (`100.64.x.x`). The application code is unchanged and sees 1,200 different
-visitors. This overlay must never be used in production, where the client could forge addresses.
+visitors. Never set this on a system whose clients could forge addresses.
 The generator only sends the header when started with `--fake-ip` (the runner does for the isolated
 stack).
 
@@ -150,7 +150,7 @@ You can also run a single scenario directly:
 
 ## Limits of a single-machine test
 
-- The generator, the proxy, web, realtime, worker, PostgreSQL, Redis and MinIO all share the CPU of
+- The generator, the `tix` container (proxy, web, realtime, worker), PostgreSQL and Redis all share the CPU of
   one machine, typically a laptop. Latencies measured here are **worse** than on dedicated servers
   and are dominated by CPU contention (see the container CPU peaks in `summary.txt`).
 - One generator process is a single JavaScript thread; at very high VU counts the measured
@@ -167,7 +167,7 @@ You can also run a single scenario directly:
 ## Reference results (single developer machine)
 
 Windows 11, 24 logical CPUs, 32 GB RAM, Docker Desktop, everything (generator included) on the
-same machine, 1,200 virtual users per scenario, one web / worker / realtime container each,
+same machine, 1,200 virtual users per scenario, one `tix` container (web, worker and realtime processes),
 `WEB_DATABASE_POOL_MAX=20` (default). Other work was running on the machine at the same time, so
 treat the figures as an order of magnitude.
 

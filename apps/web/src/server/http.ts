@@ -120,10 +120,10 @@ export async function parseBody<T extends z.ZodType>(
 }
 
 /**
- * Client address for rate limiting and audit. The only proxy in front of the app is Caddy,
- * which discards a client-supplied X-Forwarded-For and appends the peer it saw – so the
- * right-most entry is the one Caddy added and cannot be forged. (Behind another proxy, list it in
- * Caddy's `trusted_proxies`; see docker/caddy/Caddyfile.)
+ * Client address for rate limiting and audit. The only proxy in front of the app is the built-in
+ * proxy of the image (docker/supervisor/proxy.mjs), which discards a client-supplied
+ * X-Forwarded-For and always sends exactly one address (the peer it saw, or the visitor address
+ * taken from a trusted proxy listed in TRUSTED_PROXIES) – so the right-most entry cannot be forged.
  */
 export async function clientIp(): Promise<string> {
   const h = await headers();

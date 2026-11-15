@@ -12,9 +12,17 @@ One encrypted archive per backup:
 Not part of a backup: the backups bucket itself, Redis (carts, locks and queues are rebuilt), and the
 schema `retained` (the GDPR erasure ledger, see below).
 
-Archives live in their own bucket (`S3_BUCKET_BACKUPS`, default `tix-backups`, versioned). Optionally every
-backup is copied to an external S3-compatible target (Settings on the Backups page). The catalogue is the
-bucket itself (`backups/<time>-<kind>-<id>/` with `archive.tixbak`, `manifest.json`, `state.json`).
+Archives live in their own local store, depending on the [storage driver](STORAGE.md): with the default
+**filesystem** driver the directory `<STORAGE_DIR>/backups` (default `/data/storage/backups`), with the **S3**
+driver the bucket `S3_BUCKET_BACKUPS` (default `tix-backups`, versioned when you run MinIO). Optionally every
+backup is copied to an external S3-compatible target (Settings on the Backups page; this stays S3 for both
+drivers). The catalogue is the store itself (`backups/<time>-<kind>-<id>/` with `archive.tixbak`,
+`manifest.json`, `state.json`).
+
+> **Local backups are not off-site backups.** With the filesystem driver the backups sit on the same volume as
+> the files (and usually the same disk and server as the database). They survive container updates but not the
+> loss of the disk. The Backups page therefore shows a warning while the filesystem driver is used and no
+> external target is enabled; configure the external target.
 
 Kinds: `MANUAL`, `SCHEDULED`, `PRE_RESTORE` (safety backup taken automatically before every restore).
 
@@ -24,8 +32,10 @@ Archives are encrypted with AES-256-GCM in 1 MiB chunks (STREAM construction; ch
 flag are authenticated, so reordering, truncation and bit flips are detected). The file key is derived with
 HKDF from a key of `APP_ENCRYPTION_KEYS`; the key id is stored in the archive header.
 
-**Restoring on another server requires the same `APP_ENCRYPTION_KEYS`** (at least the key with the id shown
-in the backup). Keep a copy of the key ring outside this system - without it a backup cannot be read.
+**Restoring a backup of another system requires that system's `APP_ENCRYPTION_KEYS`** (at least the key with
+the id shown in the backup; the database content inside is encrypted with the same ring). Either start the new
+system with the same ring, or enter it at restore time (see "Restoring a backup from another system"). Keep a
+copy of the key ring outside this system - without it a backup cannot be read.
 
 ## Schedule, retention, verification
 
@@ -86,22 +96,30 @@ until a later probe passes; it is not raised while the probe is switched off or 
 
 ## Pre-update backups
 
-Before the `migrate` service applies pending database migrations to an installation that already
+Before the `tix` container applies pending database migrations to an installation that already
 has data, it writes a database-only backup in the same encrypted format (kind "Before update",
 listed on the Backups page, restorable like any other; a restore of it replaces the database and
 leaves all files untouched). The newest 3 are kept (`PRE_UPDATE_BACKUP_KEEP`) and they are not part
 of the scheduled/manual retention. If the backups bucket is not reachable the archive is written as
-a file to the Docker volume `pre-update-backups` (upload it on the Backups page to restore it). If
+a file to the fallback directory `PRE_UPDATE_BACKUP_DIR` when that is a mounted volume (installations of older releases used the volume `pre-update-backups`; upload such a file on the Backups page to restore it). If
 no backup can be written the migration is not applied (`SKIP_PRE_UPDATE_BACKUP=1` disables the
 step). Fresh installations skip it.
+
+With the filesystem driver the "backups bucket" is `<STORAGE_DIR>/backups`. The migration step only uses
+it when that directory is inside a **mounted volume** (checked in `/proc/self/mountinfo`: a mount at or above
+the directory that is not the container's root layer or a memory file system), otherwise the archive would
+vanish with the container and the directory counts as "not available" (fallback: `PRE_UPDATE_BACKUP_DIR`
+when mounted, else the update stops). It logs a warning that the backup lives on the same disk as the files.
 
 The backup holds your **data** from before the update. Restoring it replaces the database (files stay
 untouched; files uploaded since then are left orphaned in storage, which is harmless) and re-runs the
 migrations of the version that is running now: you stay on the **new** version. Going back to an
 older application version is not supported once a newer schema was applied (older versions cannot
 read the newer schema or the "Before update" backup type). A compose file of an older release cannot
-take pre-update backups (the new `migrate` image then warns and migrates without one): use the
-compose file of the running release or `tix-update.sh`.
+take pre-update backups (the new image then warns and migrates without one): use the
+compose file of the running release or `tix-update.sh`. The single `tix` image always counts as a new
+compose file (the supervisor sets `TIX_COMPOSE_VERSION` to the image version when unset), so the
+backup is never skipped silently.
 
 ## Restore
 
@@ -130,6 +148,96 @@ If a step after the commit fails, the system **stays in maintenance mode** and t
 
 Numbers (orders, invoices, credit notes, ticket sync versions) are never reused: counters keep the higher
 live values, so the sequence may contain gaps after a restore.
+
+### Restoring a backup from another system
+
+A backup made by another installation is encrypted with that installation's key ring, and the secrets stored
+in its database (bank PINs, API keys, ticket signing keys, settings secrets, TOTP secrets) use the same keys.
+To restore it on a system with a different `APP_ENCRYPTION_KEYS`:
+
+> **Switched off by default (`TIX_ALLOW_FOREIGN_BACKUP_KEYS`).** A restore streams the archive's dump through
+> `pg_restore` into `psql` **as the database user**, which is a superuser in the stock PostgreSQL image. An
+> archive can therefore contain `COPY ... TO PROGRAM` or similar and run commands inside the database
+> container. With this system's own keys only someone who already holds them can build such an archive; the
+> "key of another system" feature lets a SUPER_ADMIN supply a key of their own. So the operator must opt in:
+> set `TIX_ALLOW_FOREIGN_BACKUP_KEYS=1` (or `true`) in `.env` and restart, migrate, then remove it again.
+> **With the switch on, a SUPER_ADMIN has the power of the database superuser.** While it is off, the key
+> section of the upload and restore dialogs is replaced by a hint, and the server refuses staged keys, key
+> checks, uploads that carry a key token and restores with keys (web actions, upload route and worker alike).
+> Keys that an earlier restore already stored in the additional-keys file keep working.
+
+1. **Upload** the `.tixbak` file (Backups > Upload backup file, SUPER_ADMIN, streamed, limited by the setting
+   "maximum upload size"). In the same dialog paste the source system's complete `APP_ENCRYPTION_KEYS` value
+   (all entries, `id:base64`, separated by commas or lines; a pasted `APP_ENCRYPTION_KEYS=` prefix is fine).
+   The file is checked completely (every block authenticated, checksum, manifest) before it appears in the
+   list; without the key the import is rejected and the file deleted. Nothing is persisted at this step.
+2. **Restore**: open the restore dialog of the backup, expand "Backup from another system", paste the key again
+   and use **Check key**. The check reads only the archive header and the first encrypted block and reports
+   "matches" / "key id not among the entered keys" / "does not match (or file damaged)"; it starts and stores
+   nothing. It tests only the keys you pasted; if this system's own keys (including stored additional keys) can
+   already read the archive it says so ("already readable by this system") instead of "matches". It proves the
+   archive key only: paste the complete ring, because secrets inside the database may
+   use older key ids of the source ring. The restore itself needs the usual confirmation (password, 2FA or
+   passkey, acknowledgement) - unchanged.
+3. **After the restore** the entered entries stay available as **additional, decrypt-only keys** in
+   `<TIX_SECRETS_DIR, default /data/secrets>/extra-encryption-keys` (override: `TIX_EXTRA_KEYS_FILE`; one
+   `id:base64` per line, mode 0600, on the data volume). The shared key-ring loader reads the file together with
+   `APP_ENCRYPTION_KEYS` (the configured key stays first and is the only one that encrypts new data); running web
+   and worker processes pick the file up on demand (no restart; the file is re-read when an envelope names an
+   unknown key id, at most every 5 s). The backups page shows the ids of the additional keys. The keys are written
+   BEFORE the database is replaced (a failure aborts the restore with nothing changed); a rolled-back restore may
+   leave them behind, which is harmless. The file is replaced crash-safely: written to a unique, exclusively
+   created temporary file next to it (a symlink at that name is never followed), fsynced, renamed over the
+   target and the directory fsynced; then it is read back from disk and compared with what was meant to be
+   stored, and only then does the restore proceed. A file that is broken anyway (empty, truncated) never makes
+   web and worker crash-loop: an **empty** file counts as "no additional keys" and is logged; a **file that does
+   not parse** is logged as an error and the processes continue with the configured keys only, so anything
+   encrypted with an additional key then fails with an "unknown encryption key id" error that names the file
+   problem. Repair or restore the file and the keys are picked up again (running processes re-read it on demand).
+   A restore refuses to overwrite such a broken file (the keys inside it could be lost): fix or remove it first.
+
+How the key travels: the web action parses it, encrypts it with the CURRENT key (secret box) and parks it in
+Redis for at most one hour under an opaque random token; the queue job and the upload header carry only that
+token, and the worker consumes it once (`GETDEL`). The key is never logged, never in job data, audit entries,
+status or error messages (the audit entry records only that a key was supplied, and the ids of stored keys), and
+is never echoed back to the browser. Rate limits apply to the check and staging actions.
+
+**Key id collisions.** Envelopes and archives carry only the key id, so one id cannot stand for two different
+keys. If the source ring uses an id that this system already uses with a different key (e.g. both are `k1`,
+the id older versions of the key generator always used), the entry is rejected with a clear message. The
+`keygen` command now picks a random id (`k` + 6 hex characters), so separate systems rarely collide. For a
+target system with a `k1` key, give its own key another id (e.g. `k2:...`) in `APP_ENCRYPTION_KEYS` before
+first use and restore again. An alternative
+that avoids the rename (several keys per id, picked by trial decryption) is deliberately not implemented.
+
+The same applies to the additional-keys file: if you restored the backup of system A (key id `k1`) and later
+want to restore the backup of system B whose ring also uses `k1` with a different key, the second restore is
+**rejected** because `k1` is already stored with other material. Be aware of the real limitation: one system
+cannot hold two different keys under one id, and the ids inside existing archives and database values cannot be
+rewritten. Workarounds, in order of preference: (1) restore B into a fresh installation whose own key has a
+different id; (2) if A's data is no longer needed on this system (the restore of B replaces the whole database,
+so the live data will only contain B's secrets), stop using A: delete the `k1:` line from the additional-keys
+file and restore B. Note that this also makes A's backups, and the automatic safety backup created before the
+restore (it contains A's secrets under `k1`), unreadable for their embedded secrets unless you keep a copy of A's
+line elsewhere. Re-saving secrets (re-entering a bank PIN or API key) only re-encrypts the value you save with
+this system's own key; it does not change old ids.
+
+**Limitations.**
+
+- The additional keys must be kept as long as the restored data (or backups of it) exist: the database still
+  contains secrets encrypted with them. A **"re-encrypt everything with the current key"** action is **not
+  offered**: encrypted values are spread over many tables with individual context strings (settings, bank
+  connections, TAN challenges, ticket signing keys, scanner LAN secrets, admin TOTP secrets, ...), so a safe
+  generic routine would be a separate project. Values are re-encrypted with the current key whenever they are
+  saved again (for example by re-entering a bank PIN or API key).
+- The "Verify" button of an imported foreign backup works only after a restore stored the key (verification of
+  a backup that needs a key you have not stored fails with "key unknown"). The scheduled probe restore uses the
+  stored additional keys as well.
+- A backup made AFTER such a restore is encrypted with this system's key, but the secrets inside still use the
+  source key id: restoring it elsewhere needs both keys.
+- Docker: the file lives on the data volume (`/data/secrets`), shared by web and worker in the all-in-one
+  image. With separate containers they must share that directory (or set `TIX_EXTRA_KEYS_FILE` on a shared
+  path), otherwise only the process that ran the restore can read the restored secrets.
 
 ### Live seat chart during a restore
 

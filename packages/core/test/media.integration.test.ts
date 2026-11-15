@@ -34,11 +34,11 @@ import {
 } from '../src';
 import { solidPng } from './image-fixtures';
 
+import { testStorageEnv } from './helpers/storage-env';
+
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
 const redisUrl = process.env.TEST_REDIS_URL;
-// The root `.env` targets the running stack: storage tests only run on explicit opt-in.
-const s3Endpoint = process.env.TEST_S3_OPT_IN === '1' ? process.env.S3_ENDPOINT : undefined;
 
 function pngBytes(width: number, height: number, salt: number): Uint8Array {
   const b = new Uint8Array(40);
@@ -49,7 +49,7 @@ function pngBytes(width: number, height: number, salt: number): Uint8Array {
   return b;
 }
 
-describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('media pipeline (integration)', () => {
+describe.skipIf(!adminUrl || !redisUrl)('media pipeline (integration)', () => {
   const dbName = `tix_media_${Date.now()}_${randomUUID().slice(0, 6)}`;
   let admin: pg.Client;
   let handle: DbHandle;
@@ -78,9 +78,7 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('media pipeline (integrat
       publisher: redis,
       keyPrefix: `t${randomUUID().slice(0, 8)}`,
       sessionSecret: 'x'.repeat(48),
-      storage: objectStorageFromEnv(
-        process.env as unknown as Parameters<typeof objectStorageFromEnv>[0],
-      ),
+      storage: objectStorageFromEnv(testStorageEnv()),
     });
   });
 

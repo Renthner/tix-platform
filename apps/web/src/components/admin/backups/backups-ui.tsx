@@ -25,8 +25,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { restorePasskeyOptionsAction } from '@/server/admin/backups';
-import { BACKUP_IDLE, type BackupActionState, type RestorePreview } from '@/lib/backup-state';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  checkSourceKeysAction,
+  restorePasskeyOptionsAction,
+  stageUploadKeysAction,
+} from '@/server/admin/backups';
+import {
+  BACKUP_IDLE,
+  type BackupActionState,
+  type RestorePreview,
+  type SourceKeyCheck,
+} from '@/lib/backup-state';
 import { ActionForm, Field, SubmitButton } from '../form-controls';
 
 type OperationAction = () => Promise<BackupActionState>;
@@ -111,6 +121,9 @@ export function BackupStatusPanel() {
       )}
       {status?.state === 'FAILED' && status.detail && (
         <p className="break-words text-xs text-destructive">{status.detail}</p>
+      )}
+      {status?.state === 'SUCCEEDED' && status.detail && (
+        <p className="break-words text-xs text-warning">{status.detail}</p>
       )}
       {status?.stale && <p className="text-xs text-warning">{t('stale')}</p>}
       {(data?.maintenance || (unreachable && status?.operation === 'RESTORE')) && (
@@ -254,16 +267,20 @@ export function DownloadLink({ id }: { id: string }) {
 
 // ─── Upload ──────────────────────────────────────────────────────────────────────────
 
-export function UploadBackupButton() {
+export function UploadBackupButton({ foreignKeysAllowed }: { foreignKeysAllowed: boolean }) {
   const t = useTranslations('backups');
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
+  const keys = useRef<HTMLTextAreaElement>(null);
+  const [open, setOpen] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
 
-  const send = (file: File) => {
+  const send = (file: File, keyToken: string | null) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/admin/backups/upload');
     xhr.setRequestHeader('content-type', 'application/octet-stream');
+    // Only an opaque single-use token travels with the upload, never the key itself.
+    if (keyToken) xhr.setRequestHeader('x-tix-key-token', keyToken);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) setPercent(Math.round((e.loaded / e.total) * 100));
     };
@@ -271,6 +288,7 @@ export function UploadBackupButton() {
       setPercent(null);
       if (xhr.status === 202) {
         toast.success(t('upload.accepted'));
+        setOpen(false);
         router.refresh();
       } else {
         let code = '';
@@ -290,23 +308,78 @@ export function UploadBackupButton() {
     xhr.send(file);
   };
 
+  const start = async (file: File) => {
+    const text = foreignKeysAllowed ? (keys.current?.value ?? '') : '';
+    let token: string | null = null;
+    if (text.trim() !== '') {
+      const staged = await stageUploadKeysAction(text);
+      if (!staged.ok) {
+        toast.error(
+          staged.error === 'rateLimited'
+            ? t('feedback.rateLimited')
+            : staged.error === 'disabled'
+              ? t('sourceKey.disabled.short')
+              : t('upload.dialog.keyFailed'),
+        );
+        return;
+      }
+      token = staged.token;
+    }
+    send(file, token);
+  };
+
   return (
-    <div className="space-y-1">
-      <input
-        ref={input}
-        type="file"
-        accept=".tixbak"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) send(file);
-          e.target.value = '';
-        }}
-      />
-      <Button variant="outline" disabled={percent !== null} onClick={() => input.current?.click()}>
+    <>
+      <Button variant="outline" onClick={() => setOpen(true)}>
         <Upload /> {percent === null ? t('actions.upload') : t('actions.uploading', { percent })}
       </Button>
-    </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('upload.dialog.title')}</DialogTitle>
+            <DialogDescription>{t('upload.dialog.description')}</DialogDescription>
+          </DialogHeader>
+          {foreignKeysAllowed ? (
+            <>
+              <p className="text-xs text-muted-foreground">{t('upload.dialog.keyHint')}</p>
+              <Field label={t('sourceKey.label')} htmlFor="upload-source-keys">
+                <Textarea
+                  id="upload-source-keys"
+                  ref={keys}
+                  rows={3}
+                  spellCheck={false}
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  className="font-mono text-xs"
+                />
+              </Field>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">{t('sourceKey.disabled.hint')}</p>
+          )}
+          <input
+            ref={input}
+            type="file"
+            accept=".tixbak"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void start(file);
+              e.target.value = '';
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              {t('actions.cancel')}
+            </Button>
+            <Button disabled={percent !== null} onClick={() => input.current?.click()}>
+              <Upload />{' '}
+              {percent === null ? t('upload.dialog.choose') : t('actions.uploading', { percent })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -335,6 +408,10 @@ export function RestoreButton({
   const [data, setData] = useState<RestorePreview | null>(null);
   const [loading, startLoading] = useTransition();
   const [state, formAction] = useActionState(restore.bind(null, backupId), BACKUP_IDLE);
+  // Keys of another system: optional; the check only reads the first block of the archive.
+  const sourceKeys = useRef<HTMLTextAreaElement>(null);
+  const [keyCheck, setKeyCheck] = useState<SourceKeyCheck | null>(null);
+  const [checking, startChecking] = useTransition();
 
   useEffect(() => {
     if (state.status === 'idle') return;
@@ -438,6 +515,68 @@ export function RestoreButton({
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">{t('restore.gobd')}</p>
               </div>
+              {data.foreignKeysAllowed ? (
+                <details className="rounded-md border p-3 text-sm">
+                  <summary className="cursor-pointer font-medium">{t('sourceKey.summary')}</summary>
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs text-muted-foreground">{t('sourceKey.hint')}</p>
+                    <Field label={t('sourceKey.label')} htmlFor="restore-source-keys">
+                      <Textarea
+                        id="restore-source-keys"
+                        name="sourceKeys"
+                        ref={sourceKeys}
+                        rows={3}
+                        spellCheck={false}
+                        autoComplete="off"
+                        autoCapitalize="off"
+                        className="font-mono text-xs"
+                        onChange={() => setKeyCheck(null)}
+                      />
+                    </Field>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={checking}
+                        onClick={() =>
+                          startChecking(async () =>
+                            setKeyCheck(
+                              await checkSourceKeysAction(
+                                backupId,
+                                sourceKeys.current?.value ?? '',
+                              ),
+                            ),
+                          )
+                        }
+                      >
+                        {checking ? t('sourceKey.checking') : t('sourceKey.check')}
+                      </Button>
+                      {keyCheck && (
+                        <span
+                          role="status"
+                          className={
+                            keyCheck.result === 'match' || keyCheck.result === 'readable'
+                              ? 'text-xs text-success'
+                              : 'text-xs text-destructive'
+                          }
+                        >
+                          {t(`sourceKey.results.${keyCheck.result}`, {
+                            detail: keyCheck.result === 'conflict' ? keyCheck.detail : '',
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    {keyCheck?.result === 'conflict' && (
+                      <p className="text-xs text-muted-foreground">{t('sourceKey.conflictNote')}</p>
+                    )}
+                  </div>
+                </details>
+              ) : (
+                <p className="rounded-md border p-3 text-xs text-muted-foreground">
+                  {t('sourceKey.disabled.hint')}
+                </p>
+              )}
               <Field label={t('restore.password')} htmlFor="restore-password">
                 <Input
                   id="restore-password"

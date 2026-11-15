@@ -10,7 +10,7 @@ import {
   type BackupState,
 } from './manifest';
 import { loadExternalTarget, type BackupLogger, type BackupRuntime } from './runtime';
-import type { S3Bucket } from './s3';
+import type { BackupBucket } from './bucket';
 import { newestVerifiedId, selectBackupsToDelete } from './schedule';
 
 /** The catalogue lives in the bucket: one directory with manifest.json + state.json per backup. */
@@ -21,7 +21,7 @@ export interface CatalogueEntry {
 }
 
 async function readEntry(
-  bucket: S3Bucket,
+  bucket: BackupBucket,
   directory: string,
   rootPrefix: string,
 ): Promise<CatalogueEntry | null> {
@@ -40,7 +40,10 @@ async function readEntry(
 }
 
 /** All completed backups of a bucket (`rootPrefix` = key prefix of the catalogue), newest first. */
-export async function listCatalogue(bucket: S3Bucket, rootPrefix = ''): Promise<CatalogueEntry[]> {
+export async function listCatalogue(
+  bucket: BackupBucket,
+  rootPrefix = '',
+): Promise<CatalogueEntry[]> {
   const dirs = await bucket.listDirectories(`${rootPrefix}${BACKUP_PREFIX}`);
   const entries = (await Promise.all(dirs.map((d) => readEntry(bucket, d, rootPrefix)))).filter(
     (e): e is CatalogueEntry => e !== null,
@@ -50,12 +53,12 @@ export async function listCatalogue(bucket: S3Bucket, rootPrefix = ''): Promise<
   );
 }
 
-export async function findBackup(bucket: S3Bucket, id: string): Promise<CatalogueEntry | null> {
+export async function findBackup(bucket: BackupBucket, id: string): Promise<CatalogueEntry | null> {
   return (await listCatalogue(bucket)).find((e) => e.manifest.id === id) ?? null;
 }
 
 export async function writeBackupState(
-  bucket: S3Bucket,
+  bucket: BackupBucket,
   directory: string,
   state: BackupState,
   rootPrefix = '',
@@ -107,7 +110,7 @@ export async function deleteBackup(
 }
 
 async function applyTo(
-  bucket: S3Bucket,
+  bucket: BackupBucket,
   rootPrefix: string,
   keep: { scheduled: number; manualMaxAgeDays: number },
   logger: BackupLogger,

@@ -7,8 +7,8 @@
 # Only POSIX sh + mc are available in the client image (no sed/awk).
 set -eu
 
-# Credentials come from files written by the storage-credentials service (<NAME>_FILE); a plain
-# variable of the same name wins (manual runs). The value is the first line of the file, trimmed.
+# Credentials come from plain variables (dev compose file) or from <NAME>_FILE files (mounted secrets);
+# a plain variable wins. A file value is its first line, trimmed.
 read_secret() {
   _secret=""
   IFS= read -r _secret < "$1" || [ -n "$_secret" ] || { echo "cannot read $1" >&2; exit 1; }

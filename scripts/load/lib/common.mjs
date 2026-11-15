@@ -104,7 +104,7 @@ export class Metrics {
 }
 
 // ── virtual user ──────────────────────────────────────────────────────────────────
-/** Distinct, public-looking client address per virtual user (see Caddyfile.load). */
+/** Distinct, public-looking client address per virtual user (TRUSTED_PROXIES in run.mjs). */
 export function fakeIp(index) {
   const i = index + 1;
   return `100.${64 + ((i >> 16) & 0x3f)}.${(i >> 8) & 255}.${i & 255}`;

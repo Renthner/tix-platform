@@ -23,6 +23,9 @@ export type BackupActionState =
         | 'connectionIncomplete'
         | 'endpointNotAllowed'
         | 'protected'
+        | 'sourceKeysInvalid'
+        | 'sourceKeysConflict'
+        | 'sourceKeysDisabled'
         | 'twoFactorSetupRequired';
       /** Technical detail of connection errors (never contains secrets). */
       detail?: string;
@@ -41,4 +44,28 @@ export interface RestorePreview {
   passkeys: boolean;
   /** Restore needs 2FA by setting, but this admin has none: the dialog explains and links to the account page. */
   twoFactorSetupRequired: boolean;
+  /** The operator allows keys of another system (`TIX_ALLOW_FOREIGN_BACKUP_KEYS`). */
+  foreignKeysAllowed: boolean;
 }
+
+/** Result of the "check key" step in the restore dialog (nothing is started or stored). */
+export type SourceKeyCheck =
+  | {
+      result:
+        | 'match'
+        | 'unknown'
+        | 'mismatch'
+        | 'invalid'
+        | 'notBackup'
+        | 'notFound'
+        | 'empty'
+        | 'readable'
+        | 'disabled';
+    }
+  | { result: 'conflict'; detail: string }
+  | { result: 'rateLimited' };
+
+/** Result of parking the typed source keys before an upload (returns an opaque single-use token). */
+export type StageKeysResult =
+  | { ok: true; token: string }
+  | { ok: false; error: 'invalid' | 'conflict' | 'rateLimited' | 'disabled' };

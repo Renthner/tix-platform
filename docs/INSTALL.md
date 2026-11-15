@@ -10,6 +10,15 @@ troubleshooting.
 > TIX is currently a pre-release (see the version pinned below). Wherever this guide says "the latest
 > release", use the version shown on the [releases page](https://github.com/Renthner/tix-platform/releases).
 
+**What runs:** one `tix` container (shop, admin, realtime gateway and background worker), PostgreSQL
+and Redis. The `tix` container speaks **plain HTTP** on port 8080; HTTPS is done by a reverse proxy
+that you run in front of it (the quick start adds Caddy for that in two small files). Files
+(uploads, invoices, tickets, local backups) live in the Docker volume `tix-data`.
+
+> **Already running an older release** with `tix-web` / `tix-worker` / `tix-realtime`, a bundled Caddy
+> and MinIO? Do **not** replace your compose file: follow
+> [MIGRATE-SINGLE-IMAGE.md](MIGRATE-SINGLE-IMAGE.md). Your data stays where it is.
+
 ## Part 1: Quick start
 
 ### What you need
@@ -28,7 +37,7 @@ area. The `.env` file only holds the few technical settings.
 ### 1. Download the two files
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.27
+export TIX_VERSION=1.0.0-alpha.28
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -42,34 +51,84 @@ instead; until then that address does not exist (error 404).
 ### 2. Fill in the `.env` file
 
 Replace the domain in the first line and paste the whole block (it needs `openssl`, which Debian
-and Ubuntu have; [without openssl](#the-env-file-in-detail)). It sets your address and generates
-the four secrets:
+and Ubuntu have; [without openssl](#the-env-file-in-detail)). It sets your address, the database
+password and creates the encryption key:
 
 ```bash
 DOMAIN=tickets.example.org   # <- your domain
-gen() { openssl rand -hex 24; }
+KEYLINE=$(docker run --rm ghcr.io/renthner/tix:$TIX_VERSION keygen)
 sed -i \
-  -e "s|^PUBLIC_URL=.*|PUBLIC_URL=https://$DOMAIN|" \
-  -e "s|^SITE_ADDRESS=.*|SITE_ADDRESS=$DOMAIN|" \
-  -e "s|^HTTP_PORT=.*|HTTP_PORT=80|" \
-  -e "s|^HTTPS_PORT=.*|HTTPS_PORT=443|" \
-  -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" \
-  -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(gen)|" \
-  -e "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" \
-  -e "s|^APP_ENCRYPTION_KEYS=.*|APP_ENCRYPTION_KEYS=k1:$(openssl rand -base64 32)|" \
+  -e "s|^APP_URL=.*|APP_URL=https://$DOMAIN|" \
+  -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|" \
+  -e "s|^APP_ENCRYPTION_KEYS=.*|$KEYLINE|" \
+  -e "s|^# *HTTP_PORT=.*|HTTP_PORT=127.0.0.1:8081|" \
+  -e "s|^# *TRUSTED_PROXIES=.*|TRUSTED_PROXIES=private_ranges|" \
   .env
-grep -E '^(PUBLIC_URL|SITE_ADDRESS|POSTGRES_PASSWORD|REDIS_PASSWORD|SESSION_SECRET|APP_ENCRYPTION_KEYS)=' .env
+unset TIX_VERSION            # the version the server runs is TIX_VERSION in .env
+grep -E '^(APP_URL|POSTGRES_PASSWORD|APP_ENCRYPTION_KEYS|TIX_VERSION|HTTP_PORT|TRUSTED_PROXIES)=' .env
 ```
 
-No value may still contain `change-me` or `REPLACE_WITH`. That is all: the passwords of the
-bundled file storage (MinIO) are generated on the first start and stored in a Docker volume, you
-do not enter them anywhere.
+No value may still contain `change-me` or `REPLACE_WITH`. `HTTP_PORT=127.0.0.1:8081` makes the shop
+reachable from the server itself only: visitors come through Caddy (next step).
+`TRUSTED_PROXIES=private_ranges` tells TIX that the proxy in front of it (Caddy in the Docker
+network) is trusted to report the visitor's address.
+
+> **Do not skip `TRUSTED_PROXIES`.** Left empty, TIX trusts nobody and sees the address of your
+> proxy for every visitor: the rate limits (orders and seat selections per address) and the audit
+> log then treat **all visitors as one**. Whenever a proxy sits in front, list it there
+> ([details](#trusted_proxies-and-the-visitor-address)).
 
 **Back up the `APP_ENCRYPTION_KEYS` line now:** copy it into your password manager, outside the
 server. It encrypts stored secrets (bank PINs, API keys, ticket signing keys) and your backups;
-without it neither can be restored. Never change or delete a key that is in use.
+without it neither can be restored, **not even on another server**. Never change or delete a key that
+is in use.
 
-### 3. Start
+### 3. HTTPS with Caddy
+
+Caddy fetches and renews the free Let's Encrypt certificate by itself. Create two files next to
+`docker-compose.yml` (use your domain in the first one):
+
+```bash
+cat > Caddyfile <<EOF
+$DOMAIN {
+	encode zstd gzip
+	reverse_proxy tix:8080
+}
+EOF
+
+cat > docker-compose.override.yml <<'EOF'
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      tix:
+        condition: service_healthy
+
+volumes:
+  caddy-data:
+  caddy-config:
+EOF
+```
+
+`docker-compose.override.yml` is read automatically next to `docker-compose.yml`; updates replace only
+`docker-compose.yml`, so it survives. Already running Traefik, nginx or Nginx Proxy Manager on this
+server? Skip this step and use [another reverse proxy](#https-variants) instead.
+
+### 4. Start
 
 ```bash
 docker compose up -d
@@ -77,19 +136,18 @@ docker compose up -d
 
 The first start downloads the images (a few hundred MB) and takes one to three minutes;
 `docker compose up -d` can show no output meanwhile. Check with `docker compose ps`: all services
-should be `running` or `healthy`; `storage-credentials`, `minio-init` and `migrate` show
-`exited (0)` because they are one-time jobs. If the HTTPS certificate cannot be issued, DNS is
-usually wrong: see [Troubleshooting](#troubleshooting).
+should be `running` or `healthy` (`tix` is `healthy` after the migrations ran). If the HTTPS
+certificate cannot be issued, DNS is usually wrong: see [Troubleshooting](#troubleshooting).
 
 Create the first administrator (your own e-mail address and name):
 
 ```bash
-docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
+docker compose run --rm tix create-admin --email you@example.org --name "Your Name"
 ```
 
 The command prints a **password once**. Copy it.
 
-### 4. Open the admin
+### 5. Open the admin
 
 Open `https://tickets.example.org/admin`, sign in and change the password. Turn on
 two-factor authentication (click your name at the bottom left of the admin menu; under
@@ -102,24 +160,27 @@ explanations is in [First configuration in the admin](#first-configuration-in-th
 
 ```bash
 cd tix
-export TIX_VERSION=1.0.0-alpha.27
+export TIX_VERSION=1.0.0-alpha.28
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/tix-update.sh
 chmod +x tix-update.sh        # once; the script is part of every release
-./tix-update.sh               # updates to the newest release of your TIX_CHANNEL
+unset TIX_VERSION
+./tix-update.sh               # updates to the newest release of your TIX_VERSION channel
 ```
 
 The script downloads the `docker-compose.yml` of the target release and checks its checksum, keeps a
-timestamped copy of your current file, pulls the images and restarts the stack. It never touches
+timestamped copy of your current file, pulls the image and restarts the stack. It never touches
 `.env` or `docker-compose.override.yml`; `./tix-update.sh --dry-run` only shows what would change.
 Database migrations run automatically, and **before an update changes an existing database a
 database backup is taken automatically** (Admin → Backups, "Before update"). Details, versions and
 why going back is not supported:
 [Updates, backups, uninstall](#updates-backups-uninstall). Backups (database and files, scheduled,
 optionally to an external S3 target) are in the admin under **Backups**: [BACKUP.md](BACKUP.md).
-**Keep `APP_ENCRYPTION_KEYS` and an external backup target outside the server.**
+**Without an external target the backups sit in the same volume as the files: they survive an update
+but not the loss of the disk. Keep `APP_ENCRYPTION_KEYS` and an external backup target outside the
+server.**
 
-Running behind Traefik, nginx, Nginx Proxy Manager, a tunnel or Cloudflare instead of the bundled
-HTTPS? See [HTTPS variants](#https-variants) in Part 2.
+Running behind Traefik, nginx, Nginx Proxy Manager, a tunnel or Cloudflare instead of Caddy?
+See [HTTPS variants](#https-variants) in Part 2.
 
 ---
 
@@ -127,7 +188,7 @@ HTTPS? See [HTTPS variants](#https-variants) in Part 2.
 
 1. [Installing Docker](#installing-docker)
 2. [The `.env` file in detail](#the-env-file-in-detail)
-3. [HTTPS variants](#https-variants): own reverse proxy (Traefik, nginx, Nginx Proxy Manager, tunnels), Cloudflare
+3. [HTTPS variants](#https-variants): own reverse proxy (Caddy, Traefik, nginx, Nginx Proxy Manager, tunnels), `TRUSTED_PROXIES`, Cloudflare
 4. [First configuration in the admin](#first-configuration-in-the-admin)
 5. [Check-in phones](#check-in-phones)
 6. [Updates, backups, uninstall](#updates-backups-uninstall)
@@ -191,72 +252,86 @@ the alternatives. The downloaded file is the authority: its comments explain eac
 list of every variable is in [All variables](#all-variables). Rules:
 
 - One `KEY=value` per line. **No quotes**, no spaces around `=`.
-- Passwords are placed inside connection URLs. Use **only letters and digits** (hex text is
-  perfect). Characters like `@ : / # ? %` break the connection and cause confusing errors.
-- Use a **different** password for every entry.
+- The database password is placed inside a connection URL. Use **only letters and digits** (hex
+  text is perfect). Characters like `@ : / # ? %` break the connection and cause confusing errors.
+
+Only three values are required: `APP_URL`, `POSTGRES_PASSWORD`, `APP_ENCRYPTION_KEYS` (plus
+`TIX_VERSION`, pre-filled). `SESSION_SECRET` is optional: without it the container generates one and keeps it in the volume `tix-data` (`/data/secrets`).
 
 ### Without `openssl`
 
-Run each command once per secret and paste the output into `.env` with an editor (`nano .env`):
+Run each command once and paste the output into `.env` with an editor (`nano .env`):
 
 ```bash
-# a password (hex): run once for POSTGRES_PASSWORD and once for REDIS_PASSWORD
+# the database password (hex)
 docker run --rm alpine sh -c "head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'; echo"
-# SESSION_SECRET (at least 32 characters)
-docker run --rm alpine sh -c "head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'; echo"
-# APP_ENCRYPTION_KEYS (the whole line, including k1:)
-docker run --rm alpine sh -c 'echo k1:$(head -c 32 /dev/urandom | base64)'
+# APP_ENCRYPTION_KEYS (prints the whole line, including APP_ENCRYPTION_KEYS=k3fa9c1:...)
+docker run --rm ghcr.io/renthner/tix:next keygen
 ```
 
 ### Back up `APP_ENCRYPTION_KEYS` now
 
 `APP_ENCRYPTION_KEYS` encrypts stored secrets (bank PINs, API keys, ticket signing keys) and your
 backups. **Copy that one line into your password manager, outside the server.** If the server
-dies and you do not have the key, backups and stored secrets cannot be restored. Never change or
+dies and you do not have the key, backups and stored secrets cannot be restored, and a backup
+restored on **another system** needs the key ring of the system that created it. Never change or
 delete a key that is in use.
 
-### File storage credentials (MinIO): nothing to enter
+### File storage
 
-The bundled file storage (MinIO) needs no entries in `.env`. On the first start the one-time
-service `storage-credentials` generates the MinIO administrator name and password and the access
-key and secret the application uses, and stores them as four files in the Docker volume
-`storage-credentials` (`tix_storage-credentials` with the default project name). Existing files
-are never regenerated, so restarts and updates keep them. The MinIO administrator pair can only
-be read by MinIO's own containers; the application containers get only their access key pair,
-read-only.
+New installations keep files in a directory on the volume `tix-data` (`STORAGE_DIR=/data/storage`):
+nothing to configure. To use MinIO or another S3-compatible service instead, see
+[STORAGE.md](STORAGE.md) and `docker-compose.s3.example.yml` in `tix-deploy-<version>.zip` of the
+release. Installations that already run MinIO keep working in S3 mode
+([MIGRATE-SINGLE-IMAGE.md](MIGRATE-SINGLE-IMAGE.md)).
 
-- **Look at them** (for example to log in to the MinIO console, which is not published by default):
-  `docker compose exec minio cat /run/tix-storage/minio-root-user` and
-  `docker compose exec minio cat /run/tix-storage/minio-root-password`.
-- **Installations created before the credentials were generated** may still have
-  `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` in their
-  `.env`. Keep them there for the next start: the values are copied into the volume and MinIO
-  keeps working with its existing data. Afterwards the entries in `.env` are optional (the
-  volume holds the values). A `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` in `.env` that
-  _differs_ from the stored pair is **refused**: `storage-credentials` stops with an explanation,
-  because MinIO keeps the administrator credentials it was first started with (overwriting them
-  would lock the stack out of its own storage). Remove the two entries from `.env`; to rotate the
-  pair on purpose, follow the MinIO documentation for changing root credentials and then replace
-  the files `minio-root-user` and `minio-root-password` in the volume. If you delete
-  them _before_ that first start on the new version, `storage-credentials` stops with an
-  explanation instead of inventing a new administrator password for existing data; put the old
-  `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` back once.
-- **Changing the application key pair** (`S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` in `.env`) is
-  allowed. Edit `.env`, run `docker compose up -d` (this re-runs `storage-credentials` and
-  `minio-init`, which rotates the user secret to the new value) and then
-  `docker compose up -d --force-recreate web worker`: the running containers read the files only at
-  start and would otherwise keep using the old secret.
-- **MinIO runs as root:** the bundled MinIO and `mc` images must run as root, because the
-  administrator pair is readable by root only. A custom `MINIO_IMAGE` / `MC_IMAGE` that switches
-  to another user is not supported.
-- **Moving to another server or restoring a backup:** the volume is _not_ part of TIX backups and
-  is _not_ needed. Backups are encrypted with `APP_ENCRYPTION_KEYS` and contain the data and files
-  themselves, not the storage passwords; a new installation generates new ones and the restore
-  uses them.
+### `TRUSTED_PROXIES` and the visitor address
+
+The `tix` container has a built-in proxy on port 8080 that decides which client address the shop
+uses for its per-address limits and the audit log:
+
+- **`TRUSTED_PROXIES` empty (default):** nobody is trusted. The address of the connection is the
+  visitor. Correct only if visitors connect to port 8080 directly. Behind **any** reverse proxy, every
+  visitor appears with the proxy's address, so all visitors share one rate limit and the audit
+  log shows one IP.
+- **`TRUSTED_PROXIES` set** (space-separated IPs, CIDR networks, or the keyword `private_ranges`
+  for all private networks, including Docker networks): when the connection comes from one of
+  them, the visitor address is read from its `X-Forwarded-For` header (right to left, so addresses
+  a visitor invented are ignored). Connections from other addresses are never believed.
+
+List only proxies you run. Check it in the admin: **Settings → Checkout → "Detected IP of your current
+request"** must show **your own** public address.
+
+Behind a TLS proxy the address is `https://...` and a proxy is **always** in front, so set
+`TRUSTED_PROXIES` to the **exact IP or CIDR of that proxy** (for a proxy container: the subnet of the
+Docker network they share) and publish the port only on the interface the proxy uses (for example
+`HTTP_PORT=127.0.0.1:8081`). `private_ranges` works, but with a published port Docker can make
+internet clients arrive from a private address, so TIX logs a startup warning for it. It also warns
+when `APP_URL` is `https://` and `TRUSTED_PROXIES` is empty, or trusts every address (`0.0.0.0/0`).
+
+### Built-in proxy: host check and limits
+
+The same built-in proxy protects itself with these optional variables (set them in `.env`; the defaults
+suit most installations):
+
+| Variable                       | Default   | Meaning                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TIX_ALLOWED_HOSTS`            | empty     | Extra host names (comma or space separated) the shop answers for. When `APP_URL` is not a loopback address, a request from an **untrusted** address with a foreign `Host` gets **421**: opening `http://<server-ip>:8080` directly fails unless the name is listed here or you set `*` (any). Requests from a `TRUSTED_PROXIES` address are never checked. |
+| `TIX_PROXY_SOCKET_TIMEOUT_MS`  | `120000`  | Inactivity limit per client connection (milliseconds, `0` = none). Resets with every byte, so large uploads still work.                                                                                                                                                                                                                                    |
+| `TIX_PROXY_REQUEST_TIMEOUT_MS` | `3600000` | Longest time to receive ONE request including its body (`0` = unlimited).                                                                                                                                                                                                                                                                                  |
+| `TIX_PROXY_MAX_CONNS_PER_IP`   | `200`     | Concurrent connections per client address that is not a trusted proxy (`0` = unlimited).                                                                                                                                                                                                                                                                   |
+
+Each child process (web, worker, realtime) receives only the secrets it needs: the realtime gateway gets
+neither the database URL nor the key ring, and `POSTGRES_PASSWORD` reaches none of them (they use
+`DATABASE_URL`). The realtime gateway and the worker health endpoint listen on `127.0.0.1` inside the
+container; only port 8080 is reachable from other containers.
 
 ## HTTPS variants
 
-Visitors must use HTTPS. The quick start used variant A. Pick another variant only if you cannot use it.
+Visitors must use HTTPS. The `tix` container does not terminate TLS: you run a reverse proxy that
+forwards to `http://<server>:8080`, **including WebSockets under `/socket.io`**, and passes the original
+`Host` header. Whatever you use, set `APP_URL` to the public `https://` address and
+`TRUSTED_PROXIES` to the proxy.
 
 | Variant | Use it when                                                                          |
 | ------- | ------------------------------------------------------------------------------------ |
@@ -265,35 +340,26 @@ Visitors must use HTTPS. The quick start used variant A. Pick another variant on
 | C       | The server already runs **nginx** on the host.                                       |
 | D       | You use Nginx Proxy Manager, Cloudflare Tunnel, a router or any other proxy.         |
 
-### A: Bundled Caddy with automatic HTTPS (recommended)
+### A: Caddy as an extra container (recommended)
 
-TIX includes the Caddy web server, which fetches and renews free Let's Encrypt certificates by
-itself.
+This is what the quick start does (step 3): a `Caddyfile` with
+`your-domain { reverse_proxy tix:8080 }` and the `caddy` service in `docker-compose.override.yml`.
+`.env`: `APP_URL=https://tickets.example.org`, `HTTP_PORT=127.0.0.1:8081`,
+`TRUSTED_PROXIES=private_ranges`.
 
 1. Point the DNS **A** record (and **AAAA** if you use IPv6) of your domain to the server **before**
    the first start. Check from the server: `getent hosts tickets.example.org` shows the server's
    IP address.
 2. Make sure ports 80 and 443 are not used by another program and are open in every firewall.
-3. Set in `.env` (the quick start already did this; replace the domain):
 
-```bash
-sed -i \
-  -e "s|^PUBLIC_URL=.*|PUBLIC_URL=https://tickets.example.org|" \
-  -e "s|^SITE_ADDRESS=.*|SITE_ADDRESS=tickets.example.org|" \
-  -e "s|^HTTP_PORT=.*|HTTP_PORT=80|" \
-  -e "s|^HTTPS_PORT=.*|HTTPS_PORT=443|" \
-  .env
-grep -E '^(PUBLIC_URL|SITE_ADDRESS|HTTP_PORT|HTTPS_PORT|TRUSTED_PROXIES)=' .env
-```
-
-Leave `TRUSTED_PROXIES` empty. Certificates are stored in the Docker volume `caddy-data`; they
-survive updates. If the first start fails because DNS is wrong, fix DNS and run
-`docker compose up -d` again. Let's Encrypt limits failed attempts (a few per hour per domain),
-so do not restart in a loop; see [Troubleshooting](#troubleshooting).
+Certificates are stored in the Docker volume `caddy-data`; they survive updates. If the first start
+fails because DNS is wrong, fix DNS and run `docker compose up -d` again. Let's Encrypt limits
+failed attempts (a few per hour per domain), so do not restart in a loop; see
+[Troubleshooting](#troubleshooting).
 
 ### Advanced variants: use the file `docker-compose.override.yml`
 
-Variants B and C change how the `proxy` service is published. Do this in a separate file named
+Variants B and C change how the `tix` service is published. Do this in a separate file named
 `docker-compose.override.yml` in the same folder. Docker Compose reads it automatically next to
 `docker-compose.yml`. Updates replace only `docker-compose.yml`, so your changes survive.
 
@@ -305,8 +371,7 @@ Assumptions: Traefik runs in Docker, has an entrypoint (here `websecure`), a cer
 `.env`:
 
 ```bash
-PUBLIC_URL=https://tickets.example.org
-SITE_ADDRESS=:80
+APP_URL=https://tickets.example.org
 TRUSTED_PROXIES=private_ranges
 ```
 
@@ -314,8 +379,8 @@ TRUSTED_PROXIES=private_ranges
 
 ```yaml
 services:
-  proxy:
-    # Do not publish any host port; Traefik reaches the proxy over the Docker network.
+  tix:
+    # Do not publish any host port; Traefik reaches tix over the Docker network.
     ports: !reset []
     networks:
       - default
@@ -327,20 +392,19 @@ services:
       - traefik.http.routers.tix.entrypoints=websecure
       - traefik.http.routers.tix.tls=true
       - traefik.http.routers.tix.tls.certresolver=letsencrypt
-      - traefik.http.services.tix.loadbalancer.server.port=80
+      - traefik.http.services.tix.loadbalancer.server.port=8080
 
 networks:
   traefik:
     external: true
 ```
 
-The service is called `proxy` (it is the bundled Caddy). It must stay in the `default` network,
-otherwise it cannot reach the shop. WebSockets work in Traefik without extra settings.
+`tix` must stay in the `default` network, otherwise it cannot reach PostgreSQL and Redis.
+WebSockets work in Traefik without extra settings.
 
 `!reset []` needs Docker Compose **2.24.4 or newer** (newer than the 2.23.1 minimum). If your
 Compose is older, delete the `ports: !reset []` line and instead set in `.env`
-`HTTP_PORT=127.0.0.1:8081` and `HTTPS_PORT=127.0.0.1:8444`; the ports are then only reachable from
-the server itself.
+`HTTP_PORT=127.0.0.1:8081`; the port is then only reachable from the server itself.
 
 ### C: Behind nginx on the host
 
@@ -349,15 +413,14 @@ Let TIX listen only on the server itself, on port 8080:
 `.env`:
 
 ```bash
-PUBLIC_URL=https://tickets.example.org
-SITE_ADDRESS=:80
+APP_URL=https://tickets.example.org
 HTTP_PORT=127.0.0.1:8080
-HTTPS_PORT=127.0.0.1:8443
 TRUSTED_PROXIES=private_ranges
 ```
 
 `HTTP_PORT=127.0.0.1:8080` means "port 8080, reachable from this server only". This needs no
-override file. Then create an nginx site (for example
+override file. nginx on the host reaches the container through Docker, which shows up as the Docker
+gateway address (a private address): `private_ranges` covers it. Then create an nginx site (for example
 `/etc/nginx/sites-available/tickets.example.org`, then link it into `sites-enabled`). Obtain the
 certificate with your usual method (for example `certbot --nginx -d tickets.example.org`).
 
@@ -415,9 +478,9 @@ Test and reload: `sudo nginx -t && sudo systemctl reload nginx`.
 
 Any proxy works if it does these things:
 
-1. `.env`: `PUBLIC_URL=https://tickets.example.org`, `SITE_ADDRESS=:80`, `HTTP_PORT=8080`
-   (or `127.0.0.1:8080` if the proxy runs on the same server), `TRUSTED_PROXIES=` the address of the
-   proxy (for example `192.168.1.10`, a network such as `192.168.1.0/24`, or `private_ranges`).
+1. `.env`: `APP_URL=https://tickets.example.org`, `HTTP_PORT=8080` (or `127.0.0.1:8080` if the proxy
+   runs on the same server), `TRUSTED_PROXIES=` the address of the proxy (for example `192.168.1.10`,
+   a network such as `192.168.1.0/24`, or `private_ranges`).
    The IP-based limits (Settings → Checkout: orders per IP address, seat selections per IP
    address) rely on this: without it every visitor appears with the proxy's address and shares
    one limit. The order limit per IP address is off by default; the seat selection limit
@@ -431,7 +494,7 @@ Any proxy works if it does these things:
 5. In NPM, request the certificate on the **SSL** tab and tick "Force SSL".
 
 If the proxy runs in Docker on the same server, you can also use a shared Docker network like in
-variant B and forward to `proxy:80`.
+variant B and forward to `tix:8080`.
 
 ### Behind Cloudflare
 
@@ -439,7 +502,7 @@ Cloudflare (orange cloud) can sit in front of any of the variants above. The req
 through several hops:
 
 ```text
-Visitor -> Cloudflare -> (router port forward) -> Traefik / nginx / other proxy -> bundled Caddy -> TIX
+Visitor -> Cloudflare -> (router port forward) -> Traefik / nginx / Caddy / other proxy -> TIX
 ```
 
 Every hop must trust the one before it, otherwise the app sees a proxy address instead of the
@@ -518,7 +581,7 @@ Alternatively switch the feature off in Cloudflare (**Scrape Shield → Email Ad
 Tips:
 
 - In the Cloudflare dashboard set **SSL/TLS → Overview** to **Full (strict)** (the origin must
-  present a valid certificate, for example from Traefik or the bundled Caddy). "Flexible" causes
+  present a valid certificate, for example from Traefik or Caddy). "Flexible" causes
   redirect loops.
 - Hardening: once everything works, let your firewall or router accept port 443 only from the
   Cloudflare ranges, so nobody can reach the server directly and fake the header.
@@ -571,9 +634,9 @@ The dashboard shows the same steps as a setup checklist. Work through this list 
 
 Pitfalls:
 
-- Phones must be able to reach `PUBLIC_URL`. On a home or club router the server's public
+- Phones must be able to reach `APP_URL`. On a home or club router the server's public
   address is sometimes not reachable from inside the same WiFi ("hairpin NAT"). Test by opening
-  `PUBLIC_URL` in the phone's browser while on the venue WiFi.
+  `APP_URL` in the phone's browser while on the venue WiFi.
 - Plain `http://` is accepted only for private addresses such as `http://192.168.1.20:8080`.
   Every public address must use `https://`.
 - Settings → Scanner → server URL must be the address the **phones** can reach.
@@ -591,7 +654,7 @@ More details: [SCANNER.md](SCANNER.md) and [apps/android/README.md](../apps/andr
 
 ```bash
 cd tix
-./tix-update.sh                 # newest release of the channel in .env (TIX_CHANNEL)
+./tix-update.sh                 # newest release of the channel in .env (TIX_VERSION)
 ./tix-update.sh 1.0.0-alpha.21  # or one exact version
 ./tix-update.sh stable          # or a channel: stable, next, alpha, beta, rc, 1, 1.0
 ./tix-update.sh --dry-run       # download and verify only, change nothing
@@ -602,10 +665,12 @@ next to `docker-compose.yml` once. It needs `curl` or `wget` and Docker Compose 
 the SHA-256 of the downloaded compose file, keeps the previous one as
 `docker-compose.yml.bak-<time>`, then runs `docker compose pull` and
 `docker compose up -d --remove-orphans`. The file is validated (`docker compose config`) and the
-images are pulled before the old compose file is replaced, so a failed download or pull changes
+image is pulled before the old compose file is replaced, so a failed download or pull changes
 nothing. `.env` and `docker-compose.override.yml` are never touched. Going to a **lower** version
-than the running one is refused without `--force` (see "Going back" below). An explicit version or channel argument is used for that run even when `TIX_CHANNEL`
-in `.env` says something else; the script reminds you to change `.env` too.
+than the running one is refused without `--force` (see "Going back" below). An explicit version or channel argument is used for that run even when `TIX_VERSION`
+in `.env` says something else; the script reminds you to change `.env` too. A compose file of the old
+three-image layout is never replaced: the script stops and points to
+[MIGRATE-SINGLE-IMAGE.md](MIGRATE-SINGLE-IMAGE.md).
 
 **By hand** (alternative): download the `docker-compose.yml` of the release (keep your `.env`
 and `docker-compose.override.yml`), then `docker compose pull && docker compose up -d`.
@@ -616,16 +681,15 @@ and `docker-compose.override.yml`), then `docker compose pull && docker compose 
    `docker-compose.yml` is older than the running app.
 
 **Automatic backup before database changes.** When an update contains database migrations and the
-installation already has data, the `migrate` service first writes an encrypted, database-only
+installation already has data, the `tix` container first writes an encrypted, database-only
 backup (same format and key as the admin backups) and applies the migrations only after that
 succeeded. It appears under **Admin → Backups** as "Before update" and is restored like any other
 backup; a restore of it replaces the database only and leaves images and PDFs untouched. The newest
 `PRE_UPDATE_BACKUP_KEEP` (default 3) are kept; they do not count against the scheduled-backup
-retention. If the object storage cannot be reached, an encrypted `.tixbak` file is written to the
-Docker volume `pre-update-backups` instead (`docker run --rm -v tix_pre-update-backups:/b alpine ls /b`);
-upload it under Admin → Backups to restore it. If the backup fails, **no migration is applied**
-and the update stops with the reason in `docker compose logs migrate`. To update without a backup
-(not recommended) set `SKIP_PRE_UPDATE_BACKUP=1` in `.env`. Migrations wait at most
+retention. With the file storage the backup lives in the volume `tix-data` (same disk as the
+files); with S3 it is written to the backups bucket. If the backup fails, **no migration is
+applied** and the container stops with the reason in `docker compose logs tix`. To update without
+a backup (not recommended) set `SKIP_PRE_UPDATE_BACKUP=1` in `.env`. Migrations wait at most
 `MIGRATION_LOCK_TIMEOUT` seconds (default 10) for a table lock and retry, so a stuck transaction
 can never freeze the shop.
 
@@ -641,7 +705,7 @@ fresh and restore a normal backup that this old version created.
 releases at most every 6 hours; this is an outbound request that sends nothing about your
 installation. Switch it off under Settings → General → Updates.
 
-**Choose the version with `TIX_CHANNEL` in `.env`:**
+**Choose the version with `TIX_VERSION` in `.env`:**
 
 | Value                    | Follows                                                | Use for                                                                     |
 | ------------------------ | ------------------------------------------------------ | --------------------------------------------------------------------------- |
@@ -654,21 +718,6 @@ Pinning an earlier version works only while the database schema is unchanged. On
 migrated the database, going back is **not supported** (see "Going back" above): the pre-update
 backup restores your data on the new version, it does not make the old version run again.
 
-**Rolling back across the release that introduced the generated storage credentials** needs that
-older release's `docker-compose.yml` (the newer file reads the credentials from files, the older
-one from `.env`), and the credentials must be in `.env` again. Read them from the running stack
-before you roll back and add them to `.env`:
-
-```bash
-docker compose exec web cat /run/tix-storage/s3-access-key-id; echo
-docker compose exec web cat /run/tix-storage/s3-secret-access-key; echo
-docker compose exec minio cat /run/tix-storage/minio-root-user; echo
-docker compose exec minio cat /run/tix-storage/minio-root-password; echo
-```
-
-They become `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `MINIO_ROOT_USER` and
-`MINIO_ROOT_PASSWORD` in `.env`.
-
 Do not use automatic updaters (Watchtower and similar): updates should be deliberate.
 
 ### Backups and restore
@@ -677,12 +726,15 @@ Use **Admin → Backups**: database and files, scheduled, with an optional exter
 Restore is in the same place (SUPER_ADMIN only). Details: [BACKUP.md](BACKUP.md). Keep these
 outside the server:
 
-- `APP_ENCRYPTION_KEYS` (and the whole `.env`),
-- the external backup target.
+- `APP_ENCRYPTION_KEYS` (and the whole `.env`): it is also needed to restore a backup **on another
+  system**,
+- the external backup target. Without one, the local backups live in the same Docker volume
+  (`tix_tix-data`) as the files: they protect against mistakes and bad updates, not against losing the
+  disk.
 
-The data lives in Docker volumes of the project `tix`: `tix_postgres-data`, `tix_redis-data`,
-`tix_minio-data`, `tix_caddy-data` and `tix_storage-credentials` (the generated storage passwords, see
-[File storage credentials](#file-storage-credentials-minio-nothing-to-enter); not needed to restore a backup). List them with `docker volume ls`.
+The data lives in Docker volumes of the project `tix`: `tix_postgres-data`, `tix_redis-data` and
+`tix_tix-data` (files, local backups, the generated `SESSION_SECRET`), plus `tix_caddy-data`
+(certificates) if you use Caddy as in the quick start. List them with `docker volume ls`.
 
 ### Uninstall
 
@@ -732,40 +784,31 @@ Useful alerts: `tix_queue_jobs{state="failed"} > 0`, `tix_workers == 0`,
 
 ## All variables
 
-Only the first block is required. Everything else has a default in `docker-compose.yml`; the rows
-marked "optional" are commented out in the downloaded `.env` (remove the `#` to use them).
+Only the first block is required. Everything else has a default; the rows marked "optional" are
+commented out in the downloaded `.env` (remove the `#` to use them). The whole `.env` is passed to
+the `tix` container, so every variable of the image (also those not listed in the compose file) works.
 
-| Variable                                                                                                  | Required   | Meaning                                                                                                                                                                                                                                                                                                                             | Example                       |
-| --------------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `PUBLIC_URL`                                                                                              | **yes**    | The address visitors type, with `https://` and without a trailing slash.                                                                                                                                                                                                                                                            | `https://tickets.example.org` |
-| `POSTGRES_PASSWORD`                                                                                       | **yes**    | Database password (letters and digits only).                                                                                                                                                                                                                                                                                        | `3f9a…` (48 hex characters)   |
-| `REDIS_PASSWORD`                                                                                          | **yes**    | Redis password (letters and digits only).                                                                                                                                                                                                                                                                                           | `b71c…`                       |
-| `APP_ENCRYPTION_KEYS`                                                                                     | **yes**    | Key ring: `id:base64key`, 32 random bytes in base64 (44 characters ending in `=`). Several keys are comma-separated; the first encrypts. **Back it up.**                                                                                                                                                                            | `k1:Zm9v…YmFy=`               |
-| `SESSION_SECRET`                                                                                          | **yes**    | Random text of at least 32 characters for signed cookies.                                                                                                                                                                                                                                                                           | `e4b8…` (64 hex characters)   |
-| `SITE_ADDRESS`                                                                                            | pre-filled | Domain name only: Caddy then gets certificates automatically (the quick start sets it). `:80` means plain HTTP (behind another proxy, or tests).                                                                                                                                                                                    | `tickets.example.org`         |
-| `HTTP_PORT`                                                                                               | pre-filled | Host port for HTTP. `80` when Caddy is the public entry.                                                                                                                                                                                                                                                                            | `80`                          |
-| `HTTPS_PORT`                                                                                              | pre-filled | Host port for HTTPS. `443` when Caddy is the public entry.                                                                                                                                                                                                                                                                          | `443`                         |
-| `TIX_CHANNEL`                                                                                             | pre-filled | Which image version runs: `next`, `stable`, `1`, `1.0` or an exact version. See [Updates](#updates-backups-uninstall).                                                                                                                                                                                                              | `next`                        |
-| `TRUSTED_PROXIES`                                                                                         | optional   | Only when another reverse proxy sits in front: its address(es) or `private_ranges`. Leave empty when Caddy is the public entry.                                                                                                                                                                                                     | `private_ranges`              |
-| `COMPOSE_PROJECT_NAME`                                                                                    | optional   | Name prefix of the containers and volumes. Do not change after the first start (you would get empty new volumes).                                                                                                                                                                                                                   | `tix`                         |
-| `LOG_LEVEL`                                                                                               | optional   | Log detail: `info`, `debug`, `warn`, `error`.                                                                                                                                                                                                                                                                                       | `info`                        |
-| `POSTGRES_USER`, `POSTGRES_DB`                                                                            | optional   | Database user and name.                                                                                                                                                                                                                                                                                                             | `tix`                         |
-| `POSTGRES_MAX_CONNECTIONS`, `WEB_DATABASE_POOL_MAX`, `WORKER_DATABASE_POOL_MAX`                           | optional   | Connection tuning for big presales. The defaults are fine for clubs.                                                                                                                                                                                                                                                                | `200`, `40`, `10`             |
-| `REDIS_MAXMEMORY`, `REDIS_KEY_PREFIX`                                                                     | optional   | Memory limit of Redis (seat locks are never evicted) and prefix of all Redis keys.                                                                                                                                                                                                                                                  | `1gb`, `tix`                  |
-| `LOG_MAX_SIZE`, `LOG_MAX_FILES`                                                                           | optional   | Log rotation per container (json-file driver): size of one log file and how many are kept. Defaults `10m` and `5`.                                                                                                                                                                                                                  | `10m`, `5`                    |
-| `WEB_MEMORY`, `WORKER_MEMORY`, `REALTIME_MEMORY`, `PROXY_MEMORY`, `MIGRATE_MEMORY`, `STORAGE_INIT_MEMORY` | optional   | Memory ceiling per container (Docker `mem_limit`). Defaults: `1g`, `1536m`, `512m`, `256m`, `1g`, `256m`. A container above its ceiling is killed and restarted; raise the value on big installations.                                                                                                                              | `2g`                          |
-| `REDIS_MEMORY`, `POSTGRES_MEMORY`, `MINIO_MEMORY`                                                         | optional   | Memory ceiling of the data services. **Default: none** (a ceiling that is too low kills a database mid-write). Set one only deliberately: `REDIS_MEMORY` at least twice `REDIS_MAXMEMORY` (fork for snapshots / AOF rewrite), `POSTGRES_MEMORY` at least `shared_buffers` plus `work_mem` of the busiest connections plus headroom. | `4g`                          |
-| `APP_PIDS_LIMIT`                                                                                          | optional   | Maximum number of processes per app container (default `512`).                                                                                                                                                                                                                                                                      | `512`                         |
-| `SKIP_PRE_UPDATE_BACKUP`, `PRE_UPDATE_BACKUP_KEEP`                                                        | optional   | Automatic database backup before pending migrations: `1` skips it (not recommended); how many to keep (default `3`).                                                                                                                                                                                                                | `3`                           |
-| `MIGRATION_LOCK_TIMEOUT`, `MIGRATION_STATEMENT_TIMEOUT`, `MIGRATION_LOCK_RETRIES`                         | optional   | Seconds a schema change waits for a table lock (default `10`, `0` = no limit), seconds one statement may run (default `600`) and attempts after a lock timeout (default `5`).                                                                                                                                                       | `10`, `600`, `5`              |
-| `WORKER_CONCURRENCY`                                                                                      | optional   | Parallel background jobs (mail, PDFs).                                                                                                                                                                                                                                                                                              | `8`                           |
-| `S3_REGION`                                                                                               | optional   | Storage region name; leave as is for the bundled MinIO.                                                                                                                                                                                                                                                                             | `us-east-1`                   |
-| `S3_BUCKET_ASSETS`, `S3_BUCKET_DOCUMENTS`, `S3_BUCKET_BACKUPS`                                            | optional   | Names of the three buckets (images, documents/PDFs, backups).                                                                                                                                                                                                                                                                       | `tix-assets` …                |
-| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`                      | legacy     | **Not needed any more:** generated on the first start and kept in the `storage-credentials` volume. Only for installations created earlier: keep their old values (copied into the volume once). See [File storage credentials](#file-storage-credentials-minio-nothing-to-enter).                                                  |                               |
-| `TIX_IMAGE_OWNER`                                                                                         | optional   | GitHub owner of the images (`ghcr.io/<owner>/tix-web`). Pre-set inside `docker-compose.yml`; leave as is.                                                                                                                                                                                                                           | `renthner`                    |
-
-Not listed here on purpose: optional extras that only matter for advanced setups
-(`MINIO_IMAGE`, `MC_IMAGE`).
+| Variable                                                                                                         | Required   | Meaning                                                                                                                                                                                                                                                                                                                    | Example                                        |
+| ---------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `APP_URL`                                                                                                        | **yes**    | The address visitors type, with `https://` and without a trailing slash.                                                                                                                                                                                                                                                   | `https://tickets.example.org`                  |
+| `POSTGRES_PASSWORD`                                                                                              | **yes**    | Database password (letters and digits only).                                                                                                                                                                                                                                                                               | `3f9a…` (48 hex characters)                    |
+| `APP_ENCRYPTION_KEYS`                                                                                            | **yes**    | Key ring: `id:base64key` (keygen picks a random id such as `k3fa9c1`), 32 random bytes in base64. Several keys are comma-separated; the first encrypts. Create with `docker run --rm ghcr.io/renthner/tix:next keygen`. **Back it up.**                                                                                    | `k1:Zm9v…YmFy=`                                |
+| `TIX_VERSION`                                                                                                    | pre-filled | Which image runs: `next`, `stable`, `1`, `1.0` or an exact version. See [Updates](#updates-backups-uninstall).                                                                                                                                                                                                             | `next`                                         |
+| `TRUSTED_PROXIES`                                                                                                | optional   | **Set it behind any reverse proxy:** its address(es) or `private_ranges`. Empty = nobody trusted (all visitors look like the proxy).                                                                                                                                                                                       | `private_ranges`                               |
+| `TIX_ALLOWED_HOSTS`, `TIX_PROXY_SOCKET_TIMEOUT_MS`, `TIX_PROXY_REQUEST_TIMEOUT_MS`, `TIX_PROXY_MAX_CONNS_PER_IP` | optional   | Built-in proxy: extra accepted host names (foreign `Host` gets 421 unless `APP_URL` is loopback or `*`), client inactivity timeout (default `120000` ms), time to receive one request (default `3600000` ms), connections per client address (default `200`). See [Built-in proxy](#built-in-proxy-host-check-and-limits). | `shop.example.org`, `120000`, `3600000`, `200` |
+| `TIX_ALLOW_FOREIGN_BACKUP_KEYS`                                                                                  | optional   | `1` allows restoring a backup of another installation by entering its key (default off). **A SUPER_ADMIN can then run arbitrary SQL as the database user**; enable it only for the migration. See [BACKUP.md](BACKUP.md#restoring-a-backup-from-another-system).                                                           |
+| `HTTP_PORT`                                                                                                      | optional   | Host port of the plain-HTTP port (default `8080`). `127.0.0.1:8081` = reachable from the server only.                                                                                                                                                                                                                      | `127.0.0.1:8081`                               |
+| `SESSION_SECRET`                                                                                                 | optional   | At least 32 characters for signed cookies. Without it one is generated and kept in `/data/secrets`. Set it to keep sessions when you move the volume.                                                                                                                                                                      | `e4b8…`                                        |
+| `COMPOSE_PROJECT_NAME`                                                                                           | optional   | Name prefix of the containers and volumes. Do not change after the first start (you would get empty new volumes).                                                                                                                                                                                                          | `tix`                                          |
+| `LOG_LEVEL`                                                                                                      | optional   | Log detail: `info`, `debug`, `warn`, `error`.                                                                                                                                                                                                                                                                              | `info`                                         |
+| `SKIP_PRE_UPDATE_BACKUP`, `PRE_UPDATE_BACKUP_KEEP`                                                               | optional   | Automatic database backup before pending migrations: `1` skips it (not recommended); how many to keep (default `3`).                                                                                                                                                                                                       | `3`                                            |
+| `MIGRATION_LOCK_TIMEOUT`, `MIGRATION_STATEMENT_TIMEOUT`, `MIGRATION_LOCK_RETRIES`                                | optional   | Seconds a schema change waits for a table lock (default `10`, `0` = no limit), seconds one statement may run (default `600`), attempts after a lock timeout (default `5`).                                                                                                                                                 | `10`, `600`, `5`                               |
+| `WEB_DATABASE_POOL_MAX`, `WORKER_DATABASE_POOL_MAX`                                                              | optional   | Database connections of the web part (default `20`) and the worker (default `8`); together they stay far below PostgreSQL's default of 100.                                                                                                                                                                                | `20`, `8`                                      |
+| `TIX_ROLE`                                                                                                       | optional   | Which parts run in the container: `all` (default) or a list of `web`, `worker`, `realtime` for scaling out.                                                                                                                                                                                                                | `all`                                          |
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`                                                                       | optional   | Only for an external PostgreSQL (defaults `postgres`, `5432`, `tix`, `tix`); or set `DATABASE_URL` directly.                                                                                                                                                                                                               | `db.example.org`                               |
+| `REDIS_URL`                                                                                                      | optional   | Only for an external Redis (default `redis://redis:6379/0`).                                                                                                                                                                                                                                                               | `redis://:pw@host:6379/0`                      |
+| `STORAGE_DRIVER`, `STORAGE_DIR`                                                                                  | optional   | `fs` (default; directory `/data/storage`) or `s3`. See [STORAGE.md](STORAGE.md).                                                                                                                                                                                                                                           | `fs`                                           |
+| `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_*`, `S3_REGION`                            | optional   | S3 mode: setting `S3_ENDPOINT` switches the driver to `s3`; three different buckets are required.                                                                                                                                                                                                                          | `https://s3.example.org`                       |
 
 ## Troubleshooting
 
@@ -773,48 +816,46 @@ Useful commands (run them inside the `tix` folder):
 
 ```bash
 docker compose ps                     # state of all services
-docker compose logs --tail 100 web    # last log lines of one service
-docker compose logs -f proxy          # follow a log live (stop with Ctrl+C)
-docker compose logs minio-init migrate
+docker compose logs --tail 100 tix    # last log lines of the application
+docker compose logs -f caddy          # follow the Caddy log live (stop with Ctrl+C)
 curl -fsS http://localhost:8080/api/health   # only if HTTP_PORT is 8080 on this server
 ```
 
-The `web`, `worker` and `realtime` services write one JSON object per log line. Errors have
-`"level":50`, warnings `"level":40`: `docker compose logs web | grep '"level":50'`. Set `LOG_LEVEL`
-in `.env` (`error`, `warn`, `info`, `debug`; default `info`) to change the verbosity. Web log
-lines of a request carry a `reqId` that matches the `X-Request-Id` set by the bundled proxy.
+The `tix` container writes one JSON object per log line for web, worker and realtime (field
+`service`). Errors have `"level":50`, warnings `"level":40`:
+`docker compose logs tix | grep '"level":50'`. Set `LOG_LEVEL` in `.env` (`error`, `warn`, `info`,
+`debug`; default `info`) to change the verbosity. Web log lines of a request carry a `reqId` that
+matches the `X-Request-Id` set by the built-in proxy.
 
-Service names: `web`, `worker`, `realtime`, `proxy`, `postgres`, `redis`, `minio`, `minio-init`,
-`storage-credentials`, `migrate`.
+Service names: `tix`, `postgres`, `redis` (plus `caddy` / `minio` if you added them).
 
 | Symptom                                                                                              | Cause                                                                                                                                                          | Fix                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Redis restarts in a loop after a crash or power loss: `Bad file format reading the append only file` | The end of Redis' append-only file was half written when the machine went down; more than 4 KB are damaged (smaller damage is repaired automatically on start) | `docker compose stop redis`, back up the volume (`docker run --rm -v <project>_redis-data:/data alpine tar czf - -C /data . > redis-backup.tgz`), then `docker run --rm -it -v <project>_redis-data:/data redis:8.10-alpine sh -c 'cd /data/appendonlydir && redis-check-aof --fix appendonly.aof.manifest'`, confirm with `y`, `docker compose up -d`. Redis only holds short-lived data (carts, seat locks, queue, jobs); orders live in PostgreSQL. |
-| `migrate` fails with "The pre-update backup failed, so no migration was applied"                     | The database backup before the update could not be written (storage not reachable and no writable fallback volume, key ring problem). Nothing was changed.     | Read the reason with `docker compose logs migrate`, fix it and run the update again. Only as a last resort set `SKIP_PRE_UPDATE_BACKUP=1`                                                                                                                                                                                                                                                                                                              |
-| `migrate` log: "another session holds a lock on a table the migration needs"                         | A long-running transaction blocks the schema change; the migration retries and finally gives up without changing anything                                      | Stop the application (`docker compose stop web worker realtime`) and run the update again                                                                                                                                                                                                                                                                                                                                                              |
-| A container restarts by itself, `docker inspect` shows `OOMKilled`                                   | It reached its memory ceiling (`*_MEMORY`)                                                                                                                     | Raise the matching `*_MEMORY` value in `.env`                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Error mentioning `configs.content`, "unknown key" or "additional property"                           | Docker Compose is older than 2.23.1                                                                                                                            | Install Docker from the official repository ([Installing Docker](#installing-docker)). `docker compose version` must show 2.23.1 or newer.                                                                                                                                                                                                                                                                                                             |
-| `manifest unknown` / `not found` when pulling `...:stable`                                           | No stable release exists yet, so the image tag `stable` does not exist                                                                                         | Set `TIX_CHANNEL=next` (or an exact version such as `1.0.0-alpha.3`) in `.env`, then `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                    |
+| `docker compose` says `set TIX_VERSION in .env - upgrading from the three-image layout`              | The `.env` / compose file come from an older release (`tix-web` / `tix-worker` / `tix-realtime`)                                                               | Do not continue with the new compose file: [MIGRATE-SINGLE-IMAGE.md](MIGRATE-SINGLE-IMAGE.md)                                                                                                                                                                                                                                                                                                                                                          |
 | `required variable ... is missing a value` / `set POSTGRES_PASSWORD in .env`                         | The variable is empty or missing, or `.env` is not in the current folder                                                                                       | Run the command inside the `tix` folder, make sure the file is called `.env` (not `env.example`), and fill the named variable.                                                                                                                                                                                                                                                                                                                         |
-| Errors such as `password authentication failed`, `invalid URL`, Redis `WRONGPASS`                    | A password contains special characters (`@ : / # ? %`), quotes, or was changed after first start                                                               | Use letters and digits only, no quotes. The database password is fixed when the data volume is created: changing `POSTGRES_PASSWORD` later needs `docker compose down -v` on a fresh install (deletes data) or a manual password change in PostgreSQL.                                                                                                                                                                                                 |
-| Browser shows a certificate warning or no HTTPS                                                      | Caddy could not get a certificate: DNS wrong, ports 80/443 blocked, or Let's Encrypt limit                                                                     | `docker compose logs proxy`. Check that the domain points to this server, ports 80 and 443 are open (provider firewall too) and `SITE_ADDRESS` is only the domain (no `https://`). Wait one hour if the log mentions a rate limit.                                                                                                                                                                                                                     |
+| `tix` stops at once with `APP_ENCRYPTION_KEYS is not set` / `is invalid`                             | The key ring is missing or malformed                                                                                                                           | `docker run --rm ghcr.io/renthner/tix:next keygen` prints a valid line for `.env`.                                                                                                                                                                                                                                                                                                                                                                     |
+| Redis restarts in a loop after a crash or power loss: `Bad file format reading the append only file` | The end of Redis' append-only file was half written when the machine went down; more than 4 KB are damaged (smaller damage is repaired automatically on start) | `docker compose stop redis`, back up the volume (`docker run --rm -v <project>_redis-data:/data alpine tar czf - -C /data . > redis-backup.tgz`), then `docker run --rm -it -v <project>_redis-data:/data redis:8.10-alpine sh -c 'cd /data/appendonlydir && redis-check-aof --fix appendonly.aof.manifest'`, confirm with `y`, `docker compose up -d`. Redis only holds short-lived data (carts, seat locks, queue, jobs); orders live in PostgreSQL. |
+| `tix` exits with "The pre-update backup failed, so no migration was applied"                         | The database backup before the update could not be written (storage not writable, key ring problem). Nothing was changed.                                      | Read the reason with `docker compose logs tix`, fix it and run the update again. Only as a last resort set `SKIP_PRE_UPDATE_BACKUP=1`                                                                                                                                                                                                                                                                                                                  |
+| Log: "another session holds a lock on a table the migration needs"                                   | A long-running transaction blocks the schema change; the migration retries and finally gives up without changing anything                                      | Run the update again (`docker compose up -d`) when the shop is quiet                                                                                                                                                                                                                                                                                                                                                                                   |
+| The container restarts by itself, `docker inspect` shows `OOMKilled`                                 | The host ran out of memory                                                                                                                                     | Free memory or add RAM; the application needs about 2 GB.                                                                                                                                                                                                                                                                                                                                                                                              |
+| Error mentioning `configs.content`, "unknown key" or "additional property"                           | Docker Compose is older than 2.23.1                                                                                                                            | Install Docker from the official repository ([Installing Docker](#installing-docker)). `docker compose version` must show 2.23.1 or newer.                                                                                                                                                                                                                                                                                                             |
+| `manifest unknown` / `not found` when pulling `...:stable`                                           | No stable release exists yet, so the image tag `stable` does not exist                                                                                         | Set `TIX_VERSION=next` (or an exact version such as `1.0.0-alpha.3`) in `.env`, then `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                    |
+| Errors such as `password authentication failed`                                                      | The password contains special characters (`@ : / # ? %`), quotes, or was changed after first start                                                             | Use letters and digits only, no quotes. The database password is fixed when the data volume is created: changing `POSTGRES_PASSWORD` later needs `docker compose down -v` on a fresh install (deletes data) or a manual password change in PostgreSQL.                                                                                                                                                                                                 |
+| Browser shows a certificate warning or no HTTPS (Caddy as in the quick start)                        | Caddy could not get a certificate: DNS wrong, ports 80/443 blocked, or Let's Encrypt limit                                                                     | `docker compose logs caddy`. Check that the domain points to this server, ports 80 and 443 are open (provider firewall too) and the Caddyfile holds only the domain (no `https://`). Wait one hour if the log mentions a rate limit.                                                                                                                                                                                                                   |
 | `port is already allocated` / `address already in use` on port 80 or 443                             | Another web server (apache2, nginx) uses the port                                                                                                              | Stop it (`sudo systemctl disable --now apache2`) or use variant B/C/D. `sudo ss -ltnp \| grep -E ':80 \|:443 '` shows who uses the port.                                                                                                                                                                                                                                                                                                               |
 | Firewall (ufw) is on, but a port is still reachable                                                  | Docker publishes ports directly and bypasses ufw rules                                                                                                         | Only the proxy publishes ports (80/443 or your `HTTP_PORT`). To keep a port private, bind it to `127.0.0.1` (`HTTP_PORT=127.0.0.1:8080`). Do not rely on ufw alone for Docker ports.                                                                                                                                                                                                                                                                   |
 | Seats do not update live; the browser console shows WebSocket errors                                 | Your reverse proxy does not forward WebSockets for `/socket.io`                                                                                                | Variant C: use the `/socket.io/` block above. NPM: enable Websockets Support. Cloudflare: WebSockets must be on.                                                                                                                                                                                                                                                                                                                                       |
-| Everyone gets "too many requests", or the audit log shows one IP for all visitors                    | Another proxy sits in front but `TRUSTED_PROXIES` is empty                                                                                                     | Set `TRUSTED_PROXIES` to the proxy's address or `private_ranges`, then `docker compose up -d`. Leave it empty when Caddy is the public entry.                                                                                                                                                                                                                                                                                                          |
+| Everyone gets "too many requests", or the audit log shows one IP for all visitors                    | A proxy sits in front but `TRUSTED_PROXIES` is empty or does not contain its address                                                                           | Set `TRUSTED_PROXIES` to the proxy's address or `private_ranges`, then `docker compose up -d`. Check Settings → Checkout → "Detected IP".                                                                                                                                                                                                                                                                                                              |
 | Phone cannot pair, says "server address not allowed"                                                 | `http://` with a public address, or a wrong server URL                                                                                                         | Use `https://`. `http://` works only for private IPs. Check Settings → Scanner → server URL.                                                                                                                                                                                                                                                                                                                                                           |
-| Phone cannot pair, no connection or timeout                                                          | Phone cannot reach `PUBLIC_URL` (hairpin NAT, VPN, wrong URL)                                                                                                  | Open `PUBLIC_URL` in the phone's browser on the same WiFi. If it fails, use mobile data or fix the router (NAT loopback / local DNS).                                                                                                                                                                                                                                                                                                                  |
-| The pairing QR code contains `localhost`                                                             | Scanner server URL is not set                                                                                                                                  | Settings → Scanner → set the server URL to `PUBLIC_URL`.                                                                                                                                                                                                                                                                                                                                                                                               |
-| No e-mails arrive                                                                                    | Wrong SMTP data, blocked port, spam folder                                                                                                                     | Settings → E-mail → **Send test e-mail** shows the error. Try port 587 (STARTTLS) or 465 (TLS); `docker compose logs worker`.                                                                                                                                                                                                                                                                                                                          |
+| Phone cannot pair, no connection or timeout                                                          | Phone cannot reach `APP_URL` (hairpin NAT, VPN, wrong URL)                                                                                                     | Open `APP_URL` in the phone's browser on the same WiFi. If it fails, use mobile data or fix the router (NAT loopback / local DNS).                                                                                                                                                                                                                                                                                                                     |
+| The pairing QR code contains `localhost`                                                             | Scanner server URL is not set                                                                                                                                  | Settings → Scanner → set the server URL to `APP_URL`.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| No e-mails arrive                                                                                    | Wrong SMTP data, blocked port, spam folder                                                                                                                     | Settings → E-mail → **Send test e-mail** shows the error. Try port 587 (STARTTLS) or 465 (TLS); `docker compose logs tix`.                                                                                                                                                                                                                                                                                                                             |
 | Backups or stored secrets cannot be read after moving to a new server                                | `APP_ENCRYPTION_KEYS` differs from the old server                                                                                                              | Use the original key line from your password manager. Without it the encrypted data cannot be recovered; this is why you back it up.                                                                                                                                                                                                                                                                                                                   |
-| `minio-init` exited with a non-zero code, `web` never starts                                         | MinIO is not healthy, or the stored storage credentials do not match the MinIO data                                                                            | `docker compose logs storage-credentials minio minio-init`. Do not delete the volume `storage-credentials` while `minio-data` exists (on a fresh install: `docker compose down -v`, start again).                                                                                                                                                                                                                                                      |
-| `storage-credentials` exits with "MinIO already holds data but no stored root credential exists"     | An existing installation whose old `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` were removed from `.env` before the first start of this version                   | Put the old values back into `.env` once (`MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`), run `docker compose up -d`; they are then kept in the volume.                                                                                                                                                                                                                                                                                                     |
-| Where are the MinIO / storage credentials? What happens when I restore on another server?            | They are generated on the first start and live in the Docker volume `storage-credentials`                                                                      | `docker compose exec minio cat /run/tix-storage/minio-root-password` (also `minio-root-user`). The volume is not part of TIX backups and not needed for a restore: backups are encrypted with `APP_ENCRYPTION_KEYS` and contain data and files, and the new installation uses its own generated storage credentials.                                                                                                                                   |
-| A service is `unhealthy`                                                                             | Start still in progress, or a configuration error                                                                                                              | Wait two minutes. Then `docker compose logs --tail 100 <service>`. The web check is `GET /api/health` (it reports PostgreSQL, Redis and workers).                                                                                                                                                                                                                                                                                                      |
+| A service is `unhealthy`                                                                             | Start still in progress, or a configuration error                                                                                                              | Wait two minutes (migrations run first). Then `docker compose logs --tail 100 <service>`. The check of `tix` is `GET /api/health` through the container's own health command.                                                                                                                                                                                                                                                                          |
 | Checkout shows bank transfer or PayPal as "Currently not available"                                  | No default receiving bank account exists (bank transfer), or PayPal is not configured/enabled                                                                  | Bank & payments → Accounts & connections: create an account and mark it as default. PayPal: Settings → Payments.                                                                                                                                                                                                                                                                                                                                       |
-| Admin login says "Too many attempts"                                                                 | More than 10 failed attempts per e-mail address or 20 per IP address within 15 minutes (also from scripts/tests)                                               | Wait up to 15 minutes; the limit expires by itself. If you forgot the password: `docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --reset` prints a new password (roles are kept).                                                                                                                                                                                                                                   |
-| `docker compose up` / `pull` shows no progress for minutes                                           | The images are still downloading                                                                                                                               | Wait, or run `docker compose pull` separately to see the progress.                                                                                                                                                                                                                                                                                                                                                                                     |
-| Page says "maintenance" for a long time                                                              | A backup restore is running                                                                                                                                    | Wait; check `docker compose logs web worker`.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Admin login says "Too many attempts"                                                                 | More than 10 failed attempts per e-mail address or 20 per IP address within 15 minutes (also from scripts/tests)                                               | Wait up to 15 minutes; the limit expires by itself. If you forgot the password: `docker compose run --rm tix create-admin --email you@example.org --reset` prints a new password (roles are kept).                                                                                                                                                                                                                                                     |
+| `docker compose up` / `pull` shows no progress for minutes                                           | The image is still downloading                                                                                                                                 | Wait, or run `docker compose pull` separately to see the progress.                                                                                                                                                                                                                                                                                                                                                                                     |
+| Page says "maintenance" for a long time                                                              | A backup restore is running                                                                                                                                    | Wait; check `docker compose logs tix`.                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 If you are stuck, open an [issue](https://github.com/Renthner/tix-platform/issues/new/choose)
 with the output of `docker compose ps` and the relevant log lines. **Remove passwords and keys

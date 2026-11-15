@@ -184,7 +184,7 @@ export async function* decryptStream(
   if (!key) {
     throw new BackupCryptoError(
       'KEY_UNKNOWN',
-      `The archive was encrypted with key "${keyId}", which is not in APP_ENCRYPTION_KEYS`,
+      `The archive was encrypted with key "${keyId}", which is not in APP_ENCRYPTION_KEYS or the additional keys`,
     );
   }
   const fileKey = deriveKey(key.key, salt);

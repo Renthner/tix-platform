@@ -62,6 +62,8 @@ import {
   type MailSender,
 } from '../src';
 
+import { testStorageEnv } from './helpers/storage-env';
+
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
 const redisUrl = process.env.TEST_REDIS_URL;
@@ -92,6 +94,7 @@ function jsonSender(): MailSender & { sent: Record<string, unknown>[] } {
  * Test PDFs are purged completely (all versions) with the storage root credentials.
  */
 async function purgeTestObjects(prefix: string): Promise<void> {
+  if (!s3Endpoint) return; // filesystem driver: nothing versioned to purge
   const { MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, S3_BUCKET_DOCUMENTS } = process.env;
   if (!MINIO_ROOT_USER || !MINIO_ROOT_PASSWORD || !S3_BUCKET_DOCUMENTS) return;
   const client = new S3Client({
@@ -126,7 +129,7 @@ function failingSender(error: Error): MailSender {
   };
 }
 
-describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('invoices & e-mail (integration)', () => {
+describe.skipIf(!adminUrl || !redisUrl)('invoices & e-mail (integration)', () => {
   const dbName = `tix_docs_${Date.now()}_${uuid().slice(0, 6)}`;
   const tag = `T${uuid().slice(0, 4).toUpperCase()}`;
   const year = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: 'Europe/Berlin' }).format(
@@ -172,9 +175,7 @@ describe.skipIf(!adminUrl || !redisUrl || !s3Endpoint)('invoices & e-mail (integ
       sessionSecret: 'x'.repeat(48),
       appUrl: 'https://shop.example.org/',
       secrets: createSecretBox(parseKeyRing(generateKeyRingEntry('t1'))),
-      storage: objectStorageFromEnv(
-        process.env as unknown as Parameters<typeof objectStorageFromEnv>[0],
-      ),
+      storage: objectStorageFromEnv(testStorageEnv()),
       jobs,
     });
 

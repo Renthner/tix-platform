@@ -25,6 +25,8 @@ export * from './event-duplicate';
 export * from './fees';
 export * from './tax-rates';
 export * from './storage';
+export * from './storage-config';
+export * from './storage-fs';
 export * from './media';
 export * from './media-admin';
 export * from './media-normalise';

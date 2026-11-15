@@ -11,6 +11,8 @@ import {
   checkAdminPassword,
   clearSecretSetting,
   assertBackupIdle,
+  archiveKey,
+  checkBackupKey,
   countRestoreLoss,
   deleteBackup,
   findBackup,
@@ -22,17 +24,28 @@ import {
   requestVerify,
   saveSecretSetting,
   saveSetting,
+  SourceKeysError,
+  foreignBackupKeysAllowed,
+  stageSourceKeys,
+  parseSourceKeys,
   testExternalTarget,
   verifyAdminSecondFactor,
 } from '@tix/core';
 import { parseSetting } from '@tix/shared';
+import { loadKeyRing, type SecretBoxKey } from '@tix/shared/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
-import type { BackupActionState, RestorePreview } from '@/lib/backup-state';
+import type {
+  BackupActionState,
+  RestorePreview,
+  SourceKeyCheck,
+  StageKeysResult,
+} from '@/lib/backup-state';
 import { requireAdmin } from '@/server/auth';
 import { getBackupBuckets } from '@/server/backups';
 import { getCore } from '@/server/core';
+import { getEnv } from '@/server/env';
 import { clientIp, enforceRateLimit, uuidParam } from '@/server/http';
 import { logger } from '@/server/logger';
 import { audit } from './audit';
@@ -288,6 +301,7 @@ export async function previewRestoreAction(id: string): Promise<RestorePreview |
     twoFactor,
     passkeys: passkeyCount > 0 && passkeysAvailable(core),
     twoFactorSetupRequired: settings.restoreRequiresTwoFactor && !twoFactor,
+    foreignKeysAllowed: foreignBackupKeysAllowed(),
   };
 }
 
@@ -390,10 +404,118 @@ export async function restoreBackupAction(
     if (!entry) return fail('notFound');
     // Migration level, key and checksum are validated by the worker before anything is touched.
 
-    await requestRestore(core, backupId, session.userId);
+    // Encryption key(s) of the source system (backup of another installation): parked encrypted
+    // with this system's key; only an opaque token goes into the job. Never logged, never audited.
+    const sourceKeysText = fd.get('sourceKeys');
+    let keyToken: string | undefined;
+    if (typeof sourceKeysText === 'string' && sourceKeysText.trim() !== '') {
+      try {
+        keyToken = await stageSourceKeys(core, sourceKeysText, currentKeyRing());
+      } catch (err) {
+        if (err instanceof SourceKeysError) {
+          return fail(
+            err.code === 'CONFLICT'
+              ? 'sourceKeysConflict'
+              : err.code === 'DISABLED'
+                ? 'sourceKeysDisabled'
+                : 'sourceKeysInvalid',
+          );
+        }
+        throw err;
+      }
+    }
+
+    await requestRestore(core, backupId, session.userId, keyToken);
     await audit(core.db, session, 'backup.restore.requested', 'backup', backupId, {
       backupCreatedAt: entry.manifest.createdAt,
+      // Whether an extra key was supplied, never the key itself.
+      sourceKeysSupplied: Boolean(keyToken),
     });
     return queued();
   });
+}
+
+// ─── Keys of another system ───────────────────────────────────────────────────────────
+
+/** The ring of THIS system (configured keys + additional keys already stored). */
+const currentKeyRing = () => loadKeyRing(getEnv().APP_ENCRYPTION_KEYS);
+
+/**
+ * "Check key": does the entered source key decrypt this backup? Reads only the header and the
+ * first encrypted block; starts nothing, stores nothing, and the key is not echoed back.
+ */
+export async function checkSourceKeysAction(id: string, keysText: string): Promise<SourceKeyCheck> {
+  const session = await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
+  try {
+    await enforceRateLimit('backup-key-check', session.userId, 20, 15 * 60_000);
+  } catch (err) {
+    if (err instanceof DomainError && err.code === 'RATE_LIMITED') return { result: 'rateLimited' };
+    throw err;
+  }
+  if (!foreignBackupKeysAllowed()) return { result: 'disabled' };
+  if (typeof keysText !== 'string' || keysText.trim() === '') return { result: 'empty' };
+  const parsed = uuidParam.safeParse(id);
+  if (!parsed.success) return { result: 'notFound' };
+  let current: SecretBoxKey[];
+  let pasted: SecretBoxKey[];
+  try {
+    current = currentKeyRing();
+    pasted = parseSourceKeys(keysText, current);
+  } catch (err) {
+    if (err instanceof SourceKeysError) {
+      return err.code === 'CONFLICT'
+        ? { result: 'conflict', detail: err.message }
+        : { result: 'invalid' };
+    }
+    throw err;
+  }
+  const buckets = getBackupBuckets();
+  const entry = await findBackup(buckets.backups, parsed.data);
+  if (!entry) return { result: 'notFound' };
+  const archive = archiveKey(entry.directory);
+  // Already readable with this system's own keys: the pasted keys are not needed for the archive.
+  if ((await checkBackupKey(buckets.backups, archive, current)) === 'MATCH') {
+    return { result: 'readable' };
+  }
+  // Only the pasted keys decide the outcome (the own keys were tried above).
+  const outcome = await checkBackupKey(buckets.backups, archive, pasted);
+  return {
+    result:
+      outcome === 'MATCH'
+        ? 'match'
+        : outcome === 'KEY_UNKNOWN'
+          ? 'unknown'
+          : outcome === 'NOT_A_BACKUP'
+            ? 'notBackup'
+            : 'mismatch',
+  };
+}
+
+/** Parks the typed source keys for the next upload (single-use token, valid for one hour). */
+export async function stageUploadKeysAction(keysText: string): Promise<StageKeysResult> {
+  const session = await requireAdmin(['SUPER_ADMIN'], { allowIncompleteRestore: true });
+  if (!foreignBackupKeysAllowed()) return { ok: false, error: 'disabled' };
+  try {
+    await enforceRateLimit('backup-key-stage', session.userId, 20, 15 * 60_000);
+  } catch (err) {
+    if (err instanceof DomainError && err.code === 'RATE_LIMITED') {
+      return { ok: false, error: 'rateLimited' };
+    }
+    throw err;
+  }
+  try {
+    return {
+      ok: true,
+      token: await stageSourceKeys(getCore(), String(keysText), currentKeyRing()),
+    };
+  } catch (err) {
+    if (err instanceof SourceKeysError) {
+      return {
+        ok: false,
+        error:
+          err.code === 'CONFLICT' ? 'conflict' : err.code === 'DISABLED' ? 'disabled' : 'invalid',
+      };
+    }
+    throw err;
+  }
 }

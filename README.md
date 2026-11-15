@@ -16,7 +16,7 @@ English | [Deutsch](README.de.md)
   <img src="docs/img/shop-event.webp" alt="Event page of the ticket shop" width="900">
 </p>
 
-> **Status:** pre-release (`1.0.0-alpha.27`). Feature-complete, but not yet declared stable. Take a
+> **Status:** pre-release (`1.0.0-alpha.28`). Feature-complete, but not yet declared stable. Take a
 > backup before every update (a database backup is also taken automatically before schema changes)
 > and read the [CHANGELOG](CHANGELOG.md). Update with the `tix-update.sh` script of the release
 > ([install guide](docs/INSTALL.md#updating-and-backups)).
@@ -83,15 +83,19 @@ environment file only contains infrastructure settings. The shop and the admin a
 
 ```mermaid
 flowchart LR
-  B[Browser / customer] -->|HTTPS| C[Caddy proxy]
-  A[Android check-in app] -->|HTTPS, device API| C
-  C -->|/socket.io| R[realtime gateway]
-  C -->|everything else| W[web: shop, admin, API]
+  B[Browser / customer] -->|HTTPS| T[Your reverse proxy: TLS]
+  A[Android check-in app] -->|HTTPS, device API| T
+  T -->|HTTP :8080| I
+  subgraph X[tix container]
+    I[built-in proxy] -->|/socket.io| R[realtime gateway]
+    I -->|everything else| W[web: shop, admin, API]
+    K[worker: mail, PDFs, bank sync, refunds]
+  end
   W --> P[(PostgreSQL)]
   W --> D[(Redis)]
-  W --> M[(MinIO / S3)]
+  W --> M[(files: volume or S3 / MinIO)]
   R --> D
-  K[worker: mail, PDFs, bank sync, refunds] --> P
+  K --> P
   K --> D
   K --> M
   A -.-|venue WiFi| L[LAN master phone]
@@ -107,41 +111,47 @@ and troubleshooting is [docs/INSTALL.md](docs/INSTALL.md).
 
 ```bash
 # 1. Download the two files of the release
-export TIX_VERSION=1.0.0-alpha.27
+export TIX_VERSION=1.0.0-alpha.28
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
 mv env.example .env
 
-# 2. Generate all secrets (copy and paste the whole block)
-gen() { openssl rand -hex 24; }
+# 2. Fill in the three required values (replace tickets.example.org)
+DOMAIN=tickets.example.org
+KEYLINE=$(docker run --rm ghcr.io/renthner/tix:$TIX_VERSION keygen)
 sed -i \
-  -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" \
-  -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(gen)|" \
-  -e "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" \
-  -e "s|^APP_ENCRYPTION_KEYS=.*|APP_ENCRYPTION_KEYS=k1:$(openssl rand -base64 32)|" \
+  -e "s|^APP_URL=.*|APP_URL=https://$DOMAIN|" \
+  -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|" \
+  -e "s|^APP_ENCRYPTION_KEYS=.*|$KEYLINE|" \
+  -e "s|^# *HTTP_PORT=.*|HTTP_PORT=127.0.0.1:8081|" \
+  -e "s|^# *TRUSTED_PROXIES=.*|TRUSTED_PROXIES=private_ranges|" \
   .env
+unset TIX_VERSION
 
-# 3. Set your domain (replace tickets.example.org)
-sed -i \
-  -e "s|^PUBLIC_URL=.*|PUBLIC_URL=https://tickets.example.org|" \
-  -e "s|^SITE_ADDRESS=.*|SITE_ADDRESS=tickets.example.org|" \
-  -e "s|^HTTP_PORT=.*|HTTP_PORT=80|" \
-  -e "s|^HTTPS_PORT=.*|HTTPS_PORT=443|" \
-  .env
+# 3. HTTPS: put Caddy (or Traefik, nginx, ...) in front of port 8080 - two small files,
+#    see step 3 of docs/INSTALL.md
 
 # 4. Start, then create the first admin (the password is printed once)
 docker compose up -d
-docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
+docker compose run --rm tix create-admin --email you@example.org --name "Your Name"
 ```
 
 Then open `https://tickets.example.org/admin`.
 
+The `tix` container speaks plain HTTP on port 8080 and needs a reverse proxy for HTTPS.
+**Set `TRUSTED_PROXIES` to your proxy** (the quick start does): left empty, every visitor looks like
+the proxy and the rate limits and the audit log treat all visitors as one.
+
 **Back up `APP_ENCRYPTION_KEYS` from your `.env` outside the server** (password manager). Without
-it, stored secrets and backups cannot be decrypted. The comments in `.env` explain every setting.
+it, stored secrets and backups cannot be decrypted, not even on another server. The comments in
+`.env` explain every setting.
+
+**Coming from `1.0.0-alpha.27` or older** (three images, bundled Caddy and MinIO)? Do not replace your
+compose file: [docs/MIGRATE-SINGLE-IMAGE.md](docs/MIGRATE-SINGLE-IMAGE.md) keeps your data.
 
 While there is no stable release, `releases/latest` does not exist and the `stable` image channel
-is empty; the pre-release `.env` already uses `TIX_CHANNEL=next`. From `1.0.0` on you can download
+is empty; the pre-release `.env` already uses `TIX_VERSION=next`. From `1.0.0` on you can download
 from `https://github.com/Renthner/tix-platform/releases/latest/download/<file>`.
 
 ## Check-in app (Android)

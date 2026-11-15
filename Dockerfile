@@ -1,8 +1,7 @@
 # syntax=docker/dockerfile:1.7
-# Multi-target build for the monorepo:
-#   docker build --target web    -t tix/web .
-#   docker build --target worker -t tix/worker .   (also runs migrate/seed/create-admin)
-#   docker build --target realtime -t tix/realtime .
+# Build of the single `tix` image (web + worker + realtime behind a built-in proxy on :8080, see
+# docker/supervisor):
+#   docker build -t tix .
 
 ARG NODE_IMAGE=node:24-alpine
 
@@ -38,50 +37,52 @@ RUN pnpm --filter @tix/worker build \
  && pnpm --filter @tix/web build \
  && node -p "require('/repo/packages/core/node_modules/sharp/package.json').version" > /sharp-version
 
-# ─── Runtime: web (Next.js standalone server) ───────────────────────────────
-FROM ${NODE_IMAGE} AS web
+# ─── Runtime: the single `tix` image (default target, keep it LAST) ─────────
+# One container runs the web server, the realtime gateway and the worker under a small supervisor
+# (docker/supervisor) that is also the public HTTP entry on :8080 (/socket.io -> realtime, the rest
+# -> web). TLS is terminated by the operator's own reverse proxy. Layout:
+#   /app/web        Next.js standalone output        /app/worker/dist    worker + migrate/seed/create-admin
+#   /app/realtime   Socket.io gateway bundle         /app/migrations     SQL migrations
+#   /app/supervisor entrypoint, proxy, env contract  /app/fonts          Noto Sans for PDFs
+#   /data           the only volume (secrets, file storage)
+FROM ${NODE_IMAGE} AS app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
-    HOSTNAME=0.0.0.0
+    PORT=8080 \
+    REDIS_KEY_PREFIX=tix \
+    MIGRATIONS_DIR=/app/migrations \
+    TIX_FONT_DIR=/app/fonts \
+    TIX_APP_DIR=/app \
+    TINI_SUBREAPER=1
 WORKDIR /app
-COPY --from=build --chown=node:node /repo/apps/web/.next/standalone ./
-COPY --from=build --chown=node:node /repo/apps/web/.next/static ./apps/web/.next/static
-COPY --from=build --chown=node:node /repo/apps/web/public ./apps/web/public
-USER node
-EXPOSE 3000
-CMD ["node", "apps/web/server.js"]
-
-# ─── Runtime: worker + database CLIs (self-contained esbuild bundles) ───────
-FROM ${NODE_IMAGE} AS worker
-ENV NODE_ENV=production \
-    MIGRATIONS_DIR=/app/migrations
-WORKDIR /app
-# PostgreSQL client tools for backups (pg_dump / pg_restore / psql). Their major version must match
-# the server (postgres:18): the built image has to report `pg_dump --version` 18.x (checked below).
-# Alpine ships `postgresql18-client` since 3.23 (node:24-alpine is on 3.24); when NODE_IMAGE is
-# changed, verify with `apk search postgresql18-client` for that base.
-RUN apk add --no-cache postgresql18-client \
+# tini is PID 1 (signal forwarding, zombie reaping; TINI_SUBREAPER also keeps it quiet under `init: true`). PostgreSQL client tools for backups: their
+# major version must match the server (postgres:18), so the build fails otherwise.
+RUN apk add --no-cache tini postgresql18-client \
  && pg_dump --version | grep -q 'pg_dump (PostgreSQL) 18'
-# `sharp` is native and therefore external to the bundle: install the exact version the
-# lockfile resolved (recorded in the build stage) so import('sharp') resolves from /app.
+# `sharp` is native: external to the worker bundle and traced into the Next standalone output.
+# /app/node_modules/sharp serves the worker (resolved upwards from /app/worker/dist); the web
+# server prefers its own traced copy. Same version the lockfile resolved.
 COPY --from=build /sharp-version /tmp/sharp-version
-RUN npm install --omit=dev --no-save --no-audit --no-fund --ignore-scripts=false       "sharp@$(cat /tmp/sharp-version)"  && npm cache clean --force  && rm -rf /tmp/sharp-version /root/.npm  && chown -R node:node /app
-COPY --from=build --chown=node:node /repo/apps/worker/dist ./dist
-COPY --from=build --chown=node:node /repo/packages/db/migrations ./migrations
-# Fallback directory of the pre-update backup (compose mounts the volume `pre-update-backups` here;
-# a new named volume inherits this ownership).
-RUN mkdir -p /pre-update-backups && chown node:node /pre-update-backups
+RUN npm install --omit=dev --no-save --no-audit --no-fund --ignore-scripts=false "sharp@$(cat /tmp/sharp-version)" \
+ && npm cache clean --force \
+ && rm -rf /tmp/sharp-version /root/.npm
+COPY --from=build /repo/apps/web/.next/standalone ./web
+COPY --from=build /repo/apps/web/.next/static ./web/apps/web/.next/static
+COPY --from=build /repo/apps/web/public ./web/apps/web/public
+COPY --from=build /repo/apps/worker/dist ./worker/dist
+COPY --from=build /repo/apps/realtime/dist ./realtime/dist
+COPY --from=build /repo/packages/db/migrations ./migrations
+COPY --from=build /repo/packages/core/assets/fonts ./fonts
+COPY docker/supervisor/supervisor.mjs docker/supervisor/env.mjs docker/supervisor/proxy.mjs docker/supervisor/children.mjs ./supervisor/
+COPY VERSION ./VERSION
+# Only /data and Next's runtime cache are writable; the server bundles stay root-owned.
+RUN mkdir -p /data/secrets /data/storage /app/web/apps/web/.next/cache \
+ && chown -R node:node /data /app/web/apps/web/.next/cache
 USER node
-EXPOSE 8081
-CMD ["node", "--enable-source-maps", "dist/index.mjs"]
-
-# ─── Runtime: realtime gateway (Socket.io, self-contained esbuild bundle) ───
-FROM ${NODE_IMAGE} AS realtime
-ENV NODE_ENV=production \
-    REALTIME_PORT=3001
-WORKDIR /app
-COPY --from=build --chown=node:node /repo/apps/realtime/dist ./dist
-USER node
-EXPOSE 3001
-CMD ["node", "--enable-source-maps", "dist/index.mjs"]
+VOLUME /data
+EXPOSE 8080
+# Generous start period: migrations may run before the application answers.
+HEALTHCHECK --interval=15s --timeout=6s --start-period=120s --retries=3 \
+  CMD ["node", "/app/supervisor/supervisor.mjs", "healthcheck"]
+ENTRYPOINT ["/sbin/tini", "--", "node", "/app/supervisor/supervisor.mjs"]
+CMD ["serve"]

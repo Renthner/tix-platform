@@ -52,7 +52,24 @@ export const backupManifestSchema = z.object({
     .object({ sizeBytes: z.number().int().min(0), sha256: z.string().length(64) })
     .optional(),
   database: z.object({ dumpBytes: z.number().int().min(0) }).optional(),
-  files: z.object({ assets: fileStats, documents: fileStats }).optional(),
+  files: z
+    .object({
+      assets: fileStats,
+      documents: fileStats,
+      /**
+       * Objects NOT archived because their storage key would be rejected by the restore-side
+       * validation (so every created backup stays restorable). Samples only (capped).
+       */
+      skipped: z
+        .object({
+          count: z.number().int().min(1),
+          samples: z
+            .array(z.object({ area: z.enum(['assets', 'documents']), key: z.string().max(300) }))
+            .max(20),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 export type BackupManifest = z.infer<typeof backupManifestSchema>;
 

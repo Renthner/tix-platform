@@ -3,9 +3,11 @@ import {
   getRestoreIncomplete,
   getSetting,
   hasSecretSetting,
+  foreignBackupKeysAllowed,
   listCatalogue,
   readProbeHistory,
 } from '@tix/core';
+import { loadExtraKeys } from '@tix/shared/server';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { BackupSettingsForm } from '@/components/admin/backups/backup-settings-form';
@@ -43,7 +45,7 @@ import {
   testBackupTargetAction,
   verifyBackupAction,
 } from '@/server/admin/backups';
-import { getBackupBuckets } from '@/server/backups';
+import { getBackupBuckets, getStorageInfo } from '@/server/backups';
 import { getCore } from '@/server/core';
 
 export const dynamic = 'force-dynamic';
@@ -86,8 +88,16 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
     getRestoreIncomplete(core),
     readProbeHistory(getBackupBuckets().backups),
   ]);
+  const storage = getStorageInfo();
   const lastProbe = probes[0] ?? null;
   const keyId = core.secrets?.activeKeyId ?? '';
+  // Ids only: keys of another system that a restore stored as additional decrypt-only keys.
+  let additionalKeyIds: string[] = [];
+  try {
+    additionalKeyIds = loadExtraKeys().map((k) => k.id);
+  } catch {
+    /* an unreadable file is reported at startup */
+  }
   const when = (iso: string) =>
     format.dateTime(new Date(iso), {
       dateStyle: 'medium',
@@ -106,7 +116,7 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
         description={t('description')}
         actions={
           <>
-            <UploadBackupButton />
+            <UploadBackupButton foreignKeysAllowed={foreignBackupKeysAllowed()} />
             <BackupNowButton action={backupNowAction} />
           </>
         }
@@ -151,7 +161,26 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
             </AlertDescription>
           </Alert>
         )}
+        {storage.driver === 'fs' && !settings.externalEnabled && (
+          <Alert className="border-warning-border bg-warning-soft text-warning">
+            <AlertTitle>{t('storage.localOnlyTitle')}</AlertTitle>
+            <AlertDescription>{t('storage.localOnlyText')}</AlertDescription>
+          </Alert>
+        )}
+        <p className="text-sm text-muted-foreground">
+          {storage.driver === 'fs'
+            ? t('storage.driverFs', { dir: storage.dir ?? '' })
+            : t('storage.driverS3')}
+        </p>
         <BackupStatusPanel />
+        {additionalKeyIds.length > 0 && (
+          <Alert>
+            <AlertTitle>{t('additionalKeys.title')}</AlertTitle>
+            <AlertDescription>
+              {t('additionalKeys.text', { ids: additionalKeyIds.join(', ') })}
+            </AlertDescription>
+          </Alert>
+        )}
         <p className="text-sm text-muted-foreground">{t('keyNote', { keyId })}</p>
         <p className="text-sm text-muted-foreground">{t('upload.hint')}</p>
 

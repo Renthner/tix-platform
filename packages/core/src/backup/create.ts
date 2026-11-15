@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PgClient } from '@tix/db';
+import { InvalidStorageKeyError, validateStorageKey } from '../storage-fs';
 import { writeArchive, type ArchiveEntry } from './archive';
 import { applyRetention, writeBackupState } from './catalogue';
 import { encryptStream } from './crypto';
@@ -24,7 +25,11 @@ export interface CreateBackupResult {
   directory: string;
   /** Set when the backup exists locally but the external upload failed. */
   externalError?: string;
+  /** Objects left out because the restore would reject their storage key (see the manifest). */
+  skippedObjects?: NonNullable<NonNullable<BackupManifest['files']>['skipped']>;
 }
+
+const MAX_SKIPPED_SAMPLES = 20;
 
 /**
  * Full backup: PostgreSQL (pg_dump -Fc inside one exported snapshot, so row counts and dump
@@ -85,6 +90,10 @@ export async function createBackup(
       assets: { objects: 0, bytes: 0 },
       documents: { objects: 0, bytes: 0 },
     };
+    const skipped = {
+      count: 0,
+      samples: [] as { area: 'assets' | 'documents'; key: string }[],
+    };
 
     async function* entries(): AsyncGenerator<ArchiveEntry> {
       yield {
@@ -106,6 +115,22 @@ export async function createBackup(
       for (const area of ['assets', 'documents'] as const) {
         await progress.step(area === 'assets' ? 'FILES_ASSETS' : 'FILES_DOCUMENTS');
         for await (const object of rt.buckets[area].list('')) {
+          // The restore validates every key (traversal, backslash, colon, control characters ...):
+          // an object it would reject must not make the whole backup unrestorable.
+          try {
+            validateStorageKey(object.key);
+          } catch (err) {
+            if (!(err instanceof InvalidStorageKeyError)) throw err;
+            skipped.count += 1;
+            if (skipped.samples.length < MAX_SKIPPED_SAMPLES) {
+              skipped.samples.push({ area, key: object.key.slice(0, 300) });
+            }
+            rt.logger.warn(
+              { area, key: object.key.slice(0, 300) },
+              'backup: object skipped because its storage key is not valid for a restore',
+            );
+            continue;
+          }
           let download: Awaited<ReturnType<typeof rt.buckets.assets.getStream>>;
           try {
             download = await rt.buckets[area].getStream(object.key);
@@ -145,6 +170,7 @@ export async function createBackup(
       files: {
         assets: stats.assets,
         documents: stats.documents,
+        ...(skipped.count > 0 ? { skipped } : {}),
       },
     };
     await rt.buckets.backups.putBytes(
@@ -156,6 +182,7 @@ export async function createBackup(
     await writeBackupState(rt.buckets.backups, directory, state);
 
     const result: CreateBackupResult = { manifest, directory };
+    if (skipped.count > 0) result.skippedObjects = skipped;
     await progress.step('EXTERNAL');
     const externalError = await uploadToExternal(rt, manifest, directory);
     state = externalError.state;

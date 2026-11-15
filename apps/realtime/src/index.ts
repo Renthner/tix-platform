@@ -38,6 +38,8 @@ const env = z
     SESSION_SECRET: z.string().min(32),
     APP_URL: z.url(),
     REALTIME_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
+    /** Bind address; the single-image supervisor sets 127.0.0.1 (only its proxy connects). */
+    REALTIME_HOST: z.string().min(1).default('0.0.0.0'),
     REALTIME_CORS_ORIGINS: z.string().optional(),
     SEAT_BATCH_MS: z.coerce.number().int().min(10).max(2_000).default(100),
   })
@@ -317,7 +319,7 @@ async function main(): Promise<void> {
   );
   maintenanceWatcher.start();
   void beat();
-  http.listen(env.REALTIME_PORT, '0.0.0.0', () => {
+  http.listen(env.REALTIME_PORT, env.REALTIME_HOST, () => {
     logger.info(
       { version: APP_VERSION, port: env.REALTIME_PORT, origins },
       'realtime gateway listening',

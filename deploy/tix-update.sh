@@ -8,7 +8,7 @@
 #
 #   ./tix-update.sh [--dry-run] [--force] [VERSION|CHANNEL]
 #
-#   (no argument)   channel from TIX_CHANNEL in .env (default: stable)
+#   (no argument)   channel from TIX_VERSION in .env (default: stable)
 #   1.2.0 / v1.2.0  that exact version (also 1.2.0-rc.1)
 #   stable | next | alpha | beta | rc | 1 | 1.2     newest release of that channel (highest
 #                   SemVer, alpha < beta < rc < final; looked up among the 100 newest releases)
@@ -68,6 +68,13 @@ printf '%s' "$REPOSITORY" | grep -Eq '^[0-9A-Za-z._-]+/[0-9A-Za-z._-]+$' ||
 cd "$(dirname "$0")"
 [ -f docker-compose.yml ] || die "docker-compose.yml not found next to this script"
 
+# The three-image layout (tix-web / tix-worker / tix-realtime, bundled Caddy and MinIO) cannot be
+# replaced by the single-image compose file: its volumes would be orphaned. Stop before anything
+# is downloaded or changed.
+if grep -Eq '^  (realtime|migrate):|/tix-(web|worker|realtime):' docker-compose.yml; then
+  die "this installation still uses the three-image layout (tix-web / tix-worker / tix-realtime). Nothing was changed. Newer releases ship ONE image; moving to it is a one-time manual step that keeps your data: follow docs/MIGRATE-SINGLE-IMAGE.md (https://github.com/$REPOSITORY/blob/main/docs/MIGRATE-SINGLE-IMAGE.md), then run this script again."
+fi
+
 command -v awk > /dev/null 2>&1 || die "awk is required"
 if command -v curl > /dev/null 2>&1; then
   fetch() { curl -fsSL --connect-timeout 15 --max-time 120 -H 'User-Agent: tix-update' "$1"; }
@@ -85,10 +92,10 @@ else
   die "sha256sum or shasum is required to verify the download"
 fi
 
-# TIX_CHANNEL of .env (last assignment wins; quotes and CR removed).
+# TIX_VERSION of .env (last assignment wins; quotes and CR removed).
 env_channel() {
   [ -f .env ] || return 0
-  grep -E '^[[:space:]]*TIX_CHANNEL=' .env | tail -n 1 | cut -d= -f2- | tr -d '\r"'"'" | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'
+  grep -E '^[[:space:]]*TIX_VERSION=' .env | tail -n 1 | cut -d= -f2- | tr -d '\r"'"'" | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'
 }
 
 CHANNEL_FROM_ENV=0
@@ -215,12 +222,12 @@ else
   fi
 fi
 
-# Images are chosen by TIX_CHANNEL: an explicit argument wins over .env for this run.
+# Images are chosen by TIX_VERSION: an explicit argument wins over .env for this run.
 ENV_NOTE=""
 if [ "$CHANNEL_FROM_ENV" = 0 ] && [ "$(env_channel)" != "$TARGET" ]; then
-  TIX_CHANNEL="$TARGET"
-  export TIX_CHANNEL
-  ENV_NOTE="Note: images were pulled for \"$TARGET\", but .env says TIX_CHANNEL=$(env_channel). Set TIX_CHANNEL=$TARGET in .env to keep it, otherwise the next plain 'docker compose up' switches back."
+  TIX_VERSION="$TARGET"
+  export TIX_VERSION
+  ENV_NOTE="Note: images were pulled for \"$TARGET\", but .env says TIX_VERSION=$(env_channel). Set TIX_VERSION=$TARGET in .env to keep it, otherwise the next plain 'docker compose up' switches back."
 fi
 
 if [ "$DRY_RUN" = 1 ]; then
@@ -229,7 +236,7 @@ if [ "$DRY_RUN" = 1 ]; then
   say "  - validate the new file (docker compose config) and pull its images first"
   [ "$CHANGED" = 0 ] || say "  - save docker-compose.yml as docker-compose.yml.bak-<timestamp> and install the file of $TAG"
   say "  - docker compose up -d --remove-orphans"
-  [ -z "$ENV_NOTE" ] || say "  - use TIX_CHANNEL=$TARGET for this run ($(env_channel | sed 's/^$/not set in .env/') in .env)"
+  [ -z "$ENV_NOTE" ] || say "  - use TIX_VERSION=$TARGET for this run ($(env_channel | sed 's/^$/not set in .env/') in .env)"
   exit 0
 fi
 
@@ -260,7 +267,7 @@ say "Starting $VERSION (database migrations run first; a pre-update backup is ta
 if ! docker compose up -d --remove-orphans; then
   {
     say ""
-    say "tix-update: 'docker compose up' failed (see above); check 'docker compose logs migrate'."
+    say "tix-update: 'docker compose up' failed (see above); check 'docker compose logs tix'."
     if [ -n "$BACKUP" ]; then
       say "To restore the previous compose file (the new images stay pulled):"
       say "  mv \"$BACKUP\" docker-compose.yml"

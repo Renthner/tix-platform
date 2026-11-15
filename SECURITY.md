@@ -26,6 +26,19 @@ Releases are built by a GitHub workflow; images are signed with cosign, the APK,
 deploy bundle carry build attestations. See
 [docs/RELEASES.md](docs/RELEASES.md#verifying-releases).
 
+## Deployment hardening
+
+Set `TRUSTED_PROXIES` to the exact IP/CIDR of your TLS reverse proxy and publish port 8080 only on the
+interface that proxy uses; TIX warns at startup about risky values. The built-in proxy answers 421 to
+foreign `Host` headers (`TIX_ALLOWED_HOSTS`) and limits connections and request time
+(`TIX_PROXY_*`); every internal process receives only the secrets it needs. See
+[docs/INSTALL.md](docs/INSTALL.md#built-in-proxy-host-check-and-limits).
+
+Restoring a backup executes its SQL as the database user. Restoring a backup of **another system** (entering
+its encryption key) is therefore off unless the operator sets `TIX_ALLOW_FOREIGN_BACKUP_KEYS=1`; with it on, a
+SUPER_ADMIN effectively has database-superuser power (arbitrary SQL, e.g. `COPY ... PROGRAM`). Enable it only
+temporarily for a migration. See [docs/BACKUP.md](docs/BACKUP.md#restoring-a-backup-from-another-system).
+
 ## Admin sign-in
 
 Passkeys, mandatory two-factor authentication and the recovery paths are described in

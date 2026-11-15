@@ -8,6 +8,76 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.28] - 2026-11-15
+
+### Changed
+
+- `keygen` now creates a random key id (`k` + 6 hex characters) instead of always `k1`, so independently
+  set-up systems rarely collide when restoring a foreign backup. Existing `k1` keys keep working.
+- The image keeps its server bundles read-only for the runtime user (only `/data` and `.next/cache` are
+  writable); `.dockerignore` excludes `.env*` files in every directory. Documented the proxy variables
+  `TIX_ALLOWED_HOSTS`, `TIX_PROXY_SOCKET_TIMEOUT_MS`, `TIX_PROXY_REQUEST_TIMEOUT_MS`,
+  `TIX_PROXY_MAX_CONNS_PER_IP`, the startup warnings and the exact-address advice for `TRUSTED_PROXIES`.
+
+- **One image instead of three, three services instead of nine.** TIX is published as the single image
+  `ghcr.io/<owner>/tix` (shop, admin, realtime gateway and worker in one container, built-in proxy on
+  port 8080) and `deploy/docker-compose.yml` now defines only `tix`, `postgres` and `redis`. There is no
+  bundled Caddy any more (HTTPS is done by your own reverse proxy, `docs/INSTALL.md` shows Caddy, Traefik,
+  nginx and Nginx Proxy Manager) and no MinIO by default: files live in the volume `tix-data`
+  (`docker-compose.s3.example.yml` shows MinIO / S3). The required `.env` values are `APP_URL`,
+  `POSTGRES_PASSWORD` and `APP_ENCRYPTION_KEYS` (`docker run --rm ghcr.io/<owner>/tix:next keygen`);
+  `SESSION_SECRET` is generated when unset; the image is chosen by `TIX_VERSION` (was `TIX_CHANNEL`).
+  **Set `TRUSTED_PROXIES` behind a reverse proxy**, otherwise every visitor shares the proxy's address in
+  the rate limits and the audit log. `create-admin` is now `docker compose run --rm tix create-admin ...`.
+  The images `tix-web`, `tix-worker` and `tix-realtime` are no longer built or published.
+- **Existing installations must not simply replace their compose file:** the new compose file refuses a
+  `.env` of the three-image layout and `tix-update.sh` refuses an old compose file, both with a pointer to
+  `docs/MIGRATE-SINGLE-IMAGE.md` (also in German), which moves an installation to the new image **keeping
+  its PostgreSQL, Redis and MinIO volumes** (S3 mode stays supported).
+- Release assets: `docker-compose.yml`, `env.example`, `tix-update.sh`, the zip (now with
+  `docker-compose.s3.example.yml`), APK and `SHA256SUMS.txt`; the images are signed with cosign as before
+  (`cosign verify ghcr.io/<owner>/tix:<version>`).
+- Supervisor tests and the new compose checks run in CI; the end-to-end suite builds the single image.
+- Default disk alert paths now include `/data`.
+
+### Security
+
+- Restoring a backup of **another system** (entering that system's encryption key) is now disabled unless
+  the operator sets `TIX_ALLOW_FOREIGN_BACKUP_KEYS=1` (or `true`). A restore feeds the archive's SQL to
+  `psql` as the database user, so with the feature on a SUPER_ADMIN who builds an archive under their own key
+  has database-superuser power (`COPY ... PROGRAM`). The switch is enforced server-side (key staging, key
+  check, upload key token, restore, worker); the dialogs show an explanation how to enable it and the risk.
+- The built-in proxy no longer forwards a client-sent `x-middleware-subrequest` header, closes an HTTP/1.0
+  connection that sent `Transfer-Encoding: chunked` after the response, answers a request with invalid framing
+  exactly once (no second 400, pipelined bytes behind it are dropped) and counts IPv6 clients per /64 for the
+  per-address connection cap.
+
+### Fixed
+
+- The additional-keys file (keys of another system after a restore) is written crash-safely (unique exclusive
+  temp file, fsync, rename, directory fsync) and read back before the restore replaces the database. A broken
+  file no longer crash-loops web and worker: an empty file means no additional keys (logged), a file that does
+  not parse is logged and the processes continue with the configured keys, with an error that names the file
+  when a key is missing.
+- A backup no longer includes stored files whose object key the restore would reject (it would have made the
+  whole backup unrestorable): such files are skipped, logged, recorded in the manifest and shown as a warning
+  in the backup status. `copyBuckets` reports them as `rejected`.
+- The "Check key" step tests only the pasted keys and says when the backup is already readable with this
+  system's own keys.
+- The proxy's per-address connection-limit message is throttled (one line per 10 s with a count) and, like a
+  one-time warning when connections arrive from a private address with an empty `TRUSTED_PROXIES`, points at
+  `TRUSTED_PROXIES`.
+- The backup download route audits before it opens the stream. The one-off commands `migrate`, `seed` and
+  `create-admin` no longer generate or persist a `SESSION_SECRET` nor need a writable `/data`; the
+  supervisor's exclusive secret-file creation falls back to an exclusive create when hard links are not
+  supported (EPERM, ENOTSUP, EXDEV, ENOSYS).
+
+### Removed
+
+- The bundled Caddy proxy (`docker/caddy`), the `storage-credentials` / `minio-init` / `migrate` services
+  of the production compose file, the compose-embedding of config files (`compose-embed.mjs`) and the
+  Dockerfile targets `web`, `worker` and `realtime`.
+
 ## [1.0.0-alpha.27] - 2026-11-15
 
 ### Added

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { collect, readArchive, type ReadArchiveEntry } from './archive';
 import { BackupCryptoError, decryptStream, type BackupKey } from './crypto';
+import { InvalidStorageKeyError, validateStorageKey } from '../storage-fs';
 import {
   ARCHIVE_DUMP,
   ARCHIVE_FILES_PREFIX,
@@ -9,17 +10,20 @@ import {
   type BackupManifest,
 } from './manifest';
 
-/** Object keys from an archive end up in S3: no traversal, no absolute keys, bounded length. */
+/**
+ * Object keys from an archive are written to the storage (filesystem or S3): they must pass the
+ * same validation as the filesystem driver (no traversal, absolute, backslash, colon, control
+ * character, trailing dot/space, overlong keys), so an unsafe archive is rejected while it is
+ * inspected and not half-way through a restore.
+ */
 export function assertSafeObjectKey(key: string): void {
-  const bytes = Buffer.byteLength(key, 'utf8');
-  if (
-    key.length === 0 ||
-    bytes > 1024 ||
-    key.startsWith('/') ||
-    key.includes('\0') ||
-    key.split('/').some((part) => part === '..' || part === '.')
-  ) {
-    throw new BackupCryptoError('BAD_ARCHIVE', 'The archive contains an invalid file name');
+  try {
+    validateStorageKey(key);
+  } catch (err) {
+    if (err instanceof InvalidStorageKeyError) {
+      throw new BackupCryptoError('BAD_ARCHIVE', 'The archive contains an invalid file name');
+    }
+    throw err;
   }
 }
 

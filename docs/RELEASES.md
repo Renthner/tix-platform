@@ -58,20 +58,20 @@ To re-run it for an existing tag use Actions -> Release -> Run workflow, select 
 
 ### Published artifacts
 
-| Artifact                                                | Notes                                                                                                                                  |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `ghcr.io/<owner>/tix-web`, `tix-worker`, `tix-realtime` | linux/amd64 + linux/arm64, signed, with SBOM and provenance; tags `<version>` plus the moving channel tags (see [Channels](#channels)) |
-| `docker-compose.yml`, `env.example`                     | the two files a server needs (config inline, see Deploying); `env.example` = `.env.example`                                            |
-| `tix-update.sh`                                         | update script: downloads and verifies the release's compose file, pulls images, restarts (`--dry-run`)                                 |
-| `tix-checkin-<version>.apk`                             | release asset, only when the signing secrets exist                                                                                     |
-| `SHA256SUMS.txt`                                        | checksums of the compose file, env.example, tix-update.sh, the zip and the APK                                                         |
+| Artifact                            | Notes                                                                                                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ghcr.io/<owner>/tix`               | the single image (web, worker, realtime): linux/amd64 + linux/arm64, signed, with SBOM and provenance; tags `<version>` plus the moving channel tags (see [Channels](#channels)) |
+| `docker-compose.yml`, `env.example` | the two files a server needs (three services, see Deploying); `env.example` = `.env.example`                                                                                     |
+| `tix-update.sh`                     | update script: downloads and verifies the release's compose file, pulls images, restarts (`--dry-run`)                                                                           |
+| `tix-checkin-<version>.apk`         | release asset, only when the signing secrets exist                                                                                                                               |
+| `SHA256SUMS.txt`                    | checksums of the compose file, env.example, tix-update.sh, the zip and the APK                                                                                                   |
 
-The one-shot `migrate` service uses the worker image (as in `docker-compose.yml`), so there is
-no separate migrate image. The packages must be readable by your servers: after the first
-release set each of the three packages (`tix-web`, `tix-worker`, `tix-realtime`) to **public**
-(GitHub -> your profile/organisation -> Packages -> package -> Package settings -> Change
+Migrations, seed data, `create-admin` and `keygen` are subcommands of the same image, so there is no separate migrate image. The packages must be readable by your servers: after the first
+release of the `tix` package set it to **public** (GitHub -> your profile/organisation -> Packages -> `tix` -> Package settings -> Change
 visibility), so servers can pull without logging in. `docker login ghcr.io` (token with
-`read:packages`) is only needed while a package is private. **Never delete untagged versions** of the `tix-*` packages: the per-architecture images, SBOM / provenance attestations and signatures are untagged versions that the tags depend on. Only the old single `buildcache` tag of the amd64-only releases is obsolete (it is now `buildcache-amd64` / `buildcache-arm64`).
+`read:packages`) is only needed while the package is private. **Never delete untagged versions** of the `tix` package: the per-architecture images, SBOM / provenance attestations and signatures are untagged versions that the tags depend on. Only the old single `buildcache` tag of the amd64-only releases is obsolete (it is now `buildcache-amd64` / `buildcache-arm64`).
+
+Releases up to 1.0.0-alpha.27 published three packages (`tix-web`, `tix-worker`, `tix-realtime`). They are no longer built; existing tags stay pullable. Servers still running that layout move over with [MIGRATE-SINGLE-IMAGE.md](MIGRATE-SINGLE-IMAGE.md).
 
 ## Verifying releases
 
@@ -82,12 +82,12 @@ this repository's release workflow from the tagged commit.
 `next`, `stable`, ... point to the same signed index):
 
 ```bash
-cosign verify ghcr.io/<owner>/tix-web:<version> \
+cosign verify ghcr.io/<owner>/tix:<version> \
   --certificate-identity-regexp '^https://github\.com/<owner>/<repo>/\.github/workflows/release\.yml@refs/tags/v.*$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-The same for `tix-worker` and `tix-realtime`. `<owner>` is the lower-case GitHub owner of the images, `<repo>` the repository the release
+`<owner>` is the lower-case GitHub owner of the images, `<repo>` the repository the release
 was built in (case as on GitHub). SBOM and SLSA provenance are stored as attestations in the image (`docker buildx
 imagetools inspect <image> --format '{{ json .SBOM }}'` / `'{{ json .Provenance }}'`).
 
@@ -115,8 +115,8 @@ repositories) and the two results are merged into one index. QEMU emulation was 
 Next.js build and the native `sharp` install would take far too long emulated. The arm64 job
 always uses GitHub's arm runner; the `CI_RUNS_ON` override only applies to the other jobs.
 `sharp` ships prebuilt musl binaries for both architectures, so the Dockerfile has no
-architecture-specific code. MinIO / Caddy / PostgreSQL / Redis from the compose file are multi-arch
-as well (check the MinIO image you configure).
+architecture-specific code. PostgreSQL and Redis from the compose file are multi-arch
+as well (check the MinIO image if you use the S3 example).
 
 ## Security scanning
 
@@ -141,7 +141,7 @@ security updates" in Settings -> Advanced Security.
 
 ## Channels
 
-Besides the exact version tag every release moves some **channel tags** on the three images
+Besides the exact version tag every release moves some **channel tags** on the `tix` image
 (set by the `promote` job after the images are pushed and the GitHub Release exists):
 
 | Tag                   | Points to                                          | Use for                           |
@@ -180,53 +180,50 @@ Recommendation: the demo server follows `next`, production follows `stable` (or 
 The full guide for operators (Docker installation, HTTPS variants, first configuration, troubleshooting) is [INSTALL.md](INSTALL.md); this section is the short reference.
 
 A server needs exactly two files from the release page: `docker-compose.yml` and `env.example`
-(saved as `.env`). The config files (Caddyfile, Redis settings, bucket setup script) are embedded
-in the compose file as inline `configs`, so there is no `docker/` folder. Requires Docker Compose
-2.23.1 or newer. Checksums are in `SHA256SUMS.txt`.
+(saved as `.env`). The compose file defines three services (`tix`, `postgres`, `redis`), embeds no
+configuration and builds nothing. Requires Docker Compose 2.23.1 or newer. Checksums are in
+`SHA256SUMS.txt`.
 
 ```bash
 mkdir tix && cd tix
 curl -LO https://github.com/<owner>/<repo>/releases/download/v<version>/docker-compose.yml
 curl -Lo .env https://github.com/<owner>/<repo>/releases/download/v<version>/env.example
-# edit .env: secrets, PUBLIC_URL, SITE_ADDRESS, TIX_CHANNEL
+# edit .env: APP_URL, POSTGRES_PASSWORD, APP_ENCRYPTION_KEYS (docker run --rm ghcr.io/<owner>/tix:next keygen), TIX_VERSION
 docker compose pull && docker compose up -d
-docker compose run --rm migrate node dist/create-admin.mjs --email you@example.org --name "Your Name"
+docker compose run --rm tix create-admin --email you@example.org --name "Your Name"
 ```
 
 (`env.example` is the same file as `.env.example` in the zip; GitHub renames release assets with a
-leading dot, so it is published without it.) `tix-deploy-<version>.zip` contains both files plus a
-`README.md` (TLS options, updates, pinning, backups). Both files have the image owner (the
-repository owner, lower case) and the default channel (`next` for pre-releases, `stable`
-otherwise) filled in; `TIX_IMAGE_OWNER` / `TIX_CHANNEL` in `.env` override them.
+leading dot, so it is published without it.) `tix-deploy-<version>.zip` contains both files, the
+S3 example (`docker-compose.s3.example.yml`) and a `README.md` (reverse proxy, updates, pinning,
+backups). The image owner (the repository owner, lower case) is filled in; `TIX_VERSION` in `.env`
+selects the image (`next` for pre-release bundles, `stable` otherwise, or an exact version).
 
-**TLS.** Only the `proxy` service (Caddy) publishes ports; PostgreSQL, Redis and MinIO publish none.
-
-- Caddy as the edge: `SITE_ADDRESS=<domain>`, `PUBLIC_URL=https://<domain>`, `HTTP_PORT=80`,
-  `HTTPS_PORT=443` (automatic Let's Encrypt certificates).
-- Your own reverse proxy / load balancer / tunnel terminates TLS: keep `SITE_ADDRESS=:80`, pick
-  `HTTP_PORT`, forward to it (WebSockets under `/socket.io` included, `Host` preserved) and set
-  `TRUSTED_PROXIES` to the proxy's IP / CIDR list (or `private_ranges`). Caddy then reads the
-  visitor address from the proxy's `X-Forwarded-For` (right to left) and passes exactly that
-  address on, so rate limits and the audit log see the real visitor. Leave it empty when Caddy
-  is the edge. No proxy-specific configuration is part of the stack.
+**TLS.** The image speaks plain HTTP on port 8080 (`HTTP_PORT`); there is no bundled proxy.
+Your own reverse proxy / load balancer / tunnel terminates TLS: forward to `HTTP_PORT` (WebSockets
+under `/socket.io` included, `Host` preserved) and set `TRUSTED_PROXIES` to the proxy's IP / CIDR
+list (or `private_ranges`). The built-in proxy then reads the visitor address from the proxy's
+`X-Forwarded-For` (right to left) and passes exactly that address on, so rate limits and the audit
+log see the real visitor; left empty nobody is trusted. No proxy-specific configuration is part of
+the stack ([INSTALL.md](INSTALL.md) has examples for Caddy, Traefik, nginx and Nginx Proxy Manager).
 
 Update: `./tix-update.sh` (the release asset, next to `docker-compose.yml`; `--dry-run` previews) or by hand
-`docker compose pull && docker compose up -d`. Roll back: set `TIX_CHANNEL` to an exact
+`docker compose pull && docker compose up -d`. Roll back: set `TIX_VERSION` to an exact
 earlier version (only if its schema matches; otherwise restore the backup). Backups: Admin ->
-Backups.
+Backups. `tix-update.sh` refuses to replace a compose file of the old three-image layout, and the
+new compose file refuses a `.env` of that layout (it has `TIX_CHANNEL` instead of `TIX_VERSION`), so
+the old update script stops with a pointer to [MIGRATE-SINGLE-IMAGE.md](MIGRATE-SINGLE-IMAGE.md)
+before anything is replaced.
 
-**Maintaining the compose file (repository).** `deploy/docker-compose.yml` is a template: the marker
-lines `__CADDYFILE__` and `__MINIO_INIT__` are replaced by `docker/caddy/Caddyfile` and
-`docker/minio/init.sh` when a release is built (`scripts/release/deploy-bundle.mjs`, helpers in
-`compose-embed.mjs`: indented as YAML block scalars with every `$` escaped as `$$`, because
-Compose interpolates `content:`). The Redis settings of `docker/redis/redis.conf` are passed as
-`redis-server` flags. `node scripts/release/deploy-bundle.mjs <version> <outdir> --owner <github-owner>`
-builds the folder and the zip. CI runs `node scripts/release/deploy-bundle.mjs --check`, which
-compares the fully resolved services of both compose files (commands, environment, healthchecks,
-volumes, dependencies, ports), verifies that the inline configs equal their source files after
-unescaping and that every redis.conf directive is a flag, so they cannot drift apart: change
-both together. Intentionally different: image source, inline configs instead of bind mounts,
-no published PostgreSQL / Redis / MinIO ports.
+**Maintaining the compose file (repository).** `deploy/docker-compose.yml` is a template: the
+maintainer block is stripped and the placeholders (image owner, version, install guide) are filled
+in when a release is built (`scripts/release/deploy-bundle.mjs`). Keep it simple: no embedded
+configs, no anchors, no helper services. `node scripts/release/deploy-bundle.mjs --check` (CI) resolves
+the template and `deploy/docker-compose.s3.example.yml` with `docker compose config` and checks
+(`scripts/release/compose-checks.mjs`, unit-tested): exactly the services `tix`, `postgres`, `redis`;
+image `ghcr.io/<owner>/tix:<TIX_VERSION>`; nothing built; no `configs`; the volume keys
+`tix-data`, `postgres-data`, `redis-data` (migrated installations reuse their data through these
+names); no host ports on the data services; and that a `.env` of the three-image layout is refused.
 
 **Automatic updates:** not recommended. Tools such as Watchtower can pull new images, but an update
 can run schema migrations that cannot be rolled back and should be preceded by a backup, so update
@@ -352,7 +349,7 @@ Dependabot runs always use GitHub-hosted runners. Delete the variable to go back
   `postgres:18-alpine`, `redis:8.10-alpine`) stay cached; remove them manually if disk gets tight.
 - Register **one** runner on the host: a runner executes one job at a time, which is how at most
   one workflow job of this repository runs there at once (CI's `node` and `android` jobs and the
-  three image builds queue up instead of running in parallel). Releases and CI runs cause
+  two architecture builds queue up instead of running in parallel). Releases and CI runs cause
   noticeable CPU and disk load (Gradle, Docker builds): do not trigger them while the VM serves a
   live demo or presentation.
 - `concurrency` groups keep two runs of the same ref / tag from running side by side;

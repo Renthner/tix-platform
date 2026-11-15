@@ -52,7 +52,7 @@ body:
     id: env
     attributes:
       label: Environment
-      description: Server OS, `docker compose version`, reverse proxy (Caddy bundled / Traefik / nginx / other), browser or Android version.
+      description: Server OS, `docker compose version`, reverse proxy (Caddy / Traefik / nginx / Nginx Proxy Manager / other), browser or Android version.
   - type: textarea
     id: logs
     attributes:

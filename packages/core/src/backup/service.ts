@@ -127,6 +127,8 @@ export async function requestRestore(
   ctx: CoreContext,
   backupId: string,
   userId: string,
+  /** Token of staged source-system keys (`stageSourceKeys`); the keys themselves never travel in the job. */
+  keyToken?: string,
 ): Promise<void> {
   await assertBackupIdle(ctx, { allowIncompleteRestore: true });
   // At most one queued restore at a time (also against double clicks / replays).
@@ -142,7 +144,7 @@ export async function requestRestore(
     await requireCapability(ctx, 'jobs').add(
       QUEUE_NAMES.backups,
       BACKUP_JOBS.restore,
-      { backupId, userId, requestedAt: Date.now() },
+      { backupId, userId, requestedAt: Date.now(), ...(keyToken ? { keyToken } : {}) },
       SINGLE_ATTEMPT,
     );
   } catch (err) {
@@ -164,12 +166,14 @@ export async function requestImport(
   ctx: CoreContext,
   uploadId: string,
   userId: string,
+  /** Token of staged source-system keys for a backup of another system. */
+  keyToken?: string,
 ): Promise<void> {
   await assertBackupIdle(ctx);
   await requireCapability(ctx, 'jobs').add(
     QUEUE_NAMES.backups,
     BACKUP_JOBS.import,
-    { uploadId, userId },
+    { uploadId, userId, ...(keyToken ? { keyToken } : {}) },
     SINGLE_ATTEMPT,
   );
 }
@@ -238,7 +242,15 @@ export async function runBackupJob(
     try {
       await params.onStart?.();
       const result = await createBackup(rt, { kind: params.kind, userId: params.userId, progress });
-      await progress.succeeded();
+      await progress.succeeded(
+        'DONE',
+        result.skippedObjects
+          ? `${result.skippedObjects.count} stored file(s) were not included because their storage key is not valid for a restore (first: ${result.skippedObjects.samples
+              .slice(0, 3)
+              .map((s) => `${s.area}/${s.key}`)
+              .join(', ')})`
+          : undefined,
+      );
       return result;
     } catch (err) {
       await progress.failed('FAILED', describeError(err));

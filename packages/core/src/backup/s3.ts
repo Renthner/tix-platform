@@ -15,6 +15,7 @@ import {
 import { createHash } from 'node:crypto';
 import { Agent as HttpAgent } from 'node:http';
 import { Agent as HttpsAgent } from 'node:https';
+import type { BackupBucket, BackupObjectInfo } from './bucket';
 import { guardedLookup } from './endpoint-guard';
 
 export interface S3BucketConfig {
@@ -31,11 +32,7 @@ export interface S3BucketConfig {
   guard?: { allowPrivateNetwork: boolean };
 }
 
-export interface S3ObjectInfo {
-  key: string;
-  size: number;
-  lastModified: Date | undefined;
-}
+export type S3ObjectInfo = BackupObjectInfo;
 
 const PART_BYTES = 8 * 1024 * 1024;
 
@@ -44,7 +41,7 @@ const PART_BYTES = 8 * 1024 * 1024;
  * Everything that can be large is streamed: listing is paged, downloads are readable streams,
  * uploads are multipart with a bounded buffer of one part.
  */
-export class S3Bucket {
+export class S3Bucket implements BackupBucket {
   readonly bucket: string;
   private readonly client: S3Client;
 
@@ -252,35 +249,4 @@ export class S3Bucket {
 export function isNotFound(err: unknown): boolean {
   const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
   return e?.name === 'NoSuchKey' || e?.name === 'NotFound' || e?.$metadata?.httpStatusCode === 404;
-}
-
-/** The three local buckets used by backups. */
-export interface BackupBuckets {
-  assets: S3Bucket;
-  documents: S3Bucket;
-  backups: S3Bucket;
-}
-
-export function backupBucketsFromEnv(env: {
-  S3_ENDPOINT: string;
-  S3_REGION: string;
-  S3_ACCESS_KEY_ID: string;
-  S3_SECRET_ACCESS_KEY: string;
-  S3_BUCKET_ASSETS: string;
-  S3_BUCKET_DOCUMENTS: string;
-  S3_BUCKET_BACKUPS: string;
-  S3_FORCE_PATH_STYLE: boolean | string;
-}): BackupBuckets {
-  const base = {
-    endpoint: env.S3_ENDPOINT,
-    region: env.S3_REGION,
-    accessKeyId: env.S3_ACCESS_KEY_ID,
-    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-    forcePathStyle: env.S3_FORCE_PATH_STYLE === true || env.S3_FORCE_PATH_STYLE === 'true',
-  };
-  return {
-    assets: new S3Bucket({ ...base, bucket: env.S3_BUCKET_ASSETS }),
-    documents: new S3Bucket({ ...base, bucket: env.S3_BUCKET_DOCUMENTS }),
-    backups: new S3Bucket({ ...base, bucket: env.S3_BUCKET_BACKUPS }),
-  };
 }

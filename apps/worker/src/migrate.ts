@@ -2,10 +2,13 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   DEFAULT_PG_BINARIES,
-  S3Bucket,
+  createBackupBuckets,
   createPreUpdateBackup,
   isMountPointIn,
+  isOnPersistentVolumeIn,
   runPreUpdatePolicy,
+  storageConfigFromEnv,
+  type BackupBucket,
   type PreUpdateOutcome,
 } from '@tix/core';
 import { loadRootEnv } from '@tix/db';
@@ -42,19 +45,26 @@ function intEnv(name: string, fallback: number, min: number, max: number): numbe
 
 const isOn = (value: string | undefined) => /^(1|true|yes|on)$/i.test(value ?? '');
 
-function backupsBucket(): S3Bucket | null {
-  const endpoint = process.env.S3_ENDPOINT;
-  const accessKeyId = readSecretEnv('S3_ACCESS_KEY_ID');
-  const secretAccessKey = readSecretEnv('S3_SECRET_ACCESS_KEY');
-  if (!endpoint || !accessKeyId || !secretAccessKey) return null;
-  return new S3Bucket({
-    endpoint,
-    region: process.env.S3_REGION || 'us-east-1',
-    accessKeyId,
-    secretAccessKey,
-    forcePathStyle: (process.env.S3_FORCE_PATH_STYLE ?? 'true') === 'true',
-    bucket: process.env.S3_BUCKET_BACKUPS || 'tix-backups',
+/** The backups bucket of the configured storage driver (S3 bucket or <STORAGE_DIR>/backups). */
+function backupsBucket(): BackupBucket | null {
+  const config = storageConfigFromEnv({
+    ...process.env,
+    S3_ACCESS_KEY_ID: readSecretEnv('S3_ACCESS_KEY_ID'),
+    S3_SECRET_ACCESS_KEY: readSecretEnv('S3_SECRET_ACCESS_KEY'),
   });
+  return createBackupBuckets(config).backups;
+}
+
+/** Mounted volume check for the filesystem backups directory; unreadable mountinfo = not Linux. */
+async function isOnVolume(dir: string): Promise<boolean> {
+  let mountinfo: string;
+  try {
+    mountinfo = await readFile('/proc/self/mountinfo', 'utf8');
+  } catch {
+    log(`[migrate] cannot read /proc/self/mountinfo; assuming ${dir} is persistent`);
+    return true;
+  }
+  return isOnPersistentVolumeIn(mountinfo, dir);
 }
 
 async function main(): Promise<void> {
@@ -93,6 +103,7 @@ async function main(): Promise<void> {
           localDir,
           isMountPoint: async (dir) =>
             isMountPointIn(await readFile('/proc/self/mountinfo', 'utf8'), dir),
+          isOnVolume,
           create: ({ bucket, localDir: dir }) =>
             createPreUpdateBackup({
               databaseUrl,

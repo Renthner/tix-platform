@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { adminUsers, auditLogs, PgClient } from '@tix/db';
 import { runMigrations } from '@tix/db/migrate';
 import { QUEUE_NAMES, type Keyspace, type Redis } from '@tix/redis';
+import { persistExtraKeys, type SecretBoxKey } from '@tix/shared/server';
 import { eq } from 'drizzle-orm';
 import { invalidateShopCache } from '../cache/shop-cache';
 import type { JobQueues } from '../job-queues';
@@ -25,6 +26,7 @@ import {
   terminateOtherSessions,
 } from './pg';
 import { describeError, type BackupRuntime } from './runtime';
+import { withSourceKeys } from './source-keys';
 import {
   clearMaintenance,
   clearRestoreIncomplete,
@@ -40,7 +42,12 @@ export class RestoreRejectedError extends Error {
   override name = 'RestoreRejectedError';
   constructor(
     readonly code:
-      'NOT_FOUND' | 'MIGRATION_NEWER' | 'ARCHIVE_INVALID' | 'CHECKSUM_MISMATCH' | 'KEY_UNKNOWN',
+      | 'NOT_FOUND'
+      | 'MIGRATION_NEWER'
+      | 'ARCHIVE_INVALID'
+      | 'CHECKSUM_MISMATCH'
+      | 'KEY_UNKNOWN'
+      | 'KEYS_NOT_SAVED',
     message: string,
   ) {
     super(message);
@@ -55,6 +62,8 @@ export interface RestoreResult {
   /** Objects that were not part of the backup and were moved to the quarantine area. */
   filesQuarantined: number;
   erasuresReplayed: number;
+  /** Ids of source-system keys now stored as additional decrypt-only keys (never key material). */
+  additionalKeyIds: string[];
 }
 
 /** Grace period after the flag was set so in-flight web requests can finish. */
@@ -246,12 +255,36 @@ async function restoreFiles(
  * restore is run again (or the safety backup is restored).
  */
 export async function restoreBackup(
-  rt: BackupRuntime,
-  params: { backupId: string; userId: string | null; progress: Progress },
+  baseRt: BackupRuntime,
+  params: {
+    backupId: string;
+    userId: string | null;
+    progress: Progress;
+    /**
+     * Encryption keys of the system that made the backup (decrypt-only). Used to read the archive
+     * and, once it validated, stored as additional keys so the restored secrets stay readable.
+     */
+    sourceKeys?: readonly SecretBoxKey[];
+  },
 ): Promise<RestoreResult> {
   const { progress } = params;
+  const sourceKeys = params.sourceKeys ?? [];
+  const rt = withSourceKeys(baseRt, sourceKeys);
   await progress.step('VALIDATE');
   const { directory, manifest, inspected } = await validateRestore(rt, params.backupId);
+  // The database content is encrypted with the source keys: they must be on disk BEFORE anything
+  // is replaced (a failure here leaves the system untouched). Extra keys are harmless on a rollback.
+  let additionalKeyIds: string[] = [];
+  if (sourceKeys.length > 0) {
+    try {
+      additionalKeyIds = persistExtraKeys(sourceKeys, baseRt.keyRing);
+    } catch (err) {
+      throw new RestoreRejectedError(
+        'KEYS_NOT_SAVED',
+        `The entered encryption keys could not be saved: ${describeError(err)}`,
+      );
+    }
+  }
   const restoreId = randomUUID();
   // A marker of an earlier, unfinished restore must survive a failed retry (rollback).
   const markerBefore = await getRestoreIncomplete(rt.ctx);
@@ -399,6 +432,8 @@ export async function restoreBackup(
         filesQuarantined: files.quarantined,
         quarantineId: restoreId,
         erasuresReplayed: erasures.replayed,
+        // Ids only; never key material.
+        additionalKeyIds,
       }),
     ).catch((err) => rt.logger.warn({ err }, 'restore audit entry could not be written'));
 
@@ -410,6 +445,7 @@ export async function restoreBackup(
       filesRestored: files.restored,
       filesQuarantined: files.quarantined,
       erasuresReplayed: erasures.replayed,
+      additionalKeyIds,
     };
   } catch (err) {
     if (committed) {

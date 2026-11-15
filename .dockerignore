@@ -5,9 +5,9 @@
 **/*.tsbuildinfo
 **/coverage
 .git
-.env
-.env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 apps/android
 docs
 *.md

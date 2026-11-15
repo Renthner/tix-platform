@@ -15,7 +15,7 @@ packages/
   core/       Server-side domain services shared by web/worker: cart, waiting room, seat-map
               save/clone, inventory mirror, public seat map cache, realtime publishing,
               checkout/orders/payments (PayPal), dunning, banking, e-mail, invoices
-docker/       Redis config, object-storage bootstrap, Caddy reverse proxy
+docker/       Supervisor and built-in proxy of the single image, Redis dev config, dev MinIO bootstrap
 scripts/      Smoke tests against running servers
 ```
 
@@ -23,19 +23,31 @@ Internal packages are consumed as TypeScript source (`exports` → `src/*.ts`): 
 transpiles them (`transpilePackages`), the worker is bundled by esbuild into self-contained
 ESM files, so runtime images need no workspace `node_modules`.
 
-## Runtime topology (`docker-compose.yml`)
+## Runtime topology (`deploy/docker-compose.yml`)
 
-| Service      | Image                 | Role                                                                      |
-| ------------ | --------------------- | ------------------------------------------------------------------------- |
-| `postgres`   | `postgres:18-alpine`  | Primary data store (ACID orders, invoices)                                |
-| `redis`      | `redis:8.10-alpine`   | Seat locks, waiting room, rate limits, BullMQ, pub/sub. `noeviction`, AOF |
-| `minio`      | S3-compatible storage | Uploaded assets, generated PDFs / `.pkpass`, bank statements              |
-| `minio-init` | `mc`                  | Creates buckets + least-privilege app user (idempotent)                   |
-| `migrate`    | worker image          | One-shot: advisory-locked migrations + idempotent seed                    |
-| `web`        | Next.js standalone    | Shop + Admin Portal + API (only reachable through `proxy`)                |
-| `realtime`   | Socket.io gateway     | WebSockets; Redis Pub/Sub fan-out, 100 ms delta batching                  |
-| `worker`     | worker image          | Background jobs, lock sweeper + waiting-room ticker, heartbeat            |
-| `proxy`      | `caddy:2-alpine`      | Public entry: `/socket.io` → realtime, rest → web; automatic HTTPS        |
+Three services. The application is **one image** (`ghcr.io/<owner>/tix`, Dockerfile target `app`):
+
+| Service    | Image                | Role                                                                      |
+| ---------- | -------------------- | ------------------------------------------------------------------------- |
+| `tix`      | `tix`                | Supervisor + web + realtime + worker in one container (below)             |
+| `postgres` | `postgres:18-alpine` | Primary data store (ACID orders, invoices)                                |
+| `redis`    | `redis:8.10-alpine`  | Seat locks, waiting room, rate limits, BullMQ, pub/sub. `noeviction`, AOF |
+
+Inside the `tix` container the supervisor (`docker/supervisor`) runs, as separate Node processes:
+
+| Process    | Role                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| supervisor | PID 1 under tini: resolves the environment once, runs migrations + seed, restarts children |
+| proxy      | The public HTTP entry on :8080: `/socket.io` → realtime, rest → web; client-address rules  |
+| `web`      | Next.js standalone: shop + Admin Portal + API                                              |
+| `realtime` | Socket.io gateway; Redis Pub/Sub fan-out, 100 ms delta batching                            |
+| `worker`   | Background jobs, lock sweeper + waiting-room ticker, heartbeat                             |
+
+TLS is the operator's reverse proxy (not part of the image); `TRUSTED_PROXIES` tells the built-in proxy
+which peers may report the visitor address. Files live in the volume `tix-data` (`STORAGE_DRIVER=fs`) or
+in an S3-compatible store ([STORAGE.md](STORAGE.md)); `TIX_ROLE` can split web / worker / realtime over
+several containers. The development file `docker-compose.yml` in the repository builds the same image
+from source.
 
 Seat locking, waiting room and realtime data flow: see [REDIS.md](REDIS.md).
 
@@ -228,8 +240,8 @@ entry in `SUPPORTED_LOCALES` (`packages/shared/src/i18n.ts`).
 | **Connection roles**                   | Separate command (auto-pipelined), publisher, subscriber and BullMQ connections                                                                                                               |
 | **Secrets in DB, encrypted**           | Zero-hardcoding: credentials are edited in the Admin Portal; only infrastructure lives in env                                                                                                 |
 | **Node built-in Argon2id**             | `crypto.argon2` (Node ≥ 24.7) – no native addon to compile                                                                                                                                    |
-| **Bundled worker / realtime**          | One ESM file per entry (worker, migrate, seed, create-admin, realtime); tiny runtime images                                                                                                   |
-| **S3 abstraction**                     | Any S3-compatible backend; the compose default is a maintained MinIO community build because upstream MinIO stopped publishing images                                                         |
+| **Bundled worker / realtime**          | One ESM file per entry (worker, migrate, seed, create-admin, realtime); one runtime image                                                                                                     |
+| **S3 abstraction**                     | Any S3-compatible backend; the default is the filesystem driver; the optional MinIO example uses a maintained community build because upstream MinIO stopped publishing images                |
 | **SVG symbol library in the DB**       | Seat shapes and element icons are stored as sanitised SVG fragments (allow-listed shape tags only, no scripts/links/styles) and inlined once per plan as `<symbol>` + `<use>`                 |
 | **Rich text as sanitised HTML**        | Event descriptions are edited with TipTap and stored as allow-listed HTML; sanitised again on save so the shop can render it directly                                                         |
 

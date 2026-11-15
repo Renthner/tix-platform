@@ -63,13 +63,13 @@ as intended, but the person turning the switch on should have set theirs up firs
 
 ## Recovery paths
 
-| Situation                                        | What to do                                                                                                                                                                                                                                                            |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lost the authenticator app, passkeys still work  | sign in with a passkey, **My account**, set up a new authenticator                                                                                                                                                                                                    |
-| Lost the passkey device, authenticator app works | sign in with password + code, remove the passkey                                                                                                                                                                                                                      |
-| Lost everything, recovery codes available        | password + a recovery code (single use), then set up a new factor                                                                                                                                                                                                     |
-| Lost everything, another super admin exists      | **Users → user → Reset two-factor authentication**: removes the authenticator app, the recovery codes **and all passkeys** and ends the user's sessions (a lost or stolen device must not keep working)                                                               |
-| Last super admin locked out                      | on the server: `docker compose run --rm migrate node dist/create-admin.mjs --email <address> --name "<name>" --reset` (development: `pnpm admin:create ... --reset`). It prints a new password and likewise clears the authenticator, recovery codes and all passkeys |
+| Situation                                        | What to do                                                                                                                                                                                                                                          |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lost the authenticator app, passkeys still work  | sign in with a passkey, **My account**, set up a new authenticator                                                                                                                                                                                  |
+| Lost the passkey device, authenticator app works | sign in with password + code, remove the passkey                                                                                                                                                                                                    |
+| Lost everything, recovery codes available        | password + a recovery code (single use), then set up a new factor                                                                                                                                                                                   |
+| Lost everything, another super admin exists      | **Users → user → Reset two-factor authentication**: removes the authenticator app, the recovery codes **and all passkeys** and ends the user's sessions (a lost or stolen device must not keep working)                                             |
+| Last super admin locked out                      | on the server: `docker compose run --rm tix create-admin --email <address> --name "<name>" --reset` (development: `pnpm admin:create ... --reset`). It prints a new password and likewise clears the authenticator, recovery codes and all passkeys |
 
 **Restoring a backup** (Settings → Backups) needs the password, the acknowledgement and, when the
 account has a second factor, either an authenticator / recovery code or a fresh passkey
@@ -77,3 +77,19 @@ confirmation ("Restore with passkey": user verification required, the challenge 
 signed-in admin and that one backup, valid for 2 minutes and single use). An account whose only
 second factor is a passkey can therefore restore without an authenticator app. With
 "Restoring requires two-factor authentication" on, either kind of second factor satisfies it.
+
+## Network trust
+
+Admin sessions, rate limits and the audit log rely on the visitor address and the scheme the proxy
+reports. Set `TRUSTED_PROXIES` to the exact IP/CIDR of your reverse proxy (an `https://` `APP_URL`
+always has one in front) and publish port 8080 only on the proxy's interface. Direct access with a
+foreign `Host` (for example `http://<server-ip>:8080`) gets 421 unless listed in `TIX_ALLOWED_HOSTS`.
+See [INSTALL.md](INSTALL.md#built-in-proxy-host-check-and-limits).
+
+## Backups from another system
+
+A restore runs the archive's SQL as the database user (a superuser in the stock image). Entering the key of
+another system lets a SUPER_ADMIN supply an archive under their own key, so that option is disabled unless the
+operator sets `TIX_ALLOW_FOREIGN_BACKUP_KEYS=1`. **With it on, a SUPER_ADMIN has the power of the database
+superuser (arbitrary SQL).** Enable it only for the migration and only for fully trusted SUPER_ADMINs. See
+[BACKUP.md](BACKUP.md#restoring-a-backup-from-another-system).

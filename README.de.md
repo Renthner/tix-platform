@@ -16,7 +16,7 @@ deinem eigenen Server, ohne Plattformgebühren.**
   <img src="docs/img/shop-event.webp" alt="Veranstaltungsseite des Ticketshops" width="900">
 </p>
 
-> **Status:** Vorabversion (`1.0.0-alpha.27`). Funktionsumfang vollständig, aber noch nicht als
+> **Status:** Vorabversion (`1.0.0-alpha.28`). Funktionsumfang vollständig, aber noch nicht als
 > stabil freigegeben. Mach vor jedem Update ein Backup (vor Schemaänderungen wird zusätzlich
 > automatisch ein Datenbank-Backup erstellt) und lies das [CHANGELOG](CHANGELOG.md) (auf Englisch).
 > Aktualisiere mit dem Skript `tix-update.sh` des Releases ([Installationsanleitung](docs/INSTALL.de.md#updates-und-backups)).
@@ -85,18 +85,22 @@ Englisch**.
 
 ```mermaid
 flowchart LR
-  B[Browser / Kunde] -->|HTTPS| C[Caddy-Proxy]
-  A[Android-Check-in-App] -->|HTTPS, Geräte-API| C
-  C -->|/socket.io| R[Realtime-Gateway]
-  C -->|alles andere| W[web: Shop, Admin, API]
+  B[Browser / Kunde] -->|HTTPS| T[Dein Reverse-Proxy: TLS]
+  A[Android-Check-in-App] -->|HTTPS, Geräte-API| T
+  T -->|HTTP :8080| I
+  subgraph X[tix-Container]
+    I[eingebauter Proxy] -->|/socket.io| R[Realtime-Gateway]
+    I -->|alles andere| W[web: Shop, Admin, API]
+    K[worker: Mail, PDFs, Bank-Abgleich, Erstattungen]
+  end
   W --> P[(PostgreSQL)]
   W --> D[(Redis)]
-  W --> M[(MinIO / S3)]
+  W --> M[(Dateien: Volume oder S3 / MinIO)]
   R --> D
-  K[Worker: Mail, PDFs, Bankabgleich, Erstattungen] --> P
+  K --> P
   K --> D
   K --> M
-  A -.-|WLAN am Veranstaltungsort| L[LAN-Master-Handy]
+  A -.-|WLAN vor Ort| L[LAN-Master-Handy]
 ```
 
 Mehr in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Englisch).
@@ -109,42 +113,48 @@ Anleitung mit HTTPS-Varianten und Fehlersuche ist [docs/INSTALL.de.md](docs/INST
 
 ```bash
 # 1. Die zwei Dateien des Releases herunterladen
-export TIX_VERSION=1.0.0-alpha.27
+export TIX_VERSION=1.0.0-alpha.28
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
 mv env.example .env
 
-# 2. Alle Geheimnisse erzeugen (den ganzen Block kopieren und einfügen)
-gen() { openssl rand -hex 24; }
+# 2. Die drei Pflichtwerte eintragen (tickets.example.org ersetzen)
+DOMAIN=tickets.example.org
+KEYLINE=$(docker run --rm ghcr.io/renthner/tix:$TIX_VERSION keygen)
 sed -i \
-  -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" \
-  -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(gen)|" \
-  -e "s|^SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" \
-  -e "s|^APP_ENCRYPTION_KEYS=.*|APP_ENCRYPTION_KEYS=k1:$(openssl rand -base64 32)|" \
+  -e "s|^APP_URL=.*|APP_URL=https://$DOMAIN|" \
+  -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|" \
+  -e "s|^APP_ENCRYPTION_KEYS=.*|$KEYLINE|" \
+  -e "s|^# *HTTP_PORT=.*|HTTP_PORT=127.0.0.1:8081|" \
+  -e "s|^# *TRUSTED_PROXIES=.*|TRUSTED_PROXIES=private_ranges|" \
   .env
+unset TIX_VERSION
 
-# 3. Deine Domain eintragen (tickets.example.org ersetzen)
-sed -i \
-  -e "s|^PUBLIC_URL=.*|PUBLIC_URL=https://tickets.example.org|" \
-  -e "s|^SITE_ADDRESS=.*|SITE_ADDRESS=tickets.example.org|" \
-  -e "s|^HTTP_PORT=.*|HTTP_PORT=80|" \
-  -e "s|^HTTPS_PORT=.*|HTTPS_PORT=443|" \
-  .env
+# 3. HTTPS: Caddy (oder Traefik, nginx, ...) vor Port 8080 setzen - zwei kleine Dateien,
+#    siehe Schritt 3 in docs/INSTALL.de.md
 
 # 4. Starten, dann den ersten Admin anlegen (das Passwort wird nur einmal angezeigt)
 docker compose up -d
-docker compose run --rm migrate node dist/create-admin.mjs --email du@example.org --name "Dein Name"
+docker compose run --rm tix create-admin --email du@example.org --name "Dein Name"
 ```
 
 Danach öffne `https://tickets.example.org/admin`.
 
+Der `tix`-Container spricht Klartext-HTTP auf Port 8080 und braucht für HTTPS einen Reverse-Proxy.
+**Setze `TRUSTED_PROXIES` auf deinen Proxy** (der Schnellstart tut es): Bleibt es leer, sieht jeder
+Besucher aus wie der Proxy, und Ratenbegrenzung und Audit-Log behandeln alle Besucher als einen.
+
 **Sichere `APP_ENCRYPTION_KEYS` aus deiner `.env` außerhalb des Servers** (Passwortmanager). Ohne
-sie lassen sich gespeicherte Geheimnisse und Backups nicht entschlüsseln. Die Kommentare in der
-`.env` erklären jede Einstellung.
+sie lassen sich gespeicherte Geheimnisse und Backups nicht entschlüsseln, auch nicht auf einem anderen
+Server. Die Kommentare in der `.env` erklären jede Einstellung.
+
+**Du kommst von `1.0.0-alpha.27` oder älter** (drei Images, mitgelieferter Caddy und MinIO)? Ersetze
+deine Compose-Datei nicht: [docs/MIGRATE-SINGLE-IMAGE.de.md](docs/MIGRATE-SINGLE-IMAGE.de.md) behält deine
+Daten.
 
 Solange es keine stabile Version gibt, existiert `releases/latest` nicht und der Image-Kanal
-`stable` ist leer; die `.env` einer Vorabversion nutzt schon `TIX_CHANNEL=next`. Ab `1.0.0` kannst
+`stable` ist leer; die `.env` einer Vorabversion nutzt schon `TIX_VERSION=next`. Ab `1.0.0` kannst
 du von `https://github.com/Renthner/tix-platform/releases/latest/download/<Datei>` laden.
 
 ## Check-in-App (Android)

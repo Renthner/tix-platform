@@ -19,10 +19,40 @@ export interface ObjectStorageConfig {
 }
 
 /**
- * S3-compatible object storage (MinIO in the default stack). Documents (invoices, statement
+ * Object storage used by the application (assets, documents). Documents (invoices, statement
  * files, tickets) are private and always streamed through the app after an access check.
+ * Missing objects raise an error named `NoSuchKey` (or `NotFound`, HTTP-404 `$metadata`).
+ * Implementations: {@link S3ObjectStorage} and `FsObjectStorage` (storage-fs.ts).
  */
-export class ObjectStorage {
+export interface ObjectStorage {
+  readonly driver: 'fs' | 's3';
+  put(
+    bucket: StorageBucket,
+    key: string,
+    body: Uint8Array | string,
+    contentType: string,
+  ): Promise<void>;
+  get(
+    bucket: StorageBucket,
+    key: string,
+  ): Promise<{ body: Uint8Array; contentType: string | undefined }>;
+  /** The object as a web stream (no full buffering in memory). */
+  getStream(
+    bucket: StorageBucket,
+    key: string,
+  ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string | undefined }>;
+  /** All objects whose key starts with `prefix` (plain string prefix, ascending key order). */
+  list(
+    bucket: StorageBucket,
+    prefix: string,
+  ): Promise<{ key: string; lastModified: Date | undefined }[]>;
+  /** Deleting a missing key is not an error. */
+  delete(bucket: StorageBucket, key: string): Promise<void>;
+}
+
+/** S3-compatible object storage (MinIO in the bundled stack, or any S3 service). */
+export class S3ObjectStorage implements ObjectStorage {
+  readonly driver = 's3' as const;
   private readonly client: S3Client;
 
   constructor(private readonly config: ObjectStorageConfig) {
@@ -101,24 +131,4 @@ export class ObjectStorage {
       new DeleteObjectCommand({ Bucket: this.config.buckets[bucket], Key: key }),
     );
   }
-}
-
-/** Storage from the standard S3_* environment variables. */
-export function objectStorageFromEnv(env: {
-  S3_ENDPOINT: string;
-  S3_REGION: string;
-  S3_ACCESS_KEY_ID: string;
-  S3_SECRET_ACCESS_KEY: string;
-  S3_BUCKET_ASSETS: string;
-  S3_BUCKET_DOCUMENTS: string;
-  S3_FORCE_PATH_STYLE: boolean | string;
-}): ObjectStorage {
-  return new ObjectStorage({
-    endpoint: env.S3_ENDPOINT,
-    region: env.S3_REGION,
-    accessKeyId: env.S3_ACCESS_KEY_ID,
-    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-    forcePathStyle: env.S3_FORCE_PATH_STYLE === true || env.S3_FORCE_PATH_STYLE === 'true',
-    buckets: { assets: env.S3_BUCKET_ASSETS, documents: env.S3_BUCKET_DOCUMENTS },
-  });
 }

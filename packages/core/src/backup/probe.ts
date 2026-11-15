@@ -8,7 +8,7 @@ import { dropStaleTestDatabases, testDatabaseName, verifyBackup } from './verify
 import { BACKUP_PREFIX } from './manifest';
 import { describeError, type BackupRuntime } from './runtime';
 import { isBackupDue, type ScheduleConfig } from './schedule';
-import type { S3Bucket } from './s3';
+import type { BackupBucket } from './bucket';
 import {
   createProgress,
   getRestoreIncomplete,
@@ -55,7 +55,7 @@ export type ProbeEntry = z.infer<typeof probeEntrySchema>;
 
 const historySchema = z.object({ entries: z.array(probeEntrySchema) });
 
-export async function readProbeHistory(bucket: S3Bucket): Promise<ProbeEntry[]> {
+export async function readProbeHistory(bucket: BackupBucket): Promise<ProbeEntry[]> {
   try {
     const raw = await bucket.tryGetBytes(PROBE_HISTORY_KEY);
     if (!raw) return [];
@@ -66,7 +66,7 @@ export async function readProbeHistory(bucket: S3Bucket): Promise<ProbeEntry[]> 
   }
 }
 
-async function appendProbeHistory(bucket: S3Bucket, entry: ProbeEntry): Promise<void> {
+async function appendProbeHistory(bucket: BackupBucket, entry: ProbeEntry): Promise<void> {
   const entries = [entry, ...(await readProbeHistory(bucket))].slice(0, PROBE_HISTORY_MAX);
   await bucket.putBytes(PROBE_HISTORY_KEY, JSON.stringify({ entries }), 'application/json');
 }

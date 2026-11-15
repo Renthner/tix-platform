@@ -1,4 +1,5 @@
 import 'server-only';
+import { parseStorageEnv } from '@tix/core';
 import { resolveSecretEnv } from '@tix/shared/server';
 import { z } from 'zod';
 
@@ -25,31 +26,32 @@ const envSchema = z
     SESSION_SECRET: z.string().min(32),
     /** Public URL of the realtime gateway; unset = same origin (/socket.io behind the proxy). */
     REALTIME_PUBLIC_URL: z.url().optional(),
-    S3_ENDPOINT: z.url(),
+    /** fs (default for new installations) or s3; unset = s3 when S3_ENDPOINT is set, else fs. */
+    STORAGE_DRIVER: z.string().optional(),
+    /** fs driver: storage directory (assets, documents, backups); default /data/storage. */
+    STORAGE_DIR: z.string().optional(),
+    // s3 driver only (validated together with the driver by parseStorageEnv below).
+    S3_ENDPOINT: z.string().optional(),
     S3_PUBLIC_URL: z.url().optional(),
-    S3_REGION: z.string().min(1).default('us-east-1'),
-    S3_ACCESS_KEY_ID: z.string().min(1),
-    S3_SECRET_ACCESS_KEY: z.string().min(1),
-    S3_BUCKET_ASSETS: z.string().min(3),
-    S3_BUCKET_DOCUMENTS: z.string().min(3),
-    S3_BUCKET_BACKUPS: z.string().min(3).default('tix-backups'),
-    S3_FORCE_PATH_STYLE: z
-      .enum(['true', 'false'])
-      .default('true')
-      .transform((v) => v === 'true'),
+    S3_REGION: z.string().optional(),
+    S3_ACCESS_KEY_ID: z.string().optional(),
+    S3_SECRET_ACCESS_KEY: z.string().optional(),
+    S3_BUCKET_ASSETS: z.string().optional(),
+    S3_BUCKET_DOCUMENTS: z.string().optional(),
+    S3_BUCKET_BACKUPS: z.string().optional(),
+    S3_FORCE_PATH_STYLE: z.string().optional(),
   })
-  .refine(
-    (e) => new Set([e.S3_BUCKET_ASSETS, e.S3_BUCKET_DOCUMENTS, e.S3_BUCKET_BACKUPS]).size === 3,
-    {
-      message:
-        'S3_BUCKET_ASSETS, S3_BUCKET_DOCUMENTS and S3_BUCKET_BACKUPS must be three different buckets',
-      path: ['S3_BUCKET_BACKUPS'],
-    },
-  );
+  .superRefine((env, ctx) => {
+    const storage = parseStorageEnv(env);
+    if (storage.ok) return;
+    for (const issue of storage.issues) {
+      ctx.addIssue({ code: 'custom', message: issue.message, path: [issue.path] });
+    }
+  });
 
 export type ServerEnv = z.infer<typeof envSchema>;
 
-/** S3 credentials may come from files (S3_*_FILE, written by the storage-credentials service). */
+/** S3 credentials may come from files (S3_*_FILE, mounted secrets of the S3 service). */
 function resolveStorageSecrets(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   try {
     return resolveSecretEnv(['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'], source);

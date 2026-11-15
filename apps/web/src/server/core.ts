@@ -8,7 +8,7 @@ import {
   useConservativeSharp,
   type CoreContext,
 } from '@tix/core';
-import { createSecretBox, parseKeyRing } from '@tix/shared/server';
+import { createReloadingSecretBox } from '@tix/shared/server';
 import { getDb } from './db';
 import { applyDefaultLocale } from './default-locale';
 import { getEnv } from './env';
@@ -31,7 +31,7 @@ export function getCore(): CoreContext {
       keyPrefix: env.REDIS_KEY_PREFIX,
       sessionSecret: env.SESSION_SECRET,
       appUrl: env.APP_URL,
-      secrets: createSecretBox(parseKeyRing(env.APP_ENCRYPTION_KEYS)),
+      secrets: createReloadingSecretBox(env.APP_ENCRYPTION_KEYS),
       storage: objectStorageFromEnv(env),
       jobs: new JobQueues(connections.bullmq, keys.bullPrefix()),
       logger,

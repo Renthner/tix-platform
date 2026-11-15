@@ -165,7 +165,7 @@ export function createProgress(ctx: RedisCtx, operation: BackupOperation, backup
     /** Re-announces the current step (liveness while one step runs for minutes). */
     touch: () => emit('RUNNING', currentStep),
     step: (step: string) => emit('RUNNING', step),
-    succeeded: (step = 'DONE') => emit('SUCCEEDED', step),
+    succeeded: (step = 'DONE', detail?: string) => emit('SUCCEEDED', step, detail),
     failed: async (step: string, detail: string) => {
       await emit('FAILED', step, detail);
       // The status key is shared with verify / probe runs that follow: a failed BACKUP is also

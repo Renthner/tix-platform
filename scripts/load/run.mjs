@@ -52,26 +52,12 @@ const sh = (cmd, cmdArgs, opts = {}) =>
 const base = Number(args['http-port'] ?? 18080);
 const ports = {
   HTTP_PORT: base,
-  HTTPS_PORT: Number(args['https-port'] ?? base + 363),
   POSTGRES_PORT: Number(args['postgres-port'] ?? 15432),
   REDIS_PORT: Number(args['redis-port'] ?? 16379),
-  MINIO_API_PORT: Number(args['minio-port'] ?? 19000),
-  MINIO_CONSOLE_PORT: Number(args['minio-console-port'] ?? 19001),
 };
 const envFile = `${resultsDir}load.env`;
 const compose = (...a) =>
-  sh('docker', [
-    'compose',
-    '-p',
-    project,
-    '--env-file',
-    envFile,
-    '-f',
-    'docker-compose.yml',
-    '-f',
-    'scripts/load/docker-compose.load.yml',
-    ...a,
-  ]);
+  sh('docker', ['compose', '-p', project, '--env-file', envFile, '-f', 'docker-compose.yml', ...a]);
 
 const portFree = (port) =>
   new Promise((resolve) => {
@@ -87,7 +73,9 @@ function writeEnv() {
     LOG_LEVEL: 'warn',
     IMAGE_REGISTRY: args['image-registry'] ?? 'tixload',
     PUBLIC_URL: `http://localhost:${ports.HTTP_PORT}`,
-    SITE_ADDRESS: ':80',
+    // The load generator (the Docker host) sends a distinct X-Forwarded-For per virtual user; the
+    // built-in proxy believes it because the generator is a private-range peer (see lib/common.mjs).
+    TRUSTED_PROXIES: 'private_ranges',
     ...ports,
     POSTGRES_USER: 'tix',
     POSTGRES_PASSWORD: hex(),
@@ -96,11 +84,6 @@ function writeEnv() {
     ...(args['web-pool-max'] ? { WEB_DATABASE_POOL_MAX: Number(args['web-pool-max']) } : {}),
     REDIS_PASSWORD: hex(),
     REDIS_KEY_PREFIX: 'tix',
-    MINIO_ROOT_USER: 'loadadmin',
-    MINIO_ROOT_PASSWORD: hex(),
-    S3_PUBLIC_URL: `http://localhost:${ports.MINIO_API_PORT}`,
-    S3_ACCESS_KEY_ID: 'loadapp',
-    S3_SECRET_ACCESS_KEY: hex(),
     APP_ENCRYPTION_KEYS: `k1:${randomBytes(32).toString('base64')}`,
     SESSION_SECRET: randomBytes(48).toString('base64'),
   };
@@ -130,9 +113,7 @@ async function sampleLoop() {
       '--no-stream',
       '--format',
       '{{.Name}};{{.CPUPerc}};{{.MemUsage}}',
-      ...['web', 'worker', 'realtime', 'proxy', 'postgres', 'redis'].map(
-        (s) => `${project}-${s}-1`,
-      ),
+      ...['tix', 'postgres', 'redis'].map((s) => `${project}-${s}-1`),
     ]);
     for (const line of (r.stdout ?? '').split('\n').filter(Boolean)) {
       const [name, cpu, mem] = line.split(';');
@@ -159,8 +140,7 @@ async function teardown() {
   compose('down', '-v', '--remove-orphans');
   if (!args['no-build'] && !args['image-registry']) {
     // only the images this run built (tixload/*); never anything of the real stack (tix/*)
-    for (const svc of ['web', 'worker', 'realtime'])
-      sh('docker', ['image', 'rm', '-f', `tixload/${svc}:local`]);
+    sh('docker', ['image', 'rm', '-f', 'tixload/tix:local']);
   }
   rmSync(envFile, { force: true });
 }
@@ -205,7 +185,7 @@ async function main() {
       if (Date.now() > deadline) fail('Shop did not become healthy in time');
       await sleep(2000);
     }
-    // seed: migrations + reference data already ran in the `migrate` service; now the demo event.
+    // seed: migrations + reference data already ran when the `tix` container started; now the demo event.
     // DATABASE_URL is passed explicitly and VERIFIED before anything is written.
     const probe = await verifyDb(urls.db);
     if (probe.events !== 0)
@@ -301,9 +281,17 @@ async function queryOne(url, sql) {
 function scanLogs() {
   const grab = (svc) => compose('logs', '--no-color', svc).stdout ?? '';
   const pg = grab('postgres');
-  const web = grab('web');
-  const worker = grab('worker');
-  const rt = grab('realtime');
+  // One container runs web, worker and realtime: their log lines are told apart by the "[name]" prefix
+  // of the supervisor or the "service" field of the JSON logs.
+  const app = grab('tix');
+  const lines = (name) =>
+    app
+      .split('\n')
+      .filter((l) => l.includes(`[${name}]`) || l.includes(`"service":"${name}"`))
+      .join('\n');
+  const web = lines('web');
+  const worker = lines('worker');
+  const rt = lines('realtime');
   const count = (text, re) => (text.match(re) ?? []).length;
   return {
     deadlocks: count(pg, /deadlock detected/gi),

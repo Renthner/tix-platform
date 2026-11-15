@@ -285,7 +285,7 @@
         }
       },
       "hints": {
-        "externalBackup": "Tipp: Richte zusätzlich ein externes S3-Ziel ein, damit Backups nicht nur auf diesem Server liegen."
+        "externalBackup": "Tipp: Richte zusätzlich ein externes S3-Ziel ein, damit Backups nicht nur auf diesem Server liegen (Sicherungen auf demselben Datenträger überstehen dessen Verlust nicht)."
       }
     }
   },

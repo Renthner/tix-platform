@@ -1,7 +1,13 @@
 {
+  "storage": {
+    "driverFs": "Dateispeicher: lokales Verzeichnis {dir}",
+    "driverS3": "Dateispeicher: S3-kompatibler Objektspeicher",
+    "localOnlyTitle": "Sicherungen liegen nur auf diesem Server",
+    "localOnlyText": "Sicherungen auf demselben Datenträger überstehen den Verlust der Festplatte oder des Servers nicht. Richte unten unter \"Externe S3-Kopie\" ein externes Ziel ein, damit jede Sicherung zusätzlich an anderer Stelle liegt."
+  },
   "title": "Sicherungen",
-  "description": "Vollständige Sicherungen der Datenbank und aller gespeicherten Dateien (Bilder, Rechnungen, Tickets, Kontoauszüge). Sicherungen sind verschlüsselt und liegen in einem eigenen Speicher-Bucket; ein externes S3-Ziel ist optional.",
-  "keyNote": "Die Archive sind mit dem Schlüsselbund dieser Installation verschlüsselt (Schlüssel \"{keyId}\"). Um eine Sicherung auf einem anderen Server wiederherzustellen, braucht dieser dieselben APP_ENCRYPTION_KEYS – bewahre eine Kopie außerhalb dieses Systems auf.",
+  "description": "Vollständige Sicherungen der Datenbank und aller gespeicherten Dateien (Bilder, Rechnungen, Tickets, Kontoauszüge). Sicherungen sind verschlüsselt und liegen im lokalen Speicher; ein externes S3-Ziel ist optional.",
+  "keyNote": "Die Archive sind mit dem Schlüsselbund dieser Installation verschlüsselt (Schlüssel \"{keyId}\"). Um eine Sicherung auf einem anderen Server wiederherzustellen, gibst du dort beim Wiederherstellen diese Schlüssel ein (oder verwendest dieselben APP_ENCRYPTION_KEYS) – bewahre eine Kopie außerhalb dieses Systems auf.",
   "maintenance": {
     "title": "Wartungsarbeiten",
     "text": "Das System wird aus einer Sicherung wiederhergestellt und ist kurz nicht erreichbar. Diese Seite lädt sich automatisch neu.",
@@ -155,10 +161,17 @@
     "external": "Auch die Kopie auf dem externen Ziel löschen"
   },
   "upload": {
-    "hint": "Eine Sicherung von einem anderen Server oder vom externen Ziel wiederherstellen: Lade die .tixbak-Datei hoch. Sie wird vollständig geprüft, bevor sie in der Liste erscheint. Zum Wiederherstellen werden dieselben Verschlüsselungsschlüssel benötigt.",
+    "hint": "Eine Sicherung von einem anderen Server oder vom externen Ziel wiederherstellen: Lade die .tixbak-Datei hoch. Sie wird vollständig geprüft, bevor sie in der Liste erscheint. Für die Sicherung eines anderen Systems brauchst du dessen Verschlüsselungsschlüssel (im Upload-Dialog und beim Wiederherstellen erneut eingeben).",
     "accepted": "Upload erhalten – die Datei wird geprüft.",
     "failed": "Der Upload ist fehlgeschlagen.",
-    "notABackup": "Diese Datei ist kein Sicherungsarchiv."
+    "notABackup": "Diese Datei ist kein Sicherungsarchiv.",
+    "dialog": {
+      "title": "Sicherungsdatei hochladen",
+      "description": "Lade eine .tixbak-Datei hoch, z. B. von einem anderen Server oder vom externen Ziel. Sie wird vollständig geprüft, bevor sie in der Liste erscheint.",
+      "keyHint": "Eine Sicherung eines anderen Systems ist mit dessen Schlüssel verschlüsselt und ohne ihn nicht lesbar: Gib den Schlüssel unten ein, sonst wird die Datei abgelehnt und gelöscht. Der Schlüssel dient nur zum Prüfen der Datei; beim Wiederherstellen wirst du erneut danach gefragt.",
+      "choose": "Datei wählen und hochladen",
+      "keyFailed": "Der eingegebene Schlüsseltext ist ungültig oder kollidiert mit einem Schlüssel dieses Systems."
+    }
   },
   "settings": {
     "title": "Zeitplan, Aufbewahrung und externe Kopie",
@@ -228,7 +241,10 @@
     "connectionIncomplete": "Bitte zuerst Endpoint, Bucket und beide Zugangsschlüssel eintragen.",
     "endpointNotAllowed": "Dieser Endpoint ist nicht erlaubt: Nutze https und eine öffentliche Adresse (oder aktiviere die passende Option unten).",
     "protected": "Die neueste geprüfte Sicherung kann nicht gelöscht werden.",
-    "twoFactorSetupRequired": "Zum Wiederherstellen ist die Zwei-Faktor-Authentifizierung nötig. Richte sie zuerst in deinem Konto ein."
+    "twoFactorSetupRequired": "Zum Wiederherstellen ist die Zwei-Faktor-Authentifizierung nötig. Richte sie zuerst in deinem Konto ein.",
+    "sourceKeysInvalid": "Der eingegebene Verschlüsselungsschlüssel ist ungültig. Erwartet werden Einträge wie id:base64, getrennt durch Kommas oder Zeilen.",
+    "sourceKeysConflict": "Eine Schlüssel-ID des eingegebenen Schlüssels wird von diesem System bereits mit einem anderen Schlüssel verwendet. Gib dem eigenen Schlüssel dieses Systems zuerst eine andere ID.",
+    "sourceKeysDisabled": "Die Wiederherstellung mit dem Schlüssel eines anderen Systems ist auf diesem Server deaktiviert. Der Betreiber kann sie mit TIX_ALLOW_FOREIGN_BACKUP_KEYS=1 aktivieren (siehe Backup-Dokumentation)."
   },
   "dashboardAlert": {
     "title": "Die letzte geplante Sicherung ist fehlgeschlagen",
@@ -277,5 +293,34 @@
     },
     "seconds": "{seconds} s",
     "counts": "{events} Veranstaltungen, {orders} Bestellungen, {tickets} Tickets · {migrations} Migrationen angewendet"
+  },
+  "sourceKey": {
+    "disabled": {
+      "short": "Schlüssel eines anderen Systems sind auf diesem Server deaktiviert.",
+      "hint": "Sicherungen eines anderen Systems (mit anderem APP_ENCRYPTION_KEYS) können hier nicht wiederhergestellt werden: Diese Option ist abgeschaltet. Der Serverbetreiber kann sie aktivieren, indem er TIX_ALLOW_FOREIGN_BACKUP_KEYS=1 für die Anwendung setzt und sie neu startet. Warnung: Ist der Schalter aktiv, kann ein SUPER_ADMIN beliebiges SQL als Datenbankbenutzer ausführen (eine Wiederherstellung führt den Inhalt des Archivs als Datenbank-Superuser aus, und ein SUPER_ADMIN kann ein Archiv mit einem eigenen Schlüssel bauen). Aktiviere ihn nur vorübergehend für einen Umzug und nur, wenn alle SUPER_ADMINs voll vertrauenswürdig sind."
+    },
+    "summary": "Sicherung aus einem anderen System? Verschlüsselungsschlüssel eingeben",
+    "hint": "Nur nötig, wenn diese Sicherung von einer anderen Installation erstellt wurde (anderer APP_ENCRYPTION_KEYS). Füge den vollständigen APP_ENCRYPTION_KEYS-Wert des Quellsystems ein (alle Einträge, z. B. k1:...,k0:...). Der Schlüssel wird auf dem Server nur für diesen Schritt verwendet und nie wieder angezeigt. Nach einer erfolgreichen Wiederherstellung bleibt er in einer geschützten Datei auf dem Datenvolume als zusätzlicher Schlüssel erhalten, der nur entschlüsseln kann (neue Daten werden weiter mit dem eigenen Schlüssel dieses Systems verschlüsselt).",
+    "label": "Verschlüsselungsschlüssel des Quellsystems",
+    "check": "Schlüssel prüfen",
+    "checking": "Prüfe…",
+    "conflictNote": "Eine Schlüssel-ID, die dieses System bereits mit einem anderen Schlüssel verwendet, kann nicht hinzugefügt werden. Gib dem eigenen Schlüssel dieses Systems in APP_ENCRYPTION_KEYS eine andere ID (z. B. k2), wenn es eine frische Installation ist.",
+    "results": {
+      "match": "Der Schlüssel passt zu dieser Sicherung.",
+      "readable": "Diese Sicherung ist mit den eigenen Schlüsseln dieses Systems bereits lesbar; es wird kein weiterer Schlüssel benötigt.",
+      "disabled": "Schlüssel eines anderen Systems sind auf diesem Server deaktiviert.",
+      "unknown": "Diese Sicherung wurde mit einer Schlüssel-ID erstellt, die nicht unter den eingegebenen Schlüsseln ist. Gib den vollständigen Schlüsselbund des Quellsystems ein.",
+      "mismatch": "Der Schlüssel passt nicht zu dieser Sicherung (oder die Datei ist beschädigt).",
+      "invalid": "Der eingegebene Text ist kein gültiger Schlüssel. Erwartet werden Einträge wie id:base64 (32 Bytes), getrennt durch Kommas oder Zeilen.",
+      "conflict": "Eine Schlüssel-ID wird von diesem System bereits mit einem anderen Schlüssel verwendet: {detail}",
+      "notBackup": "Diese Datei ist kein Sicherungsarchiv.",
+      "notFound": "Sicherung nicht gefunden.",
+      "empty": "Gib zuerst den Schlüssel ein.",
+      "rateLimited": "Zu viele Versuche. Bitte warte ein paar Minuten."
+    }
+  },
+  "additionalKeys": {
+    "title": "Zusätzliche Entschlüsselungsschlüssel sind aktiv",
+    "text": "Eine Sicherung eines anderen Systems wurde wiederhergestellt. Die darin gespeicherten Geheimnisse (Bankzugang, API-Schlüssel, Ticket-Signaturschlüssel, Einstellungen) bleiben über diese zusätzlichen Schlüssel lesbar: {ids}. Sie liegen in einer geschützten Datei auf dem Datenvolume und können nur entschlüsseln; neue Daten werden mit dem eigenen Schlüssel dieses Systems verschlüsselt. Behalte sie, solange die wiederhergestellten Daten oder Sicherungen davon existieren. Ein Neuverschlüsseln aller Geheimnisse mit dem aktuellen Schlüssel wird nicht angeboten: Sie verteilen sich auf viele Tabellen, die zusätzlichen Schlüssel müssen daher erhalten bleiben."
   }
 }

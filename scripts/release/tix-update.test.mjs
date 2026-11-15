@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -68,8 +68,8 @@ after(() => {
   if (dir) rmSync(dir, { recursive: true, force: true });
 });
 
-function run(args, current = '1.0.0', env = {}) {
-  writeFileSync(join(dir, 'docker-compose.yml'), composeBody(current));
+function run(args, current = '1.0.0', env = {}, compose = composeBody(current)) {
+  writeFileSync(join(dir, 'docker-compose.yml'), compose);
   // Async child: spawnSync would block the event loop that serves the fake API.
   return new Promise((resolve) => {
     const child = spawn('sh', [join(dir, 'tix-update.sh'), ...args], {
@@ -147,4 +147,56 @@ test('a lower version than the compose file is refused without --force', { skip 
 test('a pre-release is lower than its final version', { skip }, async () => {
   const { out } = await run(['--dry-run', '1.2.0-rc.1'], '1.2.0');
   assert.match(out, /LOWER/);
+});
+
+const OLD_LAYOUT = [
+  'services:',
+  '  migrate:',
+  '    image: ghcr.io/o/tix-worker:stable',
+  '  web:',
+  '    image: ghcr.io/o/tix-web:stable',
+  '  realtime:',
+  '    image: ghcr.io/o/tix-realtime:stable',
+  '',
+].join('\n');
+
+test('the three-image layout is never replaced: pointer to the guide', { skip }, async () => {
+  const { status, out } = await run(['1.1.0'], '1.0.0', {}, OLD_LAYOUT);
+  assert.notEqual(status, 0, out);
+  assert.match(out, /three-image layout/);
+  assert.match(out, /MIGRATE-SINGLE-IMAGE\.md/);
+  assert.match(out, /Nothing was changed/);
+  // Stops before any download: no release was looked up.
+  assert.doesNotMatch(out, /Target:/);
+  const dry = await run(['--dry-run', 'stable'], '1.0.0', {}, OLD_LAYOUT);
+  assert.notEqual(dry.status, 0, dry.out);
+});
+
+test(
+  'a single-image compose with a MinIO service (S3 mode) is still updated',
+  { skip },
+  async () => {
+    const s3 = [
+      'services:',
+      '  tix:',
+      '    image: ghcr.io/o/tix:${TIX_VERSION}',
+      '  minio:',
+      '    image: minio',
+      '',
+    ].join('\n');
+    const { status, out } = await run(['--dry-run', 'stable'], '1.0.0', {}, s3);
+    assert.equal(status, 0, out);
+    assert.equal(target(out), 'v1.1.0');
+  },
+);
+
+test('the channel comes from TIX_VERSION in .env', { skip }, async () => {
+  writeFileSync(join(dir, '.env'), 'TIX_CHANNEL=stable\nTIX_VERSION=1.0\n');
+  try {
+    const { status, out } = await run(['--dry-run']);
+    assert.equal(status, 0, out);
+    assert.equal(target(out), 'v1.0.1');
+  } finally {
+    unlinkSync(join(dir, '.env'));
+  }
 });

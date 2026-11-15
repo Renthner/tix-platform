@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// End-to-end test runner: builds (or reuses) the images of the CURRENT code, starts an isolated
+// End-to-end test runner: builds (or reuses) the single image of the CURRENT code, starts an isolated
 // compose stack (project `tix-e2e`, port 18090), seeds demo data, runs the Playwright suite in
 // ./e2e and tears everything down again. Exit code = test result.
 //
 //   pnpm test:e2e
-//   E2E_SKIP_BUILD=1   reuse the images tix-e2e/tix-{web,worker,realtime}:local
+//   E2E_SKIP_BUILD=1   reuse the image <E2E_PROJECT>/tix:local
 //   E2E_KEEP=1         leave the stack running afterwards (the stop command is printed)
 //   E2E_PORT=18090     public HTTP port of the stack
 //   E2E_PROJECT=tix-e2e  compose project / image / temp dir name (must start with `tix-e2e`,
@@ -27,8 +27,7 @@ if (!PROJECT.startsWith('tix-e2e')) {
   throw new Error(`E2E_PROJECT must start with 'tix-e2e' (got '${PROJECT}')`);
 }
 const PORT = Number(process.env.E2E_PORT ?? 18090);
-const TARGETS = ['web', 'worker', 'realtime'];
-const image = (t) => `${PROJECT}/tix-${t}:local`;
+const IMAGE = `${PROJECT}/tix:local`;
 const isWin = process.platform === 'win32';
 
 function log(msg) {
@@ -108,24 +107,20 @@ async function main() {
       log('E2E_SKIP_BUILD=1: reusing existing images');
     } else {
       const cache = process.env.E2E_BUILD_CACHE_DIR;
-      for (const t of TARGETS) {
-        log(`building ${image(t)}`);
-        // `docker build` uses the default builder (docker driver, no cache export); the cached
-        // build has to go through `docker buildx build` to use the builder set up by CI.
-        const args = cache
-          ? ['buildx', 'build', '--target', t, '-t', image(t)]
-          : ['build', '--target', t, '-t', image(t)];
-        if (cache) {
-          args.push(
-            '--load',
-            '--cache-from',
-            `type=local,src=${cache}`,
-            '--cache-to',
-            `type=local,dest=${cache},mode=max`,
-          );
-        }
-        run('docker', [...args, '.'], { cwd: root });
+      log(`building ${IMAGE}`);
+      // `docker build` uses the default builder (docker driver, no cache export); the cached
+      // build has to go through `docker buildx build` to use the builder set up by CI.
+      const args = cache ? ['buildx', 'build', '-t', IMAGE] : ['build', '-t', IMAGE];
+      if (cache) {
+        args.push(
+          '--load',
+          '--cache-from',
+          `type=local,src=${cache}`,
+          '--cache-to',
+          `type=local,dest=${cache},mode=max`,
+        );
       }
+      run('docker', [...args, '.'], { cwd: root });
     }
 
     // 2. Compose file + env from the deploy template (the same files a real installation uses).
@@ -143,15 +138,11 @@ async function main() {
     );
     const overrides = {
       COMPOSE_PROJECT_NAME: PROJECT,
-      PUBLIC_URL: `http://localhost:${PORT}`,
-      SITE_ADDRESS: ':80',
+      APP_URL: `http://localhost:${PORT}`,
       HTTP_PORT: String(PORT),
-      HTTPS_PORT: String(await freePort()),
       POSTGRES_PASSWORD: pgPassword,
-      REDIS_PASSWORD: hex(),
       APP_ENCRYPTION_KEYS: `k1:${randomBytes(32).toString('base64')}`,
-      SESSION_SECRET: hex(32),
-      TIX_CHANNEL: 'next',
+      TIX_VERSION: 'next',
     };
     // Overrides replace an active line of the template; keys that the template only carries as a
     // comment (or not at all) are appended, so the stack never falls back to the default project
@@ -171,19 +162,16 @@ async function main() {
       if (!seen.has(key)) lines.push(`${key}=${value}`);
     }
     writeFileSync(join(dir, '.env'), lines.join('\n') + '\n');
-    const svc = (t) => `    image: ${image(t)}\n    pull_policy: never\n`;
     writeFileSync(
       join(dir, 'docker-compose.override.yml'),
       `services:
   postgres:
     ports:
       - "127.0.0.1:${dbPort}:5432"
-  storage-credentials:
-${svc('worker')}  migrate:
-${svc('worker')}  worker:
-${svc('worker')}  web:
-${svc('web')}  realtime:
-${svc('realtime')}`,
+  tix:
+    image: ${IMAGE}
+    pull_policy: never
+`,
     );
 
     // 3. Start, create the admin, seed.
@@ -199,9 +187,8 @@ ${svc('realtime')}`,
         '-T',
         '-e',
         `ADMIN_PASSWORD=${adminPassword}`,
-        'migrate',
-        'node',
-        'dist/create-admin.mjs',
+        'tix',
+        'create-admin',
         '--email',
         adminEmail,
         '--name',

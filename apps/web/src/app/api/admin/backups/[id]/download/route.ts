@@ -18,8 +18,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       const buckets = getBackupBuckets();
       const entry = await findBackup(buckets.backups, id);
       if (!entry) return apiError('NOT_FOUND', 'Backup not found', 404);
-      const object = await buckets.backups.getStream(archiveKey(entry.directory));
+      // Audit first: a failing audit must not leave an opened (never consumed) stream behind.
       await audit(getCore().db, session, 'backup.download', 'backup', id);
+      const object = await buckets.backups.getStream(archiveKey(entry.directory));
       const stamp = entry.manifest.createdAt.replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
       return new Response(Readable.toWeb(Readable.from(object.stream)) as ReadableStream, {
         headers: {

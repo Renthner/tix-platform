@@ -1,58 +1,35 @@
 #!/usr/bin/env node
-// Builds the deploy bundle: a self-contained production compose file that references the published
-// ghcr.io images and carries its config files inline (Compose `configs: content:`), so a server
-// needs only docker-compose.yml + .env.
+// Builds the deploy bundle: the production compose file (three services: tix, postgres, redis) that
+// references the published ghcr.io image, plus .env.example, README and the update script.
 //
 //   node scripts/release/deploy-bundle.mjs <version> <outdir> [--owner <github-owner>] [--repo <owner/name>]
-//       writes <outdir>/tix-deploy-<version>/{docker-compose.yml,.env.example,README.md,tix-update.sh} and
-//       <outdir>/tix-deploy-<version>.zip (owner defaults to $GITHUB_REPOSITORY_OWNER, repo to
-//       $GITHUB_REPOSITORY); docker-compose.yml, .env.example and tix-update.sh are also release assets
-//       on their own
+//       writes <outdir>/tix-deploy-<version>/{docker-compose.yml,.env.example,
+//       docker-compose.s3.example.yml,README.md,tix-update.sh} and <outdir>/tix-deploy-<version>.zip
+//       (owner defaults to $GITHUB_REPOSITORY_OWNER, repo to $GITHUB_REPOSITORY); docker-compose.yml,
+//       .env.example and tix-update.sh are also release assets on their own
 //   node scripts/release/deploy-bundle.mjs --check
-//       fails when deploy/docker-compose.yml and docker-compose.yml disagree on anything but the
-//       intentional differences (image source, inline configs instead of file mounts, no published
-//       infrastructure ports, redis flags instead of redis.conf); needs `docker compose`, uses
-//       `config` only - starts nothing
+//       validates the template and the S3 example with `docker compose config` (starts nothing):
+//       services, image, volumes, no embedded configs (see compose-checks.mjs)
 //
 // deploy/docker-compose.yml is a maintained TEMPLATE (the repository has no YAML library, and
-// rewriting YAML by regex would break silently): the marker lines __CADDYFILE__ / __MINIO_INIT__
-// are replaced by docker/caddy/Caddyfile and docker/minio/init.sh (compose-embed.mjs: indented,
-// `$` escaped as `$$`). --check (run in CI) compares the fully resolved service definitions of
-// both files and the embedded content with its sources, so they cannot drift apart unnoticed.
+// rewriting YAML by regex would break silently): the maintainer block is stripped and the
+// placeholders (image owner, version, install guide) are filled in.
 import { execFileSync } from 'node:child_process';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crc32, deflateRawSync } from 'node:zlib';
 import {
-  embedFiles,
-  missingDirectives,
-  redisDirectives,
+  deployConfigProblems,
   releaseComposeProblems,
+  s3ExampleProblems,
   stripMaintainerBlock,
-} from './compose-embed.mjs';
+} from './compose-checks.mjs';
 import { parseVersion } from './version.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-
-// Repository files embedded in (or translated into) the deploy compose file.
-const CADDYFILE = 'docker/caddy/Caddyfile';
-const MINIO_INIT = 'docker/minio/init.sh';
-const REDIS_CONF = 'docker/redis/redis.conf';
-const SOURCES = [CADDYFILE, MINIO_INIT, REDIS_CONF];
-// Services whose host ports are published in the base file (local tools) but intentionally not here.
-const UNPUBLISHED = ['postgres', 'redis', 'minio'];
 const OWNER_PLACEHOLDER = 'TIX_IMAGE_OWNER_DEFAULT';
-// storage-credentials is a one-shot that runs on the worker image.
-const APP_SERVICES = ['migrate', 'web', 'worker', 'realtime', 'storage-credentials'];
 
 // Minimal ZIP writer (deflate, unix permissions kept; no dependency, no `zip` binary needed).
 function zip(entries) {
@@ -106,16 +83,11 @@ function zip(entries) {
   return Buffer.concat([...parts, cdBuf, end]);
 }
 
-// The template without the maintainer block and with the config files embedded (placeholders
-// such as the owner are still in place).
+// The template without the maintainer block (placeholders are still in place).
 function renderCompose() {
-  const template = stripMaintainerBlock(
+  return stripMaintainerBlock(
     readFileSync(join(root, 'deploy/docker-compose.yml'), 'utf8').replace(/\r\n/g, '\n'),
   );
-  return embedFiles(template, {
-    __CADDYFILE__: readFileSync(join(root, CADDYFILE), 'utf8'),
-    __MINIO_INIT__: readFileSync(join(root, MINIO_INIT), 'utf8'),
-  });
 }
 
 function build(version, outdir, owner, repo) {
@@ -146,8 +118,9 @@ function build(version, outdir, owner, repo) {
       )
       // Pre-release bundles default to the channel that exists for them.
       .replaceAll('__TIX_CHANNEL__', v.prerelease ? 'next' : 'stable');
-  const composeOut = fill(compose).replaceAll('__TIX_REPOSITORY__', repo ?? '');
-  // The admin compares this with the running app version (docker-compose.yml drift warning).
+  const composeOut = fill(compose);
+  // The admin compares this with the running app version (docker-compose.yml drift warning) and
+  // tix-update.sh reads it for its downgrade guard.
   if (!composeOut.includes(`TIX_COMPOSE_VERSION: ${version}`)) {
     throw new Error('deploy/docker-compose.yml lacks "TIX_COMPOSE_VERSION: __TIX_VERSION__"');
   }
@@ -162,6 +135,13 @@ function build(version, outdir, owner, repo) {
     {
       path: '.env.example',
       data: Buffer.from(fill(readFileSync(join(root, 'deploy/.env.example'), 'utf8'))),
+      mode: 0o644,
+    },
+    {
+      path: 'docker-compose.s3.example.yml',
+      data: Buffer.from(
+        fill(readFileSync(join(root, 'deploy/docker-compose.s3.example.yml'), 'utf8')),
+      ),
       mode: 0o644,
     },
     { path: 'README.md', data: Buffer.from(readme), mode: 0o644 },
@@ -201,122 +181,83 @@ function composeConfig(files, envFile, projectDir) {
   const out = execFileSync('docker', args, {
     encoding: 'utf8',
     env: { ...process.env, COMPOSE_PROJECT_NAME: 'tix-check' },
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
   return JSON.parse(out);
 }
 
-// Mount targets that the deploy file provides as inline configs instead of bind mounts.
-const CONFIG_TARGETS = ['/etc/caddy/Caddyfile', '/usr/local/etc/redis/redis.conf', '/init'];
-
-function normalise(config, dir) {
-  const prefix = dir.replaceAll('\\', '/');
-  const text = JSON.stringify(config.services).replaceAll('\\\\', '/').replaceAll(prefix, '.');
-  const services = JSON.parse(text);
-  for (const [name, svc] of Object.entries(services)) {
-    if (APP_SERVICES.includes(name)) {
-      // Only the image source may differ: built from source vs. pulled from the registry.
-      delete svc.image;
-      delete svc.build;
-      delete svc.pull_policy;
-    }
-    // Informational variables of the admin (update channel, compose version): the release file
-    // carries its own version, the dev file says `dev`.
-    if (svc.environment) {
-      delete svc.environment.TIX_CHANNEL;
-      delete svc.environment.TIX_COMPOSE_VERSION;
-      delete svc.environment.TIX_UPDATE_REPOSITORY;
-    }
-    // Intentional differences of the self-contained deploy file.
-    delete svc.configs;
-    if (svc.volumes) {
-      svc.volumes = svc.volumes.filter((v) => !CONFIG_TARGETS.includes(v.target));
-      if (svc.volumes.length === 0) delete svc.volumes;
-    }
-    if (UNPUBLISHED.includes(name)) delete svc.ports;
-    if (name === 'redis') delete svc.command; // flags vs. redis.conf: compared separately
-  }
-  return { services, volumes: Object.keys(config.volumes ?? {}).sort() };
-}
-
-function normalizeNewlines(text) {
-  return text.replace(/\r\n?/g, '\n').replace(/\n*$/, '\n');
+// The merged file keeps the S3 additions; the base checks only apply to the base services/volumes.
+function withoutS3(merged) {
+  const services = { ...merged.services };
+  delete services.minio;
+  delete services['minio-init'];
+  const volumes = { ...merged.volumes };
+  delete volumes['minio-data'];
+  const tix = { ...services.tix, depends_on: { ...services.tix.depends_on } };
+  delete tix.depends_on.minio;
+  delete tix.depends_on['minio-init'];
+  services.tix = tix;
+  return { ...merged, services, volumes };
 }
 
 function check() {
   const deployDir = join(root, 'deploy');
-  const tmp = join(deployDir, '.env.check');
-  const rendered = join(deployDir, '.compose.check.yml');
-  // The template holds placeholders for the bundle build; give them valid values for `config`.
-  writeFileSync(
-    tmp,
-    readFileSync(join(deployDir, '.env.example'), 'utf8')
-      .replaceAll('__TIX_CHANNEL__', 'stable')
-      .replaceAll('__TIX_IMAGE_OWNER__', 'owner') +
-      // The template does not carry the owner (the compose default holds it); resolve it for the check.
-      '\nTIX_IMAGE_OWNER=owner\n',
-  );
+  // The compose file reads .env from its own directory: check in a throw-away one.
+  const work = mkdtempSync(join(tmpdir(), 'tix-compose-check-'));
+  const envFile = join(work, '.env');
+  const rendered = join(work, 'docker-compose.yml');
+  const s3File = join(work, 'docker-compose.s3.yml');
+  // The templates hold placeholders for the bundle build; give them valid values for `config`.
+  const fillCheck = (text) =>
+    text
+      .replaceAll(OWNER_PLACEHOLDER, 'owner')
+      .replaceAll('__TIX_IMAGE_OWNER__', 'owner')
+      .replaceAll('__TIX_VERSION__', '0.0.0')
+      .replaceAll('__TIX_INSTALL_GUIDE__', 'docs/INSTALL.md')
+      .replaceAll('__TIX_CHANNEL__', 'stable');
   try {
-    writeFileSync(rendered, renderCompose());
-    const base = normalise(composeConfig([join(root, 'docker-compose.yml')], tmp, root), root);
-    const deployConfig = composeConfig([rendered], tmp, deployDir);
-    const deploy = normalise(deployConfig, deployDir);
-    const a = JSON.stringify(base, null, 1);
-    const b = JSON.stringify(deploy, null, 1);
-    if (a !== b) {
-      const al = a.split('\n');
-      const bl = b.split('\n');
-      const i = al.findIndex((l, n) => l !== bl[n]);
-      throw new Error(
-        `deploy/docker-compose.yml differs from docker-compose.yml near line ${i + 1}:\n  base:   ${al[i]}\n  deploy: ${bl[i]}`,
-      );
-    }
-    for (const s of APP_SERVICES) {
-      const svc = deployConfig.services[s];
-      if (
-        !/^ghcr\.io\/owner\/tix-(web|worker|realtime):stable$/.test(svc.image) ||
-        svc.build ||
-        svc.pull_policy !== 'always'
-      ) {
-        throw new Error(
-          `deploy service ${s}: expected a pulled ghcr.io image (pull_policy always)`,
-        );
-      }
-    }
-    // The inline configs must resolve (after `$` unescaping) to exactly the source files, and the
-    // redis flags must cover every redis.conf directive.
-    const embedded = { caddyfile: CADDYFILE, 'minio-init': MINIO_INIT };
-    for (const [key, file] of Object.entries(embedded)) {
-      const want = normalizeNewlines(readFileSync(join(root, file), 'utf8'));
-      // `config` prints the content re-escaped (`$`), the containers see the unescaped file.
-      const got = (deployConfig.configs?.[key]?.content ?? '').replaceAll('$$', '$');
-      if (got !== want) {
-        throw new Error(`deploy config "${key}" does not match ${file}`);
-      }
-    }
-    const missing = missingDirectives(
-      deployConfig.services.redis.command,
-      redisDirectives(readFileSync(join(root, REDIS_CONF), 'utf8')),
-    );
-    if (missing.length) {
-      throw new Error(
-        `deploy redis command lacks directives of ${REDIS_CONF}: ${missing.join(', ')}`,
-      );
-    }
-    const leftovers = releaseComposeProblems(
-      renderCompose()
-        .replaceAll(OWNER_PLACEHOLDER, 'owner')
-        .replaceAll('__TIX_VERSION__', '0.0.0')
-        .replaceAll('__TIX_REPOSITORY__', 'owner/repo')
-        .replaceAll('__TIX_INSTALL_GUIDE__', 'docs/INSTALL.md'),
-    );
+    const compose = fillCheck(renderCompose());
+    const leftovers = releaseComposeProblems(compose);
     if (leftovers.length) throw new Error(`generated docker-compose.yml: ${leftovers.join('; ')}`);
-    for (const f of SOURCES) if (!existsSync(join(root, f))) throw new Error(`missing ${f}`);
-    console.log(
-      'deploy/docker-compose.yml matches docker-compose.yml (services, healthchecks, volumes, dependencies; inline configs equal their sources).',
+    writeFileSync(rendered, compose);
+    writeFileSync(
+      s3File,
+      fillCheck(readFileSync(join(deployDir, 'docker-compose.s3.example.yml'), 'utf8')),
     );
+    // .env.example as it is shipped, plus the values the S3 example needs.
+    writeFileSync(
+      envFile,
+      fillCheck(readFileSync(join(deployDir, '.env.example'), 'utf8')) +
+        '\nMINIO_ROOT_USER=minio\nMINIO_ROOT_PASSWORD=secret\n',
+    );
+    const opts = { owner: 'owner', version: 'stable' };
+    const problems = deployConfigProblems(composeConfig([rendered], envFile, work), opts);
+    const merged = composeConfig([rendered, s3File], envFile, work);
+    problems.push(...deployConfigProblems(withoutS3(merged), opts), ...s3ExampleProblems(merged));
+    if (problems.length) throw new Error(`deploy compose files: ${problems.join('; ')}`);
+
+    // A .env of the three-image layout (TIX_CHANNEL, PUBLIC_URL, REDIS_PASSWORD, no TIX_VERSION)
+    // must make `docker compose config` fail: the OLD tix-update.sh then stops before replacing
+    // anything ("nothing was changed").
+    writeFileSync(
+      envFile,
+      'PUBLIC_URL=http://localhost:8080\nPOSTGRES_PASSWORD=x\nREDIS_PASSWORD=x\nTIX_CHANNEL=stable\nSESSION_SECRET=x\n' +
+        'APP_ENCRYPTION_KEYS=k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n',
+    );
+    let refused = false;
+    try {
+      composeConfig([rendered], envFile, work);
+    } catch (err) {
+      refused = /MIGRATE-SINGLE-IMAGE/.test(String(err.stderr ?? err.message));
+    }
+    if (!refused) {
+      throw new Error(
+        'a .env of the three-image layout must be refused with a pointer to docs/MIGRATE-SINGLE-IMAGE.md',
+      );
+    }
+    console.log('deploy/docker-compose.yml and the S3 example are consistent.');
   } finally {
-    rmSync(tmp, { force: true });
-    rmSync(rendered, { force: true });
+    rmSync(work, { recursive: true, force: true });
   }
 }
 

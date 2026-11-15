@@ -685,7 +685,7 @@ const alertsSchema = z.object({
   /** Capacity (GB) the database + file buckets may use; 0 = no capacity check. */
   storageCapacityGb: z.number().int().min(0).max(1_000_000).default(0),
   /** Directories of the worker container whose file system is checked (comma separated). */
-  diskPaths: z.string().trim().max(500).default('/, /pre-update-backups'),
+  diskPaths: z.string().trim().max(500).default('/, /data, /pre-update-backups'),
   /** JOBS_FAILING: failed background jobs within the last hour. */
   failedJobsPerHour: z.number().int().min(1).max(10_000).default(10),
   /** JOBS_FAILING: oldest waiting job (minutes). */

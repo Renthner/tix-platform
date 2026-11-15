@@ -16,6 +16,9 @@ import {
   runBackupTick,
   runProbe,
   runProbeTick,
+  SourceKeysError,
+  takeSourceKeys,
+  withSourceKeys,
   toolMajorVersion,
   verifyBackup,
   withOperationLock,
@@ -86,10 +89,11 @@ export function createBackupsProcessor(rt: BackupRuntime) {
             'Restore job was interrupted and is not re-run automatically',
           );
         }
-        const { backupId, userId, requestedAt } = job.data as {
+        const { backupId, userId, requestedAt, keyToken } = job.data as {
           backupId: string;
           userId: string | null;
           requestedAt?: number;
+          keyToken?: string;
         };
         // The admin confirmed this restore a while ago: an old job must never run unattended.
         if (!requestedAt || Date.now() - requestedAt > RESTORE_REQUEST_TTL_SECONDS * 1000) {
@@ -104,13 +108,20 @@ export function createBackupsProcessor(rt: BackupRuntime) {
         try {
           const run = await withOperationLock(ctx, async () => {
             try {
-              const result = await restoreBackup(rt, { backupId, userId, progress });
+              // Keys of the source system: consumed once, kept in memory only.
+              const sourceKeys = keyToken ? await takeSourceKeys(ctx, keyToken) : [];
+              const result = await restoreBackup(rt, { backupId, userId, progress, sourceKeys });
               await progress.succeeded();
               return result;
             } catch (err) {
-              const rejected = err instanceof RestoreRejectedError;
+              const rejected =
+                err instanceof RestoreRejectedError || err instanceof SourceKeysError;
               await progress.failed(
-                rejected ? `REJECTED_${err.code}` : 'FAILED',
+                err instanceof RestoreRejectedError
+                  ? `REJECTED_${err.code}`
+                  : err instanceof SourceKeysError
+                    ? 'REJECTED_KEY_UNKNOWN'
+                    : 'FAILED',
                 describeError(err),
               );
               if (rejected) throw new UnrecoverableError(err.message);
@@ -127,15 +138,27 @@ export function createBackupsProcessor(rt: BackupRuntime) {
       }
 
       case BACKUP_JOBS.import: {
-        const { uploadId, userId } = job.data as { uploadId: string; userId: string | null };
+        const { uploadId, userId, keyToken } = job.data as {
+          uploadId: string;
+          userId: string | null;
+          keyToken?: string;
+        };
         const progress = createProgress(ctx, 'IMPORT', uploadId);
         const run = await withOperationLock(ctx, async () => {
           try {
             await progress.step('VALIDATE');
-            const manifest = await importUploadedBackup(rt, uploadId, userId);
+            // Keys of the source system (backup of another installation): this run only.
+            const importRt = keyToken
+              ? withSourceKeys(rt, await takeSourceKeys(ctx, keyToken))
+              : rt;
+            const manifest = await importUploadedBackup(importRt, uploadId, userId);
             await progress.succeeded();
             return { id: manifest.id };
           } catch (err) {
+            // Also when the keys were unavailable (the import itself cleans up on its own errors).
+            await rt.buckets.backups
+              .deletePrefix(incomingDirectory(uploadId))
+              .catch(() => undefined);
             await progress.failed('IMPORT_FAILED', describeError(err));
             throw err;
           }

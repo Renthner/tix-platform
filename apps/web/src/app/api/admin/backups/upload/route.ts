@@ -3,10 +3,12 @@ import {
   BACKUP_MAGIC,
   DomainError,
   archiveKey,
+  foreignBackupKeysAllowed,
   getSetting,
   incomingDirectory,
   newUploadId,
   requestImport,
+  SOURCE_KEYS_TOKEN_PATTERN,
 } from '@tix/core';
 import { audit } from '@/server/admin/audit';
 import { adminForApi } from '@/server/auth';
@@ -62,6 +64,18 @@ export async function POST(request: Request) {
       if (declared > maxBytes) {
         return apiError('UPLOAD_TOO_LARGE', 'The backup file is too large', 413);
       }
+      // Optional opaque token of source-system keys (`stageUploadKeysAction`); never the key itself.
+      const keyToken = request.headers.get('x-tix-key-token') ?? undefined;
+      if (keyToken !== undefined && !SOURCE_KEYS_TOKEN_PATTERN.test(keyToken)) {
+        return apiError('INVALID_KEY_TOKEN', 'Invalid key token', 400);
+      }
+      if (keyToken !== undefined && !foreignBackupKeysAllowed()) {
+        return apiError(
+          'FOREIGN_KEYS_DISABLED',
+          'Keys of another system are disabled on this server',
+          403,
+        );
+      }
       const uploadId = newUploadId();
       const key = archiveKey(incomingDirectory(uploadId));
       const buckets = getBackupBuckets();
@@ -71,7 +85,7 @@ export async function POST(request: Request) {
       );
       const core = getCore();
       try {
-        await requestImport(core, uploadId, session.userId);
+        await requestImport(core, uploadId, session.userId, keyToken);
       } catch (err) {
         await buckets.backups.delete(key).catch(() => undefined);
         throw err;

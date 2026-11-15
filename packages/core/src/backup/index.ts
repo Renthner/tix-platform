@@ -1,4 +1,5 @@
 export * from './archive';
+export * from './bucket';
 export * from './catalogue';
 export * from './create';
 export * from './crypto';
@@ -13,5 +14,6 @@ export * from './runtime';
 export * from './s3';
 export * from './schedule';
 export * from './service';
+export * from './source-keys';
 export * from './state';
 export * from './verify';

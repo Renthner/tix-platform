@@ -269,6 +269,27 @@ run('backup, verify and restore (real PostgreSQL)', () => {
     expect((await listCatalogue(buckets.backups)).map((e) => e.manifest.id)).toContain(manifest.id);
   });
 
+  it('skips (and reports) objects whose storage key the restore would reject, so the backup stays restorable', async () => {
+    const bad = ['a\\b.png', '../escape.png', 'dir/../x.png', 'trailing-dot.'];
+    for (const key of bad) {
+      buckets.assets.objects.set(key, { body: Buffer.from('x'), contentType: 'image/png' });
+    }
+    try {
+      const result = await createBackup(rt, { kind: 'MANUAL', userId: null, progress: progress() });
+      expect(result.manifest.files?.assets.objects).toBe(1); // only logo.png
+      expect(result.manifest.files?.skipped?.count).toBe(bad.length);
+      expect(result.manifest.files?.skipped?.samples.map((x) => x.key).sort()).toEqual(
+        [...bad].sort(),
+      );
+      expect(result.skippedObjects?.count).toBe(bad.length);
+      // The whole archive validates exactly like a restore would validate it.
+      await expect(validateRestore(rt, result.manifest.id)).resolves.toBeDefined();
+      await buckets.backups.deletePrefix(result.directory);
+    } finally {
+      for (const key of bad) buckets.assets.objects.delete(key);
+    }
+  });
+
   it('verifies a good backup in a temporary database and detects tampering', async () => {
     const [entry] = await listCatalogue(buckets.backups);
     const ok = await verifyBackup(rt, entry!.manifest.id, progress());

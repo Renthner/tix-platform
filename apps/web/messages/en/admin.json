@@ -285,7 +285,7 @@
         }
       },
       "hints": {
-        "externalBackup": "Tip: also configure an external S3 target so backups are stored off this server."
+        "externalBackup": "Tip: also configure an external S3 target so backups are stored off this server (backups on the same disk do not survive its loss)."
       }
     }
   },

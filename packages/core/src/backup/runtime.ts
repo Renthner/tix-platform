@@ -5,7 +5,8 @@ import { smtpSender } from '../email/transport';
 import { getSecretSetting, getSetting } from '../settings';
 import type { PgBinaries } from './pg';
 import { assertSafeEndpoint, EndpointNotAllowedError } from './endpoint-guard';
-import { S3Bucket, type BackupBuckets } from './s3';
+import type { BackupBuckets } from './bucket';
+import { S3Bucket } from './s3';
 
 export interface BackupLogger {
   info(obj: object, msg?: string): void;

@@ -1,0 +1,68 @@
+# TIX Platform - example override: keep files in MinIO (S3-compatible) instead of the volume.
+#
+# Save as docker-compose.override.yml next to docker-compose.yml (Compose and tix-update.sh pick it
+# up automatically) and add to .env:
+#   MINIO_ROOT_USER=tix-minio          (any name)
+#   MINIO_ROOT_PASSWORD=<openssl rand -hex 24>
+# Then: docker compose up -d
+#
+# TIX uses the MinIO root account here to keep the example short; create a restricted user
+# (see docs/STORAGE.md) for a hardened setup. Any other S3-compatible service works the same way:
+# drop minio / minio-init and set the S3_* variables in .env.
+# Files already stored in the volume are NOT moved (docs/STORAGE.md, "Switching").
+
+services:
+  tix:
+    environment:
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+      S3_BUCKET_ASSETS: tix-assets
+      S3_BUCKET_DOCUMENTS: tix-documents
+      S3_BUCKET_BACKUPS: tix-backups
+      S3_FORCE_PATH_STYLE: 'true'
+    depends_on:
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  # Upstream MinIO no longer publishes container images; this is a maintained community build of
+  # the same server.
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/minio/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: creates the three buckets (idempotent).
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-10-26T00-00-00Z
+    restart: 'no'
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    entrypoint:
+      [
+        '/bin/sh',
+        '-c',
+        'mc alias set store http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing store/tix-assets store/tix-documents store/tix-backups',
+      ]
+
+volumes:
+  minio-data:
