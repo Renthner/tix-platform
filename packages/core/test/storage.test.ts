@@ -312,7 +312,8 @@ describe('filesystem storage specifics', () => {
     const listed: string[] = [];
     for await (const o of bucket.list('')) listed.push(o.key);
     expect(listed).toEqual([]);
-    await bucket.delete('link/secret.txt'); // must not remove the outside file
+    // Deleting through the link may be refused or ignored, but must never remove the outside file.
+    await bucket.delete('link/secret.txt').catch(() => undefined);
     expect(await readdir(outside)).toEqual(['secret.txt']);
   });
 
