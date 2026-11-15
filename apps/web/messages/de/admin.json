@@ -1295,6 +1295,49 @@
         }
       }
     },
+    "emailHeader": {
+      "title": "E-Mail-Kopfzeile",
+      "description": "Das farbige Band am Anfang jeder E-Mail: Shopname und Logo. Gilt für alle Vorlagen, die die Kopfzeile verwenden (alle Standardvorlagen).",
+      "logoDisplay": "Logo-Darstellung",
+      "logoDisplays": {
+        "NONE": "Kein Logo (nur Titel)",
+        "DIRECT": "Direkt auf der Markenfarbe",
+        "CHIP": "Auf einer Box"
+      },
+      "layout": "Layout",
+      "layouts": {
+        "LOGO_LEFT_TITLE_RIGHT": "Logo links, Titel rechts",
+        "LOGO_ONLY": "Nur Logo",
+        "TITLE_ONLY": "Nur Titel",
+        "LOGO_ABOVE_TITLE_CENTERED": "Logo über dem Titel, zentriert"
+      },
+      "layoutLogoOnlyHint": "Bei „Nur Logo“ steht der Shopname nur als Alternativtext am Logo: Mailprogramme, die Bilder blockieren, zeigen den Namen anstelle des Logos, sonst gibt es keinen Titel.",
+      "align": "Ausrichtung",
+      "aligns": {
+        "LEFT": "Links",
+        "CENTER": "Zentriert"
+      },
+      "alignHint": "Das Layout „Logo über dem Titel, zentriert“ ist immer zentriert.",
+      "logoHeight": "Logo-Höhe in E-Mails",
+      "logoHeightHint": "{min}–{max} px. Leer = abgeleitet von der Logo-Höhe der Shop-Kopfzeile (höchstens 36 px). Breite Logos werden auf 160 px Breite begrenzt und proportional verkleinert.",
+      "chipColor": "Farbe der Box",
+      "chipCorners": "Ecken der Box",
+      "corners": {
+        "SQUARE": "Eckig",
+        "ROUNDED": "Abgerundet"
+      },
+      "chipPadding": "Innenabstand der Box",
+      "paddings": {
+        "SMALL": "Klein",
+        "MEDIUM": "Mittel"
+      },
+      "logoOverride": "Eigenes E-Mail-Logo",
+      "logoOverrideHint": "Optional. Wird in E-Mails statt des Shop-Logos verwendet, z. B. eine helle Variante für eine dunkle Markenfarbe. PNG oder JPEG; leer = Shop-Logo.",
+      "contrastHint": "Direkt auf der Markenfarbe ist ein dunkles Logo mit transparentem Hintergrund unter Umständen schlecht lesbar. Wähle dann „Auf einer Box“ oder lade ein eigenes helles E-Mail-Logo hoch.",
+      "noLogo": "Es ist kein Shop-Logo hinterlegt (oder es ist weder PNG noch JPEG): E-Mails zeigen dann nur den Shopnamen.",
+      "preview": "Vorschau",
+      "previewTitle": "Vorschau der E-Mail-Kopfzeile"
+    },
     "smtp": {
       "title": "E-Mail-Versand (SMTP)",
       "description": "Postausgangsserver für Bestellbestätigungen, Erinnerungen, Rechnungen und Konto-E-Mails.",

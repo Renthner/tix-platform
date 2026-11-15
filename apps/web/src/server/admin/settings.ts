@@ -50,6 +50,7 @@ export type EditableSettingKey =
   | 'bankTransfer'
   | 'paypal'
   | 'smtp'
+  | 'emailHeader'
   | 'customerAccounts'
   | 'waitlist'
   | 'ticketSelfService'
@@ -430,6 +431,20 @@ async function readInput(
         },
       };
     }
+    case 'emailHeader':
+      return {
+        input: {
+          logoDisplay: text(fd, 'logoDisplay'),
+          layout: text(fd, 'layout'),
+          align: text(fd, 'align'),
+          // Empty = derived from the shop logo height.
+          logoHeight: optionalIntOrNull(fd, 'logoHeight', errors),
+          chipColor: text(fd, 'chipColor'),
+          chipCorners: text(fd, 'chipCorners'),
+          chipPadding: text(fd, 'chipPadding'),
+          logoAssetId: await publicImageField(fd, 'logoAssetId', errors),
+        },
+      };
     case 'security':
       return {
         input: {

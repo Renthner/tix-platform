@@ -6,6 +6,7 @@ import {
   isMetricsEnabled,
   isNonPublicAddress,
 } from '@tix/core';
+import { EMAIL_LOGO_MIMES, isPublicMediaKind } from '@tix/shared';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import {
@@ -20,6 +21,7 @@ import {
   SmtpTestForm,
   WaitlistSettingsForm,
 } from '@/components/admin/commerce-settings-forms';
+import { EmailHeaderSettingsForm } from '@/components/admin/email-header-form';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Button } from '@/components/ui/button';
 import { BrandingSettingsForm, SponsorsSettingsForm } from '@/components/admin/branding-forms';
@@ -392,23 +394,63 @@ async function TabContent({
         </SettingsSection>
       );
     case 'email': {
-      const [smtp, passwordStored] = await Promise.all([
+      const [smtp, passwordStored, header, branding, general] = await Promise.all([
         getSetting(core, 'smtp'),
         hasSecretSetting(core, 'smtp.credentials'),
+        getSetting(core, 'emailHeader'),
+        getSetting(core, 'branding'),
+        getSetting(core, 'general'),
       ]);
+      const shopLogoAsset = branding.logoAssetId
+        ? await getMediaAsset(core, branding.logoAssetId)
+        : null;
       return (
-        <SettingsSection id="smtp" title={t('smtp.title')} description={t('smtp.description')}>
-          <SmtpSettingsForm
-            action={saveSettingsAction.bind(null, 'smtp')}
-            initial={smtp}
-            passwordStored={passwordStored}
-          />
-          <SmtpTestForm
-            action={sendTestEmailAction}
-            defaultRecipient={adminEmail}
-            defaultLocale={locale}
-          />
-        </SettingsSection>
+        <>
+          <SettingsSection id="smtp" title={t('smtp.title')} description={t('smtp.description')}>
+            <SmtpSettingsForm
+              action={saveSettingsAction.bind(null, 'smtp')}
+              initial={smtp}
+              passwordStored={passwordStored}
+            />
+            <SmtpTestForm
+              action={sendTestEmailAction}
+              defaultRecipient={adminEmail}
+              defaultLocale={locale}
+            />
+          </SettingsSection>
+          <SettingsSection
+            id="emailHeader"
+            title={t('emailHeader.title')}
+            description={t('emailHeader.description')}
+          >
+            <EmailHeaderSettingsForm
+              action={saveSettingsAction.bind(null, 'emailHeader')}
+              shopName={general.shopName}
+              brandColor={branding.brandColor}
+              shopLogo={
+                shopLogoAsset && isPublicMediaKind(shopLogoAsset.kind)
+                  ? {
+                      id: shopLogoAsset.id,
+                      width: shopLogoAsset.width,
+                      height: shopLogoAsset.height,
+                      supported: EMAIL_LOGO_MIMES.includes(shopLogoAsset.mimeType),
+                      shopHeaderHeight: branding.logoHeight,
+                    }
+                  : null
+              }
+              initial={{
+                logoDisplay: header.logoDisplay,
+                layout: header.layout,
+                align: header.align,
+                logoHeight: header.logoHeight,
+                chipColor: header.chipColor,
+                chipCorners: header.chipCorners,
+                chipPadding: header.chipPadding,
+                override: await pickerAsset(header.logoAssetId),
+              }}
+            />
+          </SettingsSection>
+        </>
       );
     }
     case 'wallet': {

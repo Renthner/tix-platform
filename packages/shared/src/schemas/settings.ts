@@ -1,6 +1,17 @@
 import { z } from 'zod';
 import { SEAT_SELECTION_STYLES } from '../enums';
 import { SUPPORTED_LOCALES } from '../i18n';
+import {
+  EMAIL_HEADER_ALIGNS,
+  EMAIL_HEADER_CHIP_CORNERS,
+  EMAIL_HEADER_CHIP_PADDINGS,
+  EMAIL_HEADER_DEFAULTS,
+  EMAIL_HEADER_HEX_PATTERN,
+  EMAIL_HEADER_LAYOUTS,
+  EMAIL_HEADER_LOGO_DISPLAYS,
+  EMAIL_HEADER_LOGO_HEIGHT_MAX,
+  EMAIL_HEADER_LOGO_HEIGHT_MIN,
+} from '../email-header';
 import { accountingSchema } from './accounting';
 import { GERMAN_STATES } from '../payments/business-days';
 import {
@@ -308,6 +319,29 @@ const smtpSchema = z.object({
 /** SMTP password (the user name is a plain setting so admins can see it). */
 const smtpCredentialsSchema = z.object({
   password: z.string().min(1).max(1_024),
+});
+
+/** Header band of the e-mails (`{{shopHeader}}`): logo display, layout and chip styling. */
+const emailHeaderSchema = z.object({
+  logoDisplay: z.enum(EMAIL_HEADER_LOGO_DISPLAYS).default(EMAIL_HEADER_DEFAULTS.logoDisplay),
+  layout: z.enum(EMAIL_HEADER_LAYOUTS).default(EMAIL_HEADER_DEFAULTS.layout),
+  align: z.enum(EMAIL_HEADER_ALIGNS).default(EMAIL_HEADER_DEFAULTS.align),
+  /** Logo height in the mail (px); null = derived from the shop-header logo height (16-36 px). */
+  logoHeight: z
+    .number()
+    .int()
+    .min(EMAIL_HEADER_LOGO_HEIGHT_MIN)
+    .max(EMAIL_HEADER_LOGO_HEIGHT_MAX)
+    .nullable()
+    .default(null),
+  chipColor: z
+    .string()
+    .regex(EMAIL_HEADER_HEX_PATTERN, 'Expected a hex color like #FFF or #FFFFFF')
+    .default(EMAIL_HEADER_DEFAULTS.chipColor),
+  chipCorners: z.enum(EMAIL_HEADER_CHIP_CORNERS).default(EMAIL_HEADER_DEFAULTS.chipCorners),
+  chipPadding: z.enum(EMAIL_HEADER_CHIP_PADDINGS).default(EMAIL_HEADER_DEFAULTS.chipPadding),
+  /** Optional dedicated logo for e-mails (public media asset, PNG/JPEG); empty = shop logo. */
+  logoAssetId: z.uuid().optional(),
 });
 
 const appleWalletSchema = z.object({
@@ -764,6 +798,11 @@ export const SETTINGS = {
     schema: smtpCredentialsSchema,
     secret: true,
     description: 'SMTP login',
+  }),
+  emailHeader: define({
+    schema: emailHeaderSchema,
+    secret: false,
+    description: 'E-mail header band: logo display, layout, chip styling',
   }),
   'wallet.apple': define({
     schema: appleWalletSchema,

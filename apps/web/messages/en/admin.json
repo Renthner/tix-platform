@@ -1295,6 +1295,49 @@
         }
       }
     },
+    "emailHeader": {
+      "title": "E-mail header",
+      "description": "The coloured band at the top of every e-mail: shop name and logo. Applies to all templates that use the header (all default templates).",
+      "logoDisplay": "Logo display",
+      "logoDisplays": {
+        "NONE": "No logo (title only)",
+        "DIRECT": "Directly on the brand colour",
+        "CHIP": "On a box"
+      },
+      "layout": "Layout",
+      "layouts": {
+        "LOGO_LEFT_TITLE_RIGHT": "Logo left, title right",
+        "LOGO_ONLY": "Logo only",
+        "TITLE_ONLY": "Title only",
+        "LOGO_ABOVE_TITLE_CENTERED": "Logo above title, centred"
+      },
+      "layoutLogoOnlyHint": "With “Logo only” the shop name is only the logo's alternative text: mail clients that block images show the name in place of the logo, but no title otherwise.",
+      "align": "Alignment",
+      "aligns": {
+        "LEFT": "Left",
+        "CENTER": "Centred"
+      },
+      "alignHint": "The layout “Logo above title, centred” is always centred.",
+      "logoHeight": "Logo height in e-mails",
+      "logoHeightHint": "{min}–{max} px. Empty = derived from the logo height of the shop header (at most 36 px). Wide logos are limited to 160 px width and shrink proportionally.",
+      "chipColor": "Box colour",
+      "chipCorners": "Box corners",
+      "corners": {
+        "SQUARE": "Square",
+        "ROUNDED": "Rounded"
+      },
+      "chipPadding": "Box padding",
+      "paddings": {
+        "SMALL": "Small",
+        "MEDIUM": "Medium"
+      },
+      "logoOverride": "Dedicated e-mail logo",
+      "logoOverrideHint": "Optional. Used in e-mails instead of the shop logo, e.g. a light version for a dark brand colour. PNG or JPEG; empty = shop logo.",
+      "contrastHint": "Directly on the brand colour a dark logo with a transparent background can be hard to read. In that case choose “On a box” or upload a dedicated light e-mail logo.",
+      "noLogo": "No shop logo is set (or it is not a PNG/JPEG): e-mails then show the shop name only.",
+      "preview": "Preview",
+      "previewTitle": "Preview of the e-mail header"
+    },
     "smtp": {
       "title": "E-mail delivery (SMTP)",
       "description": "Outgoing mail server for order confirmations, reminders, invoices and account e-mails.",

@@ -52,6 +52,14 @@ describe('e-mail header band', () => {
     expect(emailLogoSize(30, { width: null, height: null })).toEqual({ width: null, height: 30 });
   });
 
+  it('an explicit e-mail logo height (16-64 px) wins over the shop-header height', () => {
+    expect(emailLogoSize(36, { width: 100, height: 100 }, 56)).toEqual({ width: 56, height: 56 });
+    expect(emailLogoSize(36, { width: 100, height: 100 }, 200).height).toBe(64);
+    expect(emailLogoSize(36, { width: 100, height: 100 }, 2).height).toBe(16);
+    expect(emailLogoSize(36, { width: 1000, height: 100 }, 64)).toEqual({ width: 160, height: 16 });
+    expect(emailLogoSize(90, { width: 100, height: 100 }, null).height).toBe(EMAIL_LOGO_MAX_HEIGHT);
+  });
+
   it('every default template renders the header through {{shopHeader}}', () => {
     expect(EMAIL_VARIABLES.shop).toContain('shopHeader');
     const header = buildShopHeader({ shopName: 'Shop', foreground: '#fff', logo });

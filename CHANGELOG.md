@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.29] - 2026-11-16
+
+### Changed
+
+- **E-mail header is configurable** (Settings → E-mail → “E-mail header”, with live preview): the shop logo now
+  sits directly on the brand colour by default (no more white box); alternatively no logo or a box with its own
+  colour, corners and padding. Layouts: logo left / title right, logo only (the name is then only the alt text),
+  title only, logo above a centred title; left or centred alignment; own logo height (16–64 px) and an optional
+  dedicated e-mail logo (PNG/JPEG). Existing templates need no change (`{{shopHeader}}`).
+
 ## [1.0.0-alpha.28] - 2026-11-15
 
 ### Changed

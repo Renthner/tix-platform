@@ -170,11 +170,16 @@ export async function shopVariables(
   ctx: CoreContext,
   locale: string,
 ): Promise<{ variables: TemplateVariables; shop: ShopContext }> {
-  const [general, branding, organizer] = await Promise.all([
+  const [general, branding, organizer, header] = await Promise.all([
     getSetting(ctx, 'general'),
     getSetting(ctx, 'branding'),
     getSetting(ctx, 'organizer'),
+    getSetting(ctx, 'emailHeader'),
   ]);
+  // A dedicated e-mail logo wins; an unusable one (e.g. WebP) falls back to the shop logo.
+  const logo =
+    (await loadEmailLogo(ctx, header.logoAssetId, branding.logoHeight, header.logoHeight)) ??
+    (await loadEmailLogo(ctx, branding.logoAssetId, branding.logoHeight, header.logoHeight));
   const address = [
     organizer.street,
     [organizer.postalCode, organizer.city].filter(Boolean).join(' '),
@@ -192,7 +197,8 @@ export async function shopVariables(
       shopHeader: buildShopHeader({
         shopName: general.shopName,
         foreground: foregroundOn(branding.brandColor),
-        logo: await loadEmailLogo(ctx, branding.logoAssetId, branding.logoHeight),
+        logo,
+        options: header,
       }),
       primaryColor: branding.brandColor,
       accentColor: branding.brandColor,

@@ -202,3 +202,40 @@ describe('sponsors setting', () => {
     }
   });
 });
+
+describe('emailHeader setting', () => {
+  it('defaults to the logo directly on the colour with a white rounded chip prepared', () => {
+    const d = defaultSetting('emailHeader');
+    expect(d.logoDisplay).toBe('DIRECT');
+    expect(d.layout).toBe('LOGO_LEFT_TITLE_RIGHT');
+    expect(d.align).toBe('LEFT');
+    expect(d.logoHeight).toBeNull();
+    expect(d.chipColor).toBe('#ffffff');
+    expect(d.chipCorners).toBe('ROUNDED');
+  });
+
+  it('accepts #rgb and #rrggbb chip colours only', () => {
+    for (const ok of ['#fff', '#FFFFFF', '#1a2B3c']) {
+      expect(parseSetting('emailHeader', { chipColor: ok }).chipColor).toBe(ok);
+    }
+    for (const bad of ['fff', '#ffff', '#12345680', 'red', '#fff;x', '#ggg', '']) {
+      expect(() => parseSetting('emailHeader', { chipColor: bad }), bad).toThrow();
+    }
+  });
+
+  it('limits the e-mail logo height to 16-64 px (null = automatic)', () => {
+    expect(parseSetting('emailHeader', { logoHeight: 16 }).logoHeight).toBe(16);
+    expect(parseSetting('emailHeader', { logoHeight: 64 }).logoHeight).toBe(64);
+    expect(parseSetting('emailHeader', { logoHeight: null }).logoHeight).toBeNull();
+    for (const bad of [15, 65, 20.5]) {
+      expect(() => parseSetting('emailHeader', { logoHeight: bad }), String(bad)).toThrow();
+    }
+  });
+
+  it('rejects unknown modes', () => {
+    expect(() => parseSetting('emailHeader', { logoDisplay: 'BOX' })).toThrow();
+    expect(() => parseSetting('emailHeader', { layout: 'CENTER' })).toThrow();
+    expect(() => parseSetting('emailHeader', { chipPadding: 'HUGE' })).toThrow();
+    expect(() => parseSetting('emailHeader', { logoAssetId: 'not-a-uuid' })).toThrow();
+  });
+});

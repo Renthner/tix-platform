@@ -27,6 +27,7 @@ export * from './tickets/qr';
 export * from './tickets/default-layout';
 export * from './media';
 export * from './email-template-editor';
+export * from './email-header';
 export * from './shop-order';
 export * from './dashboard-preferences';
 export * from './refund-form';
