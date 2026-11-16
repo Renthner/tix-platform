@@ -183,6 +183,37 @@
     "empty": "No preview yet.",
     "loading": "Rendering…"
   },
+  "transfer": {
+    "export": "Export",
+    "title": "Import design",
+    "description": "Upload a design file exported from another system (.tixticket.json). It is added as a new design; existing designs are never changed.",
+    "file": "Ticket design file",
+    "name": "Name of the new design",
+    "assignTo": "Use it for",
+    "assignNone": "Nothing yet (assign later)",
+    "assignEvent": "This event",
+    "assignCategory": "Price category: {name}",
+    "submit": "Import design",
+    "summary": {
+      "size": "Page size: {width} × {height} mm",
+      "elements": "{count, plural, one {# element} other {# elements}}",
+      "images": "{count, plural, one {# image} other {# images}}",
+      "background": "Background image included",
+      "noBackground": "No background image"
+    },
+    "errors": {
+      "GENERIC": "The design could not be imported.",
+      "TICKET_DESIGN_FILE_INVALID": "This is not a valid ticket design file.",
+      "TICKET_DESIGN_VERSION_UNSUPPORTED": "This design file version is not supported.",
+      "TICKET_DESIGN_FILE_TOO_LARGE": "The design file is too large.",
+      "MEDIA_UNSUPPORTED_TYPE": "An image in the file is not a PNG, JPEG or WebP image.",
+      "MEDIA_TOO_LARGE": "An image in the file is too large (max 10 MB).",
+      "MEDIA_DIMENSIONS": "An image in the file has unsupported dimensions.",
+      "MEDIA_UNDECODABLE": "An image in the file could not be read (damaged or not a real image).",
+      "EVENT_NOT_FOUND": "The event no longer exists.",
+      "CATEGORY_NOT_FOUND": "The price category no longer exists. The design was imported but not assigned."
+    }
+  },
   "page": {
     "title": "Ticket designs",
     "library": "Design library",

@@ -1,5 +1,5 @@
 import { computeSaleState, eventTranslationCompleteness } from '@tix/core';
-import { ArrowLeft, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Download, FlaskConical } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -60,6 +60,15 @@ export default async function EventLayout({
               title={event.title}
               startsAt={utcToZonedWallTime(event.startsAt, event.timeZone)}
             />
+            <Button asChild variant="outline">
+              <a
+                href={`/api/admin/events/${event.id}/export`}
+                download
+                title={t('transfer.exportTitle')}
+              >
+                <Download /> {t('transfer.export')}
+              </a>
+            </Button>
             {hasRole(session, ['SUPER_ADMIN']) &&
               (event.status === 'DRAFT' ||
                 event.status === 'PUBLISHED' ||

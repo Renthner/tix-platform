@@ -18,6 +18,7 @@ import {
 } from 'drizzle-orm';
 import { getBackupFailure, readStatus } from '../backup/state';
 import { listCatalogue } from '../backup/catalogue';
+import { scheduleConfiguredAtOf } from '../backup/schedule';
 import { readProbeHistory } from '../backup/probe';
 import type { BackupRuntime } from '../backup/runtime';
 import type { CoreContext } from '../context';
@@ -101,6 +102,7 @@ async function collectBackupSnapshot(rt: BackupRuntime): Promise<BackupSnapshot>
       .where(eq(systemSettings.key, 'backup')),
   ]);
   const newest = catalogue[0] ?? null;
+  const newestScheduled = catalogue.find((e) => e.manifest.kind === 'SCHEDULED') ?? null;
   const external = newest?.state.external;
   return {
     scheduleEnabled: settings.scheduleEnabled,
@@ -111,6 +113,7 @@ async function collectBackupSnapshot(rt: BackupRuntime): Promise<BackupSnapshot>
         ? { at: new Date(status.updatedAt), message: status.detail ?? status.step }
         : null,
     newestBackupAt: newest ? new Date(newest.manifest.createdAt) : null,
+    newestScheduledBackupAt: newestScheduled ? new Date(newestScheduled.manifest.createdAt) : null,
     externalFailure:
       settings.externalEnabled && newest && external?.status === 'FAILED'
         ? {
@@ -118,7 +121,7 @@ async function collectBackupSnapshot(rt: BackupRuntime): Promise<BackupSnapshot>
             message: `External upload failed: ${external.error ?? 'unknown error'}`,
           }
         : null,
-    scheduleConfiguredAt: configured[0]?.at ?? null,
+    scheduleConfiguredAt: scheduleConfiguredAtOf(settings, configured[0]?.at ?? null),
     probeFailure: await probeFailure(rt, settings.probeEnabled),
   };
 }

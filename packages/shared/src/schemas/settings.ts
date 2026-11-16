@@ -655,6 +655,12 @@ const backupSchema = z.object({
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
     .default('03:00'),
+  /**
+   * ISO time the schedule was switched on or its frequency / time / weekday changed (set by the
+   * save action, not a form field). Reference for the "missed" and "overdue" alerts; absent in
+   * settings saved earlier (then the last save of the settings counts).
+   */
+  scheduleConfiguredAt: z.iso.datetime().optional(),
   /** Scheduled backups kept (oldest are deleted); manual backups are kept until deleted. */
   keepScheduled: z.number().int().min(1).max(365).default(14),
   /**

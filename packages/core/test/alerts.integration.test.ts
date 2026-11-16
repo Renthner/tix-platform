@@ -18,20 +18,34 @@ import { createSecretBox, hashPassword, parseKeyRing } from '@tix/shared/server'
 import { eq, inArray } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   clearBackupFailure,
   createCoreContext,
+  getBackupFailure,
   getOwnAlertPreferences,
   listAlertHistory,
   recordBackupFailure,
   runAlertCycle,
+  runBackupJob,
+  runBackupTick,
   saveOwnAlertPreferences,
   saveSetting,
+  sendBackupAlert,
   type BackupRuntime,
   type CoreContext,
   type JobQueues,
 } from '../src';
+
+// Backups and SMTP are stubbed per test; everything else is the real code.
+vi.mock('../src/backup/create', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/backup/create')>()),
+  createBackup: vi.fn(async () => ({})),
+}));
+vi.mock('../src/email/transport', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/email/transport')>();
+  return { ...actual, smtpSender: vi.fn(actual.smtpSender) };
+});
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
@@ -194,5 +208,134 @@ describe.skipIf(!adminUrl || !redisUrl)('admin alerts (integration)', () => {
     expect(r.deferred).toBeGreaterThanOrEqual(1);
     await saveSetting(ctx, 'alerts', { ...NO_DISK, enabled: false }, null);
     expect((await runAlertCycle(ctx, { backups: rt }, t)).skipped).toBe('DISABLED');
+  });
+
+  it('a schedule enabled after the daily slot raises no "missed" failure, sends no mail', async () => {
+    await saveSetting(ctx, 'general', { defaultTimeZone: 'UTC' }, null);
+    const now = new Date();
+    const slotHour = (now.getUTCHours() + 24 - 7) % 24;
+    const time = `${String(slotHour).padStart(2, '0')}:00`;
+    await saveSetting(ctx, 'backup', { scheduleEnabled: true, frequency: 'DAILY', time }, null);
+    await clearBackupFailure(ctx);
+    // The newest slot lies 7-8 h back = before the schedule was saved, beyond the catch-up window.
+    expect(await runBackupTick(rt, now)).toBe('idle');
+    expect(await getBackupFailure(ctx)).toBeNull();
+    // A later slot that really passed without a run is still reported.
+    expect(await runBackupTick(rt, new Date(now.getTime() + 24 * 3_600_000))).toBe('idle');
+    expect(await getBackupFailure(ctx)).toMatchObject({
+      message: expect.stringContaining('Scheduled backup missed'),
+    });
+    await clearBackupFailure(ctx);
+    await saveSetting(ctx, 'backup', { scheduleEnabled: false }, null);
+  });
+
+  it('the schedule reference moves only with the schedule, not with any save of the backup tab', async () => {
+    await saveSetting(ctx, 'general', { defaultTimeZone: 'UTC' }, null);
+    const now = new Date();
+    const slotHour = (now.getUTCHours() + 24 - 7) % 24;
+    const time = `${String(slotHour).padStart(2, '0')}:00`;
+    // Configured 3 days ago; the slot 7-8 h back lies AFTER that, but the row was saved just now
+    // (an unrelated change such as the retention). Fallback to updated_at would hide the miss.
+    await saveSetting(
+      ctx,
+      'backup',
+      {
+        scheduleEnabled: true,
+        frequency: 'DAILY',
+        time,
+        scheduleConfiguredAt: new Date(now.getTime() - 3 * 86_400_000).toISOString(),
+        keepScheduled: 20,
+      },
+      null,
+    );
+    await clearBackupFailure(ctx);
+    expect(await runBackupTick(rt, now)).toBe('idle');
+    expect(await getBackupFailure(ctx)).toMatchObject({
+      message: expect.stringContaining('Scheduled backup missed'),
+    });
+    await clearBackupFailure(ctx);
+    await saveSetting(ctx, 'backup', { scheduleEnabled: false }, null);
+  });
+
+  it('a manual backup after a missed slot neither clears it nor causes a second mail', async () => {
+    const opsMails = async () => (await alertMails()).filter((m) => m.to === 'ops@example.org');
+    await saveSetting(ctx, 'general', { defaultTimeZone: 'UTC' }, null);
+    const now = new Date();
+    const slotHour = (now.getUTCHours() + 24 - 7) % 24;
+    const time = `${String(slotHour).padStart(2, '0')}:00`;
+    await saveSetting(
+      ctx,
+      'backup',
+      {
+        scheduleEnabled: true,
+        frequency: 'DAILY',
+        time,
+        alertEmail: 'ops@example.org',
+        scheduleConfiguredAt: new Date(now.getTime() - 3 * 86_400_000).toISOString(),
+      },
+      null,
+    );
+    await clearBackupFailure(ctx);
+    const before = (await opsMails()).length;
+    expect(await runBackupTick(rt, now)).toBe('idle');
+    expect((await opsMails()).length).toBe(before + 1);
+    const missed = await getBackupFailure(ctx);
+    expect(missed?.message).toContain('Scheduled backup missed');
+
+    // A manual backup completes: the missed marker stays (portal flag and alert agree) ...
+    await runBackupJob(rt, { kind: 'MANUAL', userId: null });
+    expect(await getBackupFailure(ctx)).toEqual(missed);
+    // ... and the next tick does not record / mail the same miss again.
+    expect(await runBackupTick(rt, new Date(now.getTime() + 60_000))).toBe('idle');
+    expect((await opsMails()).length).toBe(before + 1);
+
+    // A real failure of a manual backup is closed by the next manual success ...
+    await recordBackupFailure(ctx, { at: now.toISOString(), message: 'disk full' });
+    await runBackupJob(rt, { kind: 'MANUAL', userId: null });
+    expect(await getBackupFailure(ctx)).toBeNull();
+    // ... and a scheduled backup closes the missed marker.
+    await recordBackupFailure(ctx, missed!);
+    await runBackupJob(rt, { kind: 'SCHEDULED', userId: null });
+    expect(await getBackupFailure(ctx)).toBeNull();
+    await saveSetting(ctx, 'backup', { scheduleEnabled: false }, null);
+  });
+
+  it('falls back to a direct SMTP mail when the outbox (database / queue) fails', async () => {
+    const { smtpSender } = await import('../src/email/transport');
+    const sendMail = vi.fn(async () => ({}));
+    vi.mocked(smtpSender).mockResolvedValueOnce({
+      from: 'shop@example.org',
+      transporter: { sendMail },
+    } as never);
+    const brokenDb = new Proxy(ctx.db, {
+      get(target, prop, receiver) {
+        if (prop === 'insert' || prop === 'transaction') {
+          return () => {
+            throw new Error('database down');
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const before = (await alertMails()).length;
+    await expect(
+      sendBackupAlert({ ...ctx, db: brokenDb } as CoreContext, 'ops@example.org', 'dump failed'),
+    ).resolves.toBe(true);
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'ops@example.org',
+        text: expect.stringContaining('Reason: dump failed'),
+      }),
+    );
+    expect((await alertMails()).length).toBe(before);
+  });
+
+  it('the legacy backup failure mail uses the HTML alert template', async () => {
+    const before = (await alertMails()).length;
+    await sendBackupAlert(ctx, 'ops@example.org', 'disk full');
+    const mails = await alertMails();
+    expect(mails.length).toBe(before + 1);
+    expect(mails.some((m) => m.key === 'ADMIN_ALERT' && m.to === 'ops@example.org')).toBe(true);
   });
 });

@@ -40,7 +40,7 @@ const TRANSLITERATION: Record<string, string> = {
   ß: 'ss',
 };
 
-function deriveSlug(title: string): string {
+export function deriveSlug(title: string): string {
   const slug = title
     .toLowerCase()
     .replace(/[äöüß]/g, (c) => TRANSLITERATION[c] ?? c)
@@ -53,7 +53,7 @@ function deriveSlug(title: string): string {
   return slug || 'event';
 }
 
-async function slugExists(tx: Transaction, slug: string): Promise<boolean> {
+export async function slugExists(tx: Transaction, slug: string): Promise<boolean> {
   const [row] = await tx.select({ id: events.id }).from(events).where(eq(events.slug, slug));
   return !!row;
 }

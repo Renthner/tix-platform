@@ -3,6 +3,7 @@ import { priceCategories, ticketTemplates } from '@tix/db';
 import { asc, eq } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
+import { TicketDesignImport } from '@/components/admin/ticket-designer/design-import';
 import {
   CategoryTemplateAssignment,
   CreateEventTemplateForm,
@@ -113,6 +114,15 @@ export default async function EventTicketPage({
           <CreateEventTemplateForm
             eventId={event.id}
             options={options}
+            categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6">
+          <TicketDesignImport
+            eventId={event.id}
             categories={categories.map((c) => ({ id: c.id, name: c.name }))}
           />
         </CardContent>

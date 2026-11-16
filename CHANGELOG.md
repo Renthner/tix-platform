@@ -8,6 +8,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.36] - 2026-11-17
+
+### Added
+
+- **Ticket design export / import.** A ticket design can be exported to one file (`*.tixticket.json`, images embedded, no database ids) and imported again as a new design (library, event or price category) – like seat plans. Strict validation, preview, documented in docs/TICKETS.md.
+- **Event export / import.** A whole event (settings, texts and translations, seat plan, categories, tariffs, pricing matrix, fees, waiting room, page designer, ticket designs, images; no orders, tickets, customers or codes) can be exported and imported as a new draft event (`*.tixevent.json`). E-mail overrides are exported and imported by super admins only. Documented in docs/EVENT-TRANSFER.md.
+- **Different seat plan for a draft event.** A draft event without orders, tickets or cart holds can swap its seat plan for a copy of another plan of the venue or an imported plan file; plan categories are matched by name, new ones start deactivated without a price.
+
+### Fixed
+
+- **Admin e-mail preview showed a broken logo.** Public media is now served with a cross-origin resource policy that allows the sandboxed preview and webmail clients to load it (private media stays same-origin).
+- **E-mail header in Gmail / Outlook.** The centred logo is centred with a real table wrapper, the logo cell no longer crops the image in Outlook desktop (no zero line-height, explicit width/height attributes).
+- **Backup alerts.** Enabling the scheduled backup no longer raises an immediate "missed" alert (only slots after the schedule was configured count; a separate `scheduleConfiguredAt` is set only when the schedule really changes). A successful backup clears the warning in the admin portal consistently with the "resolved" mail, a manual backup no longer makes the "missed" alert flap, and backup alert mails use the same HTML template as the other admin alerts (with a direct plain-text fallback if the database is down).
+
 ## [1.0.0-alpha.35] - 2026-11-16
 
 ### Added

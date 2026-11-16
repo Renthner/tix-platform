@@ -39,6 +39,15 @@ describe('alert checks', () => {
     expect(checkBackupFailed(backup({ scheduledFailure: { at: h(5), message: 'old' } }))).toEqual(
       [],
     );
+    // A manual backup (newestBackupAt) does not close a scheduled failure / missed slot ...
+    const scheduledOnly = backup({
+      scheduledFailure: { at: h(5), message: 'Scheduled backup missed' },
+      newestBackupAt: h(2),
+      newestScheduledBackupAt: h(30),
+    });
+    expect(checkBackupFailed(scheduledOnly)).toHaveLength(1);
+    // ... a newer scheduled one does.
+    expect(checkBackupFailed({ ...scheduledOnly, newestScheduledBackupAt: h(3) })).toEqual([]);
     const external = checkBackupFailed(backup({ externalFailure: { at: h(2), message: 'x' } }));
     expect(external[0]!.variant).toBe('external');
   });
@@ -59,6 +68,21 @@ describe('alert checks', () => {
       checkBackupOverdue(backup({ newestBackupAt: null, scheduleConfiguredAt: h(60) }), s, now)[0]!
         .variant,
     ).toBe('never');
+  });
+
+  it('BACKUP_OVERDUE: an old backup does not count before the freshly enabled schedule is due', () => {
+    const s = { backupOverdueFactor: 2 };
+    // Old manual backup (100 h ago), schedule enabled 1 h ago: not overdue yet.
+    expect(
+      checkBackupOverdue(backup({ newestBackupAt: h(100), scheduleConfiguredAt: h(1) }), s, now),
+    ).toEqual([]);
+    // 49 h after enabling without a newer backup: overdue, counted from the enabling.
+    const late = checkBackupOverdue(
+      backup({ newestBackupAt: h(100), scheduleConfiguredAt: h(49) }),
+      s,
+      now,
+    );
+    expect(late[0]!.since).toEqual(new Date(h(49).getTime() + 48 * 3_600_000));
   });
 
   it('DISK_LOW: file systems and the configured storage capacity', () => {

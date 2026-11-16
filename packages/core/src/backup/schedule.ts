@@ -30,6 +30,38 @@ export function latestScheduledSlot(config: ScheduleConfig, timeZone: string, no
   throw new Error('No schedule slot found'); // unreachable: a weekly slot exists within 7 days
 }
 
+type ScheduleState = ScheduleConfig & { scheduleEnabled: boolean; scheduleConfiguredAt?: string };
+
+/**
+ * `scheduleConfiguredAt` to store when the backup settings are saved: set only when the schedule
+ * is on and was switched on or its frequency / time (/ weekday for weekly) really changed; any
+ * other save (retention, external target, alert address …) keeps the previous value.
+ */
+export function nextScheduleConfiguredAt(
+  previous: ScheduleState,
+  next: Omit<ScheduleState, 'scheduleConfiguredAt'>,
+  now = new Date(),
+): string | undefined {
+  if (!next.scheduleEnabled) return previous.scheduleConfiguredAt;
+  const changed =
+    !previous.scheduleEnabled ||
+    previous.frequency !== next.frequency ||
+    previous.time !== next.time ||
+    (next.frequency === 'WEEKLY' && previous.weekday !== next.weekday);
+  return changed ? now.toISOString() : previous.scheduleConfiguredAt;
+}
+
+/**
+ * When the schedule was last configured: the stored `scheduleConfiguredAt`, or for settings saved
+ * before it existed the time of the last save of the backup settings (`fallback`).
+ */
+export function scheduleConfiguredAtOf(
+  settings: { scheduleConfiguredAt?: string },
+  fallback: Date | null,
+): Date | null {
+  return settings.scheduleConfiguredAt ? new Date(settings.scheduleConfiguredAt) : fallback;
+}
+
 /** A backup that is more than this late (e.g. the stack was down) is skipped, not run late. */
 export const SCHEDULE_CATCH_UP_MS = 6 * 3_600_000;
 

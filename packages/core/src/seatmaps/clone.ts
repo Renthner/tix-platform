@@ -170,7 +170,15 @@ export async function cloneSeatMap(
  */
 export async function applyTemplateCategoriesToEvent(
   tx: Executor,
-  params: { eventId: string; seatMapId: string },
+  params: {
+    eventId: string;
+    seatMapId: string;
+    /**
+     * Create the new price categories deactivated (not shown or sold in the shop) until the admin
+     * prices and activates them. Default: active (event creation keeps its behaviour).
+     */
+    inactive?: boolean;
+  },
 ): Promise<number> {
   const [copy] = await tx
     .select({ clonedFromId: seatMaps.clonedFromId })
@@ -205,6 +213,7 @@ export async function applyTemplateCategoriesToEvent(
         color: category.color,
         translations: category.translations,
         basePrice: 0,
+        isActive: !params.inactive,
         sortOrder: nextSort,
       })
       .returning({ id: priceCategories.id });

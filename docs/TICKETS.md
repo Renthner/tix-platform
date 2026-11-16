@@ -245,3 +245,20 @@ account, like invoices) and `/api/admin/orders/[id]/tickets[/<ticketId>]`.
 
 **Preview:** `POST /api/admin/ticket-templates/preview` renders an unsaved draft with sample data or
 the data of a chosen event; the QR code is a placeholder and never a valid signature.
+
+## Design export / import
+
+A ticket design can be moved between systems as one file (`*.tixticket.json`, format
+`tix-ticket-design`, version 1): admin "Ticket designs" (list row action / editor header: Export;
+"Import design" card on the list and on the event's Ticket tab). The file holds page size, layout
+(fields, QR, shapes, image elements) and the embedded images (background, image elements; base64,
+PNG / JPEG / WebP) - no database ids, events, categories or orders. Image elements refer to the
+embedded images by local key (`imageKey`). Routes: `GET /api/admin/ticket-templates/[id]/export`,
+`POST /api/admin/ticket-templates/import` (multipart `file`, `mode` preview|import, optional
+`eventId`, `name`, `assignTo` = `event` | `none` | price category id).
+
+Import always creates a NEW template (library, or owned by the event) and never changes an
+existing one. The file is fully re-validated (Zod, 40 MB cap, max. 200 elements, 30 images); images
+go through the normal upload pipeline (type detection, size and dimension limits, normalisation)
+and are stored as private `TICKET_BACKGROUND` assets; assets created by a failed import are
+removed again. The event cover is not exported (it comes from the event the design is used for).

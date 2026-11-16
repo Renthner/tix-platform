@@ -36,12 +36,17 @@ const finding = (
 export interface BackupSnapshot {
   scheduleEnabled: boolean;
   frequency: 'DAILY' | 'WEEKLY';
-  /** Last failed scheduled backup (Redis; cleared by the next successful scheduled one). */
+  /**
+   * Last failed / missed scheduled backup (Redis). Cleared only by the next successful SCHEDULED
+   * backup – a manual backup neither clears it nor resolves the alert (same source as the portal).
+   */
   scheduledFailure: { at: Date; message: string } | null;
   /** Status of the last backup operation when it failed (also manual backups). */
   lastOperationFailure: { at: Date; message: string } | null;
   /** Newest backup of any kind that is complete in the catalogue. */
   newestBackupAt: Date | null;
+  /** Newest complete SCHEDULED backup; closes `scheduledFailure`. Absent = `newestBackupAt`. */
+  newestScheduledBackupAt?: Date | null;
   /** The newest catalogue entry when its upload to the external target failed. */
   externalFailure: { at: Date; message: string } | null;
   /** When the schedule was last configured (reference while no backup exists yet). */
@@ -61,13 +66,15 @@ export function checkBackupProbe(s: BackupSnapshot): AlertFinding[] {
 
 export function checkBackupFailed(s: BackupSnapshot): AlertFinding[] {
   // A backup that completed after the failure supersedes it (a later success clears the alert).
-  const newer = (f: { at: Date } | null) =>
-    f !== null && (s.newestBackupAt === null || f.at.getTime() > s.newestBackupAt.getTime());
+  const newer = (f: { at: Date } | null, than: Date | null) =>
+    f !== null && (than === null || f.at.getTime() > than.getTime());
+  const newestScheduled =
+    s.newestScheduledBackupAt !== undefined ? s.newestScheduledBackupAt : s.newestBackupAt;
   const candidates = [
-    s.scheduledFailure && newer(s.scheduledFailure)
+    s.scheduledFailure && newer(s.scheduledFailure, newestScheduled)
       ? { ...s.scheduledFailure, variant: 'failed' }
       : null,
-    s.lastOperationFailure && newer(s.lastOperationFailure)
+    s.lastOperationFailure && newer(s.lastOperationFailure, s.newestBackupAt)
       ? { ...s.lastOperationFailure, variant: 'failed' }
       : null,
     s.externalFailure ? { ...s.externalFailure, variant: 'external' } : null,
@@ -89,8 +96,11 @@ export function checkBackupOverdue(
   if (!s.scheduleEnabled) return [];
   const intervalMs = s.frequency === 'WEEKLY' ? 7 * DAY_MS : DAY_MS;
   const limitMs = intervalMs * settings.backupOverdueFactor;
-  const reference = s.newestBackupAt ?? s.scheduleConfiguredAt;
-  if (!reference) return [];
+  // Never overdue before the first expected run after the schedule was configured: an old backup
+  // (manual, pre-update) must not make a freshly enabled schedule look late.
+  const times = [s.newestBackupAt, s.scheduleConfiguredAt].filter((d): d is Date => d !== null);
+  if (times.length === 0) return [];
+  const reference = new Date(Math.max(...times.map((d) => d.getTime())));
   const dueSince = new Date(reference.getTime() + limitMs);
   if (now.getTime() < dueSince.getTime()) return [];
   return [

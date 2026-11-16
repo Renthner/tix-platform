@@ -35,7 +35,7 @@ export type TicketFieldKey = (typeof TICKET_FIELD_KEYS)[number];
 const mm = z.number().min(0).max(2_000);
 const id = z.string().min(1).max(64);
 
-const textElementSchema = z.object({
+export const textElementSchema = z.object({
   kind: z.literal('text'),
   id,
   field: z.enum(TICKET_FIELD_KEYS),
@@ -59,7 +59,7 @@ const textElementSchema = z.object({
   timeStyle: z.enum(['short', 'medium']).optional(),
 });
 
-const imageElementSchema = z.object({
+export const imageElementSchema = z.object({
   kind: z.literal('image'),
   id,
   assetId: z.uuid(),
@@ -72,7 +72,7 @@ const imageElementSchema = z.object({
 });
 
 /** The event's cover image (events.hero_image_asset_id), placed as a band / badge. */
-const coverElementSchema = z.object({
+export const coverElementSchema = z.object({
   kind: z.literal('cover'),
   id,
   x: mm,
@@ -84,7 +84,7 @@ const coverElementSchema = z.object({
   opacity: z.number().min(0).max(1).default(1),
 });
 
-const shapeElementSchema = z.object({
+export const shapeElementSchema = z.object({
   kind: z.literal('shape'),
   id,
   shape: z.enum(['rect', 'line']),

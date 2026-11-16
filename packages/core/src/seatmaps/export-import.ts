@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
+  events,
   priceCategories,
   seatMaps,
+  seats,
   svgSymbols,
   venues,
   withTransaction,
@@ -12,13 +14,15 @@ import {
   SEAT_MAP_FILE_MAX_BYTES,
   SEAT_MAP_FILE_MIN_VERSION,
   SEAT_MAP_FILE_VERSION,
+  cleanTranslations,
   planToDocument,
   seatMapDocumentSchema,
   seatMapFileSchema,
+  type MediaAssetKind,
   type PlanImage,
   type SeatMapFile,
 } from '@tix/shared';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { findMediaAssetByHash, getMediaAsset, loadMediaBytes, uploadMediaAsset } from '../media';
 import { deleteMediaAsset } from '../media-admin';
@@ -47,7 +51,7 @@ const sorted = <T>(items: T[], ...keys: ((item: T) => string | number)[]): T[] =
     return 0;
   });
 
-async function exportImage(ctx: CoreContext, assetId: string): Promise<PlanImage> {
+export async function exportImage(ctx: CoreContext, assetId: string): Promise<PlanImage> {
   const asset = await getMediaAsset(ctx, assetId);
   if (!asset) throw new DomainError('MEDIA_NOT_FOUND', 'An image of the plan is missing', 409);
   const bytes = await loadMediaBytes(ctx, assetId);
@@ -295,7 +299,7 @@ export interface ImportSeatMapResult {
   categories: number;
 }
 
-interface PreparedSymbol {
+export interface PreparedSymbol {
   key: string;
   name: string;
   kind: 'SEAT' | 'ELEMENT';
@@ -305,16 +309,9 @@ interface PreparedSymbol {
   builtinKey: string | null;
 }
 
-/** Imports a plan file as a new master plan of the venue; never touches existing plans. */
-export async function importSeatMap(
-  ctx: CoreContext,
-  input: { venueId: string; file: unknown; name?: string; userId: string | null },
-): Promise<ImportSeatMapResult> {
-  requireCapability(ctx, 'storage');
-  const file = seatMapFileSchema.parse(input.file);
-
-  // Symbols are re-sanitised; nothing from the file is trusted.
-  const prepared: PreparedSymbol[] = file.symbols.map((s) => {
+/** Symbols of a file, re-sanitised; nothing from the file is trusted. */
+export function prepareSymbols(symbols: SeatMapFile['symbols']): PreparedSymbol[] {
+  return symbols.map((s) => {
     const clean = sanitizeSvg(s.svg, s.colorize);
     return {
       key: s.key,
@@ -326,8 +323,10 @@ export async function importSeatMap(
       builtinKey: s.builtinKey,
     };
   });
+}
 
-  // Structural validation with throw-away ids before anything is stored.
+/** Structural validation with throw-away ids before anything is stored. */
+export function assertPlanStructure(file: SeatMapFile): void {
   const dry = seatMapDocumentSchema.safeParse(
     planToDocument(file, {
       uuid: randomUUID,
@@ -343,29 +342,74 @@ export async function importSeatMap(
         .map((i) => ({ path: i.path.join('.'), message: i.message })),
     });
   }
+}
+
+/**
+ * Stores one embedded image through the normal upload pipeline. Ids of assets this call
+ * created (not re-used ones) are appended to `created` so a failed import can remove them.
+ */
+export async function uploadEmbeddedImage(
+  ctx: CoreContext,
+  image: PlanImage,
+  kind: MediaAssetKind,
+  userId: string | null,
+  created: string[],
+): Promise<string> {
+  const bytes = new Uint8Array(Buffer.from(image.dataBase64, 'base64'));
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const existing = await findMediaAssetByHash(ctx.db, kind, sha256);
+  const row = await uploadMediaAsset(ctx, {
+    kind,
+    bytes,
+    fileName: image.fileName,
+    declaredMime: image.contentType,
+    userId,
+  });
+  if (!existing) created.push(row.id);
+  return row.id;
+}
+
+/** Uploads the images and the background of a plan file (kind VENUE_BACKGROUND). */
+export async function uploadPlanImages(
+  ctx: CoreContext,
+  file: SeatMapFile,
+  userId: string | null,
+  created: string[],
+): Promise<{ imageIds: Map<string, string>; backgroundAssetId: string | null }> {
+  const imageIds = new Map<string, string>();
+  for (const image of file.images) {
+    imageIds.set(
+      image.key,
+      await uploadEmbeddedImage(ctx, image, 'VENUE_BACKGROUND', userId, created),
+    );
+  }
+  const backgroundAssetId = file.background
+    ? await uploadEmbeddedImage(ctx, file.background, 'VENUE_BACKGROUND', userId, created)
+    : null;
+  return { imageIds, backgroundAssetId };
+}
+
+/** Imports a plan file as a new master plan of the venue; never touches existing plans. */
+export async function importSeatMap(
+  ctx: CoreContext,
+  input: { venueId: string; file: unknown; name?: string; userId: string | null },
+): Promise<ImportSeatMapResult> {
+  requireCapability(ctx, 'storage');
+  const file = seatMapFileSchema.parse(input.file);
+
+  const prepared = prepareSymbols(file.symbols);
+  assertPlanStructure(file);
 
   // Images go through the normal upload pipeline (type, size, dimensions). Assets that this
   // import created are removed again when the database transaction fails.
   const created: string[] = [];
-  const upload = async (image: PlanImage): Promise<string> => {
-    const bytes = new Uint8Array(Buffer.from(image.dataBase64, 'base64'));
-    const sha256 = createHash('sha256').update(bytes).digest('hex');
-    const existing = await findMediaAssetByHash(ctx.db, 'VENUE_BACKGROUND', sha256);
-    const row = await uploadMediaAsset(ctx, {
-      kind: 'VENUE_BACKGROUND',
-      bytes,
-      fileName: image.fileName,
-      declaredMime: image.contentType,
-      userId: input.userId,
-    });
-    if (!existing) created.push(row.id);
-    return row.id;
-  };
-
   try {
-    const imageIds = new Map<string, string>();
-    for (const image of file.images) imageIds.set(image.key, await upload(image));
-    const backgroundAssetId = file.background ? await upload(file.background) : null;
+    const { imageIds, backgroundAssetId } = await uploadPlanImages(
+      ctx,
+      file,
+      input.userId,
+      created,
+    );
 
     return await withTransaction(ctx.db, async (tx) => {
       const [venue] = await tx
@@ -425,7 +469,7 @@ export async function importSeatMap(
  * Maps file symbols to library symbols: the target's own copy of a built-in, an existing
  * symbol with identical sanitised content, or a new symbol (name made unique with a suffix).
  */
-async function resolveSymbols(
+export async function resolveSymbols(
   tx: Transaction,
   prepared: PreparedSymbol[],
   userId: string | null,
@@ -486,4 +530,144 @@ async function resolveSymbols(
     created += 1;
   }
   return { ids, created, reused };
+}
+
+export interface WriteEventSeatMapResult {
+  seatMapId: string;
+  seats: number;
+  symbolsCreated: number;
+  symbolsReused: number;
+  /** Plan categories that matched a price category of the event by name. */
+  categoriesReused: number;
+  /** Plan categories that became new (unpriced) price categories of the event. */
+  categoriesCreated: number;
+  /** Seats and standing blocks of the plan without a price category. */
+  unassigned: number;
+}
+
+/**
+ * Writes a plan file as the EVENT seat map of an existing event (inside the caller's
+ * transaction) and points the event at it. Plan categories are mapped to the event's price
+ * categories by name; unknown names become new price categories with price 0, created
+ * DEACTIVATED (a price of 0 would otherwise be sold as such; the admin prices and activates them). The new map starts at `version` so
+ * clients and the Redis inventory never mistake it for an older state of another map.
+ */
+export async function writeEventSeatMap(
+  tx: Transaction,
+  params: {
+    eventId: string;
+    venueId: string;
+    file: SeatMapFile;
+    prepared: PreparedSymbol[];
+    imageIds: ReadonlyMap<string, string>;
+    backgroundAssetId: string | null;
+    userId: string | null;
+    name: string;
+    version?: number;
+  },
+): Promise<WriteEventSeatMapResult> {
+  const { file } = params;
+  const version = params.version ?? 1;
+  const symbols = await resolveSymbols(tx, params.prepared, params.userId);
+
+  const existing = await tx
+    .select({
+      id: priceCategories.id,
+      name: priceCategories.name,
+      sortOrder: priceCategories.sortOrder,
+    })
+    .from(priceCategories)
+    .where(eq(priceCategories.eventId, params.eventId));
+  const byName = new Map(existing.map((c) => [c.name, c.id]));
+  let nextSort = existing.reduce((max, c) => Math.max(max, c.sortOrder + 1), 0);
+  let categoriesCreated = 0;
+  let categoriesReused = 0;
+  for (const category of file.categories) {
+    if (byName.has(category.name)) {
+      categoriesReused += 1;
+      continue;
+    }
+    const [row] = await tx
+      .insert(priceCategories)
+      .values({
+        eventId: params.eventId,
+        name: category.name.slice(0, 120),
+        color: category.color,
+        translations: cleanTranslations(category.translations, 'priceCategory'),
+        basePrice: 0,
+        // A price of 0 would be sold as such: stays out of the shop until priced and activated.
+        isActive: false,
+        sortOrder: nextSort,
+      })
+      .returning({ id: priceCategories.id });
+    nextSort += 1;
+    categoriesCreated += 1;
+    byName.set(category.name, row!.id);
+  }
+
+  const doc = planToDocument(file, {
+    uuid: randomUUID,
+    symbolIds: symbols.ids,
+    imageIds: params.imageIds,
+    backgroundAssetId: params.backgroundAssetId,
+  });
+  // planToDocument lists the categories in file order: its id → the event's price category.
+  const eventCategory = new Map(
+    doc.categories.map((c, i) => [c.id, byName.get(file.categories[i]!.name) ?? null]),
+  );
+  const mapCategory = (id: string | null) => (id ? (eventCategory.get(id) ?? null) : null);
+
+  const [map] = await tx
+    .insert(seatMaps)
+    .values({
+      venueId: params.venueId,
+      kind: 'EVENT',
+      name: params.name,
+      canvasWidth: file.plan.canvasWidth,
+      canvasHeight: file.plan.canvasHeight,
+      version,
+    })
+    .returning({ id: seatMaps.id });
+  // The event must point at the map before the document is applied (category validation).
+  await tx.update(events).set({ seatMapId: map!.id }).where(eq(events.id, params.eventId));
+  try {
+    await applySeatMapDocument(
+      tx,
+      map!.id,
+      seatMapDocumentSchema.parse({
+        ...doc,
+        version,
+        name: params.name,
+        categories: [],
+        sections: doc.sections.map((s) => ({
+          ...s,
+          priceCategoryId: mapCategory(s.priceCategoryId),
+        })),
+        seats: doc.seats.map((s) => ({ ...s, priceCategoryId: mapCategory(s.priceCategoryId) })),
+      }),
+      params.userId,
+    );
+  } catch (err) {
+    if (err instanceof SaveAbort) {
+      throw new DomainError('SEATMAP_FILE_INVALID', err.result.error.message, 422, {
+        issues: err.result.error.issues,
+      });
+    }
+    throw err;
+  }
+  const [unassignedSeats] = await tx
+    .select({ n: count() })
+    .from(seats)
+    .where(
+      and(eq(seats.seatMapId, map!.id), isNull(seats.removedAt), isNull(seats.priceCategoryId)),
+    );
+  return {
+    seatMapId: map!.id,
+    seats: file.plan.seats.length,
+    symbolsCreated: symbols.created,
+    symbolsReused: symbols.reused,
+    categoriesReused,
+    categoriesCreated,
+    unassigned: unassignedSeats?.n ?? 0,
+  };
 }

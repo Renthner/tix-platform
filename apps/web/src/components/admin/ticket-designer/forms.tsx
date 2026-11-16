@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy, Pencil, Star, Trash2 } from 'lucide-react';
+import { Copy, Download, Pencil, Star, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -56,6 +56,7 @@ export function TemplateRowActions({
 }) {
   const t = useTranslations('ticketDesigner.page.actions');
   const tMsg = useTranslations('admin.messages');
+  const tTransfer = useTranslations('ticketDesigner.transfer');
   const [dup, dupAction] = useActionState(duplicateTicketTemplateAction.bind(null, id), IDLE);
   const [del, delAction] = useActionState(deleteTicketTemplateAction.bind(null, id), IDLE);
   const [def, defAction] = useActionState(setDefaultTicketTemplateAction.bind(null, id), IDLE);
@@ -79,6 +80,12 @@ export function TemplateRowActions({
           {t('duplicate')}
         </SubmitButton>
       </ActionForm>
+      <Button asChild variant="ghost" size="sm">
+        <a href={`/api/admin/ticket-templates/${id}/export`} download>
+          <Download className="size-4" />
+          {tTransfer('export')}
+        </a>
+      </Button>
       {global && !isDefault && (
         <ActionForm action={defAction}>
           <SubmitButton variant="ghost" size="sm" pendingLabel={t('setDefault')}>

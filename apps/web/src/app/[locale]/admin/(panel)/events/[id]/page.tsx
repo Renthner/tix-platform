@@ -31,12 +31,12 @@ export default async function EventDetailsPage({
   searchParams,
 }: {
   params: Promise<{ locale: string; id: string }>;
-  searchParams: Promise<{ duplicated?: string }>;
+  searchParams: Promise<{ duplicated?: string; imported?: string }>;
 }) {
   await resolveLocale(params);
   const session = await requireAdmin(['EVENT_MANAGER']);
   const { id } = await params;
-  const { duplicated } = await searchParams;
+  const { duplicated, imported } = await searchParams;
   const row = await getEventWithVenue(id);
   if (!row) notFound();
   const { event } = row;
@@ -60,6 +60,11 @@ export default async function EventDetailsPage({
       {duplicated && (
         <Alert>
           <AlertDescription>{t('duplicate.notice')}</AlertDescription>
+        </Alert>
+      )}
+      {imported && (
+        <Alert>
+          <AlertDescription>{t('transfer.import.notice')}</AlertDescription>
         </Alert>
       )}
       <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">

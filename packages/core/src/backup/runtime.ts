@@ -1,6 +1,7 @@
 import { normalizeLocale, type SettingValue } from '@tix/shared';
 import type { SecretBoxKey } from '@tix/shared/server';
 import type { CoreContext } from '../context';
+import { formatDateTime } from '../format';
 import { smtpSender } from '../email/transport';
 import { getSecretSetting, getSetting } from '../settings';
 import type { PgBinaries } from './pg';
@@ -131,11 +132,8 @@ const ALERT_TEXT = {
   },
 } as const;
 
-/**
- * Plain system mail through the configured SMTP server (no template / outbox row: an alert
- * must not depend on database state and needs no schema change).
- */
-export async function sendBackupAlert(
+/** Plain system mail straight through the SMTP server (no template, database or queue). */
+async function sendBackupAlertDirect(
   ctx: CoreContext,
   to: string,
   message: string,
@@ -150,6 +148,50 @@ export async function sendBackupAlert(
     text: text.body(general.shopName, message),
   });
   return true;
+}
+
+/**
+ * Failure mail of the scheduled backup to the address configured in the backup settings. It goes
+ * through the same `ADMIN_ALERT` template (HTML + text) and outbox as the alert engine, so every
+ * admin warning mail looks alike. When the outbox path fails (database or queue down – exactly
+ * when a backup failure matters most) the plain direct SMTP mail is sent instead.
+ */
+export async function sendBackupAlert(
+  ctx: CoreContext,
+  to: string,
+  message: string,
+): Promise<boolean> {
+  try {
+    // Lazy: the alert engine imports the backup module (cycle).
+    const [{ alertText }, { createEmailMessage, dispatchEmailMessage }] = await Promise.all([
+      import('../alerts/engine'),
+      import('../email/request'),
+    ]);
+    const general = await getSetting(ctx, 'general');
+    const locale = normalizeLocale(general.defaultLocale);
+    const text = alertText(
+      'BACKUP_FAILED',
+      { variant: 'failed', reason: message.slice(0, 300) },
+      locale,
+      general.defaultTimeZone,
+    );
+    const id = await createEmailMessage(ctx, ctx.db, {
+      key: 'ADMIN_ALERT',
+      to,
+      locale,
+      variables: {
+        alertTitle: text.title,
+        alertSummary: text.summary,
+        alertSince: formatDateTime(new Date(), locale, general.defaultTimeZone, 'long'),
+        alertUrl: ctx.appUrl ? `${ctx.appUrl.replace(/\/+$/, '')}/${locale}/admin/backups` : '',
+        firstName: '',
+      },
+    });
+    await dispatchEmailMessage(ctx, id);
+    return true;
+  } catch {
+    return sendBackupAlertDirect(ctx, to, message);
+  }
 }
 
 const SECRETS_ALERT_TEXT = {

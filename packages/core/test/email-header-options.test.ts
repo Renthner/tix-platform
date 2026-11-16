@@ -84,6 +84,20 @@ describe('e-mail header options', () => {
     expect(html).not.toMatch(/flex/i);
   });
 
+  it('centred layouts centre the logo table itself and avoid Outlook-cropping line heights', () => {
+    for (const logoDisplay of ['DIRECT', 'CHIP'] as const) {
+      const html = render({ layout: 'LOGO_ABOVE_TITLE_CENTERED', logoDisplay });
+      // The nested logo table carries align="center" (text-align does not move tables in Gmail).
+      expect(html).toMatch(/<table [^>]*align="center"[^>]*><tr><td[^>]*>\s*<img /);
+      expect(html).toContain('width="100%"');
+      expect(html).toContain('border="0" alt="Shop"');
+      expect(html).toContain('display:block');
+      expect(html).toContain('margin:0 auto');
+      expect(html).not.toMatch(/line-height:0|font-size:0|height:\d+px/);
+    }
+    expect(render({ layout: 'LOGO_ONLY', align: 'CENTER' })).toMatch(/align="center"/);
+  });
+
   it('centres the left/right layout and the title-only text on request', () => {
     expect(render({ align: 'CENTER' })).toContain('align="center"');
     const titleOnly = buildShopHeader({

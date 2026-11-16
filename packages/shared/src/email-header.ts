@@ -131,12 +131,15 @@ export function renderShopHeaderHtml(params: {
   const center = (inner: string) =>
     `<table ${TABLE} width="100%"><tr><td align="center" style="text-align:center">${inner}</td></tr></table>`;
   const tableAttrs = centered ? `${TABLE} align="center" style="margin:0 auto"` : TABLE;
+  // A nested table is not moved by `text-align` of its cell: it needs align="center" itself
+  // (Gmail, Outlook) plus auto margins (everything else).
+  const innerTable = centered ? tableAttrs : TABLE;
 
   if (!showLogo) return centered ? center(name) : name;
 
   const widthAttr = logo.width ? ` width="${logo.width}"` : '';
   const widthStyle = logo.width ? `width:${logo.width}px;` : '';
-  const img = `<img src="${esc(logo.url)}"${widthAttr} height="${logo.height}" alt="${name}" style="display:block;border:0;outline:none;text-decoration:none;${widthStyle}height:${logo.height}px;max-width:${EMAIL_LOGO_MAX_WIDTH}px">`;
+  const img = `<img src="${esc(logo.url)}"${widthAttr} height="${logo.height}" border="0" alt="${name}" style="display:block;border:0;outline:none;text-decoration:none;${widthStyle}${centered ? 'margin:0 auto;' : ''}">`;
 
   let logoBox: string;
   if (o.logoDisplay === 'CHIP') {
@@ -145,17 +148,19 @@ export function renderShopHeaderHtml(params: {
       : EMAIL_HEADER_DEFAULTS.chipColor;
     const radius = o.chipCorners === 'SQUARE' ? 0 : CHIP_RADIUS_PX;
     const padding = CHIP_PADDING_PX[o.chipPadding] ?? CHIP_PADDING_PX.MEDIUM;
-    logoBox = `<table ${TABLE}><tr><td bgcolor="${color}" style="background:${color};border-radius:${radius}px;padding:${padding}px;line-height:0;font-size:0">${img}</td></tr></table>`;
+    logoBox = `<table ${innerTable}><tr><td bgcolor="${color}" style="background:${color};border-radius:${radius}px;padding:${padding}px">${img}</td></tr></table>`;
   } else {
-    logoBox = `<table ${TABLE}><tr><td style="line-height:0;font-size:0">${img}</td></tr></table>`;
+    logoBox = `<table ${innerTable}><tr><td style="padding:0">${img}</td></tr></table>`;
   }
 
   const titleStyle = `color:${esc(params.foreground)};font-size:20px;font-weight:700;line-height:1.25`;
 
-  if (o.layout === 'LOGO_ONLY') return `<table ${tableAttrs}><tr><td>${logoBox}</td></tr></table>`;
+  if (o.layout === 'LOGO_ONLY') {
+    return centered ? center(logoBox) : `<table ${TABLE}><tr><td>${logoBox}</td></tr></table>`;
+  }
   if (o.layout === 'LOGO_ABOVE_TITLE_CENTERED') {
     return (
-      `<table ${tableAttrs}>` +
+      `<table ${TABLE} width="100%">` +
       `<tr><td align="center" style="text-align:center;padding:0 0 8px 0">${logoBox}</td></tr>` +
       `<tr><td align="center" style="text-align:center;${titleStyle}">${name}</td></tr>` +
       `</table>`

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { systemSettings } from '@tix/db';
+import { eq, sql } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { QUEUE_NAMES } from '@tix/redis';
 import { getSetting } from '../settings';
@@ -16,7 +17,7 @@ import {
   type BackupManifest,
 } from './manifest';
 import { archiveKeys, sendBackupAlert, describeError, type BackupRuntime } from './runtime';
-import { isBackupDue, latestScheduledSlot } from './schedule';
+import { isBackupDue, latestScheduledSlot, scheduleConfiguredAtOf } from './schedule';
 import {
   clearBackupFailure,
   clearReEncryptPending,
@@ -290,6 +291,8 @@ export async function countRestoreLoss(
   };
 }
 
+const MISSED_BACKUP_PREFIX = 'Scheduled backup missed ';
+
 /** Result of a backup run for the caller (job processor). */
 export async function runBackupJob(
   rt: BackupRuntime,
@@ -307,6 +310,19 @@ export async function runBackupJob(
     try {
       await params.onStart?.();
       const result = await createBackup(rt, { kind: params.kind, userId: params.userId, progress });
+      // A completed backup supersedes a recorded failure; dashboard flag and alert engine both
+      // read that one Redis record, so they close together. A "missed slot" marker is closed only
+      // by a SCHEDULED backup: clearing it for a manual one would let the next tick record it
+      // again and mail it a second time. A scheduled run whose external upload failed re-records
+      // the failure right after.
+      if (params.kind === 'SCHEDULED') {
+        await clearBackupFailure(rt.ctx).catch(() => undefined);
+      } else {
+        const known = await getBackupFailure(rt.ctx).catch(() => null);
+        if (known && !known.message.startsWith(MISSED_BACKUP_PREFIX)) {
+          await clearBackupFailure(rt.ctx).catch(() => undefined);
+        }
+      }
       await progress.succeeded(
         'DONE',
         result.skippedObjects
@@ -357,8 +373,15 @@ export async function runBackupTick(
   if (!isBackupDue(settings, general.defaultTimeZone, now, last)) {
     // A slot that passed without any attempt and is too old to catch up was missed entirely.
     const slot = latestScheduledSlot(settings, general.defaultTimeZone, now);
-    if (!last || last.getTime() < slot.getTime()) {
-      const missed = 'Scheduled backup missed ' + slot.toISOString();
+    // Never for a slot that lay before the schedule was (re)configured: nothing was expected then.
+    const [configured] = await rt.ctx.db
+      .select({ at: systemSettings.updatedAt })
+      .from(systemSettings)
+      .where(eq(systemSettings.key, 'backup'));
+    const configuredAt = scheduleConfiguredAtOf(settings, configured?.at ?? null);
+    const expected = !configuredAt || slot.getTime() >= configuredAt.getTime();
+    if (expected && (!last || last.getTime() < slot.getTime())) {
+      const missed = MISSED_BACKUP_PREFIX + slot.toISOString();
       const known = await getBackupFailure(rt.ctx);
       if (known?.message !== missed) {
         await recordBackupFailure(rt.ctx, { at: new Date().toISOString(), message: missed });

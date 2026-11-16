@@ -66,7 +66,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           }),
       'x-content-type-options': 'nosniff',
       'content-security-policy': "default-src 'none'; sandbox",
-      'cross-origin-resource-policy': 'same-origin',
+      // Public images are embedded elsewhere on purpose: e-mail clients (webmail loads them
+      // straight from the browser) and the sandboxed (opaque-origin) admin preview frames. With
+      // `same-origin` the browser refuses both. Private kinds stay same-origin.
+      'cross-origin-resource-policy': isPublic ? 'cross-origin' : 'same-origin',
     };
     if (
       request.headers

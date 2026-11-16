@@ -21,7 +21,7 @@ describe('e-mail header band', () => {
   it('with a logo: table layout, explicit size, absolute URL, alt text, visible title', () => {
     const { html } = buildShopHeader({ shopName: 'Shop', foreground: '#0a0a0a', logo });
     expect(html).toContain('src="https://shop.example.org/api/media/abc"');
-    expect(html).toContain('width="80" height="36" alt="Shop"');
+    expect(html).toContain('width="80" height="36" border="0" alt="Shop"');
     expect(html).toContain('display:block');
     expect(html).toContain('color:#0a0a0a;font-size:20px;font-weight:700');
     expect(html).toContain('>Shop</td>');

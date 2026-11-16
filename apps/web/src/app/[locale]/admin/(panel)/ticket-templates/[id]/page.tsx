@@ -4,7 +4,7 @@ import { getBaseContentLocale } from '@/server/admin/edit-locale';
 import { events, mediaAssets } from '@tix/db';
 import { defaultTicketLayout, ticketLayoutSchema } from '@tix/shared';
 import { desc, eq, ne } from 'drizzle-orm';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/admin/form-controls';
@@ -77,18 +77,26 @@ export default async function TicketTemplateEditorPage({
         title={t('page.editorTitle', { name: template.name })}
         description={t('page.editorDescription')}
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link
-              href={
-                template.eventId
-                  ? `/admin/events/${template.eventId}/ticket`
-                  : '/admin/ticket-templates'
-              }
-            >
-              <ArrowLeft className="size-4" />
-              {t('page.back')}
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <a href={`/api/admin/ticket-templates/${template.id}/export`} download>
+                <Download className="size-4" />
+                {t('transfer.export')}
+              </a>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link
+                href={
+                  template.eventId
+                    ? `/admin/events/${template.eventId}/ticket`
+                    : '/admin/ticket-templates'
+                }
+              >
+                <ArrowLeft className="size-4" />
+                {t('page.back')}
+              </Link>
+            </Button>
+          </div>
         }
       />
       <TicketDesignerLoader

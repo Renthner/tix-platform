@@ -9,6 +9,8 @@ import {
   isBackupDue,
   latestScheduledSlot,
   mergeSequenceCounters,
+  nextScheduleConfiguredAt,
+  scheduleConfiguredAtOf,
   readArchive,
   selectBackupsToDelete,
   sequenceRaises,
@@ -297,6 +299,62 @@ describe('schedule (shop time zone, DST safe)', () => {
         latestScheduledSlot(daily('03:00'), 'America/New_York', new Date('2026-07-01T12:00:00Z')),
       ),
     ).toBe('2026-07-01T07:00:00.000Z');
+  });
+});
+
+describe('schedule configuration time', () => {
+  const base = { scheduleEnabled: true, frequency: 'DAILY' as const, weekday: 1, time: '03:00' };
+  const stamp = '2026-03-01T10:00:00.000Z';
+  const now = new Date('2026-03-10T12:00:00Z');
+
+  it('is set when the schedule is switched on or its timing changes', () => {
+    const off = { ...base, scheduleEnabled: false };
+    expect(nextScheduleConfiguredAt(off, base, now)).toBe(now.toISOString());
+    expect(
+      nextScheduleConfiguredAt(
+        { ...base, scheduleConfiguredAt: stamp },
+        { ...base, time: '04:00' },
+        now,
+      ),
+    ).toBe(now.toISOString());
+    expect(
+      nextScheduleConfiguredAt(
+        { ...base, scheduleConfiguredAt: stamp },
+        { ...base, frequency: 'WEEKLY' },
+        now,
+      ),
+    ).toBe(now.toISOString());
+    expect(
+      nextScheduleConfiguredAt(
+        { ...base, frequency: 'WEEKLY', scheduleConfiguredAt: stamp },
+        { ...base, frequency: 'WEEKLY', weekday: 2 },
+        now,
+      ),
+    ).toBe(now.toISOString());
+  });
+
+  it('is kept on any other save and when the schedule is off', () => {
+    const current = { ...base, scheduleConfiguredAt: stamp };
+    expect(nextScheduleConfiguredAt(current, base, now)).toBe(stamp);
+    // the weekday does not matter for a daily schedule
+    expect(nextScheduleConfiguredAt(current, { ...base, weekday: 5 }, now)).toBe(stamp);
+    expect(nextScheduleConfiguredAt(current, { ...base, scheduleEnabled: false }, now)).toBe(stamp);
+    expect(
+      nextScheduleConfiguredAt(
+        { ...base, scheduleEnabled: false },
+        { ...base, scheduleEnabled: false },
+        now,
+      ),
+    ).toBeUndefined();
+  });
+
+  it('falls back to the last save of the settings for settings saved before', () => {
+    const saved = new Date('2026-02-01T00:00:00Z');
+    expect(scheduleConfiguredAtOf({ scheduleConfiguredAt: stamp }, saved)?.toISOString()).toBe(
+      stamp,
+    );
+    expect(scheduleConfiguredAtOf({}, saved)).toBe(saved);
+    expect(scheduleConfiguredAtOf({}, null)).toBeNull();
   });
 });
 

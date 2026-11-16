@@ -7,11 +7,12 @@ import {
   parsePageSize,
   type EventStatus,
 } from '@tix/shared';
-import { ArrowUpDown, ImageIcon, Plus } from 'lucide-react';
+import { ArrowUpDown, Download, ImageIcon, Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { AdminPagination } from '@/components/admin/admin-pagination';
 import { EventDuplicateDialog } from '@/components/admin/event-duplicate-dialog';
+import { EventImportDialog } from '@/components/admin/event-import-dialog';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ import { cn } from '@/lib/utils';
 import { MediaThumb } from '@/components/media-image';
 import { requireAdmin } from '@/server/auth';
 import { duplicateEventAction } from '@/server/admin/events';
-import { countEvents, listEvents } from '@/server/admin/queries';
+import { countEvents, listEvents, listVenuesWithPlanCount } from '@/server/admin/queries';
 
 export async function generateMetadata() {
   const t = await getTranslations('admin.events');
@@ -53,11 +54,12 @@ export default async function EventsPage({
   const filter = (EVENT_STATUSES as readonly string[]).includes(status ?? '')
     ? (status as EventStatus)
     : undefined;
-  const [t, ts, rows, total] = await Promise.all([
+  const [t, ts, rows, total, venues] = await Promise.all([
     getTranslations('admin.events'),
     getTranslations('admin.eventStatus'),
     listEvents({ status: filter, page, pageSize }),
     countEvents(filter),
+    listVenuesWithPlanCount(),
   ]);
 
   return (
@@ -67,6 +69,9 @@ export default async function EventsPage({
         description={t('description')}
         actions={
           <div className="flex gap-2">
+            <EventImportDialog
+              venues={venues.filter((v) => v.isActive).map((v) => ({ id: v.id, name: v.name }))}
+            />
             <Button asChild variant="outline">
               <Link href="/admin/events/shop-order">
                 <ArrowUpDown /> {t('shopOrder')}
@@ -164,7 +169,16 @@ export default async function EventsPage({
                         <SaleStateBadge state={computeSaleState(event)} />
                       </TableCell>
                       <TableCell>
-                        <div className="relative z-10">
+                        <div className="relative z-10 flex gap-2">
+                          <Button asChild variant="outline" size="sm">
+                            <a
+                              href={`/api/admin/events/${event.id}/export`}
+                              download
+                              title={t('transfer.exportTitle')}
+                            >
+                              <Download /> {t('transfer.export')}
+                            </a>
+                          </Button>
                           <EventDuplicateDialog
                             size="sm"
                             action={duplicateEventAction.bind(null, event.id)}

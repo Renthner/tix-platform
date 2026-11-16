@@ -1,6 +1,7 @@
 import { listTicketTemplates } from '@tix/core';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/admin/form-controls';
+import { TicketDesignImport } from '@/components/admin/ticket-designer/design-import';
 import {
   CreateLibraryTemplateForm,
   TemplateRowActions,
@@ -112,6 +113,11 @@ export default async function TicketTemplatesPage({
                 eventOwned: false,
               }))}
             />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <TicketDesignImport />
           </CardContent>
         </Card>
       </div>

@@ -21,6 +21,7 @@ import {
   findBackup,
   getSetting,
   hasSecretSetting,
+  nextScheduleConfiguredAt,
   requestBackup,
   requestProbe,
   requestReEncrypt,
@@ -184,7 +185,14 @@ export async function saveBackupSettingsAction(
 
   let saved: unknown;
   try {
-    saved = await saveSetting(core, 'backup', input, session.userId);
+    // The reference time of the missed / overdue alerts moves only when the schedule changes.
+    const scheduleConfiguredAt = nextScheduleConfiguredAt(current, parseSetting('backup', input));
+    saved = await saveSetting(
+      core,
+      'backup',
+      { ...input, ...(scheduleConfiguredAt ? { scheduleConfiguredAt } : {}) },
+      session.userId,
+    );
   } catch (err) {
     if (err instanceof z.ZodError) return fieldError(mapErrors(err));
     throw err;
