@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.35] - 2026-11-16
+
+### Added
+
+- **Load test: payment receipt.** After a load run created unpaid bank-transfer orders, `scripts/load/bank-statement.mjs` writes ONE bank statement (camt.053, CSV or MT940, optionally split into several files) that pays them in a realistic mix (exact, typo-ed references, underpaid within / beyond the tolerance, overpaid, unknown reference, name only, duplicate payment, unrelated debits) together with an `expected.json`, and `scripts/load/verify-reconciliation.mjs` watches the automatic reconciliation (matching, orders PAID, invoices, tickets, e-mails queued by the worker) through read-only SQL, prints a timeline and timings and checks the result per scenario. `scripts/load/open-orders.sql` exports the open orders. The expectations are proven against the real import and matching engine by an integration test for all three formats. Documented in docs/LOAD-TEST.md / .de.md ("Payment receipt under load").
+
+### Fixed
+
+- **Bank reconciliation misread a hyphen-less payment reference.** The engine searched the remittance text and the end-to-end id as one concatenated string, so a reference typed without hyphens that was followed by an end-to-end id starting with a letter read as a digit (`O Q D I L S B Z`, e.g. `D4711...`) or by other words (`...5 OL-99`, `...5Danke`) took that letter for the check digit; the Luhn check failed and a correct transfer landed in "Klärfälle" as unknown reference. The remittance text is now searched on its own, and the end-to-end id separately, only when the remittance holds no valid reference of the generated form (6-digit number). Token boundaries: a look-alike letter counts as check digit only when no letter or digit follows it, and a long digit string is not a reference. With a separator typed between year and number only the longest split is read (a mistyped extra digit never becomes the valid reference of another order and still goes to review with a "one edit" hint); when year and number are typed together the 6-digit form is tried first, then the other splits, and the reference as typed stays visible as an invalid entry. A run of 7-10 digits followed by a set-apart check digit (`TIX20268312426 2 Karten`) is never re-split (it cannot be told from a mistyped extra digit, so it becomes a review case; `TIX2026386416 5` with exactly 6 digits before the gap still matches). The "extracted reference" of a review case shows what the payer typed. Found by the bank statement load test.
+
 ## [1.0.0-alpha.34] - 2026-11-16
 
 ### Changed

@@ -406,3 +406,183 @@ Token 600 x 200 (als übersprungene Anfragen gezählt); nach **Deaktivieren** wu
 andere abgewiesen (120 x 200, dann 429); ein abgelaufener Lauf wird vom Worker innerhalb einer
 Sekunde mit einem `loadtest.expire`-Audit-Eintrag geschlossen; das Token steht weder in Redis noch im
 Audit-Log noch in den Logs.
+
+## Zahlungseingang unter Last
+
+Der Journey-Test füllt eine Testkopie mit unbezahlten Vorkasse-Bestellungen. Dieser Teil testet die
+andere Seite eines Vorverkaufs: **das Geld kommt an**. Ein Kontoauszug bezahlt hunderte dieser
+Bestellungen in einer realistischen Mischung, und du misst und prüfst den automatischen Zahlungsabgleich:
+Matching-Engine -> Bestellungen `PAID` -> Rechnungen, Tickets und vom Worker eingereihte E-Mails. Reines
+Node, keine Abhängigkeiten:
+
+| Werkzeug                                 | Zweck                                                                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `scripts/load/open-orders.sql`           | Export der offenen Bestellungen (`\copy ... to stdout`)                                                            |
+| `scripts/load/bank-statement.mjs`        | schreibt den Kontoauszug (camt.053, CSV oder MT940) und `<out>.expected.json` mit dem erwarteten Ergebnis          |
+| `scripts/load/verify-reconciliation.mjs` | fragt die Datenbank ab (nur lesende SELECTs), zeigt Zeitverlauf und Zeiten, prüft das Ergebnis gegen expected.json |
+
+**Nur auf einer Testkopie.** Der Lauf bezahlt Bestellungen wirklich: Rechnungsnummern werden verbraucht
+(lückenlos, GoBD-unveränderlich), Tickets werden ausgestellt, E-Mails eingereiht. Niemals in Produktion.
+Auf der Kopie einen SMTP-Sink (oder SMTP aus) verwenden, sonst gehen die E-Mails des Workers an
+`load-...@example.invalid`.
+
+#### Ablauf
+
+1. **Bestellungen erzeugen** mit dem Journey-Test auf der Testkopie (siehe oben), zum Beispiel
+   `node scripts/load/journey.mjs --target ... --event-id ... --yes --checkout-ratio 0.3 --allow-orders`.
+   Exportiert werden nur Bestellungen mit `AWAITING_PAYMENT` / `BANK_TRANSFER`; anders bezahlte gehören nicht
+   zu diesem Test. Unbezahlte Bestellungen werden standardmäßig nach 8 Tagen automatisch storniert
+   (Einstellungen -> Zahlungen), eine stornierte Bestellung ist `ORDER_NOT_PAYABLE`; den Auszugstest also am
+   selben Tag laufen lassen.
+2. **Toleranz des Abgleichs setzen.** Der Generator geht von `--tolerance-cents 50` aus (Standard). Setze
+   denselben Wert unter Einstellungen -> Zahlungen -> Überweisung ("Toleranz bei der Zuordnung", in Euro: 0,50) oder
+   übergib den Wert des Ziels (der Standard des Shops ist 0; mit `--tolerance-cents 0` werden die
+   Buchungen "knapp unterzahlt" zu Klärfällen wegen Unterzahlung, und die Erwartung sagt das auch).
+   `verify-reconciliation.mjs` liest die Einstellung aus der Datenbank und schlägt bei der Prüfung "matching
+   tolerance of the target equals the generator setting" fehl, wenn die Werte abweichen.
+3. **Offene Bestellungen exportieren** (Referenz, offener Betrag in Cent, Währung, Käufername, Bestellnummer):
+
+   ```sh
+   # über Docker, bash / cmd
+   docker exec -i <postgres-container> psql -U tix -d tix < scripts/load/open-orders.sql > orders.csv
+   # über Docker, PowerShell
+   Get-Content scripts/load/open-orders.sql | docker exec -i <postgres-container> psql -U tix -d tix | Set-Content -Encoding utf8 orders.csv
+   # lokales psql
+   psql "$DATABASE_URL" -f scripts/load/open-orders.sql > orders.csv
+   ```
+
+   Die Abfrage in `open-orders.sql` (dort muss sie in einer Zeile stehen, weil `\copy` nichts anderes erlaubt):
+
+   ```sql
+   select o.payment_reference as reference,
+          o.total_gross - o.amount_paid as amount_cents,   -- offen, nicht der Gesamtbetrag
+          o.currency,
+          btrim(o.first_name || ' ' || o.last_name) as payer_name,
+          o.order_number
+   from orders o
+   where o.status = 'AWAITING_PAYMENT' and o.payment_method = 'BANK_TRANSFER'
+     and o.payment_reference is not null and not o.is_test   -- Testbestellungen werden nie automatisch verbucht
+   order by o.created_at, o.order_number
+   ```
+
+4. **Kontoauszug erzeugen.**
+
+   ```sh
+   node scripts/load/bank-statement.mjs --orders orders.csv --format camt053 --out bank-statement.xml \
+     --account-iban DE89370400440532013000 --seed 1 --split-files 3
+   ```
+
+   | Option                         | Bedeutung                                                                                                                                                                                   |
+   | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `--format camt053\|csv\|mt940` | camt.053.001.08-XML (Standard), CSV mit Semikolon im Layout deutscher Online-Banking-Exporte oder MT940 mit `?xx`-Unterfeldern                                                              |
+   | `--out <file>`                 | Auszugsdatei; daneben entsteht `<out>.expected.json` (mit `--split-files K`: `<name>-1ofK.<ext>` ... und eine Expected-Datei)                                                               |
+   | `--account-iban <iban>`        | IBAN des Bankkontos, für das die Datei gilt (Standard: die Dokumentations-IBAN `DE89 3704 0044 0532 0130 00`); muss gültige Prüfziffern haben                                               |
+   | `--date YYYY-MM-DD`            | Buchungs- und Valutadatum, Standard heute; nicht vor dem Anlegen der Bestellungen (die Engine zieht nur Bestellungen als Kandidaten heran, die vor Buchungsdatum + 2 Tagen angelegt wurden) |
+   | `--mix exact=82,fuzzy=6,...`   | Prozent der Bestellungen je Szenario (unten); der Rest bleibt unbezahlt                                                                                                                     |
+   | `--seed N`, `--limit N`        | deterministische Ausgabe; nur die ersten N Bestellungen verwenden                                                                                                                           |
+   | `--split-files K`              | K Auszüge (um mehrere Importe zu testen); die beiden Zahlungen eines Doppelzahlers bleiben immer in einer Datei                                                                             |
+   | `--tolerance-cents C`          | die Abgleich-Toleranz des Ziels (Standard 50)                                                                                                                                               |
+   | `--head N`                     | die ersten N Zeilen jeder Datei ausgeben                                                                                                                                                    |
+
+   Die Gegenseiten bekommen deterministische Beispiel-IBANs mit gültigen Prüfziffern. Jede Buchung trägt eine
+   eindeutige End-to-End-Id `KT<runId>-<n>`; sie identifiziert die Banktransaktionen des Laufs in der Datenbank
+   (und beginnt mit einem Buchstaben, den die Engine nicht für eine Ziffer hält, siehe "Einschränkungen").
+
+5. **Importieren** unter Admin -> Bank & Zahlungen ("Kontoauszüge hochladen"): das Bankkonto wählen, **dessen IBAN die
+   Datei nennt**, und die Datei(en) hochladen; mehrere Dateien auf einmal gehen. Der Import gehört zum
+   gewählten Konto: Eine Datei mit einer anderen, gültigen IBAN wird mit "belongs to another account"
+   abgelehnt; übergib deshalb die IBAN des Kontos, in das du importierst, als `--account-iban`. Der Upload
+   nutzt das Datei-Import-Profil des Kontos: Ein dort eingestellter Formathinweis oder eine CSV-Spaltenzuordnung
+   überstimmt die automatische Erkennung und kann das erzeugte CSV ablehnen (zurücksetzen oder camt053
+   verwenden). **Der Abgleich läuft innerhalb der Upload-Anfrage**, Buchung für Buchung: Bei hunderten
+   Buchungen `--split-files` verwenden, damit eine Anfrage nicht in ein Proxy-Timeout läuft. Wird eine Anfrage
+   abgebrochen, gleicht das Sicherheitsnetz des Workers Buchungen nach 60 s nach, die noch nicht zugeordnet sind.
+6. **Prüfen** (kann schon vor dem Import gestartet werden):
+
+   ```sh
+   node scripts/load/verify-reconciliation.mjs --expected bank-statement.xml.expected.json \
+     --psql-cmd "docker exec -i <postgres-container> psql -U tix -d tix -At" \
+     --wait 10m --interval 5s --out reconciliation-result.json \
+     --logs-cmd "docker logs --since 20m <app-container>"
+   ```
+
+   `--psql-cmd` wird über die Shell gestartet und liest SQL von der Standardeingabe; alles, was eine
+   nicht-interaktive psql-Sitzung liefert, geht, zum Beispiel `ssh host docker exec -i <postgres-container> psql -U tix -d tix -At`.
+   Ergebniszeilen erkennt das Werkzeug am Präfix `TIXV:`, das Ausgabeformat von psql ist also egal. Gesendet
+   werden nur `SELECT`-Anweisungen (vor dem Senden geprüft, dazu `set default_transaction_read_only = on`).
+   Keine Passwörter in die Argumente (Container, `PGPASSWORD` oder `.pgpass` verwenden). Mit
+   `--skip-fulfillment` entfallen die Prüfungen auf Rechnung / Tickets / E-Mail, wenn kein Worker läuft.
+
+#### Szenarien und erwartetes Ergebnis
+
+Das sind die Regeln der Matching-Engine (`packages/core/src/banking/matching.ts`). Der Integrationstest
+`packages/core/test/bank-statement-tool.integration.test.ts` lässt für alle drei Formate den Generator, den
+echten Import und den echten Matcher laufen und prüft genau das.
+
+| Szenario (Standard-%) | Buchung                                                                                       | Erwartet                                                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `exact` (82)          | Referenz + genauer offener Betrag                                                             | `AUTO_MATCHED`, Bestellung `PAID`, eine Zahlung, eine AUTO-Zuordnung, Rechnung, Tickets, E-Mail                            |
+| `fuzzy` (6)           | Referenz klein geschrieben / mit Leerzeichen / `O` statt `0` / ohne Bindestriche / kombiniert | wie `exact`                                                                                                                |
+| `underWithin` (2)     | offener Betrag minus bis zur Toleranz                                                         | `AUTO_MATCHED`, Bestellung `PAID` (Fehlbetrag ausgebucht, `amount_paid` = erhaltenes Geld)                                 |
+| `underBeyond` (2)     | weniger als offen minus Toleranz                                                              | Klärfall `UNDERPAYMENT`, keine Zahlung, Bestellung bleibt `AWAITING_PAYMENT`                                               |
+| `over` (2)            | mehr als offen plus Toleranz                                                                  | Klärfall `OVERPAYMENT`, keine Zahlung, Bestellung bleibt offen                                                             |
+| `unknown` (2)         | wohlgeformte Referenz eines Jahres ohne Bestellungen (1999)                                   | Klärfall `UNKNOWN_REFERENCE`; die Bestellung dieses Platzes bleibt unbezahlt                                               |
+| `nameOnly` (1)        | keine Referenz, Zahlername = Käufer                                                           | Klärfall `NAME_MATCH_ONLY` (Name mindestens 3 Zeichen, ähnlich einem offenen Käufer), sonst `NO_REFERENCE`                 |
+| `duplicate` (1)       | dieselbe Bestellung doppelt bezahlt (zwei identische Buchungen)                               | eine `AUTO_MATCHED` (Bestellung `PAID`, genau eine Zahlung) und ein Klärfall `OVERPAYMENT`; welche zuerst kommt, ist offen |
+| `debit` (1)           | eine Belastung (DBIT), die die Referenz einer Bestellung nennt, plus 1 % fremde Belastungen   | `IGNORED`; die Bestellung bleibt `AWAITING_PAYMENT`                                                                        |
+| Rest                  | keine Buchung                                                                                 | bleibt `AWAITING_PAYMENT`                                                                                                  |
+
+Die Prozentwerte werden nach dem Largest-Remainder-Verfahren gerundet (die Anzahlen ergeben genau N); jedes
+Szenario mit einem Anteil über 0 bekommt mindestens eine Buchung, wenn N das zulässt.
+
+#### Was gemessen wird und wie man es liest
+
+- **Zeitverlauf** (jede Abfrage): Banktransaktionen nach Status (`U`nmatched / `A`uto / `M`anuell / `N`eeds
+  review / `I`gnored), Bestellungen `PAID` / `AWAITING_PAYMENT`, Zahlungen, Rechnungen, gültige Tickets und
+  E-Mails (queued / sent / failed). Die Abfrage endet, wenn alle Buchungen importiert und zugeordnet sind,
+  sich `--stable-polls` Abfragen lang (Standard 3) nichts geändert hat und der Worker für jede bezahlte
+  Bestellung Rechnung und Zahlungs-E-Mail erzeugt hat (tut er das nie: nach viermal so vielen ruhigen Abfragen).
+- **Zeiten** ab der ersten importierten Banktransaktion: letzte Zahlung gebucht (die Abgleichsphase, mit
+  Bestellungen pro Sekunde), letzte Rechnung, letztes Ticket, letzte Zahlungs-E-Mail eingereiht. Sie nutzen
+  `created_at` der Zeilen (`orders.paid_at` ist das Buchungsdatum, nicht der Verarbeitungszeitpunkt). Der
+  Abstand zwischen "letzte Zahlung" und "letzte Rechnung / Ticket / E-Mail" ist der Rückstau des Workers.
+- **Pro Szenario PASS / FAIL** mit bis zu fünf Beispielen je Prüfung: Bestellstatus, `amount_paid`,
+  verbuchte Zahlungen (genau eine je bezahlter Bestellung), Zuordnung je Zahlung, keine Nebenwirkungen bei
+  unbezahlten Bestellungen, Rechnung (genau eine), Tickets, Zahlungs-E-Mail, Transaktionsstatus, bei
+  Doppelzahlung genau eine Zahlung und ein Klärfall.
+- **Globale Invarianten:** keine Bestellung doppelt bezahlt, Summe `amount_paid` = Summe der Zahlungen =
+  Summe der Zuordnungen, keine `UNMATCHED`-Buchungen übrig, alle erwarteten Buchungen importiert, keine
+  Bestellung zu einer Belastung oder unbekannten Referenz `PAID`.
+- `--logs-cmd` zählt Logzeilen mit Level >= 50 (oder dem Wort "error") und nennt die häufigsten Meldungen.
+  Ein gesunder Lauf hat keine, die den Lauf betreffen.
+- Der Exit-Code ist 0, wenn alles bestanden und der Zustand zur Ruhe gekommen ist, sonst 1. `--out`
+  schreibt das ganze Ergebnis (Zeitverlauf, Prüfungen, Zeiten) als JSON; die letzte Ausgabezeile
+  `TIXV-SUMMARY {...}` ist maschinenlesbar.
+
+#### Einschränkungen
+
+- **Referenz-Erkenner (in dieser Version behoben, Regel v3).** Eine frühere Engine durchsuchte Verwendungszweck
+  und End-to-End-Id als einen zusammengesetzten Text. Eine ohne Bindestriche getippte Referenz, gefolgt von
+  einer End-to-End-Id, die mit einem der Buchstaben `O Q D I L S B Z` beginnt (oder von weiteren Wörtern), wurde
+  falsch gelesen: Der Buchstabe galt als Prüfziffer, und die Überweisung wurde `UNKNOWN_REFERENCE` (dieser
+  Test hat das mit Ids gefunden, die mit `LT` begannen). Jetzt: (1) Der Verwendungszweck wird für sich
+  durchsucht, und nur wenn er keine gültige Referenz in der erzeugten Form (6-stellige Nummer) enthält, wird
+  die End-to-End-Id getrennt durchsucht. (2) Wortgrenzen: Ein ähnlich aussehender Buchstabe zählt nur dann als
+  Prüfziffer, wenn kein Buchstabe oder keine Ziffer folgt; auf eine Prüfziffer folgt keine weitere Ziffer.
+  (3) Wurde zwischen Jahr und Nummer ein Trennzeichen getippt, zählt nur die längste Aufteilung, sodass eine
+  versehentlich eingetippte zusätzliche Ziffer nie zur gültigen Referenz einer anderen Bestellung wird; sie
+  landet mit dem Hinweis „eine Abweichung“ im Klärfall. (4) Jahr und Nummer zusammen getippt
+  (`TIX2026NNNNNNC`): Zuerst wird die 6-stellige Form versucht, danach die übrigen Aufteilungen auf eine
+  gültige Prüfziffer; die getippte Aufteilung bleibt als ungültiger Eintrag sichtbar. Ausnahme: Eine Folge von 7-10
+  Ziffern mit abgesetzter Prüfziffer (`TIX20268312426 2 Karten`) lässt sich nicht von einer versehentlich
+  eingetippten zusätzlichen Ziffer unterscheiden und wird nie neu aufgeteilt, sie wird zum Klärfall (eine
+  Schreibweise wie `TIX2026386416 5` mit genau 6 Ziffern vor der Lücke wird weiterhin zugeordnet). Der Generator beginnt
+  seine Ids weiterhin mit `KT` und setzt die Referenz ans Ende des Verwendungszwecks; das ist unschädlich.
+- Rechnungsnummern werden verbraucht und Tickets ausgestellt: nur auf einer Testkopie; ein Wiederherstellungspunkt
+  vor dem Lauf macht das Aufräumen leicht.
+- Das Werkzeug beurteilt die Datenbank, nicht die Zustellung der E-Mails: Bei abgeschaltetem SMTP-Sink bleiben
+  sie `QUEUED` oder werden `FAILED`; die Prüfung verlangt nur, dass sie eingereiht sind.
+- Die Erwartung setzt voraus, dass die Bestellungen zwischen Export und Prüfung unberührt bleiben (keine
+  manuellen Zahlungen, keine Stornierung durch das Mahnwesen).
+- Dieselbe Datei erneut zu importieren wird als doppelte Datei (SHA-256) abgelehnt; für einen weiteren Lauf einen
+  neuen Auszug erzeugen (anderer `--seed` oder frische Bestellungen).

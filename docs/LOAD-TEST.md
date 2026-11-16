@@ -395,6 +395,179 @@ token 600 x 200 (counted as bypassed requests); after **Disable** the token was 
 other (120 x 200, then 429); an expired run is closed by the worker with a `loadtest.expire`
 audit entry within a second; the token appears neither in Redis, the audit log nor the logs.
 
+### Payment receipt under load
+
+The journey test fills a test copy with unpaid bank-transfer (Vorkasse) orders. This part tests the
+other side of a presale: **the money arrives**. One bank statement pays hundreds of those orders in a
+realistic mix, and you measure and verify the automatic reconciliation: matching engine -> orders
+`PAID` -> invoices, tickets and e-mails queued by the worker. Plain Node, no dependencies:
+
+| Tool                                     | Purpose                                                                                                        |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `scripts/load/open-orders.sql`           | the export of the open orders (`\copy ... to stdout`)                                                          |
+| `scripts/load/bank-statement.mjs`        | writes the statement (camt.053, CSV or MT940) and `<out>.expected.json` with the expected outcome              |
+| `scripts/load/verify-reconciliation.mjs` | polls the database (read-only SELECTs), prints a timeline and timings, checks the result against expected.json |
+
+**Test copy only.** The run pays orders for real: invoice numbers are consumed (gapless, GoBD
+immutable), tickets are issued, e-mails are queued. Never run it on production. Use an SMTP sink (or
+SMTP off) on the copy; the worker's e-mails would otherwise go to `load-...@example.invalid`.
+
+#### Procedure
+
+1. **Create the orders** with the journey test on the test copy (see above), for example
+   `node scripts/load/journey.mjs --target ... --event-id ... --yes --checkout-ratio 0.3 --allow-orders`.
+   Only `AWAITING_PAYMENT` / `BANK_TRANSFER` orders are exported; orders paid another way are not part of
+   this test. Unpaid orders are cancelled automatically after 8 days by default (Settings -> Payments), and a
+   cancelled order is `ORDER_NOT_PAYABLE`, so run the statement test the same day.
+2. **Set the matching tolerance.** The generator assumes `--tolerance-cents 50` (default). Set the same
+   value in Settings -> Payments -> Bank transfer ("Matching tolerance", entered in euros: 0.50), or pass the value the
+   target has (the shop's own default is 0; with `--tolerance-cents 0` the "underpaid within tolerance"
+   bookings become underpayment review cases and the expectation says so). `verify-reconciliation.mjs`
+   reads the setting from the database and fails the check "matching tolerance of the target equals the
+   generator setting" when they differ.
+3. **Export the open orders** (reference, outstanding amount in cents, currency, buyer name, order number):
+
+   ```sh
+   # via docker, bash / cmd
+   docker exec -i <postgres-container> psql -U tix -d tix < scripts/load/open-orders.sql > orders.csv
+   # via docker, PowerShell
+   Get-Content scripts/load/open-orders.sql | docker exec -i <postgres-container> psql -U tix -d tix | Set-Content -Encoding utf8 orders.csv
+   # local psql
+   psql "$DATABASE_URL" -f scripts/load/open-orders.sql > orders.csv
+   ```
+
+   The query inside `open-orders.sql` (it must stay on one line there, because `\copy` allows nothing else):
+
+   ```sql
+   select o.payment_reference as reference,
+          o.total_gross - o.amount_paid as amount_cents,   -- outstanding, not the total
+          o.currency,
+          btrim(o.first_name || ' ' || o.last_name) as payer_name,
+          o.order_number
+   from orders o
+   where o.status = 'AWAITING_PAYMENT' and o.payment_method = 'BANK_TRANSFER'
+     and o.payment_reference is not null and not o.is_test   -- test orders are never settled
+   order by o.created_at, o.order_number
+   ```
+
+4. **Generate the statement.**
+
+   ```sh
+   node scripts/load/bank-statement.mjs --orders orders.csv --format camt053 --out bank-statement.xml \
+     --account-iban DE89370400440532013000 --seed 1 --split-files 3
+   ```
+
+   | Option                         | Meaning                                                                                                                                                                      |
+   | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `--format camt053\|csv\|mt940` | camt.053.001.08 XML (default), semicolon CSV in the German online-banking layout, or MT940 with `?xx` sub-fields                                                             |
+   | `--out <file>`                 | statement file; `<out>.expected.json` is written next to it (with `--split-files K`: `<name>-1ofK.<ext>` ... and one expected file)                                          |
+   | `--account-iban <iban>`        | IBAN of the bank account the file is for (default: the documentation IBAN `DE89 3704 0044 0532 0130 00`); must have valid check digits                                       |
+   | `--date YYYY-MM-DD`            | booking and value date, default today; not earlier than the creation of the orders (the engine only considers orders created before the booking date + 2 days as candidates) |
+   | `--mix exact=82,fuzzy=6,...`   | percent of the orders per scenario (below); the remainder stays unpaid                                                                                                       |
+   | `--seed N`, `--limit N`        | deterministic output; use only the first N orders                                                                                                                            |
+   | `--split-files K`              | K statements (to test several imports); the two payments of a duplicate always stay in one file                                                                              |
+   | `--tolerance-cents C`          | the matching tolerance of the target (default 50)                                                                                                                            |
+   | `--head N`                     | print the first N lines of each file                                                                                                                                         |
+
+   The counterparties get deterministic example IBANs with valid check digits. Every booking carries a
+   unique end-to-end id `KT<runId>-<n>`; it identifies the run's bank transactions in the database (and
+   starts with a letter the engine does not take for a digit, see "Caveats").
+
+5. **Import it** in Admin -> Bank & payments ("Upload statement files"): select the bank account **whose IBAN the file
+   names** and upload the file(s); several files at once are fine. The import is tied to the selected
+   account: a file naming a different, valid IBAN is refused with "belongs to another account", so pass the
+   IBAN of the account you import into as `--account-iban`. The upload uses the account's file-import
+   profile: a configured format hint or CSV column mapping overrides auto-detection and can reject the
+   generated CSV (clear it, or use camt053). **Matching runs inside the upload request**, one booking
+   after the other: with hundreds of bookings use `--split-files` so that a request does not run into a
+   proxy timeout. If a request is cut off, the worker's safety net matches bookings that are still unmatched
+   after 60 s.
+6. **Verify** (it can be started before the import):
+
+   ```sh
+   node scripts/load/verify-reconciliation.mjs --expected bank-statement.xml.expected.json \
+     --psql-cmd "docker exec -i <postgres-container> psql -U tix -d tix -At" \
+     --wait 10m --interval 5s --out reconciliation-result.json \
+     --logs-cmd "docker logs --since 20m <app-container>"
+   ```
+
+   `--psql-cmd` is started through the shell and reads SQL on its standard input; anything that gives a
+   non-interactive psql session works, for example `ssh host docker exec -i <postgres-container> psql -U tix -d tix -At`.
+   Result lines are recognised by the prefix `TIXV:`, so psql's output format does not matter. Only `SELECT`
+   statements are sent (checked before sending, plus `set default_transaction_read_only = on`). Put no
+   passwords into the arguments (use the container, `PGPASSWORD` or `.pgpass`). Add `--skip-fulfillment` when
+   no worker runs (the invoice / ticket / e-mail checks are then skipped).
+
+#### Scenarios and expected outcomes
+
+These are the rules of the matching engine (`packages/core/src/banking/matching.ts`). The integration test
+`packages/core/test/bank-statement-tool.integration.test.ts` runs the generator, the real import and the real
+matcher for all three formats and asserts exactly this.
+
+| Scenario (default %) | Booking                                                                          | Expected                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `exact` (82)         | reference + exact outstanding amount                                             | `AUTO_MATCHED`, order `PAID`, one payment, one AUTO allocation, invoice, tickets, e-mail                           |
+| `fuzzy` (6)          | reference in lower case / with spaces / `O` for `0` / without hyphens / combined | the same as `exact`                                                                                                |
+| `underWithin` (2)    | outstanding amount minus up to the tolerance                                     | `AUTO_MATCHED`, order `PAID` (shortfall written off, `amount_paid` = the money received)                           |
+| `underBeyond` (2)    | less than outstanding minus tolerance                                            | review `UNDERPAYMENT`, no payment, order stays `AWAITING_PAYMENT`                                                  |
+| `over` (2)           | more than outstanding plus tolerance                                             | review `OVERPAYMENT`, no payment, order stays open                                                                 |
+| `unknown` (2)        | well-formed reference of a year without orders (1999)                            | review `UNKNOWN_REFERENCE`; the order slot stays unpaid                                                            |
+| `nameOnly` (1)       | no reference, payer name = buyer                                                 | review `NAME_MATCH_ONLY` (name of at least 3 characters, similar to an open buyer), else `NO_REFERENCE`            |
+| `duplicate` (1)      | the same order paid twice (two identical bookings)                               | one `AUTO_MATCHED` (order `PAID`, exactly one payment) and one review `OVERPAYMENT`; which one comes first is open |
+| `debit` (1)          | a debit (DBIT) that mentions an order's reference, plus 1 % unrelated debits     | `IGNORED`; the order stays `AWAITING_PAYMENT`                                                                      |
+| rest                 | no booking                                                                       | stays `AWAITING_PAYMENT`                                                                                           |
+
+The percentages are rounded with the largest-remainder method (the counts add up to N exactly); every
+scenario with a share above 0 gets at least one booking when N allows it.
+
+#### What is measured and how to read it
+
+- **Timeline** (every poll): bank transactions by status (`U`nmatched / `A`uto / `M`anual / `N`eeds
+  review / `I`gnored), orders `PAID` / `AWAITING_PAYMENT`, payments, invoices, valid tickets and e-mails
+  (queued / sent / failed). Polling ends when all bookings are imported and matched, nothing changed for
+  `--stable-polls` polls (default 3) and the worker has produced an invoice and a payment e-mail for every
+  paid order (if it never does: after four times as many quiet polls).
+- **Timings** from the first imported bank transaction: last payment booked (the matching phase, with
+  orders per second), last invoice, last ticket issued, last payment e-mail queued. They use the rows'
+  `created_at` (`orders.paid_at` is the booking date, not the processing time). The gap between "last
+  payment" and "last invoice / ticket / e-mail" is the backlog of the worker.
+- **Per scenario PASS / FAIL** with up to five sample failures per check: order status, `amount_paid`,
+  captured payments (exactly one per paid order), allocation per payment, no side effects on unpaid
+  orders, invoice (exactly one), tickets, payment e-mail, transaction status, one-pays-one-reviews for the
+  duplicate.
+- **Global invariants:** no order paid twice, sum of `amount_paid` = sum of payments = sum of allocations,
+  no `UNMATCHED` bookings left, all expected bookings imported, no debit or unknown-reference order `PAID`.
+- `--logs-cmd` counts log lines with level >= 50 (or the word "error") and lists the most frequent
+  messages. A healthy run has none that concern the run.
+- The exit code is 0 when everything passed and the state settled, 1 otherwise. `--out` writes the whole
+  result (timeline, checks, timings) as JSON; the last output line `TIXV-SUMMARY {...}` is machine readable.
+
+#### Caveats
+
+- **Reference extractor (fixed in this version, rule v3).** An earlier engine searched the remittance text and
+  the end-to-end id as one concatenated string. A reference typed without hyphens followed by an end-to-end id
+  starting with one of the letters `O Q D I L S B Z` (or by other words) was misread: the letter was taken for
+  the check digit, and the transfer became `UNKNOWN_REFERENCE` (this test found it with ids starting with
+  `LT`). Now: (1) the remittance text is searched on its own, and only when it holds no valid reference in the
+  generated form (6-digit number) is the end-to-end id searched separately. (2) Token boundaries: a look-alike
+  letter only counts as check digit when no letter or digit follows it; a check digit is not followed by
+  another digit. (3) When a separator was typed between year and number, only the longest split counts, so a
+  mistyped extra digit never turns into the valid reference of another order; it goes to review with a
+  "one edit" hint. (4) Year and number typed together (`TIX2026NNNNNNC`): the 6-digit form is tried first,
+  then the other splits for a valid check digit; the split as typed stays visible as an invalid entry.
+  Exception: a run of 7-10 digits followed by a set-apart check digit (`TIX20268312426 2 Karten`)
+  cannot be told from a mistyped extra digit and is never re-split, so it becomes a review case
+  (a spelling like `TIX2026386416 5` with exactly 6 digits before the gap still matches). The
+  generator still starts its ids with `KT` and puts the reference last in the remittance; that is harmless.
+- Invoice numbers are consumed and tickets are issued: use a test copy only; a restore point before the
+  run makes cleaning up easy.
+- The tool judges the database, not the delivery of e-mails: with the SMTP sink off they stay `QUEUED` or
+  go `FAILED`; the check only needs them to be queued.
+- The expectation assumes the orders are untouched between export and verification (no manual payments,
+  no cancellation by the dunning job).
+- Importing the same file again is refused as a duplicate file (SHA-256); generate a new statement (another
+  `--seed`, or fresh orders) for another run.
+
 ## Part B - isolated stack with invariant checks
 
 `scripts/load/run.mjs` is a self-contained runner plus invariant checker. It starts an **isolated copy of

@@ -10,6 +10,7 @@ import {
 } from '@tix/db';
 import {
   extractPaymentReferences,
+  PAYMENT_REFERENCE_NUMBER_DIGITS,
   type AllocationMethod,
   type BankTxMatchStatus,
   type BankTxReviewReason,
@@ -197,9 +198,28 @@ function outcome(
   };
 }
 
-/** Text searched for references: remittance information and end-to-end id. */
-export function referenceText(tx: Pick<TxRow, 'remittanceInformation' | 'endToEndId'>): string {
-  return [tx.remittanceInformation, tx.endToEndId].filter(Boolean).join(' ');
+/**
+ * References of a transaction. The remittance text is searched on its own; only when it holds
+ * no valid reference in the generated form (6-digit number), the end-to-end id is searched
+ * separately (alone). A valid look-alike with another number length never suppresses that
+ * fallback. The two texts are never concatenated, so the characters of one cannot be glued onto
+ * the other.
+ */
+export function transactionReferences(
+  tx: Pick<TxRow, 'remittanceInformation' | 'endToEndId'>,
+  prefixes: readonly string[],
+): ParsedPaymentReference[] {
+  const fromRemittance = extractPaymentReferences(tx.remittanceInformation, prefixes);
+  const generatedForm = new RegExp(`^[A-Z]+-\\d{4}-\\d{${PAYMENT_REFERENCE_NUMBER_DIGITS}}-\\d$`);
+  if (fromRemittance.some((r) => r.checksumValid && generatedForm.test(r.reference)))
+    return fromRemittance;
+  const known = new Set(fromRemittance.map((r) => r.reference));
+  const fromEndToEnd = extractPaymentReferences(tx.endToEndId, prefixes).filter(
+    (r) => !known.has(r.reference),
+  );
+  return [...fromRemittance, ...fromEndToEnd].sort(
+    (a, b) => Number(b.checksumValid) - Number(a.checksumValid),
+  );
 }
 
 /** Instant used as payment date: booking date (noon UTC), never in the future. */
@@ -277,9 +297,8 @@ async function matchLocked(
 
   const settings = await getSetting(ctx, 'bankTransfer');
   const tolerance = settings.autoMatchToleranceCents;
-  const refs = extractPaymentReferences(referenceText(tx), [settings.paymentReferencePrefix]);
+  const refs = transactionReferences(tx, [settings.paymentReferencePrefix]);
   const validRefs = refs.filter((r) => r.checksumValid).map((r) => r.reference);
-  const extractedReference = refs[0]?.reference ?? null;
   const referenced: OrderInfo[] = validRefs.length
     ? await ctx.db
         .select(orderColumns)
@@ -300,6 +319,18 @@ async function matchLocked(
         .innerJoin(orders, eq(orders.id, orderAdjustments.orderId))
         .where(inArray(orderAdjustments.paymentReference, validRefs))
     : [];
+
+  // What is stored as "extracted reference": the one that hit an order, otherwise what the payer
+  // typed (an invalid entry wins over a valid look-alike found by the tolerant retry).
+  const hit = new Set([
+    ...referenced.map((o) => o.paymentReference),
+    ...referencedAdjustments.map((a) => a.adjustment.paymentReference),
+  ]);
+  const extractedReference =
+    refs.find((r) => r.checksumValid && hit.has(r.reference))?.reference ??
+    refs.find((r) => !r.checksumValid)?.reference ??
+    refs[0]?.reference ??
+    null;
 
   const review = async (
     reason: BankTxReviewReason,
