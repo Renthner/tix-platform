@@ -10,13 +10,13 @@ fees.**
 ![Platforms](https://img.shields.io/badge/platforms-linux%2Famd64%20%7C%20linux%2Farm64-lightgrey)
 ![Android](https://img.shields.io/badge/check--in%20app-Android%208%2B-3ddc84)
 
-English | [Deutsch](README.de.md)
+English | [Deutsch](docs/de/README.md)
 
 <p align="center">
   <img src="docs/img/shop-event.webp" alt="Event page of the ticket shop" width="900">
 </p>
 
-> **Status:** pre-release (`1.0.0-alpha.33`). Feature-complete, but not yet declared stable. Take a
+> **Status:** pre-release (`1.0.0-alpha.34`). Feature-complete, but not yet declared stable. Take a
 > backup before every update (a database backup is also taken automatically before schema changes)
 > and read the [CHANGELOG](CHANGELOG.md). Update with the `tix-update.sh` script of the release
 > ([install guide](docs/INSTALL.md#updating-and-backups)).
@@ -111,7 +111,7 @@ and troubleshooting is [docs/INSTALL.md](docs/INSTALL.md).
 
 ```bash
 # 1. Download the two files of the release
-export TIX_VERSION=1.0.0-alpha.33
+export TIX_VERSION=1.0.0-alpha.34
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -181,7 +181,7 @@ or from your own server. Details: [apps/android/README.md](apps/android/README.m
 | [docs/RELEASES.md](docs/RELEASES.md)         | Versions, channels, verifying downloads           |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the system is built                           |
 | [CHANGELOG.md](CHANGELOG.md)                 | What changed in each release                      |
-| [CONTRIBUTING.md](CONTRIBUTING.md)           | How to contribute                                 |
+| [CONTRIBUTING.md](.github/CONTRIBUTING.md)   | How to contribute                                 |
 
 ## Development
 
@@ -196,7 +196,7 @@ pnpm db:demo                # optional: demo venue + event on sale (/events/demo
 pnpm dev                    # web :3000, realtime gateway :3001, worker
 ```
 
-Full stack from source: `cp .env.example .env`, fill in the secrets, then
+Full stack from source: `cp docker/dev.env.example .env`, fill in the secrets, then
 `docker compose up -d --build` (shop on `http://localhost:8080`).
 
 | Command                                 | Description                                                                                                                            |
@@ -240,4 +240,4 @@ This is not an OSI-approved open-source license, because it restricts competing 
 
 ## Security
 
-Please report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
+Please report vulnerabilities privately, see [SECURITY.md](.github/SECURITY.md).

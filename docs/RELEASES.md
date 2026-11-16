@@ -16,7 +16,7 @@ MAJOR.MINOR.PATCH-beta.N         beta                 1.0.0-beta.2
 MAJOR.MINOR.PATCH-rc.N           release candidate    1.0.0-rc.1
 ```
 
-The root `VERSION` file is the single source of truth. `scripts/release/set-version.mjs` copies it
+The `scripts/release/VERSION` file is the single source of truth. `scripts/release/set-version.mjs` copies it
 into every `package.json`, `packages/shared/src/version.ts` (shown in the admin sidebar, in
 `GET /api/health` and in the worker / realtime start log) and `apps/android/gradle.properties`.
 CI fails when these drift apart (`node scripts/release/set-version.mjs --check`).
@@ -38,16 +38,16 @@ must be at most 99, N between 1 and 49 (alpha) or 1 and 19 (beta, rc); the scrip
 1. Add the new section to `CHANGELOG.md` (`## [1.0.0-alpha.2] - YYYY-MM-DD`); the release body is
    taken from it.
 2. `node scripts/release/set-version.mjs 1.0.0-alpha.2`. For a **stable** version (no `-`) first reword the
-   "pre-release" / "Vorabversion" status lines in `README.md`, `README.de.md`, `docs/INSTALL.md` and
+   "pre-release" / "Vorabversion" status lines in `README.md`, `docs/de/README.md`, `docs/INSTALL.md` and
    `docs/INSTALL.de.md` (`set-version.mjs --check` fails otherwise).
-3. Commit (`VERSION`, `package.json` files, `gradle.properties`, `version.ts`, `CHANGELOG.md`) and
+3. Commit (`scripts/release/VERSION`, `package.json` files, `gradle.properties`, `version.ts`, `CHANGELOG.md`) and
    push to `main`; wait for CI. Recommended: put the version bump and the changelog section into the
    **same commit as the last change** (or a version-only commit) and push once, so exactly one CI run
    covers the release.
 4. `git tag -s v1.0.0-alpha.2 -m "Release 1.0.0-alpha.2" && git push origin v1.0.0-alpha.2`. The tag
    must point at the commit CI just tested (`git rev-parse HEAD` = the commit of the green run on `main`).
 
-The workflow then verifies that the tag matches `VERSION` and that the changelog section exists.
+The workflow then verifies that the tag matches `scripts/release/VERSION` and that the changelog section exists.
 **CI is not run a second time:** a gate job looks for a successful `ci.yml` run on `main` (push event)
 for exactly the tagged commit and reuses it; a run still in progress is awaited (up to 30 minutes), a
 failed run fails the release. Only if no CI run exists for that commit (tag on an untested commit, or the
@@ -114,7 +114,7 @@ architecture is built **natively** (`ubuntu-latest` and `ubuntu-24.04-arm`, both
 repositories) and the two results are merged into one index. QEMU emulation was rejected: the
 Next.js build and the native `sharp` install would take far too long emulated. The arm64 job
 always uses GitHub's arm runner; the `CI_RUNS_ON` override only applies to the other jobs.
-`sharp` ships prebuilt musl binaries for both architectures, so the Dockerfile has no
+`sharp` ships prebuilt musl binaries for both architectures, so docker/Dockerfile has no
 architecture-specific code. PostgreSQL and Redis from the compose file are multi-arch
 as well (check the MinIO image if you use the S3 example).
 
@@ -124,7 +124,7 @@ as well (check the MinIO image if you use the S3 example).
   workflow; results are uploaded as SARIF (Security -> Code scanning, categories
   `trivy-image-*`). Findings **never block** a release.
 - `.github/workflows/security.yml` repeats this every Monday for the `next` images and scans the
-  repository files (dependencies, Dockerfile / workflow misconfiguration, secrets, category
+  repository files (dependencies, docker/Dockerfile / workflow misconfiguration, secrets, category
   `trivy-fs`). Run it manually from Actions -> Security scan.
 - Code scanning needs a public repository (or GitHub Advanced Security on a private one); the upload
   step is allowed to fail so the workflows still pass without it.
@@ -133,7 +133,7 @@ as well (check the MinIO image if you use the S3 example).
 ## Dependency updates
 
 `.github/dependabot.yml` opens weekly pull requests for npm (pnpm workspace), Gradle
-(`apps/android`), GitHub Actions and the images in both compose files (PostgreSQL / Redis major versions are excluded: upgrade those by hand, and keep `docker-compose.yml` and `deploy/docker-compose.yml` in step, CI checks it). The Node base image of the Dockerfile is passed via `ARG NODE_IMAGE`, which Dependabot may not follow: bump it by hand when needed. Minor and
+(`apps/android`), GitHub Actions and the images in both compose files (PostgreSQL / Redis major versions are excluded: upgrade those by hand, and keep `docker-compose.yml` and `docker/deploy/docker-compose.yml` in step, CI checks it). The Node base image of `docker/Dockerfile` is passed via `ARG NODE_IMAGE`, which Dependabot may not follow: bump it by hand when needed. Minor and
 patch updates are grouped per ecosystem; major updates are separate PRs. Their CI runs on
 GitHub-hosted runners and uses no secrets. Merge only when CI is green and, for Actions, after
 checking the new SHA matches the tag shown in the PR. Enable "Dependabot alerts" and "Dependabot
@@ -215,11 +215,11 @@ new compose file refuses a `.env` of that layout (it has `TIX_CHANNEL` instead o
 the old update script stops with a pointer to [MIGRATE-SINGLE-IMAGE.md](MIGRATE-SINGLE-IMAGE.md)
 before anything is replaced.
 
-**Maintaining the compose file (repository).** `deploy/docker-compose.yml` is a template: the
+**Maintaining the compose file (repository).** `docker/deploy/docker-compose.yml` is a template: the
 maintainer block is stripped and the placeholders (image owner, version, install guide) are filled
 in when a release is built (`scripts/release/deploy-bundle.mjs`). Keep it simple: no embedded
 configs, no anchors, no helper services. `node scripts/release/deploy-bundle.mjs --check` (CI) resolves
-the template and `deploy/docker-compose.s3.example.yml` with `docker compose config` and checks
+the template and `docker/deploy/docker-compose.s3.example.yml` with `docker compose config` and checks
 (`scripts/release/compose-checks.mjs`, unit-tested): exactly the services `tix`, `postgres`, `redis`;
 image `ghcr.io/<owner>/tix:<TIX_VERSION>`; nothing built; no `configs`; the volume keys
 `tix-data`, `postgres-data`, `redis-data` (migrated installations reuse their data through these

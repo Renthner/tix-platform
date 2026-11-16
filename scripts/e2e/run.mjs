@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // End-to-end test runner: builds (or reuses) the single image of the CURRENT code, starts an isolated
 // compose stack (project `tix-e2e`, port 18090), seeds demo data, runs the Playwright suite in
-// ./e2e and tears everything down again. Exit code = test result.
+// apps/e2e and tears everything down again. Exit code = test result.
 //
 //   pnpm test:e2e
 //   E2E_SKIP_BUILD=1   reuse the image <E2E_PROJECT>/tix:local
@@ -120,7 +120,7 @@ async function main() {
           `type=local,dest=${cache},mode=max`,
         );
       }
-      run('docker', [...args, '.'], { cwd: root });
+      run('docker', [...args, '-f', 'docker/Dockerfile', '.'], { cwd: root });
     }
 
     // 2. Compose file + env from the deploy template (the same files a real installation uses).
@@ -208,7 +208,7 @@ async function main() {
     const sql = `INSERT INTO bank_accounts (name, account_holder, iban, bic, bank_code, bank_name, currency, is_default_for_bank_transfer, is_active)
 VALUES ('E2E account', 'E2E Club', 'DE89370400440532013000', 'COBADEFFXXX', '37040044', 'E2E Bank', 'EUR', true, true)
 ON CONFLICT DO NOTHING;
--- 30 customers so the admin customer list has more than one page (e2e/admin-cleanup.spec.ts).
+-- 30 customers so the admin customer list has more than one page (apps/e2e/admin-cleanup.spec.ts).
 INSERT INTO customers (email, first_name, last_name)
 SELECT 'pager' || n || '@example.org', 'Pager', 'Customer' || lpad(n::text, 2, '0')
 FROM generate_series(1, 30) AS n
@@ -233,7 +233,7 @@ ON CONFLICT DO NOTHING;`;
     return await new Promise((res) => {
       const child = spawn(
         'npx',
-        ['playwright', 'test', '-c', 'e2e/playwright.config.ts', ...process.argv.slice(2)],
+        ['playwright', 'test', '-c', 'apps/e2e/playwright.config.ts', ...process.argv.slice(2)],
         {
           cwd: root,
           stdio: 'inherit',

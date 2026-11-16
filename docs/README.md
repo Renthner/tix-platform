@@ -23,6 +23,6 @@ English | [Deutsch](README.de.md)
 | [TICKETS.md](TICKETS.md)                                   | Ticket QR format, Ed25519 signatures, test vector          |
 | [../apps/android/README.md](../apps/android/README.md)     | Check-in app: build, architecture, publishing updates      |
 | [../apps/android/docs/LAN.md](../apps/android/docs/LAN.md) | LAN master protocol of the check-in app                    |
-| [../CONTRIBUTING.md](../CONTRIBUTING.md)                   | How to contribute                                          |
-| [../SECURITY.md](../SECURITY.md)                           | Reporting vulnerabilities                                  |
+| [../.github/CONTRIBUTING.md](../.github/CONTRIBUTING.md)   | How to contribute                                          |
+| [../.github/SECURITY.md](../.github/SECURITY.md)           | Reporting vulnerabilities                                  |
 | [../CHANGELOG.md](../CHANGELOG.md)                         | Changes per release                                        |

@@ -49,7 +49,7 @@ apps/android/**/*.iml
 # Kotlin compiler daemon/session data
 .kotlin/
 
-# Playwright (e2e/)
-/e2e/.auth/
-/e2e/playwright-report/
-/e2e/test-results/
+# Playwright (apps/e2e/)
+/apps/e2e/.auth/
+/apps/e2e/playwright-report/
+/apps/e2e/test-results/

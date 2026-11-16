@@ -17,13 +17,13 @@ Die meisten technischen Dokumente sind nur auf Englisch verfügbar.
 
 ## Für Entwickler
 
-| Dokument                                               | Inhalt                                                     |
-| ------------------------------------------------------ | ---------------------------------------------------------- |
-| [ARCHITECTURE.md](ARCHITECTURE.md)                     | Aufbau des Repositorys, Dienste, Entwurfsentscheidungen    |
-| [DATABASE.md](DATABASE.md)                             | PostgreSQL-Schema, Zustände, Constraints                   |
-| [REDIS.md](REDIS.md)                                   | Redis-Schlüssel, Lua-Skripte für Sitzsperren und Warteraum |
-| [TICKETS.md](TICKETS.md)                               | Ticket-QR-Format, Ed25519-Signaturen, Testvektor           |
-| [../apps/android/README.md](../apps/android/README.md) | Check-in-App: Bauen, Architektur, Updates veröffentlichen  |
-| [../CONTRIBUTING.md](../CONTRIBUTING.md)               | Mitmachen                                                  |
-| [../SECURITY.md](../SECURITY.md)                       | Sicherheitslücken melden                                   |
-| [../CHANGELOG.md](../CHANGELOG.md)                     | Änderungen je Release                                      |
+| Dokument                                                 | Inhalt                                                     |
+| -------------------------------------------------------- | ---------------------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                       | Aufbau des Repositorys, Dienste, Entwurfsentscheidungen    |
+| [DATABASE.md](DATABASE.md)                               | PostgreSQL-Schema, Zustände, Constraints                   |
+| [REDIS.md](REDIS.md)                                     | Redis-Schlüssel, Lua-Skripte für Sitzsperren und Warteraum |
+| [TICKETS.md](TICKETS.md)                                 | Ticket-QR-Format, Ed25519-Signaturen, Testvektor           |
+| [../apps/android/README.md](../apps/android/README.md)   | Check-in-App: Bauen, Architektur, Updates veröffentlichen  |
+| [../.github/CONTRIBUTING.md](../.github/CONTRIBUTING.md) | Mitmachen                                                  |
+| [../.github/SECURITY.md](../.github/SECURITY.md)         | Sicherheitslücken melden                                   |
+| [../CHANGELOG.md](../CHANGELOG.md)                       | Änderungen je Release                                      |

@@ -23,9 +23,9 @@ Internal packages are consumed as TypeScript source (`exports` → `src/*.ts`): 
 transpiles them (`transpilePackages`), the worker is bundled by esbuild into self-contained
 ESM files, so runtime images need no workspace `node_modules`.
 
-## Runtime topology (`deploy/docker-compose.yml`)
+## Runtime topology (`docker/deploy/docker-compose.yml`)
 
-Three services. The application is **one image** (`ghcr.io/<owner>/tix`, Dockerfile target `app`):
+Three services. The application is **one image** (`ghcr.io/<owner>/tix`, docker/Dockerfile target `app`):
 
 | Service    | Image                | Role                                                                      |
 | ---------- | -------------------- | ------------------------------------------------------------------------- |
@@ -289,7 +289,7 @@ sync semantics and offline merge rules.
 
 ## Environment vs. database configuration
 
-Only infrastructure is configured through environment variables (see `.env.example`):
+Only infrastructure is configured through environment variables (see `docker/dev.env.example`):
 database / Redis / S3 endpoints and credentials, the encryption key ring and the cookie
 signing secret. Everything else – prices, fees, tax rates, TTLs, queue rules, payment
 providers, bank connections, SMTP, wallet certificates, templates, branding – is stored in

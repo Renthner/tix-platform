@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1.7
 # Build of the single `tix` image (web + worker + realtime behind a built-in proxy on :8080, see
 # docker/supervisor):
-#   docker build -t tix .
+#   docker build -f docker/Dockerfile -t tix .
+# Needs BuildKit (the default of Docker 23+, docker compose and buildx): the ignore rules live in
+# docker/Dockerfile.dockerignore, a classic builder (DOCKER_BUILDKIT=0) would not read that file.
 
 ARG NODE_IMAGE=node:24-alpine
 
@@ -29,7 +31,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 # ─── Build ──────────────────────────────────────────────────────────────────
 FROM deps AS build
-COPY tsconfig.base.json turbo.json ./
+COPY turbo.json ./
 COPY packages ./packages
 COPY apps ./apps
 RUN pnpm --filter @tix/worker build \
@@ -74,7 +76,7 @@ COPY --from=build /repo/apps/realtime/dist ./realtime/dist
 COPY --from=build /repo/packages/db/migrations ./migrations
 COPY --from=build /repo/packages/core/assets/fonts ./fonts
 COPY docker/supervisor/supervisor.mjs docker/supervisor/env.mjs docker/supervisor/proxy.mjs docker/supervisor/children.mjs docker/supervisor/pool.mjs docker/supervisor/sizing.mjs ./supervisor/
-COPY VERSION ./VERSION
+COPY scripts/release/VERSION ./VERSION
 # Only /data and Next's runtime cache are writable; the server bundles stay root-owned.
 RUN mkdir -p /data/secrets /data/storage /app/web/apps/web/.next/cache \
  && chown -R node:node /data /app/web/apps/web/.next/cache

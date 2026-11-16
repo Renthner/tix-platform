@@ -2,7 +2,7 @@ name: Security scan
 
 # Weekly Trivy scans (report only, results appear under Security -> Code scanning):
 #  - the published `next` images (new CVEs show up in old images, too)
-#  - the repository (lockfiles, Dockerfile / workflow misconfiguration, committed secrets)
+#  - the repository (lockfiles, docker/Dockerfile / workflow misconfiguration, committed secrets)
 on:
   schedule:
     - cron: '23 4 * * 1'

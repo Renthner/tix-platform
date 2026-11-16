@@ -1,5 +1,5 @@
 // node --test scripts/release
-// Runs deploy/tix-update.sh (POSIX sh + awk + curl) against a local fake of the GitHub API and the
+// Runs docker/deploy/tix-update.sh (POSIX sh + awk + curl) against a local fake of the GitHub API and the
 // release downloads: channel resolution must pick the HIGHEST SemVer, never the API list order.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const script = join(dirname(fileURLToPath(import.meta.url)), '../../deploy/tix-update.sh');
+const script = join(dirname(fileURLToPath(import.meta.url)), '../../docker/deploy/tix-update.sh');
 const have = (cmd) => spawnSync('sh', ['-c', `command -v ${cmd}`]).status === 0;
 const skip = !(have('awk') && have('curl') && have('sha256sum'))
   ? 'needs sh, awk, curl and sha256sum'

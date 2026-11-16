@@ -4,15 +4,15 @@ Thank you for helping! Bug reports, documentation fixes and pull requests are we
 
 ## Licence
 
-TIX is source-available under the [PolyForm Shield License 1.0.0](LICENSE). By contributing you
+TIX is source-available under the [PolyForm Shield License 1.0.0](../LICENSE). By contributing you
 agree that your contribution is provided under the same licence. Please read the "allowed / not
-allowed" summary in the [README](README.md#licence) first.
+allowed" summary in the [README](../README.md#licence) first.
 
 ## Development setup
 
-See [Development in the README](README.md#development): Node.js 24.7+, pnpm, Docker, then
+See [Development in the README](../README.md#development): Node.js 24.7+, pnpm, Docker, then
 `pnpm install`, `pnpm infra:up`, `pnpm db:migrate && pnpm db:seed`, `pnpm dev`. The Android app
-(`apps/android`) is a separate Gradle build, see [apps/android/README.md](apps/android/README.md).
+(`apps/android`) is a separate Gradle build, see [apps/android/README.md](../apps/android/README.md).
 
 ## Before you open a pull request
 
@@ -26,12 +26,12 @@ See [Development in the README](README.md#development): Node.js 24.7+, pnpm, Doc
   released.
 - Nothing organisation-specific in the repository: no real names, domains, bank data or secrets.
   Business settings belong in the Admin Portal, not in code.
-- Update the documentation and add a line under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md)
+- Update the documentation and add a line under `[Unreleased]` in [CHANGELOG.md](../CHANGELOG.md)
   when behaviour changes.
 
 ## End-to-end tests
 
-`pnpm test:e2e` runs the Playwright suite in `e2e/` (shop, 404 pages, admin, CSP) against an
+`pnpm test:e2e` runs the Playwright suite in `apps/e2e/` (shop, 404 pages, admin, CSP) against an
 isolated Docker stack: it builds the web, worker and realtime images of your working tree, starts
 them as compose project `tix-e2e` on port 18090 (nothing else on your machine is touched),
 creates an admin, seeds the demo event, runs the tests and removes the stack again. Needs Docker,

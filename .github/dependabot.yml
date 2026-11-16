@@ -59,8 +59,8 @@ updates:
       actions:
         patterns: ['*']
 
-  - package-ecosystem: docker # Dockerfile (node:*-alpine)
-    directory: /
+  - package-ecosystem: docker # docker/Dockerfile (node:*-alpine)
+    directory: /docker
     schedule:
       interval: weekly
       day: monday
@@ -71,7 +71,7 @@ updates:
         update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker-compose # base images (postgres, redis, minio)
-    directories: ['/', '/deploy']
+    directories: ['/', '/docker/deploy']
     schedule:
       interval: weekly
       day: monday
@@ -82,7 +82,7 @@ updates:
     ignore:
       # The tix image is released together with the compose file by the release workflow.
       - dependency-name: ghcr.io/*/tix
-      # Server data directory / pg_dump 18 are tied to PostgreSQL 18 (see Dockerfile): upgrade by hand.
+      # Server data directory / pg_dump 18 are tied to PostgreSQL 18 (see docker/Dockerfile): upgrade by hand.
       - dependency-name: postgres
         update-types: ['version-update:semver-major']
       - dependency-name: redis

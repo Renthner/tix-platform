@@ -15,9 +15,9 @@
 
 # MAINTAINER-BEGIN
 # Maintainer notes (stripped from the generated release file by scripts/release/deploy-bundle.mjs):
-# deploy/docker-compose.yml is a TEMPLATE. TIX_IMAGE_OWNER_DEFAULT is replaced by the repository
+# docker/deploy/docker-compose.yml is a TEMPLATE. TIX_IMAGE_OWNER_DEFAULT is replaced by the repository
 # owner and __TIX_VERSION__ / __TIX_INSTALL_GUIDE__ at build time. `node scripts/release/deploy-bundle.mjs
-# --check` (CI) validates the template and deploy/docker-compose.s3.example.yml. Keep the compose
+# --check` (CI) validates the template and docker/deploy/docker-compose.s3.example.yml. Keep the compose
 # simple: no embedded configs, no anchors, no helper services.
 # MAINTAINER-END
 

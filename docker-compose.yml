@@ -1,7 +1,7 @@
 # Development / from-source stack: builds the single `tix` image from this checkout and runs it
-# with PostgreSQL and Redis. (Production uses deploy/docker-compose.yml with the published image.)
+# with PostgreSQL and Redis. (Production uses docker/deploy/docker-compose.yml with the published image.)
 #
-#   cp .env.example .env   # then fill in the secrets (see comments in .env.example)
+#   cp docker/dev.env.example .env   # then fill in the secrets (see comments in that file)
 #   docker compose up -d --build
 #   docker compose run --rm tix create-admin --email you@example.org --name "Your Name"
 #   open http://localhost:8080
@@ -17,6 +17,7 @@ services:
     image: ${IMAGE_REGISTRY:-tix}/tix:${IMAGE_TAG:-local}
     build:
       context: .
+      dockerfile: docker/Dockerfile
       target: app
     init: true
     restart: unless-stopped
@@ -81,7 +82,7 @@ services:
       timeout: 5s
       retries: 20
 
-  # Local development keeps the password (REDIS_URL in .env.example carries it) and the full
+  # Local development keeps the password (REDIS_URL in docker/dev.env.example carries it) and the full
   # settings of docker/redis/redis.conf.
   redis:
     image: redis:8.10-alpine

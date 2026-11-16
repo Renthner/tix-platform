@@ -11,7 +11,7 @@
 //       validates the template and the S3 example with `docker compose config` (starts nothing):
 //       services, image, volumes, no embedded configs (see compose-checks.mjs)
 //
-// deploy/docker-compose.yml is a maintained TEMPLATE (the repository has no YAML library, and
+// docker/deploy/docker-compose.yml is a maintained TEMPLATE (the repository has no YAML library, and
 // rewriting YAML by regex would break silently): the maintainer block is stripped and the
 // placeholders (image owner, version, install guide) are filled in.
 import { execFileSync } from 'node:child_process';
@@ -86,7 +86,7 @@ function zip(entries) {
 // The template without the maintainer block (placeholders are still in place).
 function renderCompose() {
   return stripMaintainerBlock(
-    readFileSync(join(root, 'deploy/docker-compose.yml'), 'utf8').replace(/\r\n/g, '\n'),
+    readFileSync(join(root, 'docker/deploy/docker-compose.yml'), 'utf8').replace(/\r\n/g, '\n'),
   );
 }
 
@@ -103,7 +103,7 @@ function build(version, outdir, owner, repo) {
 
   const compose = renderCompose();
   if (!compose.includes(OWNER_PLACEHOLDER)) {
-    throw new Error(`deploy/docker-compose.yml lacks ${OWNER_PLACEHOLDER}`);
+    throw new Error(`docker/deploy/docker-compose.yml lacks ${OWNER_PLACEHOLDER}`);
   }
   const fill = (text) =>
     text
@@ -122,11 +122,13 @@ function build(version, outdir, owner, repo) {
   // The admin compares this with the running app version (docker-compose.yml drift warning) and
   // tix-update.sh reads it for its downgrade guard.
   if (!composeOut.includes(`TIX_COMPOSE_VERSION: ${version}`)) {
-    throw new Error('deploy/docker-compose.yml lacks "TIX_COMPOSE_VERSION: __TIX_VERSION__"');
+    throw new Error(
+      'docker/deploy/docker-compose.yml lacks "TIX_COMPOSE_VERSION: __TIX_VERSION__"',
+    );
   }
   const problems = releaseComposeProblems(composeOut);
   if (problems.length) throw new Error(`generated docker-compose.yml: ${problems.join('; ')}`);
-  let readme = fill(readFileSync(join(root, 'deploy/README.md'), 'utf8'));
+  let readme = fill(readFileSync(join(root, 'docker/deploy/README.md'), 'utf8'));
   if (!repo) readme = readme.replace(/^More: .*\n?/m, '').trimEnd() + '\n';
   readme = readme.replaceAll('__TIX_REPOSITORY__', repo ?? '<owner>/<repo>');
 
@@ -134,13 +136,13 @@ function build(version, outdir, owner, repo) {
     { path: 'docker-compose.yml', data: Buffer.from(composeOut), mode: 0o644 },
     {
       path: '.env.example',
-      data: Buffer.from(fill(readFileSync(join(root, 'deploy/.env.example'), 'utf8'))),
+      data: Buffer.from(fill(readFileSync(join(root, 'docker/deploy/.env.example'), 'utf8'))),
       mode: 0o644,
     },
     {
       path: 'docker-compose.s3.example.yml',
       data: Buffer.from(
-        fill(readFileSync(join(root, 'deploy/docker-compose.s3.example.yml'), 'utf8')),
+        fill(readFileSync(join(root, 'docker/deploy/docker-compose.s3.example.yml'), 'utf8')),
       ),
       mode: 0o644,
     },
@@ -148,7 +150,7 @@ function build(version, outdir, owner, repo) {
     {
       path: 'tix-update.sh',
       data: Buffer.from(
-        fill(readFileSync(join(root, 'deploy/tix-update.sh'), 'utf8')).replaceAll(
+        fill(readFileSync(join(root, 'docker/deploy/tix-update.sh'), 'utf8')).replaceAll(
           '__TIX_REPOSITORY__',
           repo ?? '__TIX_REPOSITORY__',
         ),
@@ -201,7 +203,7 @@ function withoutS3(merged) {
 }
 
 function check() {
-  const deployDir = join(root, 'deploy');
+  const deployDir = join(root, 'docker/deploy');
   // The compose file reads .env from its own directory: check in a throw-away one.
   const work = mkdtempSync(join(tmpdir(), 'tix-compose-check-'));
   const envFile = join(work, '.env');
@@ -255,7 +257,7 @@ function check() {
         'a .env of the three-image layout must be refused with a pointer to docs/MIGRATE-SINGLE-IMAGE.md',
       );
     }
-    console.log('deploy/docker-compose.yml and the S3 example are consistent.');
+    console.log('docker/deploy/docker-compose.yml and the S3 example are consistent.');
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

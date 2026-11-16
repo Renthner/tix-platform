@@ -1,12 +1,19 @@
 {
   "name": "tix-platform",
-  "version": "1.0.0-alpha.33",
+  "version": "1.0.0-alpha.34",
   "private": true,
   "license": "PolyForm-Shield-1.0.0",
   "description": "High-concurrency ticketing platform with seating editor, virtual waiting room, Vorkasse reconciliation and offline check-in.",
   "packageManager": "pnpm@12.16.1",
   "engines": {
     "node": ">=24.7.0"
+  },
+  "prettier": {
+    "semi": true,
+    "singleQuote": true,
+    "trailingComma": "all",
+    "printWidth": 100,
+    "endOfLine": "lf"
   },
   "scripts": {
     "dev": "turbo run dev --filter=@tix/web --filter=@tix/worker --filter=@tix/realtime",

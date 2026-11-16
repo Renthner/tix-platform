@@ -649,7 +649,7 @@ The cache counters of a running instance are on the admin System page and in `/a
 
 ## Tuning
 
-- **Web pool** `WEB_DATABASE_POOL_MAX` (default 40 per `web` replica; `.env.example`). One checkout
+- **Web pool** `WEB_DATABASE_POOL_MAX` (default 40 per `web` replica; `docker/dev.env.example`). One checkout
   holds one connection for the whole order transaction, so the pool caps parallel checkouts per
   replica; further requests queue up to 10 s for a connection.
 - **PostgreSQL `max_connections`** (`POSTGRES_MAX_CONNECTIONS`, default 200 in `docker-compose.yml`).

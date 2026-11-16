@@ -188,7 +188,7 @@ export function SeatSelection({
 
   // ── Live updates ─────────────────────────────────────────────────────────
   // True once the gateway confirmed the seat room; exposed as `data-realtime` (browser tests wait
-  // for it before another visitor acts, see e2e/shop.spec.ts).
+  // for it before another visitor acts, see apps/e2e/shop.spec.ts).
   const [realtimeJoined, setRealtimeJoined] = useState(false);
   useEffect(() => {
     const sync = () => setRealtimeJoined(isRoomJoined('seats', eventId));

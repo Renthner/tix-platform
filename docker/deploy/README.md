@@ -57,7 +57,7 @@ not a loopback address, so `http://<server-ip>:8080` does not work directly: add
 `TIX_PROXY_SOCKET_TIMEOUT_MS` (120000), `TIX_PROXY_REQUEST_TIMEOUT_MS` (3600000),
 `TIX_PROXY_MAX_CONNS_PER_IP` (200); `0` disables each. Each process only receives the secrets it needs
 and the internal realtime/worker ports listen on `127.0.0.1` inside the container. Details:
-[docs/INSTALL.md](../docs/INSTALL.md#built-in-proxy-host-check-and-limits).
+[docs/INSTALL.md](../../docs/INSTALL.md#built-in-proxy-host-check-and-limits).
 
 ## Update
 

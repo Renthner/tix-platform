@@ -1,6 +1,6 @@
 name: Release
 
-# Cut a release: update VERSION and CHANGELOG.md (node scripts/release/set-version.mjs <version>),
+# Cut a release: update scripts/release/VERSION and CHANGELOG.md (node scripts/release/set-version.mjs <version>),
 # commit, then push the tag  v<version>  (see docs/RELEASES.md).
 on:
   push:
@@ -53,7 +53,7 @@ jobs:
           echo "::error::Run this workflow from the tag (Use workflow from: $TAG), not from $GITHUB_REF_NAME: the cosign identity must be release.yml@refs/tags/v*."
           exit 1
 
-      - name: Check VERSION, package versions and tag
+      - name: Check scripts/release/VERSION, package versions and tag
         id: v
         run: |
           node scripts/release/set-version.mjs --check "$TAG"
@@ -269,6 +269,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
+          file: docker/Dockerfile
           target: app
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}

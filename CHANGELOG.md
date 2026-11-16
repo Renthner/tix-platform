@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.34] - 2026-11-16
+
+### Changed
+
+- Repository root tidied: `Dockerfile` and `deploy/` moved to `docker/` (`docker/Dockerfile`, `docker/deploy/`), `CONTRIBUTING.md` and `SECURITY.md` to `.github/`, `README.de.md` to `docs/de/README.md`, `tsconfig.base.json` to `packages/tsconfig/base.json`, `.dockerignore` to `docker/Dockerfile.dockerignore` (BuildKit), `VERSION` to `scripts/release/VERSION`, `e2e/` to `apps/e2e/`, `.env.example` to `docker/dev.env.example`, the Prettier settings into `package.json`. Build with `docker build -f docker/Dockerfile .`; `docker compose up -d --build` and all release assets are unchanged.
+
 ## [1.0.0-alpha.33] - 2026-11-16
 
 ### Fixed

@@ -34,10 +34,10 @@ test('detects pre-release status wording per file', () => {
   assert.equal(hasPreReleaseWording('README.md', fixture), true);
   assert.equal(hasPreReleaseWording('README.md', '> **Status:** stable (`1.0.0`).'), false);
   assert.equal(
-    hasPreReleaseWording('README.de.md', '> **Status:** Vorabversion (`1.0.0-rc.1`).'),
+    hasPreReleaseWording('docs/de/README.md', '> **Status:** Vorabversion (`1.0.0-rc.1`).'),
     true,
   );
-  assert.equal(hasPreReleaseWording('README.de.md', '> **Status:** stabil (`1.0.0`).'), false);
+  assert.equal(hasPreReleaseWording('docs/de/README.md', '> **Status:** stabil (`1.0.0`).'), false);
   assert.equal(
     hasPreReleaseWording('docs/INSTALL.md', '> TIX is currently a pre-release (x)'),
     true,
