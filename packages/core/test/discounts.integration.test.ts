@@ -481,6 +481,8 @@ describe.skipIf(!adminUrl || !redisUrl)('discount codes (integration)', () => {
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
     expect(lost.reason).toMatchObject({ code: 'DISCOUNT_USAGE_LIMIT' });
+    // the cart of the losing checkout keeps its seat lock otherwise (which of a / b loses is a race)
+    await discardCart(ctx, results[0]!.status === 'rejected' ? a : b);
     const winner = results.find((r) => r.status === 'fulfilled') as PromiseFulfilledResult<{
       orderId: string;
     }>;
