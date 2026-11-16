@@ -38,10 +38,16 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:-}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       WEB_DATABASE_POOL_MAX: ${WEB_DATABASE_POOL_MAX:-}
+      TIX_WEB_PROCESSES: ${TIX_WEB_PROCESSES:-}
+      TIX_DB_CONNECTION_BUDGET: ${TIX_DB_CONNECTION_BUDGET:-}
       WORKER_DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-}
       TIX_CHANNEL: ${TIX_CHANNEL:-}
       TIX_COMPOSE_VERSION: dev
       TIX_UPDATE_REPOSITORY: ${TIX_UPDATE_REPOSITORY:-}
+      # Opt-in switches of the image (empty = default). Dev only: this file passes variables one by one, a .env
+      # entry alone does not reach the container.
+      TIX_ALLOW_FOREIGN_BACKUP_KEYS: ${TIX_ALLOW_FOREIGN_BACKUP_KEYS:-}
+      TIX_ALLOWED_HOSTS: ${TIX_ALLOWED_HOSTS:-}
     ports:
       - ${HTTP_PORT:-8080}:8080
     volumes:

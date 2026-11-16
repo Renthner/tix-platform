@@ -25,6 +25,7 @@ export function ConfirmAction({
   size = 'sm',
   disabled = false,
   label,
+  acknowledge,
   children,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
@@ -36,16 +37,25 @@ export function ConfirmAction({
   disabled?: boolean;
   /** Accessible name / tooltip for icon-only triggers. */
   label?: string;
+  /** An explicit checkbox that must be ticked before the action can be confirmed. */
+  acknowledge?: { name: string; label: ReactNode };
   children: ReactNode;
 }) {
   const t = useTranslations('common.actions');
   const [open, setOpen] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
   const [state, formAction] = useActionState(action, IDLE);
   useEffect(() => {
     if (state.status === 'success') setOpen(false);
   }, [state]);
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setAcknowledged(false);
+      }}
+    >
       <DialogTrigger asChild>
         <Button
           type="button"
@@ -65,11 +75,28 @@ export function ConfirmAction({
         </DialogHeader>
         <ActionForm action={formAction} className="space-y-4">
           <ActionFeedback state={state} />
+          {acknowledge ? (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                name={acknowledge.name}
+                className="mt-0.5 size-4"
+                checked={acknowledged}
+                onChange={(e) => setAcknowledged(e.target.checked)}
+              />
+              <span>{acknowledge.label}</span>
+            </label>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {t('cancel')}
             </Button>
-            <SubmitButton variant={variant}>{confirmLabel}</SubmitButton>
+            <SubmitButton
+              variant={variant}
+              {...(acknowledge && !acknowledged ? { disabled: true } : {})}
+            >
+              {confirmLabel}
+            </SubmitButton>
           </DialogFooter>
         </ActionForm>
       </DialogContent>

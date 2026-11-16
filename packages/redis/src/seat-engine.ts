@@ -457,6 +457,14 @@ export class SeatLockEngine {
     return result;
   }
 
+  /** Sellable GA spots per section: capacity − sold, spots held in carts still included. */
+  async generalAdmissionOpen(eventId: string): Promise<Record<string, number>> {
+    const available = await this.redis.hgetall(this.keys.generalAdmissionAvailable(eventId));
+    return Object.fromEntries(
+      Object.entries(available).map(([section, value]) => [section, Math.max(0, Number(value))]),
+    );
+  }
+
   /** Inventory mirror version (seat map version it was built from) or null. */
   async inventoryVersion(eventId: string): Promise<number | null> {
     const v = await this.redis.get(this.keys.inventoryReady(eventId));

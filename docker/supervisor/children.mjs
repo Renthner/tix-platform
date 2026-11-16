@@ -128,6 +128,7 @@ export class ManagedChild {
    * @param {object} o.log  logger from createLogger
    * @param {number} [o.baseDelayMs]
    * @param {number} [o.stableMs]  uptime after which the failure counter resets
+   * @param {() => void} [o.onExit]  called whenever the process is gone (also when stopping)
    */
   constructor(o) {
     this.o = { baseDelayMs: 1_000, stableMs: 60_000, ...o };
@@ -157,6 +158,11 @@ export class ManagedChild {
         done = true;
         this.proc = null;
         resolve();
+        try {
+          this.o.onExit?.();
+        } catch {
+          // a failing observer must not break the restart logic
+        }
         if (this.stopping) return;
         if (Date.now() - startedAt >= this.o.stableMs) this.failures = 0;
         this.failures += 1;

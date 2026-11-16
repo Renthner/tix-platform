@@ -943,6 +943,7 @@ export interface WaitlistValues {
   confirmationTtlHours: number;
   maxEntriesPerEvent: number;
   maxTicketsPerEntry: number;
+  trigger: 'WHEN_SOLD_OUT' | 'WHEN_UNAVAILABLE';
 }
 
 export function WaitlistSettingsForm({
@@ -964,6 +965,12 @@ export function WaitlistSettingsForm({
         label={t('enabled')}
         hint={t('enabledHint')}
       />
+      <Field label={t('trigger')} htmlFor="trigger" hint={t('triggerHint')} error={err('trigger')}>
+        <NativeSelect id="trigger" name="trigger" defaultValue={initial.trigger}>
+          <option value="WHEN_SOLD_OUT">{t('triggerOptions.WHEN_SOLD_OUT')}</option>
+          <option value="WHEN_UNAVAILABLE">{t('triggerOptions.WHEN_UNAVAILABLE')}</option>
+        </NativeSelect>
+      </Field>
       <div className="grid gap-4 md:grid-cols-2">
         <NumberField
           name="evaluateIntervalMinutes"

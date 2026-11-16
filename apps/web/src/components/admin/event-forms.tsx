@@ -506,6 +506,8 @@ export interface EventSalesValues {
   seoNoindex: boolean;
   /** Waiting list when sold out; null = global setting. */
   waitlistEnabled: boolean | null;
+  /** When the banner is offered; null = global setting. */
+  waitlistTrigger: 'WHEN_SOLD_OUT' | 'WHEN_UNAVAILABLE' | null;
   /** Ticket self-service: null = inherit, false = off, true = on with the own values. */
   selfServiceEnabled: boolean | null;
   selfServiceAllowNameChange: boolean | null;
@@ -532,6 +534,7 @@ export interface GlobalCheckoutDefaults {
   bankTransferDisableDaysBeforeEvent: number;
   customerAccountsEnabled: boolean;
   waitlistEnabled: boolean;
+  waitlistTrigger: 'WHEN_SOLD_OUT' | 'WHEN_UNAVAILABLE';
   selfService: {
     enabled: boolean;
     allowNameChange: boolean;
@@ -873,7 +876,28 @@ export function EventSalesForm({
       <section className="space-y-3">
         <h3 className="text-sm font-medium">{t('waitlist')}</h3>
         <p className="text-xs text-muted-foreground">{t('waitlistHint')}</p>
-        <div className="grid gap-4 md:grid-cols-2">{triField('waitlistEnabled')}</div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {triField('waitlistEnabled')}
+          <Field
+            label={t('waitlistTrigger')}
+            htmlFor="waitlistTrigger"
+            hint={t('waitlistTriggerHint')}
+          >
+            <NativeSelect
+              id="waitlistTrigger"
+              name="waitlistTrigger"
+              defaultValue={initial.waitlistTrigger ?? 'inherit'}
+            >
+              <option value="inherit">
+                {inherit(t(`waitlistTriggerOptions.${globals.waitlistTrigger}`))}
+              </option>
+              <option value="WHEN_SOLD_OUT">{t('waitlistTriggerOptions.WHEN_SOLD_OUT')}</option>
+              <option value="WHEN_UNAVAILABLE">
+                {t('waitlistTriggerOptions.WHEN_UNAVAILABLE')}
+              </option>
+            </NativeSelect>
+          </Field>
+        </div>
       </section>
 
       <section className="space-y-3">

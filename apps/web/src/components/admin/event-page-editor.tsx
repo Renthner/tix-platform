@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  BellRing,
   FileText,
   GripVertical,
   ImageIcon,
@@ -113,12 +114,21 @@ export function EventPageEditor({
     if (ref === 'COVER') return t('blocks.COVER');
     if (ref === 'DESCRIPTION') return t('blocks.DESCRIPTION');
     if (ref === 'SHOP') return t('blocks.SHOP');
+    if (ref === 'WAITLIST') return t('blocks.WAITLIST');
     const index = boxes.findIndex((b) => boxRef(b.id) === ref);
     const box = boxes[index];
     return t('blockBox', { title: box?.title || t('boxNumber', { n: index + 1 }) });
   };
   const iconOf = (ref: PageBlockRef) =>
-    ref === 'COVER' ? ImageIcon : ref === 'DESCRIPTION' ? FileText : ref === 'SHOP' ? Ticket : Info;
+    ref === 'COVER'
+      ? ImageIcon
+      : ref === 'DESCRIPTION'
+        ? FileText
+        : ref === 'SHOP'
+          ? Ticket
+          : ref === 'WAITLIST'
+            ? BellRing
+            : Info;
 
   const endDrag = () => {
     setDragging(null);

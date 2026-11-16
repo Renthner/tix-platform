@@ -22,7 +22,12 @@ import {
   venues,
   withTransaction,
 } from '@tix/db';
-import { EVENT_STATUSES, isMediaKindAllowed, type EventStatus } from '@tix/shared';
+import {
+  EVENT_STATUSES,
+  WAITLIST_TRIGGERS,
+  isMediaKindAllowed,
+  type EventStatus,
+} from '@tix/shared';
 import { and, eq } from 'drizzle-orm';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { z } from 'zod';
@@ -345,6 +350,8 @@ const salesSchema = z.object({
   selfServiceDeadlineHours: optionalInt(0, 8_760),
   // 0 = unlimited for this event (overrides a global limit); empty = inherit.
   selfServiceMaxChanges: optionalInt(0, 100),
+  // Waiting-list trigger: inherit the global setting or an own value.
+  waitlistTrigger: z.enum(['inherit', ...WAITLIST_TRIGGERS]).default('inherit'),
 });
 
 export async function updateEventSalesAction(
@@ -368,6 +375,7 @@ export async function updateEventSalesAction(
     bankTransferDisableDaysBeforeEvent: text(fd, 'bankTransferDisableDaysBeforeEvent'),
     selfServiceDeadlineHours: text(fd, 'selfServiceDeadlineHours'),
     selfServiceMaxChanges: text(fd, 'selfServiceMaxChanges'),
+    waitlistTrigger: text(fd, 'waitlistTrigger') ?? undefined,
   });
   const errors: Partial<Record<string, FieldErrorCode>> = parsed.success
     ? {}
@@ -424,6 +432,7 @@ export async function updateEventSalesAction(
     customerAccountsEnabled: triState(fd, 'customerAccountsEnabled') === false ? false : null,
     seoNoindex: flag(fd, 'seoNoindex'),
     waitlistEnabled: triState(fd, 'waitlistEnabled'),
+    waitlistTrigger: parsed.data.waitlistTrigger === 'inherit' ? null : parsed.data.waitlistTrigger,
     selfServiceEnabled: triState(fd, 'selfServiceMode'),
     selfServiceAllowNameChange: triState(fd, 'selfServiceAllowNameChange'),
     selfServiceAllowTransfer: triState(fd, 'selfServiceAllowTransfer'),

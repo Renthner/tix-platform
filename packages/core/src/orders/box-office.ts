@@ -521,11 +521,15 @@ async function createBoxOfficeOrderLocked(
           await rebuildInventory(ctx, eventRows.get(quoted.eventId)!);
           await releaseSessionHold(ctx, sessionId, quoted.eventId);
         }
-        const remaining = await ctx.seats.generalAdmissionRemaining(quoted.eventId);
+        const [remaining, open] = await Promise.all([
+          ctx.seats.generalAdmissionRemaining(quoted.eventId),
+          ctx.seats.generalAdmissionOpen(quoted.eventId),
+        ]);
         await publishSeatDelta(ctx, {
           eventId: quoted.eventId,
           seats: [],
           ga: Object.fromEntries(Object.keys(ga).map((sec) => [sec, remaining[sec] ?? 0])),
+          gaOpen: Object.fromEntries(Object.keys(ga).map((sec) => [sec, open[sec] ?? 0])),
         });
       });
     }

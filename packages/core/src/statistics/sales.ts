@@ -228,15 +228,21 @@ function cancelledCte(scope: Scope, w: Window): SQL {
 }
 
 /**
- * At most this many statistics queries run at once in a process: one uncached load fans out into a
- * dozen aggregations and must not take the connection pool away from the shop.
+ * At most a quarter of the process's connection pool runs statistics queries at once (at least 1,
+ * at most 4): one uncached load fans out into a dozen aggregations and must not take the pool
+ * away from the shop. The pool size is read from the database handle (DATABASE_POOL_MAX).
  */
-const MAX_PARALLEL_QUERIES = 4;
+export function statisticsParallelLimit(db: unknown): number {
+  const max = (db as { $client?: { options?: { max?: unknown } } } | null)?.$client?.options?.max;
+  const pool = typeof max === 'number' && Number.isFinite(max) && max > 0 ? max : 16;
+  return Math.min(4, Math.max(1, Math.floor(pool / 4)));
+}
+
 let running = 0;
 const waiting: (() => void)[] = [];
 
-async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
-  if (running >= MAX_PARALLEL_QUERIES) await new Promise<void>((resolve) => waiting.push(resolve));
+async function withSlot<T>(limit: number, fn: () => Promise<T>): Promise<T> {
+  while (running >= limit) await new Promise<void>((resolve) => waiting.push(resolve));
   running++;
   try {
     return await fn();
@@ -247,7 +253,7 @@ async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function run<T extends Record<string, unknown>>(db: Database, query: SQL): Promise<T[]> {
-  return withSlot(() =>
+  return withSlot(statisticsParallelLimit(db), () =>
     db.transaction(async (tx) => {
       await tx.execute(sql.raw('SET TRANSACTION READ ONLY'));
       await tx.execute(sql.raw(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`));

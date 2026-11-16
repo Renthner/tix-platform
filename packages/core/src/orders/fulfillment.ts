@@ -484,11 +484,15 @@ export async function releaseInventory(
   }
   for (const [eventId, sections] of gaByEvent) {
     await ctx.seats.releaseGeneralAdmission(eventId, sections);
-    const remaining = await ctx.seats.generalAdmissionRemaining(eventId);
+    const [remaining, open] = await Promise.all([
+      ctx.seats.generalAdmissionRemaining(eventId),
+      ctx.seats.generalAdmissionOpen(eventId),
+    ]);
     await publishSeatDelta(ctx, {
       eventId,
       seats: [],
       ga: Object.fromEntries(Object.keys(sections).map((s) => [s, remaining[s] ?? 0])),
+      gaOpen: Object.fromEntries(Object.keys(sections).map((s) => [s, open[s] ?? 0])),
     });
   }
 }

@@ -8,6 +8,67 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.31] - 2026-11-16
+
+### Changed
+
+- **Behaviour change: the waiting list is shown by default only when really sold out.** Until now the banner
+  appeared as soon as no seat of a category could be selected, also while the seats were merely held in other
+  visitors' carts (which may expire again). The new setting Settings → Waiting list → "Show the waiting list"
+  defaults to **"Only when sold out"**: seats under a cart lock still count as available, so buyers do not give
+  up too early. The previous behaviour stays available as "As soon as nothing can be selected", globally and per
+  event (tab "Sales": inherit / own value). Notification e-mails are unaffected: they go out as soon as tickets
+  can be bought again. Upgrade note: installations that relied on the old behaviour switch the setting.
+- **The waiting-list banner is a block of the event page designer** (tab "Shop page", "Waiting list"): movable
+  by drag and drop, single or wide, next to other blocks, stacked on mobile. Events saved before this release
+  keep the banner where it was (above everything else). The per-event switch still decides whether the waiting
+  list is offered; a hidden banner leaves no gap in its row.
+
+- Waiting list: signing up with an address that is already confirmed gets the same answer as a new sign-up
+  (no second e-mail, nothing revealed about membership); simultaneous identical sign-ups no longer fail. The
+  confirmation page says so when tickets are available right now (with a link to the event), and a failing
+  availability check no longer breaks the confirmation link. The sign-up form stays put while a visitor types.
+  Deleting a price category that has confirmed waiting-list entries now names their number and requires an
+  explicit confirmation (recorded in the audit log).
+
+### Added
+
+- **Database connection budget (`TIX_DB_CONNECTION_BUDGET`, default 90).** All database connections of the
+  container are kept within the budget: when `TIX_WEB_PROCESSES` and the pools would exceed it, the pool of each web
+  process is reduced (at least 2, with a startup warning naming the numbers); if even that does not fit, startup
+  is refused with a request to reduce `TIX_WEB_PROCESSES`. **Upgrade note:** `WEB_DATABASE_POOL_MAX` is now
+  explicitly **per web process** (multiplied by their number; the budget clamps the total). The statistics queries
+  take at most a quarter of a process's pool.
+- **Several web processes in the single image (`TIX_WEB_PROCESSES`).** The web part used one Node.js process and
+  therefore about one CPU core, so a bigger server did not help at 1,000 simultaneous shoppers. `TIX_WEB_PROCESSES=<1-16>`
+  or `auto` (the CPUs the container may use, honouring a Docker CPU limit, at most 8) starts that many web processes behind
+  the built-in proxy, which spreads requests by fewest requests in flight, skips a restarting process (body-less requests
+  refused by one process move to another, a reset on a reused connection is retried once on the same process only,
+  requests with a body never; a process that exited is out of the rotation until its health check passes) and shows the "Starting" page only when no process is up. Each
+  process is restarted on its own; `/__tix/health` stays healthy while at least one is ready (status `degraded` while some are not;
+  the process counts are only in `/__tix/health?detail=1` from loopback, not in the public answer). The database pool budget of 20 is divided by the process count (an explicit
+  `WEB_DATABASE_POOL_MAX` applies per process); startup warns when the heap limits exceed the
+  container memory limit. Default is `1` (unchanged). Measured on one machine with 600 simulated shoppers and a 4-CPU
+  container: cart p95 1.5 s with one process, 0.11 s with three. See [Scaling to more cores](docs/INSTALL.md#scaling-to-more-cores).
+- **"Any category" on the waiting list.** The sign-up form always offers "Any category – notify me for every
+  category" (preselected when the whole event is out) next to the sold-out categories, in one banner. An entry
+  without category is notified when at least one category has enough tickets for the requested number. One
+  address can hold an entry per category plus an "any" entry; it receives at most one e-mail per availability
+  wave (the earliest matching entry wins, the others wait for the next wave). An "any" entry that is already
+  servable when it is confirmed does not fire immediately. The admin list, the CSV and the data export show
+  "any".
+- The banner appears and disappears live from the realtime seat deltas (no extra requests). Realtime seat deltas
+  carry a new optional `gaOpen` field (sellable standing capacity without cart holds).
+- Migration `0041_waitlist_trigger_any_category`: `events.waitlist_trigger`, one waiting-list entry per event,
+  address **and category** (unique index) and entries of a deleted price category are now deleted with it
+  (previously they turned into "any" entries, which could collide).
+
+### Fixed
+
+- **Dialogs scroll** when their content is taller than the screen (the restore dialog could not be scrolled): the shared dialog is limited to the viewport height and scrolls inside.
+- **Dev compose** (`docker-compose.yml`, from-source stack) passes `TIX_ALLOW_FOREIGN_BACKUP_KEYS` and `TIX_ALLOWED_HOSTS` to the container; a `.env` entry alone did not reach it.
+- **`pnpm db:demo`** no longer mixes the root `.env` into an explicitly given `DATABASE_URL` (its `REDIS_URL` pointed the cache flush at another stack).
+
 ## [1.0.0-alpha.30] - 2026-11-16
 
 ### Upgrade note

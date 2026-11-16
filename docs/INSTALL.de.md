@@ -37,7 +37,7 @@ Die `.env`-Datei enthält nur die wenigen technischen Einstellungen.
 ### 1. Die zwei Dateien herunterladen
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.30
+export TIX_VERSION=1.0.0-alpha.31
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -164,7 +164,7 @@ Scanner-URL und Backups. Dieselbe Liste mit Erklärungen steht unter
 
 ```bash
 cd tix
-export TIX_VERSION=1.0.0-alpha.30
+export TIX_VERSION=1.0.0-alpha.31
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/tix-update.sh
 chmod +x tix-update.sh        # einmalig; das Skript gehört zu jedem Release
 unset TIX_VERSION
@@ -333,6 +333,47 @@ Jeder Kindprozess (Web, Worker, Realtime) erhält nur die Secrets, die er brauch
 bekommt weder die Datenbank-URL noch den Schlüsselbund, und `POSTGRES_PASSWORD` erreicht keinen von ihnen
 (sie nutzen `DATABASE_URL`). Realtime-Gateway und Worker-Health-Endpunkt lauschen im Container auf
 `127.0.0.1`; von anderen Containern ist nur Port 8080 erreichbar.
+
+### Auf mehr Kerne skalieren
+
+Der Web-Teil (Shop, Admin, API) ist standardmäßig **ein Node.js-Prozess** und nutzt etwa einen CPU-Kern.
+Bei tausend gleichzeitigen Käufer:innen ist dieser Kern voll, während der Rest des Rechners leer läuft; ein
+größerer Server allein hilft dann nicht. `TIX_WEB_PROCESSES` startet mehrere Web-Prozesse im selben
+Container; der eingebaute Proxy verteilt die Anfragen darauf (zuerst der Prozess mit den wenigsten
+laufenden Anfragen) und überspringt einen Prozess, der gerade neu startet. Sonst ändert sich nichts: ein
+Container, ein Port, ein Volume.
+
+| Variable                | Standard | Bedeutung                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TIX_WEB_PROCESSES`     | `1`      | Anzahl der Web-Prozesse: `1`-`16` oder `auto`. `auto` = die CPUs, die der Container nutzen darf (ein Docker-Limit `--cpus` / `cpus:` in Compose wird beachtet), höchstens 8, mindestens 1; das Startprotokoll nennt Zahl und Grund. `1` ist das bisherige Verhalten.                                                                            |
+| `WEB_MAX_OLD_SPACE_MB`  | `768`    | Heap-Limit **je Web-Prozess**. Der Speicherbedarf wächst mit der Prozesszahl (jeder Prozess hält eigene Shop-Daten im Cache und rendert Seiten): rechne mit etwa `TIX_WEB_PROCESSES x WEB_MAX_OLD_SPACE_MB` plus Worker (1024) und Realtime (256). Übersteigt das das Speicherlimit des Containers, steht beim Start eine Warnung im Protokoll. |
+| `WEB_DATABASE_POOL_MAX` | `20`     | Datenbankverbindungen **je Web-Prozess**. Nicht gesetzt: das Budget von 20 wird durch die Prozesszahl geteilt (mindestens 4 je Prozess), die Summe bleibt also gleich. **Explizit gesetzt, gilt der Wert für jeden Web-Prozess und wird mit deren Anzahl multipliziert** (vor diesem Release war es eine Gesamtsumme).                          |
+
+Wie es funktioniert und was du wissen solltest:
+
+- Die Prozesse lauschen nur auf `127.0.0.1`: `TIX_WEB_PORT` (Standard `3000`) für den ersten, dann die
+  nächsten freien Ports aufwärts, wobei Realtime (`3001`), Worker-Health (`8081`) und der öffentliche Port
+  (`8080`) übersprungen werden, z. B. `3000`, `3002`, `3003` bei drei Prozessen. Nichts wird veröffentlicht;
+  nur `8080` ist erreichbar.
+- PostgreSQL erlaubt standardmäßig 100 Verbindungen. Alle Verbindungen des Containers (Web-Prozesse mit
+  Pool plus je zwei Einzelverbindungen, Worker, Werkzeuge) bleiben innerhalb von
+  `TIX_DB_CONNECTION_BUDGET` (Standard `90`). Darüber wird der Pool jedes Web-Prozesses verkleinert
+  (mindestens 2; das Startprotokoll nennt die Zahlen); passt selbst das nicht, startet der Container nicht
+  und bittet darum, `TIX_WEB_PROCESSES` zu verringern. Erhöhe das Budget zusammen mit `max_connections`
+  von PostgreSQL.
+- Jeder Prozess startet bei einem Absturz allein mit wachsender Wartezeit neu; `/__tix/health` (und der
+  Docker-Health-Check) ist gesund, solange mindestens ein Web-Prozess bereit ist, und meldet
+  `"webProcesses":{"ready":3,"total":3}`. Die Seite "Startet" erscheint nur, solange kein Web-Prozess antwortet.
+- Alle Prozesse liefern denselben Build; was geteilt sein muss (Shop-Daten, Einstellungen, Warteschlange,
+  Sitzplatzsperren, Ratenlimits, Lasttest-Zustand), liegt schon in Redis oder wird darüber invalidiert.
+  Je Prozess unterscheiden sich nur die technischen Werte der Admin-Seite **System** und von
+  `/api/metrics` (Speicher, Laufzeit, Cache-Zähler: sie stammen vom Prozess, der gerade antwortet), der
+  45-s-Cache der Verkaufsstatistik (Zahlen können sich zwischen zwei Aktualisierungen leicht
+  unterscheiden) und der 5-s-Cache von Standardsprache und Suchmaschinen-Schalter (eine Änderung gilt
+  überall binnen Sekunden).
+- Beginne mit `auto` auf einem Server mit mindestens zwei CPUs; lass einen Kern für PostgreSQL, Redis,
+  Worker und Realtime-Gateway frei, wenn sie sich die Maschine teilen. Realtime-Gateway (Live-Platzupdates)
+  und Worker bleiben einzelne Prozesse.
 
 ## HTTPS-Varianten
 
@@ -820,7 +861,8 @@ der Compose-Datei nicht aufgeführt ist.
 | `LOG_LEVEL`                                                                                                      | optional  | Log-Detailgrad: `info`, `debug`, `warn`, `error`.                                                                                                                                                                                                                                                                                                              | `info`                                         |
 | `SKIP_PRE_UPDATE_BACKUP`, `PRE_UPDATE_BACKUP_KEEP`                                                               | optional  | Automatisches Datenbank-Backup vor anstehenden Migrationen: `1` überspringt es (nicht empfohlen); wie viele aufbewahrt werden (Standard `3`).                                                                                                                                                                                                                  | `3`                                            |
 | `MIGRATION_LOCK_TIMEOUT`, `MIGRATION_STATEMENT_TIMEOUT`, `MIGRATION_LOCK_RETRIES`                                | optional  | Sekunden, die eine Schemaänderung auf eine Tabellensperre wartet (Standard `10`, `0` = unbegrenzt), Sekunden, die eine Anweisung laufen darf (Standard `600`), Versuche nach einem Sperr-Timeout (Standard `5`).                                                                                                                                               | `10`, `600`, `5`                               |
-| `WEB_DATABASE_POOL_MAX`, `WORKER_DATABASE_POOL_MAX`                                                              | optional  | Datenbankverbindungen des Web-Teils (Standard `20`) und des Workers (Standard `8`); zusammen bleiben sie weit unter PostgreSQLs Standard von 100.                                                                                                                                                                                                              | `20`, `8`                                      |
+| `TIX_WEB_PROCESSES`, `WEB_MAX_OLD_SPACE_MB`, `WEB_DATABASE_POOL_MAX`                                             | optional  | Anzahl der Web-Prozesse (`1`-`16` oder `auto`, Standard `1`), Heap-Limit und Datenbankverbindungen je Web-Prozess. Siehe [Auf mehr Kerne skalieren](#auf-mehr-kerne-skalieren).                                                                                                                                                                                | `auto`, `768`, `20`                            |
+| `WORKER_DATABASE_POOL_MAX`                                                                                       | optional  | Datenbankverbindungen des Workers (Standard `8`). Web-Teil und Worker zusammen bleiben weit unter PostgreSQLs Standard von 100.                                                                                                                                                                                                                                | `8`                                            |
 | `TIX_ROLE`                                                                                                       | optional  | Welche Teile im Container laufen: `all` (Standard) oder eine Liste aus `web`, `worker`, `realtime` zum Skalieren.                                                                                                                                                                                                                                              | `all`                                          |
 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`                                                                       | optional  | Nur für ein externes PostgreSQL (Standard `postgres`, `5432`, `tix`, `tix`); oder `DATABASE_URL` direkt setzen.                                                                                                                                                                                                                                                | `db.example.org`                               |
 | `REDIS_URL`                                                                                                      | optional  | Nur für ein externes Redis (Standard `redis://redis:6379/0`).                                                                                                                                                                                                                                                                                                  | `redis://:pw@host:6379/0`                      |

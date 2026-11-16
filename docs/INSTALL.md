@@ -37,7 +37,7 @@ area. The `.env` file only holds the few technical settings.
 ### 1. Download the two files
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.30
+export TIX_VERSION=1.0.0-alpha.31
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -160,7 +160,7 @@ explanations is in [First configuration in the admin](#first-configuration-in-th
 
 ```bash
 cd tix
-export TIX_VERSION=1.0.0-alpha.30
+export TIX_VERSION=1.0.0-alpha.31
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/tix-update.sh
 chmod +x tix-update.sh        # once; the script is part of every release
 unset TIX_VERSION
@@ -325,6 +325,43 @@ Each child process (web, worker, realtime) receives only the secrets it needs: t
 neither the database URL nor the key ring, and `POSTGRES_PASSWORD` reaches none of them (they use
 `DATABASE_URL`). The realtime gateway and the worker health endpoint listen on `127.0.0.1` inside the
 container; only port 8080 is reachable from other containers.
+
+### Scaling to more cores
+
+The web part (shop, admin, API) is **one Node.js process** by default and can use about one CPU core.
+With a thousand simultaneous shoppers that core is full while the rest of the machine idles, so a
+bigger server alone does not help. `TIX_WEB_PROCESSES` starts several web processes inside the same
+container; the built-in proxy spreads the requests over them (fewest requests in flight first) and skips
+a process that is restarting. Nothing else changes: one container, one port, one volume.
+
+| Variable                | Default | Meaning                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TIX_WEB_PROCESSES`     | `1`     | Number of web processes: `1`-`16` or `auto`. `auto` = the CPUs the container may use (a Docker `--cpus` / compose `cpus:` limit is honoured), at most 8, at least 1; the startup log names the number and the reason. `1` is today's behaviour.                                                                |
+| `WEB_MAX_OLD_SPACE_MB`  | `768`   | Heap limit **per web process**. Memory use grows with the number of processes (each one caches its own shop data and renders pages): plan about `TIX_WEB_PROCESSES x WEB_MAX_OLD_SPACE_MB` plus worker (1024) and realtime (256). A warning is logged at startup when that exceeds the container memory limit. |
+| `WEB_DATABASE_POOL_MAX` | `20`    | Database connections **per web process**. Not set: the budget of 20 is divided by the number of processes (at least 4 each), so the default stays at the same total. **Set explicitly, it applies to every web process and is multiplied by their number** (before this release it was a total).               |
+
+How it works and what to know:
+
+- The processes listen on `127.0.0.1` only: `TIX_WEB_PORT` (default `3000`) for the first, then the next
+  free ports upwards, skipping the realtime (`3001`), worker health (`8081`) and public (`8080`) ports,
+  e.g. `3000`, `3002`, `3003` for three processes. Nothing is published; only `8080` is reachable.
+- PostgreSQL allows 100 connections by default. All connections of the container (web processes with
+  their pool plus two single-connection readers each, worker, tools) are kept within
+  `TIX_DB_CONNECTION_BUDGET` (default `90`). Above it the pool of each web process is reduced (at least 2;
+  the startup log names the numbers); if even that does not fit, the container refuses to start and asks
+  you to reduce `TIX_WEB_PROCESSES`. Raise the budget together with PostgreSQL `max_connections`.
+- Each process restarts on its own with growing delays; `/__tix/health` (and the Docker health check) is
+  healthy as long as at least one web process is ready and reports `"webProcesses":{"ready":3,"total":3}`.
+  The "Starting" page appears only while no web process answers.
+- All processes serve the same build; caches that must be shared (shop data, settings, queue, seat locks,
+  rate limits, load test state) already live in Redis or are invalidated through it. Per-process values
+  are only the technical figures of the admin page **System** and `/api/metrics` (memory, uptime, cache
+  counters: they come from whichever process answered), the 45 s cache of the sales statistics (numbers
+  can differ slightly between two refreshes) and the 5 s cache of the default language and the search
+  engine switch (a change is visible everywhere within seconds).
+- Start with `auto` on a server with two or more CPUs; leave one core for PostgreSQL, Redis, the worker and
+  the realtime gateway when they share the machine. The realtime gateway (live seat updates) and the
+  worker stay single processes.
 
 ## HTTPS variants
 
@@ -803,7 +840,8 @@ the `tix` container, so every variable of the image (also those not listed in th
 | `LOG_LEVEL`                                                                                                      | optional   | Log detail: `info`, `debug`, `warn`, `error`.                                                                                                                                                                                                                                                                              | `info`                                         |
 | `SKIP_PRE_UPDATE_BACKUP`, `PRE_UPDATE_BACKUP_KEEP`                                                               | optional   | Automatic database backup before pending migrations: `1` skips it (not recommended); how many to keep (default `3`).                                                                                                                                                                                                       | `3`                                            |
 | `MIGRATION_LOCK_TIMEOUT`, `MIGRATION_STATEMENT_TIMEOUT`, `MIGRATION_LOCK_RETRIES`                                | optional   | Seconds a schema change waits for a table lock (default `10`, `0` = no limit), seconds one statement may run (default `600`), attempts after a lock timeout (default `5`).                                                                                                                                                 | `10`, `600`, `5`                               |
-| `WEB_DATABASE_POOL_MAX`, `WORKER_DATABASE_POOL_MAX`                                                              | optional   | Database connections of the web part (default `20`) and the worker (default `8`); together they stay far below PostgreSQL's default of 100.                                                                                                                                                                                | `20`, `8`                                      |
+| `TIX_WEB_PROCESSES`, `WEB_MAX_OLD_SPACE_MB`, `WEB_DATABASE_POOL_MAX`                                             | optional   | Number of web processes (`1`-`16` or `auto`, default `1`), heap limit and database connections per web process. See [Scaling to more cores](#scaling-to-more-cores).                                                                                                                                                       | `auto`, `768`, `20`                            |
+| `WORKER_DATABASE_POOL_MAX`                                                                                       | optional   | Database connections of the worker (default `8`). The web part together with the worker should stay well below PostgreSQL's default of 100.                                                                                                                                                                                | `8`                                            |
 | `TIX_ROLE`                                                                                                       | optional   | Which parts run in the container: `all` (default) or a list of `web`, `worker`, `realtime` for scaling out.                                                                                                                                                                                                                | `all`                                          |
 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`                                                                       | optional   | Only for an external PostgreSQL (defaults `postgres`, `5432`, `tix`, `tix`); or set `DATABASE_URL` directly.                                                                                                                                                                                                               | `db.example.org`                               |
 | `REDIS_URL`                                                                                                      | optional   | Only for an external Redis (default `redis://redis:6379/0`).                                                                                                                                                                                                                                                               | `redis://:pw@host:6379/0`                      |

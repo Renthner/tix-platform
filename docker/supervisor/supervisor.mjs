@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { ManagedChild, cachedAsync, createLogger, runOnce, stopRun } from './children.mjs';
+import { summarizeWebHealth } from './pool.mjs';
 import { childEnv, generateKeyRing, resolveEnv, withVersionDefaults } from './env.mjs';
 import {
   buildAllowedHosts,
@@ -31,6 +32,12 @@ function fail(errors) {
   for (const e of errors) err(`[tix] ${e}`);
   process.exit(1);
 }
+
+const isLoopback = (addr = '') =>
+  addr === '::1' ||
+  addr === '127.0.0.1' ||
+  addr.startsWith('::ffff:127.') ||
+  addr.startsWith('127.');
 
 function httpGet(port, urlPath, timeoutMs = 2_000, host = '127.0.0.1') {
   return new Promise((resolve) => {
@@ -120,6 +127,16 @@ async function serve() {
     fail(errors);
   }
   for (const n of notes) log.info(n);
+  if (settings.roles.includes('web')) {
+    log.info('web processes', {
+      processes: settings.webProcesses,
+      reason: settings.webProcessesReason,
+      ports: settings.webPorts,
+      databasePoolEach: settings.webPool,
+      databaseConnectionsMax: settings.dbConnectionsTotal,
+    });
+  }
+  for (const w of settings.sizingWarnings) log.warn(w);
   const parsedTrust = parseTrustedProxies(settings.trustedProxies);
   if (parsedTrust.invalid.length) {
     fail([
@@ -137,11 +154,16 @@ async function serve() {
   const probe = cachedAsync(async () => {
     const components = {};
     const checks = [];
+    let webProcesses;
     if (has('web'))
       checks.push(
-        httpGet(settings.webPort, '/api/health', 2_000, 'localhost').then(
-          (s) => (components.web = s === 200 ? 'ok' : 'down'),
-        ),
+        Promise.all(
+          settings.webPorts.map((port) => httpGet(port, '/api/health', 2_000, 'localhost')),
+        ).then((statuses) => {
+          const summary = summarizeWebHealth(statuses);
+          webProcesses = { ready: summary.ready, total: summary.total };
+          components.web = summary.component;
+        }),
       );
     if (has('realtime'))
       checks.push(
@@ -157,7 +179,13 @@ async function serve() {
       );
     await Promise.all(checks);
     const ok = Object.values(components).every((v) => v === 'ok');
-    return { ok, status: ok ? 'ok' : 'unhealthy', components };
+    const degraded = ok && webProcesses && webProcesses.ready < webProcesses.total;
+    return {
+      ok,
+      status: ok ? (degraded ? 'degraded' : 'ok') : 'unhealthy',
+      components,
+      webProcesses,
+    };
   }, 1_500);
   const health = async () => {
     if (mode) return { ok: false, status: mode, components: {} };
@@ -171,13 +199,22 @@ async function serve() {
     requestTimeoutMs: settings.requestTimeoutMs,
     maxConnsPerIp: settings.maxConnsPerIp,
     allowedHosts,
-    webPort: settings.webPort,
+    webPorts: settings.webPorts,
+    debugUpstream: process.env.TIX_PROXY_DEBUG_UPSTREAM === '1',
     realtimePort: settings.realtimePort,
     getMode: () => mode,
     log: (m) => log.warn(m),
     handleLocal: (req, res) => {
-      if (req.url !== '/__tix/health' || (req.method !== 'GET' && req.method !== 'HEAD'))
+      const [pathname, query = ''] = (req.url ?? '').split('?');
+      if (pathname !== '/__tix/health' || (req.method !== 'GET' && req.method !== 'HEAD'))
         return false;
+      // The process counts are for the container's own health check (loopback, not forwarded by a
+      // proxy): the public answer only says ok / degraded / unhealthy.
+      const detail =
+        new URLSearchParams(query).get('detail') === '1' &&
+        isLoopback(req.socket.remoteAddress) &&
+        !req.headers['x-forwarded-for'] &&
+        !req.headers.forwarded;
       health().then((h) => {
         res.writeHead(h.ok ? 200 : 503, {
           'content-type': 'application/json',
@@ -186,7 +223,11 @@ async function serve() {
         res.end(
           req.method === 'HEAD'
             ? undefined
-            : JSON.stringify({ status: h.status, components: h.components }),
+            : JSON.stringify({
+                status: h.status,
+                components: h.components,
+                ...(detail && h.webProcesses ? { webProcesses: h.webProcesses } : {}),
+              }),
         );
       });
       return true;
@@ -265,25 +306,47 @@ async function serve() {
   }
 
   // ── Application processes ─────────────────────────────────────────────────
-  const make = (name) =>
+  // Each web process is its own ManagedChild (own restart backoff). The log name stays `web` for
+  // one process and becomes `web#<index>` for several.
+  const make = (role, index = 0) =>
     new ManagedChild({
-      name,
+      // a web process that exited is out of the proxy rotation until its health check passes
+      onExit: role === 'web' ? () => proxy.pool.setReady(index, false) : undefined,
+      name: role === 'web' && settings.webProcesses > 1 ? `web#${index}` : role,
       args: [
-        `--max-old-space-size=${settings.memory[name]}`,
-        ...(name === 'web' ? [] : ['--enable-source-maps']),
-        entryPath(name),
+        `--max-old-space-size=${settings.memory[role]}`,
+        ...(role === 'web' ? [] : ['--enable-source-maps']),
+        entryPath(role),
       ],
-      env: childEnv(env, settings, name),
-      cwd: entryCwd(name),
+      env: childEnv(env, settings, role, index),
+      cwd: entryCwd(role),
       out,
       err,
       log,
     });
+  if (has('web')) settings.webPorts.forEach((_, i) => proxy.pool.setReady(i, false));
   for (const role of ['web', 'realtime', 'worker']) {
     if (!has(role)) continue;
-    const child = make(role);
-    children.push(child);
-    child.start();
+    for (let i = 0; i < (role === 'web' ? settings.webProcesses : 1); i++) {
+      const child = make(role, i);
+      children.push(child);
+      child.start();
+    }
+  }
+  // Readiness of the web processes: up after the first successful /api/health. Polled quickly so a
+  // restarted process rejoins within about a second; a failing check of a ready process does not
+  // remove it (only its exit does), so a slow answer never empties the rotation.
+  if (has('web')) {
+    const pollReadiness = () => {
+      if (shuttingDown) return;
+      settings.webPorts.forEach((port, i) => {
+        if (proxy.pool.isReady(i)) return;
+        httpGet(port, '/api/health', 1_500, 'localhost').then((status) => {
+          if (status === 200 && !shuttingDown) proxy.pool.setReady(i, true);
+        });
+      });
+    };
+    setInterval(pollReadiness, 1_000).unref();
   }
   mode = null;
   log.info('serving');

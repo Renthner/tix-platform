@@ -195,7 +195,7 @@
     "firstName": "Name (optional)",
     "quantity": "Anzahl Tickets",
     "category": "Kategorie",
-    "anyCategory": "Beliebige Kategorie",
+    "anyCategory": "Egal – bei jeder Kategorie benachrichtigen",
     "submit": "In die Warteliste eintragen",
     "privacy": "Wir verwenden deine Adresse nur für diese Benachrichtigung. Du bestätigst sie zuerst per E-Mail und kannst die Liste jederzeit über den Link in jeder Nachricht verlassen.",
     "sentTitle": "Fast geschafft – bitte prüfe deine E-Mails",
@@ -204,9 +204,11 @@
     "confirm": {
       "title": "Warteliste",
       "confirmed": "Danke – du stehst auf der Warteliste. Wir schreiben dir, sobald wieder Tickets verfügbar sind.",
+      "confirmedAvailable": "Danke – du stehst auf der Warteliste. Es sind gerade Tickets verfügbar – geh direkt in den Shop und sichere sie dir, bevor sie weg sind.",
       "alreadyConfirmed": "Du stehst bereits auf der Warteliste.",
       "invalid": "Dieser Link ist ungültig oder abgelaufen. Bitte trag dich erneut in die Warteliste ein.",
       "rateLimited": "Zu viele Versuche. Bitte versuche es in ein paar Minuten erneut.",
+      "toEvent": "Zur Veranstaltung",
       "toShop": "Zum Shop"
     },
     "unsubscribe": {

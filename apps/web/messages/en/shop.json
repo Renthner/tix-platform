@@ -195,7 +195,7 @@
     "firstName": "Name (optional)",
     "quantity": "Number of tickets",
     "category": "Category",
-    "anyCategory": "Any category",
+    "anyCategory": "Any category – notify me for every category",
     "submit": "Join the waiting list",
     "privacy": "We use your address only for this notification. You confirm it by e-mail first and can leave the list at any time with the link in each message.",
     "sentTitle": "Almost done – please check your e-mails",
@@ -204,9 +204,11 @@
     "confirm": {
       "title": "Waiting list",
       "confirmed": "Thank you – you are on the waiting list. We will write to you as soon as tickets are available again.",
+      "confirmedAvailable": "Thank you – you are on the waiting list. Tickets are available right now – go to the shop and buy them before they are gone.",
       "alreadyConfirmed": "You are already on the waiting list.",
       "invalid": "This link is invalid or has expired. Please sign up for the waiting list again.",
       "rateLimited": "Too many attempts. Please try again in a few minutes.",
+      "toEvent": "To the event",
       "toShop": "To the shop"
     },
     "unsubscribe": {

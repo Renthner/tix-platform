@@ -893,10 +893,11 @@ export async function getAvailability(
   event: EventRow,
 ): Promise<EventAvailability> {
   const version = await ensureInventory(ctx, event);
-  const [taken, locked, ga, mine, gaMine] = await Promise.all([
+  const [taken, locked, ga, gaOpen, mine, gaMine] = await Promise.all([
     ctx.seats.takenSeats(event.id),
     ctx.seats.lockedSeatIds(event.id),
     ctx.seats.generalAdmissionRemaining(event.id),
+    ctx.seats.generalAdmissionOpen(event.id),
     sessionId ? ctx.seats.sessionSeatIds(event.id, sessionId) : Promise.resolve([]),
     sessionId ? ctx.seats.sessionGeneralAdmission(event.id, sessionId) : Promise.resolve({}),
   ]);
@@ -911,6 +912,7 @@ export async function getAvailability(
     locked: locked.filter((id) => !mineSet.has(id)),
     mine,
     ga,
+    gaOpen,
     gaMine,
   };
 }

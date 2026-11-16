@@ -15,7 +15,8 @@ import { events, priceCategories } from './events';
 /**
  * Waiting list of an event ("notify me when tickets are available again"). Double opt-in: an
  * entry only counts (`confirmed_at`) after the address owner clicked the confirmation link.
- * One entry per event and e-mail address (case-insensitive).
+ * One entry per event, e-mail address (case-insensitive) and wanted category; "any category"
+ * (`category_id` NULL) counts as a category of its own.
  *
  * `armed` implements "at most one notification per availability wave": a confirmed entry that
  * is armed and matches the current availability is notified and disarmed; it is armed again
@@ -33,8 +34,8 @@ export const waitlistEntries = pgTable(
       .references(() => events.id, { onDelete: 'cascade' }),
     email: text('email').notNull(),
     firstName: text('first_name'),
-    /** Wanted price category; NULL = any. Cleared when the category is deleted. */
-    categoryId: uuid('category_id').references(() => priceCategories.id, { onDelete: 'set null' }),
+    /** Wanted price category; NULL = any category. Entries of a deleted category are deleted with it. */
+    categoryId: uuid('category_id').references(() => priceCategories.id, { onDelete: 'cascade' }),
     /** Number of tickets wanted: notified only when at least that many are available. */
     quantity: integer('quantity').notNull().default(2),
     /** Language of the e-mails. */
@@ -48,7 +49,11 @@ export const waitlistEntries = pgTable(
     ...timestamps(),
   },
   (t) => [
-    uniqueIndex('waitlist_entries_event_email_uq').on(t.eventId, sql`lower(${t.email})`),
+    uniqueIndex('waitlist_entries_event_email_category_uq').on(
+      t.eventId,
+      sql`lower(${t.email})`,
+      sql`coalesce(${t.categoryId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+    ),
     index('waitlist_entries_event_idx').on(t.eventId, t.confirmedAt),
     index('waitlist_entries_email_idx').on(sql`lower(${t.email})`),
     check('waitlist_entries_quantity_range', sql`${t.quantity} BETWEEN 1 AND 50`),

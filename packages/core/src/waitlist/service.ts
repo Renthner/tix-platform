@@ -7,7 +7,12 @@ import {
   waitlistRemovals,
   withTransaction,
 } from '@tix/db';
-import { INVENTORY_HOLDING_ITEM_STATUSES, normalizeLocale } from '@tix/shared';
+import {
+  INVENTORY_HOLDING_ITEM_STATUSES,
+  normalizeLocale,
+  type WaitlistCategoryState,
+  type WaitlistTrigger,
+} from '@tix/shared';
 import { signToken, verifyToken } from '@tix/shared/server';
 import { and, asc, count, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -20,7 +25,9 @@ import { coreLog } from '../log';
 import { buildCsv } from '../accounting/csv';
 import { getSetting } from '../settings';
 import {
+  EMPTY_WAITLIST_AVAILABILITY,
   getWaitlistAvailability,
+  getWaitlistCategoryStates,
   matchesAvailability,
   type WaitlistAvailability,
 } from './availability';
@@ -29,11 +36,16 @@ import {
  * Waiting list of sold-out events. Flow: visitor joins (`joinWaitlist`) → confirmation e-mail
  * (double opt-in) → `confirmWaitlistEntry` → when tickets become available again the worker
  * (`evaluateWaitlist`) notifies everybody who matches, all at once (first come, first served; no
- * seats are reserved). A notified entry is disarmed and re-armed once its wish cannot be served
+ * seats are reserved). An entry names a price category or "any category" (`category_id` NULL: a
+ * wish that one category can serve); one address may hold several entries but gets at most one
+ * e-mail per availability wave (the earliest matching entry wins). A notified entry is disarmed and re-armed once its wish cannot be served
  * any more (sold out again), so it is notified at most once per availability wave. Entries
  * disappear when the person bought (checked by e-mail address), after the event started, or on
  * request.
  */
+
+/** `{{categoryName}}` of an entry without a category preference. */
+const ANY_CATEGORY_LABEL = { en: 'Any category', de: 'Jede Kategorie' } as const;
 
 const TOKEN_CONFIRM = 'waitlist-confirm';
 const TOKEN_UNSUBSCRIBE = 'waitlist-unsub';
@@ -60,18 +72,30 @@ export async function isWaitlistEnabled(
   return (await getSetting(ctx, 'waitlist')).enabled;
 }
 
+/** Trigger of the banner: event override, else the global setting. */
+export async function effectiveWaitlistTrigger(
+  ctx: Pick<CoreContext, 'db'>,
+  event: Pick<EventRow, 'waitlistTrigger'>,
+): Promise<WaitlistTrigger> {
+  if (event.waitlistTrigger) return event.waitlistTrigger;
+  return (await getSetting(ctx, 'waitlist')).trigger;
+}
+
 export interface WaitlistOffer {
-  /** Nothing at all is buyable: the whole event is sold out. */
-  soldOut: boolean;
-  /** Categories (id → name) with no free ticket that can be waited for. */
-  categories: { id: string; name: string }[];
+  trigger: WaitlistTrigger;
   maxTickets: number;
+  /**
+   * Every price category that has tickets at all, with its counts at render time. The browser
+   * keeps them current from the live seat deltas and decides with `decideWaitlistOffer`
+   * whether the banner shows (the same shared function as the server uses here).
+   */
+  categories: (WaitlistCategoryState & { name: string })[];
 }
 
 /**
- * What the event page offers: null while the waiting list is off, the sale is not running or
- * tickets are available. `categories` lists the sold-out categories (all of them when the event
- * is sold out).
+ * What the event page needs for the waiting-list block: null while the waiting list is off or the
+ * sale is not running. Whether the banner is visible is decided from the counts (see
+ * `decideWaitlistOffer`) – the block is always rendered so it can appear when tickets run out.
  */
 export async function getWaitlistOffer(
   ctx: CoreContext,
@@ -81,20 +105,18 @@ export async function getWaitlistOffer(
   if (event.status !== 'PUBLISHED' && event.status !== 'POSTPONED') return null;
   if (computeSaleState(event) !== 'ON_SALE' || !event.seatMapId) return null;
   if (!(await isWaitlistEnabled(ctx, event))) return null;
-  const availability = await getWaitlistAvailability(ctx, event);
-  const soldOutIds = Object.keys(availability.capacityByCategory).filter(
-    (id) =>
-      (availability.capacityByCategory[id] ?? 0) > 0 && (availability.byCategory[id] ?? 0) === 0,
-  );
-  const soldOut = availability.total === 0;
-  if (!soldOut && soldOutIds.length === 0) return null;
-  const { maxTicketsPerEntry } = await getSetting(ctx, 'waitlist');
+  const [states, trigger, settings] = await Promise.all([
+    getWaitlistCategoryStates(ctx, event),
+    effectiveWaitlistTrigger(ctx, event),
+    getSetting(ctx, 'waitlist'),
+  ]);
   return {
-    soldOut,
-    categories: soldOutIds
-      .map((id) => ({ id, name: categoryNames.get(id) ?? '' }))
+    trigger,
+    maxTickets: settings.maxTicketsPerEntry,
+    categories: states
+      .filter((s) => s.capacity > 0)
+      .map((s) => ({ ...s, name: categoryNames.get(s.id) ?? '' }))
       .filter((c) => c.name),
-    maxTickets: maxTicketsPerEntry,
   };
 }
 
@@ -164,18 +186,24 @@ async function queueMail(
       eventDate: mail.date,
       eventVenue: mail.venue,
       eventUrl: mail.eventUrl,
-      categoryName: mail.categoryName,
+      categoryName: mail.categoryName ?? ANY_CATEGORY_LABEL[entry.locale === 'de' ? 'de' : 'en'],
       quantity: entry.quantity,
       ...extra,
     },
   });
 }
 
-export type JoinResult = { status: 'CONFIRMATION_SENT' | 'ALREADY_ON_LIST' };
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; cause?: { code?: string } } | null;
+  return e?.code === '23505' || e?.cause?.code === '23505';
+}
+
+export type JoinResult = { status: 'CONFIRMATION_SENT' };
 
 /**
  * Adds an entry (or refreshes the confirmation of an unconfirmed one) and sends the opt-in
- * e-mail. The answer never reveals whether an address is already confirmed on the list.
+ * e-mail. The answer never reveals whether an address is already confirmed on the list: a confirmed
+ * entry gets the same answer, just no second e-mail.
  */
 export async function joinWaitlist(
   ctx: CoreContext,
@@ -207,6 +235,9 @@ export async function joinWaitlist(
         and(
           eq(waitlistEntries.eventId, event.id),
           sql`lower(${waitlistEntries.email}) = ${input.email}`,
+          input.categoryId
+            ? eq(waitlistEntries.categoryId, input.categoryId)
+            : isNull(waitlistEntries.categoryId),
         ),
       )
       .for('update');
@@ -222,7 +253,6 @@ export async function joinWaitlist(
     }
     const values = {
       firstName: input.firstName || null,
-      categoryId: input.categoryId ?? null,
       quantity: input.quantity,
       locale,
       confirmationSentAt: new Date(),
@@ -235,7 +265,12 @@ export async function joinWaitlist(
           .returning()
       : await tx
           .insert(waitlistEntries)
-          .values({ eventId: event.id, email: input.email, ...values })
+          .values({
+            eventId: event.id,
+            email: input.email,
+            categoryId: input.categoryId ?? null,
+            ...values,
+          })
           .returning();
     const mail = await mailContext(ctx, entry!);
     if (!mail) throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
@@ -248,17 +283,42 @@ export async function joinWaitlist(
       expiresAt: formatDateTime(expires, locale, detailZone, 'long'),
     });
     return messageId;
+  }).catch((err: unknown) => {
+    // Two identical joins at the same time: the other one created the entry and sends the mail.
+    if (isUniqueViolation(err)) return null;
+    throw err;
   });
-  if (outcome === null) return { status: 'ALREADY_ON_LIST' };
+  if (outcome === null) return { status: 'CONFIRMATION_SENT' };
   await dispatchEmailMessage(ctx, outcome);
   return { status: 'CONFIRMATION_SENT' };
 }
+
+/** Whether the wish of an entry can be served by the tickets available right now. */
+async function servableNow(ctx: CoreContext, entry: WaitlistEntryRow): Promise<boolean> {
+  const [event] = await ctx.db.select().from(events).where(eq(events.id, entry.eventId));
+  if (
+    !event ||
+    event.startsAt.getTime() <= Date.now() ||
+    (event.status !== 'PUBLISHED' && event.status !== 'POSTPONED') ||
+    computeSaleState(event) !== 'ON_SALE' ||
+    !event.seatMapId
+  )
+    return false;
+  return matchesAvailability(entry, await getWaitlistAvailability(ctx, event));
+}
+
+let servableCheckLogged = false;
 
 /** Confirms an entry from the opt-in link. Opening the link twice is harmless. */
 export async function confirmWaitlistEntry(
   ctx: CoreContext,
   token: string,
-): Promise<{ eventId: string; alreadyConfirmed: boolean }> {
+): Promise<{
+  eventId: string;
+  alreadyConfirmed: boolean;
+  availableNow: boolean;
+  eventSlug: string | null;
+}> {
   const claims = verifyToken<{ eid: string }>(token, TOKEN_CONFIRM, ctx.sessionSecret);
   if (!claims || typeof claims.eid !== 'string') {
     throw new DomainError('TOKEN_INVALID', 'The link is invalid or expired', 400);
@@ -268,12 +328,39 @@ export async function confirmWaitlistEntry(
     .from(waitlistEntries)
     .where(eq(waitlistEntries.id, claims.eid));
   if (!row) throw new DomainError('TOKEN_INVALID', 'The link is invalid or expired', 400);
-  if (row.confirmedAt) return { eventId: row.eventId, alreadyConfirmed: true };
+  if (row.confirmedAt) {
+    return { eventId: row.eventId, alreadyConfirmed: true, availableNow: false, eventSlug: null };
+  }
+  // An "any category" entry that is already servable when it is confirmed has nothing to wait for
+  // (some category has tickets right now): it starts disarmed and fires at the next wave, i.e.
+  // after the event was out of tickets again.
+  // The check reads live inventory: when that fails the link still works (armed, the safe default).
+  let servable = false;
+  try {
+    servable = await servableNow(ctx, row);
+  } catch (err) {
+    if (!servableCheckLogged) {
+      servableCheckLogged = true;
+      coreLog.error(
+        { err },
+        'waitlist: availability check failed while confirming, entry is armed',
+      );
+    }
+  }
+  const armed = row.categoryId !== null || !servable;
   await ctx.db
     .update(waitlistEntries)
-    .set({ confirmedAt: new Date(), armed: true })
+    .set({ confirmedAt: new Date(), armed })
     .where(and(eq(waitlistEntries.id, row.id), isNull(waitlistEntries.confirmedAt)));
-  return { eventId: row.eventId, alreadyConfirmed: false };
+  const [ev] = servable
+    ? await ctx.db.select({ slug: events.slug }).from(events).where(eq(events.id, row.eventId))
+    : [];
+  return {
+    eventId: row.eventId,
+    alreadyConfirmed: false,
+    availableNow: servable,
+    eventSlug: ev?.slug ?? null,
+  };
 }
 
 /** Deletes an entry and records its id in the retained ledger (restores re-apply the removal). */
@@ -353,7 +440,7 @@ export async function evaluateWaitlistEvent(
     computeSaleState(event) === 'ON_SALE';
   const availability: WaitlistAvailability = sellable
     ? await getWaitlistAvailability(ctx, event)
-    : { total: 0, byCategory: {}, capacityByCategory: {} };
+    : EMPTY_WAITLIST_AVAILABILITY;
   const settings = await getSetting(ctx, 'waitlist');
   const pauseMs = settings.renotifyAfterHours * 3_600_000;
 
@@ -380,10 +467,23 @@ export async function evaluateWaitlistEvent(
     matching.map((e) => e.email.toLowerCase()),
   );
   const mails: string[] = [];
+  /** Addresses notified by THIS run only (an earlier run's mails are covered by `lastNotifiedAt`). */
+  const mailed = new Set<string>();
   for (const entry of matching) {
-    if (buyers.has(entry.email.toLowerCase())) {
+    const address = entry.email.toLowerCase();
+    if (buyers.has(address)) {
       await withTransaction(ctx.db, (tx) => deleteEntries(tx, [entry.id]));
       result.removedBought += 1;
+      continue;
+    }
+    if (mailed.has(address)) {
+      // Second entry of an address that was just notified (e.g. a category and "any"): one mail per
+      // wave and address – the earlier entry wins, this one is disarmed until the next wave.
+      if (entry.armed || options.force)
+        await ctx.db
+          .update(waitlistEntries)
+          .set({ armed: false })
+          .where(eq(waitlistEntries.id, entry.id));
       continue;
     }
     if (!options.force) {
@@ -419,6 +519,7 @@ export async function evaluateWaitlistEvent(
       });
     });
     if (messageId) {
+      mailed.add(address);
       mails.push(messageId);
       result.notified += 1;
     }
@@ -625,7 +726,7 @@ export function buildWaitlistCsv(rows: WaitlistAdminRow[]): string {
       r.email,
       r.firstName,
       r.quantity,
-      r.categoryName,
+      r.categoryName ?? 'any',
       r.confirmedAt?.toISOString() ?? null,
       r.createdAt.toISOString(),
       r.lastNotifiedAt?.toISOString() ?? null,

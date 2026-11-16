@@ -14,7 +14,7 @@ import {
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import type { EventInfoBox } from '@tix/shared';
+import type { EventInfoBox, WaitlistTrigger } from '@tix/shared';
 import { cents, createdAt, currency, id, timestamps, tstz, translationsColumn } from './_columns';
 import { adminUsers } from './auth';
 import {
@@ -83,6 +83,8 @@ export const events = pgTable(
     seoNoindex: boolean('seo_noindex').notNull().default(false),
     /** Waiting list when sold out: NULL = follow the global `waitlist.enabled` setting. */
     waitlistEnabled: boolean('waitlist_enabled'),
+    /** When the waiting-list banner is offered: NULL = follow the global `waitlist.trigger` setting. */
+    waitlistTrigger: text('waitlist_trigger').$type<WaitlistTrigger>(),
     /**
      * Event page layout: rows of blocks side by side (drag & drop in the admin). Read through
      * `normalizePageLayout` (also converts the earlier flat format).
@@ -194,6 +196,10 @@ export const events = pgTable(
     check('events_seat_map_kind_event', sql`${t.seatMapKind} = 'EVENT'`),
     check('events_slug_format', sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
     check('events_currency_format', sql`${t.currency} ~ '^[A-Z]{3}$'`),
+    check(
+      'events_waitlist_trigger_valid',
+      sql`${t.waitlistTrigger} IS NULL OR ${t.waitlistTrigger} IN ('WHEN_SOLD_OUT', 'WHEN_UNAVAILABLE')`,
+    ),
     check(
       'events_published_has_seat_map',
       sql`${t.status} = 'DRAFT' OR ${t.seatMapId} IS NOT NULL`,

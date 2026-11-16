@@ -64,6 +64,8 @@ export interface CategoryRow {
   bestAvailableEnabled: boolean;
   sortOrder: number;
   isActive: boolean;
+  /** Confirmed waiting-list entries that are deleted together with the category. */
+  waitlistEntries?: number;
   save: Action;
   remove: Action;
 }
@@ -175,6 +177,14 @@ export function PricingManager({
                         confirmLabel={t('delete')}
                         size="icon-sm"
                         label={t('delete')}
+                        acknowledge={
+                          c.waitlistEntries
+                            ? {
+                                name: 'confirmWaitlist',
+                                label: t('categories.deleteWaitlist', { count: c.waitlistEntries }),
+                              }
+                            : undefined
+                        }
                       >
                         <Trash2 />
                       </ConfirmAction>

@@ -74,7 +74,7 @@ describe('event page layout', () => {
   it('converts the earlier flat format (boxes two per row)', () => {
     expect(
       refs(normalizePageLayout(['SHOP', 'DESCRIPTION', 'INFO_BOXES'], ['a', 'b', 'c'])),
-    ).toEqual([['COVER'], ['SHOP'], ['DESCRIPTION'], ['box:a', 'box:b'], ['box:c']]);
+    ).toEqual([['WAITLIST'], ['COVER'], ['SHOP'], ['DESCRIPTION'], ['box:a', 'box:b'], ['box:c']]);
   });
   it('keeps boxes next to the description, the plan alone, every block once', () => {
     const layout = normalizePageLayout(
@@ -84,8 +84,14 @@ describe('event page layout', () => {
       ],
       ['a', 'b'],
     );
-    expect(refs(layout)).toEqual([['COVER'], ['DESCRIPTION', 'box:a'], ['SHOP'], ['box:b']]);
-    expect(layout[1]![0]!.span).toBe(2);
+    expect(refs(layout)).toEqual([
+      ['WAITLIST'],
+      ['COVER'],
+      ['DESCRIPTION', 'box:a'],
+      ['SHOP'],
+      ['box:b'],
+    ]);
+    expect(layout[2]![0]!.span).toBe(2);
   });
   it('keeps a stored cover block where the admin put it (e.g. left of the description)', () => {
     const layout = normalizePageLayout(
@@ -98,20 +104,45 @@ describe('event page layout', () => {
       ],
       [],
     );
-    expect(refs(layout)).toEqual([['COVER', 'DESCRIPTION'], ['SHOP']]);
-    expect(layout[0]![1]!.span).toBe(2);
+    expect(refs(layout)).toEqual([['WAITLIST'], ['COVER', 'DESCRIPTION'], ['SHOP']]);
+    expect(layout[1]![1]!.span).toBe(2);
   });
   it('inserts the cover first when an old layout lacks it', () => {
     expect(refs(normalizePageLayout([[{ ref: 'SHOP' }], [{ ref: 'DESCRIPTION' }]], []))).toEqual([
+      ['WAITLIST'],
       ['COVER'],
       ['SHOP'],
       ['DESCRIPTION'],
     ]);
-    expect(refs(normalizePageLayout(null, []))[0]).toEqual(['COVER']);
+    expect(refs(normalizePageLayout(null, []))[1]).toEqual(['COVER']);
+  });
+  it('puts a missing waiting-list block first (legacy position of the banner)', () => {
+    const layout = normalizePageLayout(
+      [[{ ref: 'COVER' }], [{ ref: 'SHOP' }], [{ ref: 'DESCRIPTION' }]],
+      [],
+    );
+    expect(refs(layout)).toEqual([['WAITLIST'], ['COVER'], ['SHOP'], ['DESCRIPTION']]);
+  });
+  it('keeps the waiting-list block where the admin put it, also next to others', () => {
+    const layout = normalizePageLayout(
+      [
+        [{ ref: 'COVER' }],
+        [{ ref: 'SHOP' }],
+        [{ ref: 'DESCRIPTION', span: 2 }, { ref: 'WAITLIST' }],
+      ],
+      [],
+    );
+    expect(refs(layout)).toEqual([['COVER'], ['SHOP'], ['DESCRIPTION', 'WAITLIST']]);
+    expect(layout[2]![1]!.span).toBe(1);
+  });
+  it('never lets the waiting-list block share a row with the seating plan', () => {
+    const layout = normalizePageLayout([[{ ref: 'WAITLIST' }, { ref: 'SHOP' }]], []);
+    expect(refs(layout)).toEqual([['COVER'], ['WAITLIST'], ['SHOP'], ['DESCRIPTION']]);
   });
   it('limits rows to three blocks', () => {
     const row = ['DESCRIPTION', 'box:a', 'box:b', 'box:c'].map((ref) => ({ ref }));
     expect(refs(normalizePageLayout([row], ['a', 'b', 'c']))).toEqual([
+      ['WAITLIST'],
       ['COVER'],
       ['DESCRIPTION', 'box:a', 'box:b'],
       ['box:c'],

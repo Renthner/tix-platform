@@ -9,6 +9,8 @@ import {
   priceCategories,
   priceCategoryTicketTypes,
   ticketTypes,
+  waitlistEntries,
+  waitlistRemovals,
   withTransaction,
 } from '@tix/db';
 import { DISCOUNT_KINDS, SALES_CHANNELS, SEAT_FEATURES } from '@tix/shared';
@@ -150,18 +152,41 @@ export async function deleteCategoryAction(
   eventId: string,
   categoryId: string,
   _prev: ActionState,
+  fd: FormData,
 ): Promise<ActionState> {
   const session = await requireAdmin(['EVENT_MANAGER']);
   const { db } = getCore();
   try {
-    const deleted = await db
-      .delete(priceCategories)
-      .where(and(eq(priceCategories.id, categoryId), eq(priceCategories.eventId, eventId)))
-      .returning({ name: priceCategories.name });
-    if (deleted.length === 0) return formError('notFound');
-    await audit(db, session, 'pricecategory.delete', 'price_category', categoryId, {
-      name: deleted[0]!.name,
+    const outcome = await withTransaction(db, async (tx) => {
+      // Entries of this category are deleted with it (FK cascade): count them under the same
+      // transaction and require an explicit confirmation when confirmed visitors are affected.
+      const entries = await tx
+        .select({ id: waitlistEntries.id, confirmedAt: waitlistEntries.confirmedAt })
+        .from(waitlistEntries)
+        .where(eq(waitlistEntries.categoryId, categoryId));
+      const confirmed = entries.filter((e) => e.confirmedAt !== null);
+      if (confirmed.length > 0 && !flag(fd, 'confirmWaitlist')) return 'ack' as const;
+      // Retained ledger: a restore re-applies the removal of the entries.
+      if (entries.length > 0) {
+        await tx
+          .insert(waitlistRemovals)
+          .values(entries.map((e) => ({ entryId: e.id })))
+          .onConflictDoNothing();
+      }
+      const deleted = await tx
+        .delete(priceCategories)
+        .where(and(eq(priceCategories.id, categoryId), eq(priceCategories.eventId, eventId)))
+        .returning({ name: priceCategories.name });
+      if (deleted.length === 0) return 'missing' as const;
+      await audit(tx, session, 'pricecategory.delete', 'price_category', categoryId, {
+        name: deleted[0]!.name,
+        waitlistEntriesRemoved: entries.length,
+        waitlistConfirmedRemoved: confirmed.length,
+      });
+      return 'deleted' as const;
     });
+    if (outcome === 'ack') return formError('waitlistAckRequired');
+    if (outcome === 'missing') return formError('notFound');
   } catch (err) {
     if (isReferenced(err)) return formError('inUse');
     throw err;

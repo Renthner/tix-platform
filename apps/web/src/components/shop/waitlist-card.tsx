@@ -16,13 +16,15 @@ interface Props {
   soldOut: boolean;
   categories: { id: string; name: string }[];
   maxTickets: number;
+  /** Called once the visitor signed up (the block then keeps the confirmation visible). */
+  onSubmitted?: () => void;
 }
 
 const selectClass =
   'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
 /** "Join the waiting list" form of a sold-out event (double opt-in e-mail follows). */
-export function WaitlistCard({ eventId, soldOut, categories, maxTickets }: Props) {
+export function WaitlistCard({ eventId, soldOut, categories, maxTickets, onSubmitted }: Props) {
   const t = useTranslations('shop.waitlist');
   const tErr = useTranslations('common.errors');
   const locale = useLocale();
@@ -51,6 +53,7 @@ export function WaitlistCard({ eventId, soldOut, categories, maxTickets }: Props
           },
         },
       );
+      onSubmitted?.();
       setResult(response.status);
     } catch (err) {
       const code = errorCode(err);
@@ -121,7 +124,7 @@ export function WaitlistCard({ eventId, soldOut, categories, maxTickets }: Props
                   className={selectClass}
                   defaultValue={soldOut ? '' : (categories[0]?.id ?? '')}
                 >
-                  {soldOut && <option value="">{t('anyCategory')}</option>}
+                  <option value="">{t('anyCategory')}</option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}

@@ -267,6 +267,7 @@ io.on('connection', (socket) => {
 interface PendingDelta {
   seats: Map<string, SeatDeltaStatus>;
   ga: Record<string, number>;
+  gaOpen: Record<string, number>;
   version?: number;
 }
 const pending = new Map<string, PendingDelta>();
@@ -279,11 +280,12 @@ function eventIdFromChannel(channel: string): string | null {
 function queueSeatDelta(message: SeatDeltaMessage): void {
   let entry = pending.get(message.eventId);
   if (!entry) {
-    entry = { seats: new Map(), ga: {} };
+    entry = { seats: new Map(), ga: {}, gaOpen: {} };
     pending.set(message.eventId, entry);
   }
   for (const [id, status] of message.seats) entry.seats.set(id, status);
   if (message.ga) Object.assign(entry.ga, message.ga);
+  if (message.gaOpen) Object.assign(entry.gaOpen, message.gaOpen);
   if (message.version !== undefined) entry.version = Math.max(entry.version ?? 0, message.version);
 }
 
@@ -293,6 +295,7 @@ const flushTimer = setInterval(() => {
       eventId,
       seats: [...entry.seats.entries()],
       ...(Object.keys(entry.ga).length ? { ga: entry.ga } : {}),
+      ...(Object.keys(entry.gaOpen).length ? { gaOpen: entry.gaOpen } : {}),
       ...(entry.version !== undefined ? { version: entry.version } : {}),
     };
     io.to(`seats:${eventId}`).emit('seats:delta', payload);

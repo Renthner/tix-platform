@@ -17,16 +17,25 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const dynamic = 'force-dynamic';
 
-type Outcome = 'confirmed' | 'alreadyConfirmed' | 'invalid' | 'rateLimited';
+type Outcome = 'confirmed' | 'confirmedAvailable' | 'alreadyConfirmed' | 'invalid' | 'rateLimited';
+interface Confirmation {
+  outcome: Outcome;
+  eventSlug?: string | null;
+}
 
-async function confirm(token: string): Promise<Outcome> {
+async function confirm(token: string): Promise<Confirmation> {
   try {
     await enforceRateLimit('waitlist-token-ip', await clientIp(), 30, 15 * 60_000);
     const result = await confirmWaitlistEntry(getCore(), token);
-    return result.alreadyConfirmed ? 'alreadyConfirmed' : 'confirmed';
+    if (result.alreadyConfirmed) return { outcome: 'alreadyConfirmed' };
+    // Tickets can be bought right now: say so (the notification e-mail is only sent at the next wave).
+    return result.availableNow
+      ? { outcome: 'confirmedAvailable', eventSlug: result.eventSlug }
+      : { outcome: 'confirmed' };
   } catch (err) {
-    if (err instanceof DomainError && err.code === 'RATE_LIMITED') return 'rateLimited';
-    if (err instanceof DomainError && err.code === 'TOKEN_INVALID') return 'invalid';
+    if (err instanceof DomainError && err.code === 'RATE_LIMITED')
+      return { outcome: 'rateLimited' };
+    if (err instanceof DomainError && err.code === 'TOKEN_INVALID') return { outcome: 'invalid' };
     throw err;
   }
 }
@@ -40,9 +49,10 @@ export default async function WaitlistConfirmPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await resolveLocale(params);
-  const outcome = await confirm(searchParam(await searchParams, 'token') ?? '');
+  const { outcome, eventSlug } = await confirm(searchParam(await searchParams, 'token') ?? '');
   const t = await getTranslations('shop.waitlist.confirm');
-  const ok = outcome === 'confirmed' || outcome === 'alreadyConfirmed';
+  const ok =
+    outcome === 'confirmed' || outcome === 'confirmedAvailable' || outcome === 'alreadyConfirmed';
   return (
     <AuthCard title={t('title')}>
       {ok ? (
@@ -57,7 +67,11 @@ export default async function WaitlistConfirmPage({
         </Alert>
       )}
       <Button asChild className="w-full">
-        <Link href="/">{t('toShop')}</Link>
+        {outcome === 'confirmedAvailable' && eventSlug ? (
+          <Link href={`/events/${eventSlug}`}>{t('toEvent')}</Link>
+        ) : (
+          <Link href="/">{t('toShop')}</Link>
+        )}
       </Button>
     </AuthCard>
   );

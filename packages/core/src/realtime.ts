@@ -26,7 +26,8 @@ export type SessionMessage = { type: 'admitted'; eventId: string; claimWithinSec
 type Publisher = Pick<CoreContext, 'publisher' | 'channels'>;
 
 export async function publishSeatDelta(ctx: Publisher, message: SeatDeltaMessage): Promise<void> {
-  if (message.seats.length === 0 && !message.ga && message.version === undefined) return;
+  if (message.seats.length === 0 && !message.ga && !message.gaOpen && message.version === undefined)
+    return;
   await ctx.publisher.publish(ctx.channels.seatUpdates(message.eventId), JSON.stringify(message));
 }
 

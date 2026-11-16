@@ -48,3 +48,4 @@ export * from './discount';
 export * from './discount-policy';
 export * from './schemas/discount';
 export * from './realtime-epoch';
+export * from './waitlist';

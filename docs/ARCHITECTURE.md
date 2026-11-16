@@ -39,9 +39,22 @@ Inside the `tix` container the supervisor (`docker/supervisor`) runs, as separat
 | ---------- | ------------------------------------------------------------------------------------------ |
 | supervisor | PID 1 under tini: resolves the environment once, runs migrations + seed, restarts children |
 | proxy      | The public HTTP entry on :8080: `/socket.io` → realtime, rest → web; client-address rules  |
-| `web`      | Next.js standalone: shop + Admin Portal + API                                              |
+| `web`      | Next.js standalone: shop + Admin Portal + API (`TIX_WEB_PROCESSES` = several processes)    |
 | `realtime` | Socket.io gateway; Redis Pub/Sub fan-out, 100 ms delta batching                            |
 | `worker`   | Background jobs, lock sweeper + waiting-room ticker, heartbeat                             |
+
+The web part can run as several processes (`TIX_WEB_PROCESSES`, 1-16 or `auto`; default 1), each its own
+managed child on a loopback port (`TIX_WEB_PORT`, then upwards skipping the realtime/worker/public ports) with
+its own restart backoff. The proxy keeps an upstream pool (`docker/supervisor/pool.mjs`): fewest requests in
+flight first, ties round-robin; a child that refuses connections is skipped for 1-5 s; body-less
+GET/HEAD/OPTIONS requests that meet a dead child are repeated on another one, requests with a body never;
+the "Starting" page only appears when every child is down. WebSocket upgrades go to realtime only.
+Nothing in the application assumes a single web process: shared state lives in Redis (seat locks, queue,
+rate limits, load-test mode, cache invalidation over Pub/Sub), the Next.js build is identical in every
+process (no ISR/data cache and no `next/image` are used; server-action keys come from the build), and
+process-local caches are short-lived or invalidated through Redis. Process-local figures (System page,
+`/api/metrics` memory and uptime) come from whichever process answers. The database pool budget (20) is
+divided by the process count (`docker/supervisor/sizing.mjs`).
 
 TLS is the operator's reverse proxy (not part of the image); `TRUSTED_PROXIES` tells the built-in proxy
 which peers may report the visitor address. Files live in the volume `tix-data` (`STORAGE_DRIVER=fs`) or

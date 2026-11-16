@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SEAT_SELECTION_STYLES } from '../enums';
+import { SEAT_SELECTION_STYLES, WAITLIST_TRIGGERS } from '../enums';
 import { SUPPORTED_LOCALES } from '../i18n';
 import {
   EMAIL_HEADER_ALIGNS,
@@ -719,6 +719,11 @@ const waitlistSchema = z.object({
   maxEntriesPerEvent: z.number().int().min(10).max(100_000).default(5_000),
   /** Largest number of tickets a visitor can ask for. */
   maxTicketsPerEntry: z.number().int().min(1).max(50).default(10),
+  /**
+   * When the banner is offered (events can override): WHEN_SOLD_OUT = only when nothing is free and
+   * nothing is merely held in other carts; WHEN_UNAVAILABLE = as soon as nothing can be selected now.
+   */
+  trigger: z.enum(WAITLIST_TRIGGERS).default('WHEN_SOLD_OUT'),
 });
 const backupCredentialsSchema = z.object({
   accessKeyId: z.string().min(1).max(256),

@@ -225,11 +225,17 @@ double booking.
 
 ### Sizing hints
 
-- The web part is CPU-bound: one web process saturates about one core at 1,200 simultaneous
-  checkouts, pages are rendered per request. Budget 2-4 vCPU for the container for a 1,000-user
-  presale, plus PostgreSQL and Redis on the same host (see "Reference results" and "Tuning" in Part B).
-- Database connections: replicas x `WEB_DATABASE_POOL_MAX` + worker + realtime must stay below
-  PostgreSQL `max_connections`.
+- The web part is CPU-bound: pages are rendered per request, and by default one web process uses
+  about one core. Set `TIX_WEB_PROCESSES` (`auto` = the CPUs of the container, see
+  [INSTALL.md](INSTALL.md#scaling-to-more-cores)) to use more: budget 2-4 vCPU for the container for a
+  1,000-user presale, plus PostgreSQL and Redis on the same host (see "Reference results" and "Tuning"
+  in Part B). Measured on one machine with 600 simulated shoppers and a container limited to 4 CPUs: one
+  web process was saturated (cart requests p95 1.5 s, seat requests p50 1.0 s), three processes answered
+  the same load with cart p95 0.11 s and seat p50 0.04 s. The realtime gateway (live seat updates) stays
+  a single process and showed a fan-out p95 of about 3 s in both runs.
+- Database connections: web processes x (`WEB_DATABASE_POOL_MAX` + 2) + worker + realtime must stay below
+  PostgreSQL `max_connections`. Without an explicit `WEB_DATABASE_POOL_MAX` the budget of 20 is divided
+  by `TIX_WEB_PROCESSES`; the startup log prints the maximum and warns above 80.
 - Redis is not the bottleneck at this scale (the Lua locks are O(1)); watch
   `tix_redis_used_memory_bytes` and the client count.
 - About one WebSocket per shopper on the seating plan; the realtime gateway is one Node process
@@ -515,7 +521,7 @@ The cache counters of a running instance are on the admin System page and in `/a
   Budget: replicas x web pool + worker pool (10) + realtime + migrate/backup jobs + headroom for
   admin tools. With the defaults one replica uses ~60 of 200; with 3 replicas raise the limit or
   lower the pool.
-- **Replicas** scale the CPU-bound part (a single `web` container saturates one core at 1,200
+- **Web processes** (`TIX_WEB_PROCESSES`) or replicas scale the CPU-bound part (a single web process saturates one core at 1,200
   simultaneous checkouts) but not the serialised rows: the gapless order number and the
   standing-area counter (`seat_map_sections.allocated_count`) are row-locked until commit, which
   bounds throughput to roughly 8-10 orders/s on the reference machine. The section counter is

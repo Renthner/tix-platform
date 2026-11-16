@@ -3,6 +3,7 @@
 import {
   MAX_SEATS_PER_REQUEST,
   SEAT_FLAG,
+  computeWaitlistCategoryStates,
   publicPriceRanges,
   type BestAvailableArrangement,
   type EventAvailability,
@@ -29,6 +30,7 @@ import {
 import { useRouter } from '@/i18n/navigation';
 import { apiFetch, errorCode, errorMessage } from '@/lib/api';
 import { useMoney } from '@/lib/format';
+import { publishWaitlistStates, useWaitlistWatched } from '@/lib/waitlist-live';
 import { startSocketPresence } from '@/lib/presence';
 import { MaintenanceNotice } from '@/components/shop/maintenance-notice';
 import {
@@ -68,6 +70,8 @@ interface Inventory {
   mine: Set<string>;
   pending: Set<string>;
   ga: Record<string, number>;
+  /** Sellable standing spots per area (holds not subtracted); feeds the waiting-list block. */
+  gaOpen: Record<string, number>;
   gaMine: Record<string, number>;
   version: number;
 }
@@ -78,6 +82,7 @@ const emptyInventory = (): Inventory => ({
   mine: new Set(),
   pending: new Set(),
   ga: {},
+  gaOpen: {},
   gaMine: {},
   version: 0,
 });
@@ -141,6 +146,7 @@ export function SeatSelection({
         mine: new Set(prev.mine),
         pending: new Set(prev.pending),
         ga: { ...prev.ga },
+        gaOpen: { ...prev.gaOpen },
         gaMine: { ...prev.gaMine },
       };
       fn(next);
@@ -156,6 +162,7 @@ export function SeatSelection({
       mine: new Set(availability.mine),
       pending: new Set(),
       ga: availability.ga,
+      gaOpen: availability.gaOpen ?? {},
       gaMine: availability.gaMine,
       version: availability.version,
     });
@@ -213,6 +220,7 @@ export function SeatSelection({
           }
         }
         if (delta.ga) Object.assign(draft.ga, delta.ga);
+        if (delta.gaOpen) Object.assign(draft.gaOpen, delta.gaOpen);
       });
     });
     // After a reconnect (network drop, maintenance) deltas were missed: refetch everything.
@@ -233,6 +241,21 @@ export function SeatSelection({
       stopPresence();
     };
   }, [eventId, loadAll, loadAvailability, refreshCart, update]);
+
+  // Ticket counts for the waiting-list block of the page (only while the block listens).
+  const waitlistWatched = useWaitlistWatched(eventId);
+  useEffect(() => {
+    if (!waitlistWatched || !map) return;
+    publishWaitlistStates(
+      eventId,
+      computeWaitlistCategoryStates(map, {
+        taken: inv.taken,
+        held: new Set([...inv.locked, ...inv.mine, ...inv.pending]),
+        ga: inv.ga,
+        gaOpen: inv.gaOpen,
+      }),
+    );
+  }, [eventId, inv, map, waitlistWatched]);
 
   const status = useCallback(
     (seatId: string): SeatStatus => {

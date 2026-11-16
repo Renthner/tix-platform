@@ -32,7 +32,9 @@ import { cloneSeatMap } from '../seatmaps/clone';
 import { flushShopCacheBestEffort } from './flush-shop-cache';
 import { loadSeatMapDocument, saveSeatMapDocument } from '../seatmaps/document';
 
-loadRootEnv();
+// An explicitly set DATABASE_URL means "use exactly this environment": do not mix in the root .env, whose
+// REDIS_URL would otherwise point the cache flush at a different stack (the dev / client one).
+if (!process.env.DATABASE_URL) loadRootEnv();
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL is required');
 

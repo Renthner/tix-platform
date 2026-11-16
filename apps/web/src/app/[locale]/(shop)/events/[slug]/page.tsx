@@ -31,7 +31,7 @@ import { cache, type CSSProperties, type ReactNode } from 'react';
 import { MediaImage } from '@/components/media-image';
 import { DraftBanner } from '@/components/shop/draft-banner';
 import { EventShop } from '@/components/shop/event-shop';
-import { WaitlistCard } from '@/components/shop/waitlist-card';
+import { WaitlistBlock } from '@/components/shop/waitlist-block';
 import { Badge } from '@/components/ui/badge';
 import { resolveLocale } from '@/i18n/locale';
 import { cn } from '@/lib/utils';
@@ -132,8 +132,8 @@ export default async function EventPage({ params }: Params) {
       getSetting(core, 'organizer'),
       headers().then((h) => h.get('x-nonce') ?? undefined),
     ]);
-  // Waiting list: offered while the event or a category is sold out. Never for drafts; an
-  // unreadable inventory must not break the page.
+  // Waiting list block: counts per category (the block decides itself whether the banner shows,
+  // also live). Never for drafts; an unreadable inventory must not break the page.
   const waitlistOffer =
     found.event.status === 'DRAFT' || !found.event.seatMapId
       ? null
@@ -183,7 +183,7 @@ export default async function EventPage({ params }: Params) {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {jsonLd && (
         <script
           type="application/ld+json"
@@ -240,15 +240,6 @@ export default async function EventPage({ params }: Params) {
         </div>
       </div>
 
-      {waitlistOffer && (
-        <WaitlistCard
-          eventId={event.id}
-          soldOut={waitlistOffer.soldOut}
-          categories={waitlistOffer.categories}
-          maxTickets={waitlistOffer.maxTickets}
-        />
-      )}
-
       {layoutRows.map((row) => {
         const cells = row
           .map((item) => ({ item, node: renderBlock(item.ref, row.length > 1) }))
@@ -258,15 +249,18 @@ export default async function EventPage({ params }: Params) {
           <div
             key={row.map((i) => i.ref).join('|')}
             data-row
-            className="grid items-start gap-6 md:[grid-template-columns:var(--cols)]"
-            style={
-              {
-                '--cols': cells.map((c) => `minmax(0,${c.item.span}fr)`).join(' '),
-              } as CSSProperties
-            }
+            // Stacked on mobile, side by side from md on (width ∝ span). Flex, not grid: a block that
+            // renders nothing for now (the waiting list while tickets are available) leaves no gap, and
+            // a row without visible content disappears completely.
+            className="grid gap-6 md:flex md:items-start [&:not(:has(>[data-block]:not(:empty)))]:hidden"
           >
             {cells.map(({ item, node }) => (
-              <div key={item.ref} data-block={item.ref} className="min-w-0">
+              <div
+                key={item.ref}
+                data-block={item.ref}
+                className="min-w-0 empty:hidden md:[flex:var(--span)_1_0%]"
+                style={{ '--span': item.span } as CSSProperties}
+              >
                 {node}
               </div>
             ))}
@@ -293,6 +287,17 @@ export default async function EventPage({ params }: Params) {
           loading="eager"
           fetchPriority="high"
           className="mx-auto h-auto max-h-[32rem] w-full rounded-xl border bg-muted/30 object-contain"
+        />
+      );
+    }
+    if (ref === 'WAITLIST') {
+      if (!waitlistOffer) return null;
+      return (
+        <WaitlistBlock
+          eventId={event.id}
+          trigger={waitlistOffer.trigger}
+          maxTickets={waitlistOffer.maxTickets}
+          categories={waitlistOffer.categories}
         />
       );
     }

@@ -228,11 +228,17 @@ von einer Doppelbuchung unterscheiden kann.
 
 ## Größenhinweise
 
-- Der Web-Teil ist CPU-gebunden: ein Web-Prozess ist bei etwa 1.200 gleichzeitigen Bestellungen
-  ungefähr einen Kern voll, die Seiten werden je Anfrage gerendert. Plane 2-4 vCPU für den Container
-  bei 1.000 Nutzern im Vorverkaufsstart, dazu PostgreSQL und Redis auf demselben Host.
-- Datenbankverbindungen: Replikate x `WEB_DATABASE_POOL_MAX` + Worker + Realtime müssen unter
-  PostgreSQL `max_connections` bleiben.
+- Der Web-Teil ist CPU-gebunden: die Seiten werden je Anfrage gerendert, und ein Web-Prozess nutzt
+  standardmäßig etwa einen Kern. Setze `TIX_WEB_PROCESSES` (`auto` = die CPUs des Containers, siehe
+  [INSTALL.de.md](INSTALL.de.md#auf-mehr-kerne-skalieren)), um mehr zu nutzen: plane 2-4 vCPU für den
+  Container bei 1.000 Nutzern im Vorverkaufsstart, dazu PostgreSQL und Redis auf demselben Host. Gemessen
+  auf einer Maschine mit 600 simulierten Käufer:innen und einem auf 4 CPUs begrenzten Container: ein
+  Web-Prozess war ausgelastet (Warenkorb-Anfragen p95 1,5 s, Platz-Anfragen p50 1,0 s), drei Prozesse
+  bewältigten dieselbe Last mit Warenkorb p95 0,11 s und Platz p50 0,04 s. Das Realtime-Gateway
+  (Live-Platzupdates) bleibt ein einzelner Prozess und zeigte in beiden Läufen ein Fan-out-p95 von etwa 3 s.
+- Datenbankverbindungen: Web-Prozesse x (`WEB_DATABASE_POOL_MAX` + 2) + Worker + Realtime müssen unter
+  PostgreSQL `max_connections` bleiben. Ohne explizites `WEB_DATABASE_POOL_MAX` wird das Budget von 20
+  durch `TIX_WEB_PROCESSES` geteilt; das Startprotokoll nennt das Maximum und warnt ab 80.
 - Redis ist bei dieser Größe nicht der Engpass (die Lua-Sperren sind O(1)); beobachte
   `tix_redis_used_memory_bytes` und die Clientzahl.
 - Etwa ein WebSocket je Käufer:in auf dem Saalplan; das Realtime-Gateway ist ein Node-Prozess

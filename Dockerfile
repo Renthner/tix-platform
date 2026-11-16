@@ -73,7 +73,7 @@ COPY --from=build /repo/apps/worker/dist ./worker/dist
 COPY --from=build /repo/apps/realtime/dist ./realtime/dist
 COPY --from=build /repo/packages/db/migrations ./migrations
 COPY --from=build /repo/packages/core/assets/fonts ./fonts
-COPY docker/supervisor/supervisor.mjs docker/supervisor/env.mjs docker/supervisor/proxy.mjs docker/supervisor/children.mjs ./supervisor/
+COPY docker/supervisor/supervisor.mjs docker/supervisor/env.mjs docker/supervisor/proxy.mjs docker/supervisor/children.mjs docker/supervisor/pool.mjs docker/supervisor/sizing.mjs ./supervisor/
 COPY VERSION ./VERSION
 # Only /data and Next's runtime cache are writable; the server bundles stay root-owned.
 RUN mkdir -p /data/secrets /data/storage /app/web/apps/web/.next/cache \

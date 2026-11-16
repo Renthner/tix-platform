@@ -34,7 +34,7 @@ export default async function EventPricingPage({
   if (editLocale) {
     return <EventTranslationPane eventId={event.id} scope="pricing" editLocale={editLocale} />;
   }
-  const { categories, types, matrix } = await getPricing(event.id);
+  const { categories, types, matrix, waitlistCounts } = await getPricing(event.id);
 
   return (
     <PricingManager
@@ -53,6 +53,7 @@ export default async function EventPricingPage({
         sortOrder: c.sortOrder,
         isActive: c.isActive,
         save: saveCategoryAction.bind(null, event.id, c.id),
+        waitlistEntries: waitlistCounts.get(c.id) ?? 0,
         remove: deleteCategoryAction.bind(null, event.id, c.id),
       }))}
       ticketTypes={types.map((tt) => ({

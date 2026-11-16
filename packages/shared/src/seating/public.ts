@@ -165,6 +165,8 @@ export interface EventAvailability {
   mine: string[];
   /** Remaining spots per STANDING section (capacity − sold − held in carts). */
   ga: Record<string, number>;
+  /** Sellable spots per STANDING section (capacity − sold, holds not subtracted); drives the waiting-list banner. */
+  gaOpen?: Record<string, number>;
   /** Spots this session holds per STANDING section. */
   gaMine: Record<string, number>;
 }
@@ -179,6 +181,8 @@ export interface SeatDeltaMessage {
   seats: [string, SeatDeltaStatus][];
   /** Remaining GA capacity per section that changed. */
   ga?: Record<string, number>;
+  /** Sellable capacity per section that changed (see `EventAvailability.gaOpen`). */
+  gaOpen?: Record<string, number>;
   /** New seat map version (clients reload the plan). */
   version?: number;
 }

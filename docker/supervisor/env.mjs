@@ -16,6 +16,17 @@ import {
   writeSync,
 } from 'node:fs';
 import path from 'node:path';
+import {
+  DB_CONNECTION_BUDGET,
+  allocateWebPorts,
+  budgetWebPool,
+  detectHardware,
+  parseWebProcesses,
+  readCgroupMemoryLimit,
+  resolveWebProcessCount,
+  sizingWarnings,
+  webPoolPerProcess,
+} from './sizing.mjs';
 
 export const ROLES = ['web', 'worker', 'realtime'];
 
@@ -361,8 +372,21 @@ export function resolveEnv(source, opts = {}) {
   const workerHealthPort = intIn(source, 'WORKER_HEALTH_PORT', 8081, 1, 65535, errors);
   // Postgres budget: stock max_connections is 100. Web 20 + worker 8 (+ migrate/backup tools) stays
   // far below that and leaves room for admin tools and a few more instances.
-  const webPool = intIn(source, 'WEB_DATABASE_POOL_MAX', 20, 1, 200, errors);
+  // Per web PROCESS. Not set: the budget of 20 is divided by TIX_WEB_PROCESSES (see sizing.mjs).
+  const webPoolExplicit =
+    source.WEB_DATABASE_POOL_MAX === undefined || source.WEB_DATABASE_POOL_MAX === ''
+      ? undefined
+      : intIn(source, 'WEB_DATABASE_POOL_MAX', 20, 1, 200, errors);
   const workerPool = intIn(source, 'WORKER_DATABASE_POOL_MAX', 8, 1, 100, errors);
+  // Upper bound for all database connections of this container (see budgetWebPool).
+  const dbBudget = intIn(
+    source,
+    'TIX_DB_CONNECTION_BUDGET',
+    DB_CONNECTION_BUDGET,
+    10,
+    100_000,
+    errors,
+  );
   const memory = {
     web: intIn(source, 'WEB_MAX_OLD_SPACE_MB', 768, 64, 65536, errors),
     worker: intIn(source, 'WORKER_MAX_OLD_SPACE_MB', 1024, 64, 65536, errors),
@@ -393,6 +417,60 @@ export function resolveEnv(source, opts = {}) {
   const { roles, errors: roleErrors } = parseRoles(source.TIX_ROLE);
   errors.push(...roleErrors);
 
+  // ── Web processes: count, loopback ports, pool per process ───────────────
+  const parsedProcesses = parseWebProcesses(source.TIX_WEB_PROCESSES);
+  if (parsedProcesses.error) errors.push(parsedProcesses.error);
+  const processes = resolveWebProcessCount(
+    parsedProcesses.value,
+    opts.hardware ?? detectHardware(opts.cgroupRead),
+  );
+  const allocation = allocateWebPorts(processes.n, webPort, [
+    realtimePort,
+    workerHealthPort,
+    publicPort,
+  ]);
+  const hasWeb = roles.includes('web');
+  // Port problems only matter when this container runs the web role.
+  if (hasWeb) {
+    if (allocation.error) errors.push(allocation.error);
+    const taken = {
+      PORT: publicPort,
+      TIX_REALTIME_PORT: realtimePort,
+      WORKER_HEALTH_PORT: workerHealthPort,
+    };
+    for (const [name, value] of Object.entries(taken)) {
+      if (value === webPort) errors.push(`TIX_WEB_PORT (${webPort}) must differ from ${name}.`);
+    }
+  }
+  const toolsPool = Number(source.DATABASE_POOL_MAX_TOOLS) || 4;
+  const budget = budgetWebPool({
+    hasWeb,
+    hasWorker: roles.includes('worker'),
+    processes: processes.n,
+    webPool: webPoolPerProcess(processes.n, webPoolExplicit),
+    workerPool,
+    toolsPool,
+    budget: dbBudget,
+  });
+  if (budget.error) errors.push(budget.error);
+  const webPool = budget.webPool;
+  const sizing = sizingWarnings({
+    hasWeb: roles.includes('web'),
+    hasWorker: roles.includes('worker'),
+    processes: processes.n,
+    webPool,
+    workerPool,
+    toolsPool,
+    webHeapMb: memory.web,
+    otherHeapMb:
+      (roles.includes('worker') ? memory.worker : 0) +
+      (roles.includes('realtime') ? memory.realtime : 0),
+    memoryLimitBytes:
+      opts.memoryLimitBytes !== undefined
+        ? opts.memoryLimitBytes
+        : readCgroupMemoryLimit(opts.cgroupRead),
+  });
+
   // Worker shutdown must finish before the supervisor kills it.
   env.WORKER_SHUTDOWN_TIMEOUT_MS = String(
     source.WORKER_SHUTDOWN_TIMEOUT_MS || Math.max(1_000, drainMs - 2_000),
@@ -406,6 +484,11 @@ export function resolveEnv(source, opts = {}) {
     roles,
     publicPort,
     webPort,
+    webPorts: allocation.ports,
+    webProcesses: processes.n,
+    webProcessesReason: processes.reason,
+    sizingWarnings: [...(budget.warning ? [budget.warning] : []), ...sizing.warnings],
+    dbConnectionsTotal: sizing.total,
     realtimePort,
     workerHealthPort,
     webPool,
@@ -424,7 +507,7 @@ export function resolveEnv(source, opts = {}) {
 }
 
 /** Environment of one child process. */
-export function childEnv(env, settings, role) {
+export function childEnv(env, settings, role, index = 0) {
   const out = { ...env };
   // Least privilege: a child only gets the secrets it really reads (verified against the env
   // schemas of the apps). Everything is reachable through DATABASE_URL, so the raw password never is.
@@ -433,7 +516,7 @@ export function childEnv(env, settings, role) {
   // TIX_* knobs of the supervisor are not for the children.
   delete out.TIX_ALLOWED_HOSTS;
   if (role === 'web') {
-    out.PORT = String(settings.webPort);
+    out.PORT = String(settings.webPorts?.[index] ?? settings.webPort);
     out.HOSTNAME = 'localhost'; // 127.0.0.1 makes Next redirect `/` to itself (see proxy.mjs)
     // Longer than any idle timeout of the proxy's pooled connections (no sporadic ECONNRESET).
     out.KEEP_ALIVE_TIMEOUT = keepAliveFor(env);

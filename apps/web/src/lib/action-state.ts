@@ -57,6 +57,7 @@ export const FORM_ERROR_CODES = [
   'testOrderCancelFailed',
   'testOrderPaymentOpen',
   'testOrderInvoiceExists',
+  'waitlistAckRequired',
 ] as const;
 export type FormErrorCode = (typeof FORM_ERROR_CODES)[number];
 

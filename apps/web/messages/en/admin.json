@@ -71,6 +71,7 @@
       "generic": "The action could not be completed.",
       "notFound": "The item no longer exists. Reload the page.",
       "inUse": "This item is used by existing orders and cannot be deleted. Deactivate it instead.",
+      "waitlistAckRequired": "This category has confirmed waiting-list entries. Tick the box to confirm that they are deleted too.",
       "publishIncomplete": "The event cannot be published yet – complete the checklist first.",
       "warningRequired": "A scanner warning is required when proof is checked at entry.",
       "templateMismatch": "The selected seating plan belongs to another venue.",
@@ -510,6 +511,12 @@
       "waitlist": "Waiting list",
       "waitlistHint": "Visitors can ask to be notified when this event is sold out. The entries are listed below this form.",
       "waitlistEnabled": "Waiting list when sold out",
+      "waitlistTrigger": "Show the waiting list",
+      "waitlistTriggerHint": "When the waiting-list block of the event page appears. Its position is set in the tab \"Shop page\".",
+      "waitlistTriggerOptions": {
+        "WHEN_SOLD_OUT": "Only when sold out (seats held in carts still count as available)",
+        "WHEN_UNAVAILABLE": "As soon as nothing can be selected (also while seats are held in carts)"
+      },
       "selfService": {
         "title": "Ticket changes by customers",
         "hint": "Name change and transfer on the order page. “Own values” switches the feature on for this event with the values below (empty = global value).",
@@ -561,7 +568,8 @@
       "blocks": {
         "COVER": "Cover image",
         "DESCRIPTION": "Description",
-        "SHOP": "Seating plan & seat selection"
+        "SHOP": "Seating plan & seat selection",
+        "WAITLIST": "Waiting list (shown only when tickets are out)"
       },
       "boxesTitle": "Info boxes",
       "boxesHint": "Notes with title, icon and text – place them in the page layout above, e.g. next to the description. Up to {max} boxes; empty boxes are removed when saving.",
@@ -641,7 +649,8 @@
       "bestAvailable": "Offer best-available booking",
       "bestAvailableHint": "Customers can pick this category in the best-available box. Switch off e.g. for wheelchair places (manual seat selection stays possible).",
       "deleteTitle": "Delete price category?",
-      "deleteDescription": "“{name}” is removed from all seats of this event."
+      "deleteDescription": "“{name}” is removed from all seats of this event.",
+      "deleteWaitlist": "{count, plural, one {# confirmed waiting-list entry for this category will be deleted with it} other {# confirmed waiting-list entries for this category will be deleted with it}}. I understand that these people will not be notified."
     },
     "types": {
       "title": "Tariffs",
@@ -1446,6 +1455,12 @@
       "description": "Visitors can ask to be notified by e-mail when tickets for a sold-out event become available again. An event can switch this off or on in its tab \"Sales\".",
       "enabled": "Offer a waiting list for sold-out events",
       "enabledHint": "Visitors confirm their e-mail address (double opt-in) before they are on the list. Everybody on the list is notified at the same time, first come first served; no seats are reserved.",
+      "trigger": "Show the waiting list",
+      "triggerHint": "Events can override this in their tab \"Sales\". Notifications are sent as soon as tickets can be bought again, whichever option is chosen. The position of the block on the event page is set in the tab \"Shop page\".",
+      "triggerOptions": {
+        "WHEN_SOLD_OUT": "Only when sold out (seats held in carts still count as available)",
+        "WHEN_UNAVAILABLE": "As soon as nothing can be selected (also while seats are held in carts)"
+      },
       "evaluateIntervalMinutes": "Availability check interval (minutes)",
       "evaluateIntervalMinutesHint": "How often the worker looks for freed tickets of events that have a waiting list.",
       "renotifyAfterHours": "Pause before notifying again (hours)",

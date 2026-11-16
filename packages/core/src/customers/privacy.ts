@@ -319,6 +319,7 @@ export async function exportCustomerData(ctx: CoreContext, customerId: string) {
       email: waitlistEntries.email,
       firstName: waitlistEntries.firstName,
       quantity: waitlistEntries.quantity,
+      categoryId: waitlistEntries.categoryId,
       locale: waitlistEntries.locale,
       createdAt: waitlistEntries.createdAt,
       confirmedAt: waitlistEntries.confirmedAt,
@@ -483,6 +484,8 @@ export async function exportCustomerData(ctx: CoreContext, customerId: string) {
     emails: mails,
     waitingList: waitlistRows.map((w) => ({
       ...w,
+      /** No category preference: notified when any category has tickets. */
+      anyCategory: w.categoryId === null,
       createdAt: iso(w.createdAt),
       confirmedAt: iso(w.confirmedAt),
       lastNotifiedAt: iso(w.lastNotifiedAt),

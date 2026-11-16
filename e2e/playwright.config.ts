@@ -37,7 +37,7 @@ export default defineConfig({
     {
       name: 'admin',
       testMatch:
-        /(admin|admin-cleanup|admin-test-purchase|discounts|ticket-self-service|waitlist|branding|csp|media|statistics|live-data|theme|admin-alerts)\.spec\.ts/,
+        /(admin|admin-cleanup|admin-test-purchase|discounts|ticket-self-service|waitlist|waitlist-banner|branding|csp|media|statistics|live-data|theme|admin-alerts)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },

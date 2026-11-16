@@ -67,6 +67,7 @@ export default async function EventSalesPage({
               bankTransferDisableDaysBeforeEvent: bank.disableDaysBeforeEvent,
               customerAccountsEnabled: accounts.enabled,
               waitlistEnabled: waitlist.enabled,
+              waitlistTrigger: waitlist.trigger,
               selfService,
             }}
             initial={{
@@ -92,6 +93,7 @@ export default async function EventSalesPage({
               customerAccountsEnabled: event.customerAccountsEnabled,
               seoNoindex: event.seoNoindex,
               waitlistEnabled: event.waitlistEnabled,
+              waitlistTrigger: event.waitlistTrigger,
               selfServiceEnabled: event.selfServiceEnabled,
               selfServiceAllowNameChange: event.selfServiceAllowNameChange,
               selfServiceAllowTransfer: event.selfServiceAllowTransfer,

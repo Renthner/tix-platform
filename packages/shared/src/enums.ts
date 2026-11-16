@@ -89,6 +89,13 @@ export type SeatSelectionStyle = (typeof SEAT_SELECTION_STYLES)[number];
  */
 export const SEAT_ORIENTATION_MODES = values('ROW', 'FIXED');
 
+/**
+ * When the waiting-list banner is offered: WHEN_SOLD_OUT = nothing is free and nothing is merely
+ * held in another visitor's cart; WHEN_UNAVAILABLE = nothing can be selected right now.
+ */
+export const WAITLIST_TRIGGERS = values('WHEN_SOLD_OUT', 'WHEN_UNAVAILABLE');
+export type WaitlistTrigger = (typeof WAITLIST_TRIGGERS)[number];
+
 /** Size presets of info boxes on the event page (text and icon separately). */
 export const INFO_BOX_SIZES = values('S', 'M', 'L', 'XL');
 export type InfoBoxSize = (typeof INFO_BOX_SIZES)[number];

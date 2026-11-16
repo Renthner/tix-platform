@@ -522,6 +522,7 @@ async function readInput(
           confirmationTtlHours: requiredInt(fd, 'confirmationTtlHours', errors),
           maxEntriesPerEvent: requiredInt(fd, 'maxEntriesPerEvent', errors),
           maxTicketsPerEntry: requiredInt(fd, 'maxTicketsPerEntry', errors),
+          trigger: text(fd, 'trigger'),
         },
       };
     case 'ticketSelfService':

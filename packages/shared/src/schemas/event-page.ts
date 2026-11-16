@@ -29,8 +29,11 @@ export const INFO_BOX_ICON_PX: Record<InfoBoxSize, number> = { S: 24, M: 40, L: 
 
 // ─── Page layout (rows × columns) ───────────────────────────────────────────
 
-/** A block of the event page: the cover image, the description, the seating plan / shop or one info box. */
-export type PageBlockRef = 'COVER' | 'DESCRIPTION' | 'SHOP' | `box:${string}`;
+/**
+ * A block of the event page: the cover image, the description, the seating plan / shop, the
+ * waiting-list banner (shown only while the event / a category is out) or one info box.
+ */
+export type PageBlockRef = 'COVER' | 'DESCRIPTION' | 'SHOP' | 'WAITLIST' | `box:${string}`;
 export interface PageLayoutItem {
   ref: PageBlockRef;
   /** Relative width within its row (1 = normal, 2 = double). */
@@ -48,11 +51,18 @@ export const boxRef = (id: string): PageBlockRef => `box:${id}`;
  * Brings a stored layout into shape: every block exactly once (unknown / deleted boxes
  * dropped, missing blocks appended as own rows), the seating plan alone in its row, at most
  * MAX_ITEMS_PER_ROW items per row, no empty rows. Layouts stored before the cover block existed
- * get it as an own first row (cover on top, as before). Also converts the earlier flat format
+ * get it as an own first row (cover on top, as before); layouts stored before the waiting-list
+ * block existed get it as the very first row (where the banner used to be rendered). Also converts the earlier flat format
  * (["SHOP", "DESCRIPTION", "INFO_BOXES"]): info boxes then sit two per row.
  */
 export function normalizePageLayout(raw: unknown, boxIds: readonly string[]): PageLayout {
-  const valid = new Set<string>(['COVER', 'DESCRIPTION', 'SHOP', ...boxIds.map(boxRef)]);
+  const valid = new Set<string>([
+    'COVER',
+    'DESCRIPTION',
+    'SHOP',
+    'WAITLIST',
+    ...boxIds.map(boxRef),
+  ]);
   let rows: { ref: string; span?: unknown }[][] = [];
   if (Array.isArray(raw) && raw.every((entry) => typeof entry === 'string')) {
     for (const block of raw as string[]) {
@@ -102,11 +112,14 @@ export function normalizePageLayout(raw: unknown, boxIds: readonly string[]): Pa
     if (!seen.has(ref)) result.push([{ ref, span: 1 }]);
   }
   if (!seen.has('COVER')) result.unshift([{ ref: 'COVER', span: 1 }]);
+  // Legacy position of the waiting-list banner: above everything else.
+  if (!seen.has('WAITLIST')) result.unshift([{ ref: 'WAITLIST', span: 1 }]);
   return result;
 }
 
-/** Default layout of new events: cover, seating plan, then the description. */
+/** Default layout of new events: waiting-list banner (when offered), cover, seating plan, description. */
 export const DEFAULT_PAGE_LAYOUT: PageLayout = [
+  [{ ref: 'WAITLIST', span: 1 }],
   [{ ref: 'COVER', span: 1 }],
   [{ ref: 'SHOP', span: 1 }],
   [{ ref: 'DESCRIPTION', span: 1 }],

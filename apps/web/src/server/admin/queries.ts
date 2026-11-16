@@ -13,6 +13,7 @@ import {
   taxRates,
   ticketTypes,
   venues,
+  waitlistEntries,
 } from '@tix/db';
 import { and, asc, count, desc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
 import { getCore } from '@/server/core';
@@ -249,7 +250,18 @@ export async function getPricing(eventId: string) {
       .innerJoin(priceCategories, eq(priceCategories.id, priceCategoryTicketTypes.priceCategoryId))
       .where(eq(priceCategories.eventId, eventId)),
   ]);
-  return { categories, types, matrix };
+  return { categories, types, matrix, waitlistCounts: await confirmedWaitlistByCategory(eventId) };
+}
+
+/** Confirmed waiting-list entries per price category (deleted together with the category). */
+async function confirmedWaitlistByCategory(eventId: string): Promise<Map<string, number>> {
+  const { db } = getCore();
+  const rows = await db
+    .select({ categoryId: waitlistEntries.categoryId, n: count() })
+    .from(waitlistEntries)
+    .where(and(eq(waitlistEntries.eventId, eventId), isNotNull(waitlistEntries.confirmedAt)))
+    .groupBy(waitlistEntries.categoryId);
+  return new Map(rows.flatMap((r) => (r.categoryId ? [[r.categoryId, r.n] as const] : [])));
 }
 
 export interface SeatingSummary {

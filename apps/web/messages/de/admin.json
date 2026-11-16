@@ -71,6 +71,7 @@
       "generic": "Die Aktion konnte nicht ausgeführt werden.",
       "notFound": "Der Eintrag existiert nicht mehr. Bitte die Seite neu laden.",
       "inUse": "Dieser Eintrag wird von bestehenden Bestellungen verwendet und kann nicht gelöscht werden. Deaktiviere ihn stattdessen.",
+      "waitlistAckRequired": "Diese Kategorie hat bestätigte Wartelisten-Einträge. Setze den Haken, um zu bestätigen, dass sie mit gelöscht werden.",
       "publishIncomplete": "Die Veranstaltung kann noch nicht veröffentlicht werden – vervollständige zuerst die Checkliste.",
       "warningRequired": "Ein Scanner-Hinweis ist erforderlich, wenn der Nachweis beim Einlass geprüft wird.",
       "templateMismatch": "Der gewählte Saalplan gehört zu einer anderen Spielstätte.",
@@ -510,6 +511,12 @@
       "waitlist": "Warteliste",
       "waitlistHint": "Besucher können sich benachrichtigen lassen, wenn diese Veranstaltung ausverkauft ist. Die Einträge stehen unter diesem Formular.",
       "waitlistEnabled": "Warteliste bei Ausverkauf",
+      "waitlistTrigger": "Warteliste anzeigen",
+      "waitlistTriggerHint": "Wann der Wartelisten-Block der Veranstaltungsseite erscheint. Seine Position legst du im Tab „Shop-Seite“ fest.",
+      "waitlistTriggerOptions": {
+        "WHEN_SOLD_OUT": "Nur bei Ausverkauf (Plätze in Warenkörben zählen noch als verfügbar)",
+        "WHEN_UNAVAILABLE": "Sobald nichts mehr wählbar ist (auch wenn Plätze nur in Warenkörben gehalten werden)"
+      },
       "selfService": {
         "title": "Ticket-Änderungen durch Kunden",
         "hint": "Namensänderung und Weitergabe auf der Bestellseite. „Eigene Werte“ schaltet die Funktion für diese Veranstaltung mit den Werten unten ein (leer = globaler Wert).",
@@ -561,7 +568,8 @@
       "blocks": {
         "COVER": "Titelbild",
         "DESCRIPTION": "Beschreibung",
-        "SHOP": "Saalplan & Platzauswahl"
+        "SHOP": "Saalplan & Platzauswahl",
+        "WAITLIST": "Warteliste (erscheint nur, wenn keine Tickets mehr da sind)"
       },
       "boxesTitle": "Infoboxen",
       "boxesHint": "Hinweise mit Titel, Symbol und Text – platziere sie oben im Seitenaufbau, z. B. neben der Beschreibung. Bis zu {max} Boxen; leere Boxen werden beim Speichern entfernt.",
@@ -641,7 +649,8 @@
       "bestAvailable": "Bestplatzbuchung anbieten",
       "bestAvailableHint": "Kunden können diese Kategorie im Bestplatz-Feld wählen. Z. B. für Rollstuhlplätze ausschalten (die manuelle Platzwahl bleibt möglich).",
       "deleteTitle": "Preiskategorie löschen?",
-      "deleteDescription": "„{name}“ wird von allen Plätzen dieser Veranstaltung entfernt."
+      "deleteDescription": "„{name}“ wird von allen Plätzen dieser Veranstaltung entfernt.",
+      "deleteWaitlist": "{count, plural, one {# bestätigter Wartelisten-Eintrag dieser Kategorie wird mit ihr gelöscht} other {# bestätigte Wartelisten-Einträge dieser Kategorie werden mit ihr gelöscht}}. Ich weiß, dass diese Personen nicht benachrichtigt werden."
     },
     "types": {
       "title": "Tarife",
@@ -1446,6 +1455,12 @@
       "description": "Besucher können sich per E-Mail benachrichtigen lassen, wenn bei einer ausverkauften Veranstaltung wieder Tickets frei werden. Pro Veranstaltung lässt sich das im Tab „Verkauf“ ein- oder ausschalten.",
       "enabled": "Warteliste für ausverkaufte Veranstaltungen anbieten",
       "enabledHint": "Besucher bestätigen ihre E-Mail-Adresse (Double-Opt-in), bevor sie auf der Liste stehen. Alle auf der Liste werden gleichzeitig benachrichtigt – wer zuerst bucht, bekommt die Tickets; es werden keine Plätze reserviert.",
+      "trigger": "Warteliste anzeigen",
+      "triggerHint": "Veranstaltungen können das im Tab „Verkauf“ überschreiben. Benachrichtigungen gehen unabhängig von dieser Option raus, sobald wieder Tickets kaufbar sind. Die Position des Blocks auf der Veranstaltungsseite legst du im Tab „Shop-Seite“ fest.",
+      "triggerOptions": {
+        "WHEN_SOLD_OUT": "Nur bei Ausverkauf (Plätze in Warenkörben zählen noch als verfügbar)",
+        "WHEN_UNAVAILABLE": "Sobald nichts mehr wählbar ist (auch wenn Plätze nur in Warenkörben gehalten werden)"
+      },
       "evaluateIntervalMinutes": "Prüfintervall (Minuten)",
       "evaluateIntervalMinutesHint": "Wie oft der Worker bei Veranstaltungen mit Warteliste nach frei gewordenen Tickets sucht.",
       "renotifyAfterHours": "Pause vor erneuter Benachrichtigung (Stunden)",
