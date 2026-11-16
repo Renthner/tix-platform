@@ -7,6 +7,7 @@ import type { CacheStats } from '../cache/tag-cache';
 import type { CoreContext } from '../context';
 import { coreLog } from '../log';
 import { shopPresenceCounts } from '../presence';
+import { collectWebProcess, type WebProcessLoad } from './process-load';
 import { countOpenRefunds } from '../orders/refunds';
 
 /**
@@ -45,6 +46,8 @@ export interface SystemStats {
     rssBytes: number;
     heapUsedBytes: number;
   };
+  /** Pool, event loop and CPU of THIS web process (read fresh on every call, never cached). */
+  webProcess: WebProcessLoad;
   /** Shop data cache of THIS web process (counters since process start). */
   shopCache: CacheStats;
   postgres: {
@@ -331,6 +334,7 @@ export async function collectSystemStats(ctx: CoreContext): Promise<SystemStats>
       rssBytes: memory.rss,
       heapUsedBytes: memory.heapUsed,
     },
+    webProcess: collectWebProcess(ctx.db),
     shopCache: shopCacheStats(),
     postgres,
     redis,
@@ -352,9 +356,16 @@ const globalCache = globalThis as typeof globalThis & {
   __tixSystemStats?: { at: number; value?: SystemStats; pending?: Promise<SystemStats> };
 };
 
+/** The process figures are cheap and must reflect "now", not the cached collection. */
+const withFreshProcess = (ctx: CoreContext, stats: SystemStats): SystemStats => ({
+  ...stats,
+  webProcess: collectWebProcess(ctx.db),
+});
+
 export async function getSystemStats(ctx: CoreContext): Promise<SystemStats> {
   const entry = (globalCache.__tixSystemStats ??= { at: 0 });
-  if (entry.value && Date.now() - entry.at < CACHE_TTL_MS) return entry.value;
+  if (entry.value && Date.now() - entry.at < CACHE_TTL_MS)
+    return withFreshProcess(ctx, entry.value);
   entry.pending ??= collectSystemStats(ctx)
     .then((value) => {
       entry.value = value;
@@ -364,5 +375,5 @@ export async function getSystemStats(ctx: CoreContext): Promise<SystemStats> {
     .finally(() => {
       entry.pending = undefined;
     });
-  return entry.pending;
+  return withFreshProcess(ctx, await entry.pending);
 }

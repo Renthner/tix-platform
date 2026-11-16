@@ -212,6 +212,51 @@ double booking.
   to normal browsing. A healthy fan-out p95 is well below one second.
 - Latency includes the network between generator and server; measure from the same region.
 
+### Finding the bottleneck
+
+When many requests time out (30 s, status 0) although the web container's CPU looks calm, the
+generator tells you where to look. With `--metrics-token` it scrapes `/api/metrics` every 5 s (four
+quick requests per tick, so that several web processes are seen) and keeps the **peak per metric and
+`pid`** in the JSON (`resources.peaksDuringRun`); the stdout summary adds a "diagnosis hint" block
+when more than 1 % of the requests timed out. The same figures are on the System page, card "Web
+process load" (with several web processes each refresh shows the one that answered).
+
+| Metric (per web process, label `pid`)                                          | Meaning                                                                                               |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `tix_db_pool_connections{state="total"}`, `idle`, `waiting`, `tix_db_pool_max` | database pool of the process; `total - idle` = in use; **waiting** = requests queued for a connection |
+| `tix_event_loop_lag_seconds{quantile="0.5"}`, `0.99`, `max`                    | how late the single-threaded event loop answers (10 ms timer, window of 10-20 s)                      |
+| `tix_process_cpu_seconds_total`                                                | CPU time of the process (its rate is the share of one core)                                           |
+
+How to read them:
+
+- **Pool waiting > 0** (peak): requests wait for a database connection. Raise `WEB_DATABASE_POOL_MAX`
+  (mind `TIX_DB_CONNECTION_BUDGET` and PostgreSQL `max_connections`) and look for slow queries
+  (`tix_postgres_longest_query_seconds`). If a scrape needs more than 4 s for the database part, the
+  endpoint answers only the process figures with `tix_scrape_degraded 1`: the database or its pool is
+  saturated.
+- **Event loop lag p99 above about 200 ms**: the web process is CPU bound (even if the container
+  average looks low, because one process uses one core). Raise `TIX_WEB_PROCESSES` or give the VM
+  more CPU.
+- **Both low, but timeouts** ("not CPU/DB/event-loop bound as seen by the server"): the time is lost
+  outside the application. Check the network path: Cloudflare, Traefik / reverse proxy, FritzBox /
+  router, the uplink of the generator and of the server. The summary prints the bytes received in
+  total and per second (decoded bodies, no WebSocket traffic): compare that with the uplink, and with
+  `docker stats` NET I/O of the proxy and the `tix` container over the same time. A saturated uplink
+  shows as timeouts with an idle server.
+- **Timeouts by endpoint**: timeouts on cheap endpoints (`AVAILABILITY`) as well as on expensive ones
+  point to a shared queue (pool, event loop, network) rather than one slow query.
+- **Indeterminate hold overlaps** (a WARN, never a failure): a release request (`UNLOCK`,
+  `CART_CLEAR`, `PROBE_UNLOCK`) timed out, so the generator cannot know whether the server released
+  the seat before another session got it. Only a _certain_ overlap fails the run.
+
+What to watch on the server during a run:
+
+- `docker stats` for **all** containers (`tix`, postgres, redis, the proxy), not only the web one:
+  CPU, memory and NET I/O. A busy postgres or redis container explains slow answers from a calm web
+  process.
+- `top` (or `vmstat 1`) on the VM / host: a high `wa` (I/O wait) means slow disks, a high `st`
+  (steal) means the hypervisor gives the VM less CPU than it shows (typical on shared Proxmox hosts).
+
 ### Caveats
 
 - A CDN or WAF may rate limit or challenge the generator even with the token; the `statuses`
@@ -240,6 +285,50 @@ double booking.
   `tix_redis_used_memory_bytes` and the client count.
 - About one WebSocket per shopper on the seating plan; the realtime gateway is one Node process
   (`tix_realtime_sockets`, fan-out latency).
+
+### Test event with a large seating plan
+
+The demo plan has a few hundred seats. To test the seat map, the shop cache and the realtime
+fan-out with a realistic hall, generate a plan of about 3,600 seats and import it like any other plan
+file:
+
+```bash
+node scripts/load/make-seatplan.mjs --seats 3600 --out loadtest-seatplan.tixplan.json
+```
+
+Options: `--seats N` (100 to 90,000, default 3,600), `--out <path>`, `--name <plan name>`. The file is
+deterministic (same options, same file) and has no images or custom symbols. For 3,600 seats it is
+1.2 MB (the upload limit of the importer is 40 MB). Layout: a stage at the top, one entrance,
+three price categories (Cat 1 red, Cat 2 blue, Cat 3 green), seven blocks in straight rows of 20-28
+seats (Parkett links / Mitte / rechts, Balkon links / Mitte / rechts, Loge; the three columns line
+up, so keyboard navigation across blocks works), row labels, seat numbers and four wheelchair /
+companion pairs. Seats per block: 600 / 780 / 600 / 420 / 420 / 420 / 360; per category: Cat 1 780
+(Parkett Mitte), Cat 2 1,980, Cat 3 840.
+
+1. **Import the plan.** Admin -> **Venues & plans** -> open a venue (create a test venue first) ->
+   card **Import seating plan** -> choose the file. The preview shows 7 blocks, 152 rows, 3,600 seats
+   and the categories; keep or change the name, click **Import plan**. A new master plan opens in
+   the editor (the import takes about one second).
+2. **Create the event.** Admin -> **Events** -> **New event**: title, venue, **Seating plan** = the
+   imported plan, start date, time zone, currency and tax rate; switch the **Orphan seat rule** off
+   for load tests; **Create event**. The three plan categories become price categories of the event.
+3. **Prices.** Event tab **Pricing**: give Cat 1, Cat 2 and Cat 3 a price for the tariff (without a
+   price a category is not sellable).
+4. **Sales.** Event tab **Sales**: set generous order limits (empty = unlimited), keep **Pick seats
+   on the plan** and switch **Best available seats** on (the best-available block of the shop then
+   offers all three categories; Parkett Mitte is picked first).
+5. **Publish.** Event tab **Details** (status card): status **Published**, **Apply status**. Anonymous
+   shoppers, and so the load generator, can only open published events, so keep the event unlisted
+   (no link, far-future presale with an access code) on a live system.
+6. **Waiting room.** Leave the event's waiting room **off** (event tab **Waiting room**) to measure
+   the seat map and the locks. A second run with mode `AUTO_THRESHOLD` and a threshold well below the
+   number of simulated users measures the queue; do not touch the waiting room settings of real
+   events. Then run `journey.mjs` with the event id as described above.
+
+Measured on a throwaway database (PostgreSQL 18): importing the 3,600-seat file took about 1.1 s;
+the public seat map the shop downloads is about 915 KB of JSON (about 113 KB gzipped, the
+shop serves it with an ETag and answers revalidations with `304`). Delete the event and the test
+venue afterwards (an event without orders can be deleted after archiving).
 
 ### Measured locally
 

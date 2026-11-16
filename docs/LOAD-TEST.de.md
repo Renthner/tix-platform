@@ -215,6 +215,54 @@ von einer Doppelbuchung unterscheiden kann.
   kommen normalem Surfen näher. Eine gesunde Verteilzeit (p95) liegt deutlich unter einer Sekunde.
 - Die Antwortzeit enthält das Netz zwischen Generator und Server; miss aus derselben Region.
 
+## Den Engpass finden
+
+Laufen viele Anfragen in den Timeout (30 s, Status 0), obwohl die CPU des Web-Containers ruhig
+aussieht, zeigt der Generator, wo man suchen muss. Mit `--metrics-token` liest er alle 5 s
+`/api/metrics` (vier schnelle Anfragen pro Takt, damit mehrere Web-Prozesse erfasst werden) und
+behält den **Spitzenwert je Metrik und `pid`** im JSON (`resources.peaksDuringRun`); die Ausgabe
+enthält einen Block "diagnosis hint", wenn mehr als 1 % der Anfragen in den Timeout liefen. Dieselben
+Werte zeigt die System-Seite in der Karte "Auslastung des Web-Prozesses" (bei mehreren Web-Prozessen
+zeigt jede Aktualisierung den Prozess, der gerade geantwortet hat).
+
+| Metrik (je Web-Prozess, Label `pid`)                                           | Bedeutung                                                                                                           |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `tix_db_pool_connections{state="total"}`, `idle`, `waiting`, `tix_db_pool_max` | Datenbank-Pool des Prozesses; `total - idle` = in Benutzung; **waiting** = Anfragen, die auf eine Verbindung warten |
+| `tix_event_loop_lag_seconds{quantile="0.5"}`, `0.99`, `max`                    | wie spät die Event Loop (ein Thread) antwortet (10-ms-Timer, Fenster von 10-20 s)                                   |
+| `tix_process_cpu_seconds_total`                                                | CPU-Zeit des Prozesses (die Rate ist der Anteil eines Kerns)                                                        |
+
+So liest man sie:
+
+- **Pool waiting > 0** (Spitzenwert): Anfragen warten auf eine Datenbankverbindung.
+  `WEB_DATABASE_POOL_MAX` erhöhen (`TIX_DB_CONNECTION_BUDGET` und PostgreSQL `max_connections`
+  beachten) und langsame Abfragen suchen (`tix_postgres_longest_query_seconds`). Braucht ein Abruf
+  für den Datenbankteil mehr als 4 s, liefert der Endpunkt nur die Prozesswerte mit
+  `tix_scrape_degraded 1`: Datenbank oder Pool sind überlastet.
+- **Event-Loop-Verzögerung p99 über etwa 200 ms**: der Web-Prozess hängt an der CPU (auch wenn der
+  Container-Durchschnitt niedrig aussieht, weil ein Prozess einen Kern nutzt). `TIX_WEB_PROCESSES`
+  erhöhen oder der VM mehr CPU geben.
+- **Beides niedrig, aber Timeouts** ("not CPU/DB/event-loop bound as seen by the server"): die Zeit
+  geht außerhalb der Anwendung verloren. Netzwerkweg prüfen: Cloudflare, Traefik / Reverse Proxy,
+  FritzBox / Router, Uplink von Generator und Server. Die Zusammenfassung nennt die empfangenen Bytes
+  gesamt und pro Sekunde (dekodierte Bodys, ohne WebSocket-Verkehr): vergleiche das mit dem Uplink
+  und mit `docker stats` NET I/O von Proxy und `tix`-Container im selben Zeitraum. Ein ausgelasteter
+  Uplink zeigt sich als Timeouts bei ruhigem Server.
+- **Timeouts je Endpunkt**: Timeouts bei billigen Endpunkten (`AVAILABILITY`) ebenso wie bei teuren
+  deuten auf eine gemeinsame Warteschlange (Pool, Event Loop, Netz) statt auf eine langsame Abfrage.
+- **Unbestimmte Überlappungen** (eine WARN, nie ein Fehler): eine Freigabe-Anfrage (`UNLOCK`,
+  `CART_CLEAR`, `PROBE_UNLOCK`) lief in den Timeout, der Generator kann also nicht wissen, ob der
+  Server den Platz freigegeben hat, bevor eine andere Sitzung ihn bekam. Nur eine _sichere_
+  Überlappung lässt den Lauf fehlschlagen.
+
+Was während eines Laufs auf dem Server zu beobachten ist:
+
+- `docker stats` für **alle** Container (`tix`, Postgres, Redis, Proxy), nicht nur den Web-Container:
+  CPU, Speicher und NET I/O. Ein ausgelasteter Postgres- oder Redis-Container erklärt langsame
+  Antworten eines ruhigen Web-Prozesses.
+- `top` (oder `vmstat 1`) auf der VM / dem Host: hohes `wa` (I/O-Wait) heißt langsame Platten, hohes
+  `st` (Steal) heißt, der Hypervisor gibt der VM weniger CPU, als sie anzeigt (typisch bei geteilten
+  Proxmox-Hosts).
+
 ## Einschränkungen
 
 - Ein CDN oder eine WAF kann den Generator trotz Token begrenzen oder herausfordern; die
@@ -243,6 +291,53 @@ von einer Doppelbuchung unterscheiden kann.
   `tix_redis_used_memory_bytes` und die Clientzahl.
 - Etwa ein WebSocket je Käufer:in auf dem Saalplan; das Realtime-Gateway ist ein Node-Prozess
   (`tix_realtime_sockets`, Verteilzeit).
+
+## Testevent mit großem Saalplan
+
+Der Demo-Plan hat nur ein paar hundert Plätze. Um Saalplan, Shop-Cache und das Realtime-Fan-out mit
+einer realistischen Halle zu testen, erzeugst du einen Plan mit etwa 3.600 Plätzen und importierst
+ihn wie jede andere Plandatei:
+
+```bash
+node scripts/load/make-seatplan.mjs --seats 3600 --out loadtest-seatplan.tixplan.json
+```
+
+Optionen: `--seats N` (100 bis 90.000, Standard 3.600), `--out <Pfad>`, `--name <Planname>`. Die Datei
+ist deterministisch (gleiche Optionen, gleiche Datei) und enthält weder Bilder noch eigene Symbole.
+Bei 3.600 Plätzen ist sie 1,2 MB groß (das Upload-Limit des Imports liegt bei 40 MB). Aufbau: eine
+Bühne oben, ein Eingang, drei Preiskategorien (Cat 1 rot, Cat 2 blau, Cat 3 grün), sieben Blöcke in
+geraden Reihen mit 20-28 Plätzen (Parkett links / Mitte / rechts, Balkon links / Mitte / rechts,
+Loge; die drei Spalten fluchten, damit die Tastaturnavigation über Blöcke hinweg funktioniert),
+Reihenbeschriftung, Sitznummern und vier Rollstuhl-/Begleitplatz-Paare. Plätze je Block: 600 / 780 /
+600 / 420 / 420 / 420 / 360; je Kategorie: Cat 1 780 (Parkett Mitte), Cat 2 1.980, Cat 3 840.
+
+1. **Plan importieren.** Admin -> **Spielstätten & Pläne** -> eine Spielstätte öffnen (vorher eine
+   Test-Spielstätte anlegen) -> Karte **Saalplan importieren** -> Datei wählen. Die Vorschau zeigt 7
+   Blöcke, 152 Reihen, 3.600 Plätze und die Kategorien; Namen übernehmen oder ändern, **Plan
+   importieren** klicken. Der neue Hauptplan öffnet sich im Editor (der Import dauert etwa eine
+   Sekunde).
+2. **Veranstaltung anlegen.** Admin -> **Veranstaltungen** -> **Neue Veranstaltung**: Titel,
+   Spielstätte, **Saalplan** = der importierte Plan, Beginn, Zeitzone, Währung und Steuersatz; die
+   **Einzelplatz-Regel** für Lasttests ausschalten; **Veranstaltung anlegen**. Die drei
+   Plan-Kategorien werden zu Preiskategorien der Veranstaltung.
+3. **Preise.** Tab **Preise** der Veranstaltung: Cat 1, Cat 2 und Cat 3 einen Preis für den Tarif
+   geben (ohne Preis ist eine Kategorie nicht verkäuflich).
+4. **Verkauf.** Tab **Verkauf**: großzügige Bestelllimits (leer = unbegrenzt), **Plätze im Saalplan
+   wählen** an lassen und **Bestplatzbuchung** einschalten (das Bestplatz-Feld im Shop bietet dann
+   alle drei Kategorien an; Parkett Mitte wird zuerst vergeben).
+5. **Veröffentlichen.** Tab **Details** (Karte Status): Status **Veröffentlicht**, **Status
+   übernehmen**. Anonyme Käufer:innen und damit der Lastgenerator können nur veröffentlichte
+   Veranstaltungen öffnen; auf einem Live-System das Event deshalb unverlinkt halten (kein Link,
+   Vorverkauf weit in der Zukunft mit Zugangscode).
+6. **Warteraum.** Den Warteraum der Veranstaltung (Tab **Warteraum**) **aus** lassen, um Saalplan und
+   Sperren zu messen. Ein zweiter Lauf mit Modus `AUTO_THRESHOLD` und einer Schwelle deutlich unter der
+   Zahl der simulierten Nutzer misst die Warteschlange; die Warteraum-Einstellungen echter
+   Veranstaltungen nicht anfassen. Danach `journey.mjs` mit der Event-ID starten, wie oben beschrieben.
+
+Gemessen auf einer Wegwerf-Datenbank (PostgreSQL 18): Der Import der Datei mit 3.600 Plätzen dauerte
+etwa 1,1 s; der öffentliche Saalplan, den der Shop lädt, hat etwa 915 KB JSON (etwa 113 KB gzip, der
+Shop liefert ihn mit ETag und beantwortet Wiederholungen mit `304`). Lösche Veranstaltung und
+Test-Spielstätte danach (eine Veranstaltung ohne Bestellungen lässt sich nach dem Archivieren löschen).
 
 ## Lokal gemessen
 

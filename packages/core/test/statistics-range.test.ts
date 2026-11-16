@@ -11,7 +11,8 @@ import {
   windowInstants,
 } from '../src/statistics/range';
 import { parseRedisInfo } from '../src/statistics/system';
-import { renderPrometheus } from '../src/statistics/prometheus';
+import { renderProcessPrometheus, renderPrometheus } from '../src/statistics/prometheus';
+import { collectWebProcess, readDbPool } from '../src/statistics/process-load';
 import type { SystemStats } from '../src/statistics/system';
 
 describe('statistics range helpers', () => {
@@ -175,13 +176,47 @@ describe('system statistics helpers', () => {
       workers: { live: [], leaderId: null },
       backlog: null,
       errors: ['postgres'],
+      webProcess: {
+        pid: 42,
+        cpuSecondsTotal: 12.5,
+        eventLoop: { p50: 0.001, p99: 0.25, max: 0.9 },
+        dbPool: { total: 20, idle: 3, waiting: 7, max: 20 },
+      },
     } as unknown as SystemStats;
     const text = renderPrometheus(stats);
+    expect(text).toContain('tix_db_pool_connections{pid="42",state="waiting"} 7');
+    expect(text).toContain('tix_db_pool_connections{pid="42",state="idle"} 3');
+    expect(text).toContain('tix_db_pool_max{pid="42"} 20');
+    expect(text).toContain('tix_event_loop_lag_seconds{pid="42",quantile="0.99"} 0.25');
+    expect(text).toContain('tix_process_cpu_seconds_total{pid="42"} 12.5');
     expect(text).toContain('tix_queue_jobs{queue="email",state="failed"} 2');
     expect(text).toContain(String.raw`event_id="a\"b\\c"`);
     expect(text).toContain('tix_realtime_sockets 7');
     expect(text).toContain('tix_collect_error{block="postgres"} 1');
     expect(text.match(/# TYPE tix_queue_jobs/g)).toHaveLength(1);
     expect(text.endsWith('\n')).toBe(true);
+  });
+});
+
+describe('web process load', () => {
+  it('reads a node-postgres pool behind a drizzle handle', () => {
+    expect(
+      readDbPool({
+        $client: { totalCount: 5, idleCount: 2, waitingCount: 1, options: { max: 9 } },
+      }),
+    ).toEqual({ total: 5, idle: 2, waiting: 1, max: 9 });
+    expect(readDbPool({})).toBeNull();
+    expect(readDbPool(null)).toBeNull();
+  });
+
+  it('collects sane process figures and renders the degraded exposition', () => {
+    const p = collectWebProcess({ $client: { totalCount: 1, idleCount: 1, waitingCount: 0 } });
+    expect(p.pid).toBe(process.pid);
+    expect(p.cpuSecondsTotal).toBeGreaterThan(0);
+    expect(p.eventLoop.p99).toBeGreaterThanOrEqual(0);
+    const text = renderProcessPrometheus(p);
+    expect(text).toContain('tix_scrape_degraded 1');
+    expect(text).toContain(`tix_db_pool_connections{pid="${process.pid}",state="total"} 1`);
+    expect(text.match(/# TYPE tix_event_loop_lag_seconds/g)).toHaveLength(1);
   });
 });

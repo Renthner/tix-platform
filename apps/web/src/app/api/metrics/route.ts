@@ -1,4 +1,10 @@
-import { getSystemStats, renderPrometheus, verifyMetricsToken } from '@tix/core';
+import {
+  collectWebProcess,
+  getSystemStats,
+  renderPrometheus,
+  renderProcessPrometheus,
+  verifyMetricsToken,
+} from '@tix/core';
 import { DomainError } from '@tix/core';
 import { logger } from '@/server/logger';
 import { getCore } from '@/server/core';
@@ -8,6 +14,8 @@ export const dynamic = 'force-dynamic';
 
 const AUTH_FAIL_BUCKET = 'metrics-authfail';
 const AUTH_FAIL_LIMIT = 20;
+/** Beyond this the full collection is abandoned and only the process figures are answered. */
+const FULL_COLLECTION_BUDGET_MS = 4_000;
 
 const text = (body: string, status: number, headers: Record<string, string> = {}) =>
   new Response(body, {
@@ -25,7 +33,10 @@ const text = (body: string, status: number, headers: Record<string, string> = {}
  * Disabled (404) until a token is set in Settings → Security; then `Authorization: Bearer <token>`
  * is required. Wrong tokens are rate limited per client address. Not behind the maintenance gate,
  * but the token lookup needs the database: while a restore replaces it the endpoint answers 503
- * once the 10 s settings cache has expired (a failing scrape is the signal).
+ * once the 10 s settings cache has expired (a failing scrape is the signal). When the database is
+ * so busy that the full collection takes longer than 4 s, only the in-memory process figures
+ * (pool occupancy, event loop lag, CPU) are returned with `tix_scrape_degraded 1`: they matter most
+ * exactly then.
  */
 export async function GET(request: Request) {
   try {
@@ -46,9 +57,18 @@ export async function GET(request: Request) {
       await enforceRateLimit(AUTH_FAIL_BUCKET, ip, AUTH_FAIL_LIMIT, 60_000);
       return text('Unauthorized\n', 401, { 'www-authenticate': 'Bearer realm="metrics"' });
     }
-    return text(renderPrometheus(await getSystemStats(core)), 200, {
-      'content-type': 'text/plain; version=0.0.4; charset=utf-8',
-    });
+    const headers = { 'content-type': 'text/plain; version=0.0.4; charset=utf-8' };
+    const full = getSystemStats(core);
+    full.catch(() => undefined); // an abandoned collection must not become an unhandled rejection
+    let timer: NodeJS.Timeout | undefined;
+    const stats = await Promise.race([
+      full,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), FULL_COLLECTION_BUDGET_MS);
+      }),
+    ]).finally(() => clearTimeout(timer));
+    if (!stats) return text(renderProcessPrometheus(collectWebProcess(core.db)), 200, headers);
+    return text(renderPrometheus(stats), 200, headers);
   } catch (err) {
     if (err instanceof DomainError && err.status === 429) {
       return text('Too many failed attempts\n', 429, { 'retry-after': '60' });

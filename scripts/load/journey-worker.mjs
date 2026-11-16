@@ -2,7 +2,7 @@
 // users with realistic journeys and streams its results back over IPC. Not meant to be started
 // by hand.
 import { Vu, pick, rng, shuffle, sleep, socketIo } from './lib/common.mjs';
-import { EndpointStats, Histogram, rampOffsets } from './lib/stats.mjs';
+import { EndpointStats, Histogram, classifyEnter, rampOffsets } from './lib/stats.mjs';
 
 process.on('message', (msg) => {
   if (msg?.type === 'start') {
@@ -109,9 +109,15 @@ async function run(m) {
         quantity: 2 + Math.floor(rand() * 3),
       });
       if (r.status === 200) {
-        for (const seat of r.body.seatIds ?? []) {
-          // the response proves the hold; use the response time as certain start
-          held.set(seat, { seat, sid: vu.sid, from: r.wallEnd, to: Infinity });
+        const seatIds = r.body?.seatIds;
+        if (!Array.isArray(seatIds)) {
+          // 200 without a usable body: an endpoint failure, not a crash of the journey
+          stats.markFailure('BEST_AVAILABLE', 'BAD_BODY');
+        } else {
+          for (const seat of seatIds) {
+            // the response proves the hold; use the response time as certain start
+            held.set(seat, { seat, sid: vu.sid, from: r.wallEnd, to: Infinity });
+          }
         }
       }
     }
@@ -125,15 +131,24 @@ async function run(m) {
       const seat = [...held.keys()][held.size - 1];
       await sleep(100 + rand() * 400);
       const rec = held.get(seat);
+      // `to` = the moment the release is SENT: the hold is certain until then.
       rec.to = Date.now();
       const r = await vu.call('UNLOCK', 'DELETE', `/api/events/${eventId}/seats`, {
         seatIds: [seat],
       });
-      if (r.status !== 200) rec.to = Infinity;
-      else {
+      if (r.status === 200) {
+        rec.releaseStatus = r.status;
         intervals.push(rec);
         held.delete(seat);
         count('churn_released');
+      } else {
+        // Outcome unknown (the server may process it late). The interval closes at the send time,
+        // flagged as unknown; the seat stays in the cart and the final cart clear cannot extend it.
+        rec.releaseStatus = r.status;
+        rec.releaseCode = r.code || null;
+        rec.toUnknown = true;
+        rec.settled = true;
+        intervals.push(rec);
       }
     }
     // 8) optional checkout (dedicated copy only)
@@ -146,10 +161,14 @@ async function run(m) {
       await sleep(Math.min(5000, Math.max(0, holdUntil - Date.now())));
       if (Date.now() < holdUntil) await vu.call('CART', 'GET', '/api/cart');
     }
-    for (const rec of held.values()) rec.to = Date.now();
+    const open = [...held.values()].filter((rec) => !rec.settled);
+    for (const rec of open) rec.to = Date.now(); // release SENT now (certain bound)
     const clear = await vu.call('CART_CLEAR', 'DELETE', '/api/cart');
-    for (const rec of held.values()) {
-      if (clear.status !== 204 && clear.status !== 200) rec.to = Infinity; // unknown: stays held
+    for (const rec of open) {
+      rec.releaseStatus = clear.status;
+      rec.releaseCode = clear.code || null;
+      // the server may still have processed it after the client gave up: outcome unknown
+      if (clear.status !== 204 && clear.status !== 200) rec.toUnknown = true;
       intervals.push(rec);
     }
     if (socket) socket.close();
@@ -157,10 +176,14 @@ async function run(m) {
 
   async function enter(vu, rand) {
     let r = await vu.call('ENTER', 'POST', `/api/events/${eventId}/enter`);
-    if (r.status === 200 && r.body?.status === 'GRANTED') return true;
+    const first = classifyEnter(r);
+    if (first === 'granted') return true;
+    // only a real waiting room status counts as queued; timeouts are counted on their own
+    if (first === 'queued') count('queued');
+    else if (first === 'timeout' || first === 'network') count('enter_timeout');
+    else if (first === 'body_timeout') count('enter_body_timeout');
     // waiting room: poll like the page does (the WebSocket is the fast path in a browser)
     const until = Date.now() + plan.queueMaxWaitMs;
-    count('queued');
     while (r.status === 200 && Date.now() < until && !stopping) {
       const st = r.body?.status;
       if (st === 'GRANTED') return true;
@@ -264,7 +287,9 @@ async function run(m) {
         const u = await vu.call('PROBE_UNLOCK', 'DELETE', `/api/events/${eventId}/seats`, {
           seatIds: [seat],
         });
-        if (u.status !== 200) rec.to = Infinity;
+        rec.releaseStatus = u.status;
+        rec.releaseCode = u.code || null;
+        if (u.status !== 200) rec.toUnknown = true;
         intervals.push(rec);
       } else {
         sentAt.delete(seat);

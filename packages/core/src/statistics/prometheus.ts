@@ -1,3 +1,4 @@
+import type { WebProcessLoad } from './process-load';
 import type { SystemStats } from './system';
 
 /**
@@ -39,6 +40,68 @@ class Writer {
   }
 }
 
+function writeWebProcess(w: Writer, p: WebProcessLoad): void {
+  const labels = { pid: String(p.pid) };
+  w.metric(
+    'tix_process_cpu_seconds_total',
+    'User + system CPU time of the web process.',
+    'counter',
+    p.cpuSecondsTotal,
+    labels,
+  );
+  for (const [quantile, value] of [
+    ['0.5', p.eventLoop.p50],
+    ['0.99', p.eventLoop.p99],
+    ['max', p.eventLoop.max],
+  ] as const) {
+    w.metric(
+      'tix_event_loop_lag_seconds',
+      'Event loop delay of the web process above the 10 ms sampling resolution (window of the last 10-20 s).',
+      'gauge',
+      value,
+      { ...labels, quantile },
+    );
+  }
+  if (p.dbPool) {
+    for (const [state, value] of [
+      ['total', p.dbPool.total],
+      ['idle', p.dbPool.idle],
+      ['waiting', p.dbPool.waiting],
+    ] as const) {
+      w.metric(
+        'tix_db_pool_connections',
+        'Connections of the web database pool (waiting = requests queued for a connection).',
+        'gauge',
+        value,
+        { ...labels, state },
+      );
+    }
+    w.metric(
+      'tix_db_pool_max',
+      'Configured maximum of the web database pool.',
+      'gauge',
+      p.dbPool.max,
+      labels,
+    );
+  }
+}
+
+/**
+ * Minimal exposition used when the full collection is too slow (for example while the database
+ * pool is exhausted): the process figures are exactly what is needed then.
+ */
+export function renderProcessPrometheus(p: WebProcessLoad): string {
+  const w = new Writer();
+  w.metric(
+    'tix_scrape_degraded',
+    '1 when only the process figures could be returned in time.',
+    'gauge',
+    1,
+  );
+  writeWebProcess(w, p);
+  return w.toString();
+}
+
 export function renderPrometheus(stats: SystemStats): string {
   const w = new Writer();
   const g = (name: string, help: string, value: number, labels?: Record<string, string>) =>
@@ -50,6 +113,7 @@ export function renderPrometheus(stats: SystemStats): string {
   g('tix_process_uptime_seconds', 'Uptime of the web process.', stats.app.uptimeSeconds);
   g('tix_process_resident_memory_bytes', 'Resident memory of the web process.', stats.app.rssBytes);
   g('tix_process_heap_used_bytes', 'Used V8 heap of the web process.', stats.app.heapUsedBytes);
+  if (stats.webProcess) writeWebProcess(w, stats.webProcess);
   const c = stats.shopCache;
   g('tix_shop_cache_entries', 'Entries in the shop data cache of this web process.', c.entries);
   g(

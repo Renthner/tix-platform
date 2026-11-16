@@ -20,8 +20,10 @@ import {
   Histogram,
   checkDatabaseTarget,
   checkTarget,
+  diagnosisHints,
   evaluateAssertions,
   findOverlaps,
+  foldMetricSample,
   looksLikeToken,
   parseDuration,
   parsePrometheus,
@@ -196,19 +198,6 @@ async function snapshot() {
   return out;
 }
 
-const NOTABLE = [
-  'tix_process_resident_memory_bytes',
-  'tix_process_heap_used_bytes',
-  'tix_postgres_connections',
-  'tix_postgres_longest_query_seconds',
-  'tix_redis_used_memory_bytes',
-  'tix_redis_connected_clients',
-  'tix_redis_ops_per_second',
-  'tix_realtime_sockets',
-  'tix_seat_locks',
-  'tix_shop_sessions',
-];
-
 let aborted = false;
 const children = [];
 for (const sig of ['SIGINT', 'SIGTERM']) {
@@ -246,16 +235,28 @@ async function main() {
   );
 
   // ── resource sampling ──
+  // Every 5 s a few quick parallel scrapes: with several web processes consecutive requests hit
+  // different ones (the per-process metrics carry a pid label), the PEAK per metric and pid is kept.
   const peaks = {};
+  const scrapes = { ok: 0, failed: 0 };
   let sampling = true;
+  const SCRAPES_PER_TICK = 4;
   const sampler = (async () => {
     while (sampling) {
-      await sleep(10_000);
+      await sleep(5_000);
       if (!sampling || !metricsToken) continue;
-      const m = await getJson('/api/metrics', { authorization: `Bearer ${metricsToken}` });
-      if (m.status !== 200) continue;
-      for (const [k, v] of Object.entries(parsePrometheus(m.text))) {
-        if (NOTABLE.some((n) => k.startsWith(n))) peaks[k] = Math.max(peaks[k] ?? 0, v);
+      const tick = await Promise.all(
+        Array.from({ length: SCRAPES_PER_TICK }, () =>
+          getJson('/api/metrics', { authorization: `Bearer ${metricsToken}` }),
+        ),
+      );
+      for (const m of tick) {
+        if (m.status !== 200) {
+          scrapes.failed++;
+          continue;
+        }
+        scrapes.ok++;
+        foldMetricSample(peaks, parsePrometheus(m.text));
       }
     }
   })();
@@ -353,7 +354,7 @@ ABORT: ${abortReason}`);
   }
   const seconds = (Date.now() - t0) / 1000;
   const summary = total.summary(seconds);
-  const overlaps = findOverlaps(intervals);
+  const { certain: overlaps, indeterminate } = findOverlaps(intervals);
 
   // ── post-run checks ──
   await sleep(1500);
@@ -381,7 +382,14 @@ ABORT: ${abortReason}`);
     p99: round(fanout.percentile(99)),
     max: round(fanout.max),
   };
-  const checks = evaluateAssertions({ summary, overlaps, limits, ledger, rt });
+  const checks = evaluateAssertions({
+    summary,
+    overlaps,
+    indeterminateOverlaps: indeterminate,
+    limits,
+    ledger,
+    rt,
+  });
   checks.push({
     title: 'no seat lock leaked after every shopper emptied the cart',
     ok: leaked.length === 0,
@@ -422,9 +430,13 @@ ABORT: ${abortReason}`);
     hotSeats: { ...hot, seatsWon: hotWonSeats.size, of: world.hotSeats.length },
     realtime: rt,
     counters,
-    overlaps: overlaps.slice(0, 20).map((o) => ({ seat: o.seat, a: o.a.sid, b: o.b.sid })),
+    overlaps: overlaps.length,
+    overlapDetails: overlaps.slice(0, 20).map((o) => o.details),
+    indeterminateOverlaps: indeterminate.length,
+    indeterminateOverlapDetails: indeterminate.slice(0, 20).map((o) => o.details),
     leakedLocks: leaked.length,
-    resources: { before, after, peaksDuringRun: peaks },
+    resources: { before, after, peaksDuringRun: peaks, metricScrapes: scrapes },
+    diagnosis: diagnosisHints({ summary, peaks, scrapes }),
     checks,
     passed,
     aborted: aborted || Boolean(abortReason),
@@ -443,8 +455,14 @@ function print(o, file) {
   const line = (s = '') => console.log(s);
   line(`\n=== journey: ${o.plan.vus} virtual users, ${o.seconds} s ===`);
   line(
-    `requests ${o.summary.requests} (${o.summary.requestsPerSecond}/s)  5xx+network ${o.summary.failures5xxOrNetwork}  429 ${o.summary.rateLimited429}  503 ${o.summary.unavailable503}`,
+    `requests ${o.summary.requests} (${o.summary.requestsPerSecond}/s)  5xx+network ${o.summary.failures5xxOrNetwork}  429 ${o.summary.rateLimited429}  503 ${o.summary.unavailable503}  timeouts ${o.summary.timeouts}`,
   );
+  const mb = (n) => (n / 1048576).toFixed(1);
+  line(
+    `received ${mb(o.summary.bytesReceived)} MB in total (${mb(o.summary.bytesPerSecond ?? 0)} MB/s = ${(((o.summary.bytesPerSecond ?? 0) * 8) / 1e6).toFixed(1)} Mbit/s; decoded bodies, no WebSocket traffic): compare with the uplink`,
+  );
+  if (o.summary.timeouts > 0)
+    line(`timeouts by endpoint: ${JSON.stringify(o.summary.timeoutsByEndpoint)}`);
   line('endpoint                 reqs     p50     p95     p99     max   statuses');
   for (const [label, e] of Object.entries(o.summary.endpoints)) {
     line(
@@ -455,13 +473,25 @@ function print(o, file) {
     `\nrealtime fan-out (lock request -> delta received): ${o.realtime.samples} deliveries, p50 ${o.realtime.p50} ms, p95 ${o.realtime.p95} ms, p99 ${o.realtime.p99} ms, max ${o.realtime.max} ms; sockets ${o.realtime.connected}`,
   );
   line(`hot seats: ${JSON.stringify(o.hotSeats)}`);
+  const queued = o.counters.queued ?? 0;
+  line(
+    `waiting room: ${queued > 0 ? `${queued} shopper(s) really queued` : 'waiting room was not active (Warteraum war nicht aktiv), queued 0'}; ENTER timeouts ${o.counters.enter_timeout ?? 0}, ENTER body timeouts ${o.counters.enter_body_timeout ?? 0}`,
+  );
   line(`counters: ${JSON.stringify(o.counters)}`);
   const peak = Object.entries(o.resources.peaksDuringRun);
   if (peak.length)
     line(`peaks (sampled /api/metrics): ${JSON.stringify(Object.fromEntries(peak))}`);
+  if (o.diagnosis.length) {
+    line('\ndiagnosis hint:');
+    for (const d of o.diagnosis) line(`  - ${d}`);
+  }
   line('\nassertions:');
   for (const c of o.checks)
-    line(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.title}${c.detail ? ` - ${c.detail}` : ''}`);
+    line(
+      `  ${c.warn ? 'WARN' : c.ok ? 'PASS' : 'FAIL'}  ${c.title}${c.detail ? ` - ${c.detail}` : ''}`,
+    );
+  for (const d of o.overlapDetails) line(`    CERTAIN overlap: ${JSON.stringify(d)}`);
+  for (const d of o.indeterminateOverlapDetails) line(`    indeterminate: ${JSON.stringify(d)}`);
   line(o.passed ? '\nRESULT: PASS' : '\nRESULT: FAIL');
   line(`JSON: ${file}`);
 }

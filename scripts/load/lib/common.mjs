@@ -143,6 +143,7 @@ export class Vu {
     let status = 0;
     let body = null;
     let code = '';
+    let bytes = 0;
     try {
       const res = await fetch(this.cfg.base + path, {
         method,
@@ -160,6 +161,7 @@ export class Vu {
         else this.jar.set(pair.slice(0, eq), pair.slice(eq + 1));
       }
       const text = await res.text();
+      bytes = Buffer.byteLength(text);
       try {
         body = JSON.parse(text);
       } catch {
@@ -171,8 +173,8 @@ export class Vu {
         err?.name === 'TimeoutError' ? 'TIMEOUT' : `NETWORK:${err?.cause?.code ?? err?.message}`;
     }
     const ms = now() - t0;
-    this.metrics.record(label, status, code, ms);
-    return { status, body, code, ms, wallStart, wallEnd: Date.now() };
+    this.metrics.record(label, status, code, ms, bytes);
+    return { status, body, code, ms, bytes, wallStart, wallEnd: Date.now() };
   }
 }
 

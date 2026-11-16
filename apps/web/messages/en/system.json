@@ -39,6 +39,21 @@
     "backlog": "Waiting jobs",
     "backlogDetail": "waiting, running or delayed"
   },
+  "process": {
+    "title": "Web process load",
+    "description": "In-memory figures of the web process that answered this refresh. With several web processes (TIX_WEB_PROCESSES) each refresh shows the process that happened to answer.",
+    "pid": "Process {pid}",
+    "pool": "Database pool",
+    "poolDetail": "{inUse} in use, {idle} idle, {max} allowed",
+    "waiting": "Requests waiting for a connection",
+    "loopLag": "Event loop lag (p99)",
+    "loopLagDetail": "median {p50} ms, worst {max} ms",
+    "cpu": "CPU time since start",
+    "ms": "{value} ms",
+    "seconds": "{value} s",
+    "poolHint": "Requests waiting for a connection: raise WEB_DATABASE_POOL_MAX (mind the connection budget).",
+    "loopHint": "A high event loop lag means this process is CPU bound: add web processes (TIX_WEB_PROCESSES)."
+  },
   "postgres": {
     "title": "PostgreSQL",
     "version": "Version",

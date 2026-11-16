@@ -79,12 +79,19 @@ test('sliceUsers covers everybody once', () => {
 });
 
 test('findOverlaps flags two sessions on the same seat, ignores sequential holds and same session', () => {
-  const iv = (seat, sid, from, to) => ({ seat, sid, from, to });
-  assert.equal(findOverlaps([iv('s1', 'a', 0, 100), iv('s1', 'b', 100, 200)]).length, 0);
-  assert.equal(findOverlaps([iv('s1', 'a', 0, 100), iv('s1', 'b', 99, 200)]).length, 1);
-  assert.equal(findOverlaps([iv('s1', 'a', 0, Infinity), iv('s1', 'b', 500, 600)]).length, 1);
-  assert.equal(findOverlaps([iv('s1', 'a', 0, 100), iv('s1', 'a', 50, 150)]).length, 0);
-  assert.equal(findOverlaps([iv('s1', 'a', 0, 100), iv('s2', 'b', 0, 100)]).length, 0);
+  const iv = (seat, sid, from, to, extra = {}) => ({ seat, sid, from, to, ...extra });
+  const certain = (list) => findOverlaps(list).certain.length;
+  assert.equal(certain([iv('s1', 'a', 0, 100), iv('s1', 'b', 100, 200)]), 0);
+  assert.equal(certain([iv('s1', 'a', 0, 100), iv('s1', 'b', 99, 200)]), 1);
+  assert.equal(certain([iv('s1', 'a', 0, 100), iv('s1', 'a', 50, 150)]), 0);
+  assert.equal(certain([iv('s1', 'a', 0, 100), iv('s2', 'b', 0, 100)]), 0);
+  // a release with an unknown outcome is only indeterminate (see overlaps.test.mjs)
+  const unknown = findOverlaps([
+    iv('s1', 'a', 0, 100, { toUnknown: true }),
+    iv('s1', 'b', 500, 600),
+  ]);
+  assert.equal(unknown.certain.length, 0);
+  assert.equal(unknown.indeterminate.length, 1);
 });
 
 test('target guard refuses the regular stack and bad input', () => {

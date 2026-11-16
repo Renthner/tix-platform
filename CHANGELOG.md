@@ -8,6 +8,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.32] - 2026-11-16
+
+### Added
+
+- **Large test seating plan for load tests:** `node scripts/load/make-seatplan.mjs` writes a seat plan file (default 3,600 seats in 7 blocks, 3 categories) for the admin seat plan import; documented in docs/LOAD-TEST.md / .de.md.
+- **Finding the bottleneck of a load test.** `/api/metrics` and the System page (card "Web process
+  load") now report per web process (label `pid`): `tix_db_pool_connections{state="total|idle|waiting"}`,
+  `tix_db_pool_max`, `tix_event_loop_lag_seconds{quantile="0.5|0.99|max"}` and
+  `tix_process_cpu_seconds_total`. When the database is so busy that the full scrape takes longer than
+  4 s, the endpoint answers only these in-memory figures (`tix_scrape_degraded 1`). The journey load test
+  samples them every 5 s (peak per metric and process), prints bytes received in total and per second,
+  timeouts per endpoint and a "diagnosis hint" (database pool, event loop or network path). New section
+  "Finding the bottleneck" in docs/LOAD-TEST.md / .de.md.
+
+### Fixed
+
+- **Dialogs no longer scroll sideways:** the shared dialog keeps its content within its width (long text wraps), and the restore dialog is wider (the upload dialog slightly), so a restore from another system scrolls vertically only.
+- Journey load test: a release request (`UNLOCK`, `CART_CLEAR`, `PROBE_UNLOCK`) that timed out was treated as
+  "seat stays held forever", so a later legitimate lock by another session was reported as a double booking.
+  Holds now end at the moment the release was sent; overlaps that only exist if a timed-out release is
+  assumed never to have happened are reported as a warning ("indeterminate", with details in the JSON) and
+  no longer fail the run. A best-available answer without a usable body is counted as an endpoint failure
+  instead of a journey error.
+
 ## [1.0.0-alpha.31] - 2026-11-16
 
 ### Changed

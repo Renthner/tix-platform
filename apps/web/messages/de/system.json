@@ -39,6 +39,21 @@
     "backlog": "Wartende Jobs",
     "backlogDetail": "wartend, laufend oder verzögert"
   },
+  "process": {
+    "title": "Auslastung des Web-Prozesses",
+    "description": "Werte aus dem Arbeitsspeicher des Web-Prozesses, der diese Aktualisierung beantwortet hat. Bei mehreren Web-Prozessen (TIX_WEB_PROCESSES) zeigt jede Aktualisierung den Prozess, der gerade geantwortet hat.",
+    "pid": "Prozess {pid}",
+    "pool": "Datenbank-Pool",
+    "poolDetail": "{inUse} in Benutzung, {idle} frei, {max} erlaubt",
+    "waiting": "Anfragen, die auf eine Verbindung warten",
+    "loopLag": "Event-Loop-Verzögerung (p99)",
+    "loopLagDetail": "Median {p50} ms, schlechtester Wert {max} ms",
+    "cpu": "CPU-Zeit seit dem Start",
+    "ms": "{value} ms",
+    "seconds": "{value} s",
+    "poolHint": "Anfragen warten auf eine Verbindung: WEB_DATABASE_POOL_MAX erhöhen (Verbindungsbudget beachten).",
+    "loopHint": "Eine hohe Event-Loop-Verzögerung bedeutet, dass dieser Prozess an der CPU hängt: mehr Web-Prozesse einsetzen (TIX_WEB_PROCESSES)."
+  },
   "postgres": {
     "title": "PostgreSQL",
     "version": "Version",

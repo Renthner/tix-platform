@@ -187,6 +187,9 @@ export function SystemMonitor({
     : false;
   const memWarn =
     redis && redis.maxMemoryBytes > 0 ? redis.usedMemoryBytes / redis.maxMemoryBytes > 0.9 : false;
+  const webProcess = stats.webProcess;
+  const poolWaiting = webProcess.dbPool?.waiting ?? 0;
+  const loopLagWarn = webProcess.eventLoop.p99 > 0.2;
   const failedTotal = queues?.reduce((s, q) => s + q.failed, 0) ?? 0;
 
   return (
@@ -515,6 +518,69 @@ export function SystemMonitor({
           )}
         </Section>
       </div>
+
+      <Section title={t('process.title')} description={t('process.description')}>
+        <dl
+          className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4"
+          data-testid="web-process-load"
+        >
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('process.pool')}</dt>
+            <dd className="tabular-nums">
+              {webProcess.dbPool
+                ? t('process.poolDetail', {
+                    inUse: num(webProcess.dbPool.total - webProcess.dbPool.idle),
+                    idle: num(webProcess.dbPool.idle),
+                    max: num(webProcess.dbPool.max),
+                  })
+                : t('unavailable')}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('process.waiting')}</dt>
+            <dd
+              className={cn(
+                'text-xl font-semibold tabular-nums',
+                poolWaiting > 0 && 'text-destructive',
+              )}
+            >
+              {num(poolWaiting)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('process.loopLag')}</dt>
+            <dd
+              className={cn(
+                'text-xl font-semibold tabular-nums',
+                loopLagWarn && 'text-destructive',
+              )}
+            >
+              {t('process.ms', { value: num(webProcess.eventLoop.p99 * 1000) })}
+            </dd>
+            <dd className="text-xs text-muted-foreground">
+              {t('process.loopLagDetail', {
+                p50: num(webProcess.eventLoop.p50 * 1000),
+                max: num(webProcess.eventLoop.max * 1000),
+              })}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('process.cpu')}</dt>
+            <dd className="tabular-nums">
+              {t('process.seconds', {
+                value: format.number(webProcess.cpuSecondsTotal, { maximumFractionDigits: 1 }),
+              })}
+            </dd>
+            <dd className="text-xs text-muted-foreground">
+              {t('process.pid', { pid: webProcess.pid })}
+            </dd>
+          </div>
+        </dl>
+        {poolWaiting > 0 && (
+          <p className="mt-2 text-sm text-destructive">{t('process.poolHint')}</p>
+        )}
+        {loopLagWarn && <p className="mt-2 text-sm text-destructive">{t('process.loopHint')}</p>}
+      </Section>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Section title={t('postgres.title')}>

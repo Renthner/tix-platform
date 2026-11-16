@@ -427,7 +427,7 @@ export function UploadBackupButton({ foreignKeysAllowed }: { foreignKeysAllowed:
         <Upload /> {percent === null ? t('actions.upload') : t('actions.uploading', { percent })}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{t('upload.dialog.title')}</DialogTitle>
             <DialogDescription>{t('upload.dialog.description')}</DialogDescription>
@@ -577,7 +577,7 @@ export function RestoreButton({
         <RotateCcw /> {label ?? t('actions.restore')}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t('restore.title')}</DialogTitle>
             <DialogDescription>
