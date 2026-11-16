@@ -186,17 +186,18 @@ einer vCPU je ~250 Nutzer.
 
 ## Optionen
 
-| Option                                                                                                       | Bedeutung                                                                         |
-| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `--target`, `--event-id`, `--event-slug`                                                                     | Server, Event, optionale öffentliche Eventseite                                   |
-| `--yes`, `--dry-run`                                                                                         | bestätigen / nur den Plan ausgeben                                                |
-| `--loadtest-token` / `TIX_LOADTEST_TOKEN`                                                                    | Token des Lasttest-Modus                                                          |
-| `--vus` (1000), `--workers`, `--ramp` (60s), `--ramp-profile`                                                | Nutzer, Prozesse, Anlauf (`linear`, `step` = 5 Schübe, `spike` = alle auf einmal) |
-| `--duration` (4m), `--hold` (60s, höchstens 8m)                                                              | Gesamtdauer inklusive Anlauf, mittlere Haltezeit des Warenkorbs                   |
-| `--hot` (20), `--best-available` (0.3), `--ws-ratio` (1)                                                     | umkämpfte Plätze, Anteil Bestplatz / WebSocket                                    |
-| `--checkout-ratio` mit `--allow-orders`                                                                      | Anteil mit Vorkasse-Bestellung (nur eigene Kopie)                                 |
-| `--metrics-token` / `TIX_METRICS_TOKEN`, `--database-url`                                                    | Ressourcen-Momentaufnahmen, optionale lesende Doppelbuchungs-Prüfung per SQL      |
-| `--max-failure-rate` (0.01), `--max-429-rate` (0.001), `--max-503-rate` (0.02), `--max-fanout-p95-ms` (2000) | Grenzen der Prüfungen                                                             |
+| Option                                                                                                       | Bedeutung                                                                           |
+| ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `--target`, `--event-id`, `--event-slug`                                                                     | Server, Event, optionale öffentliche Eventseite                                     |
+| `--yes`, `--dry-run`                                                                                         | bestätigen / nur den Plan ausgeben                                                  |
+| `--loadtest-token` / `TIX_LOADTEST_TOKEN`                                                                    | Token des Lasttest-Modus                                                            |
+| `--vus` (1000), `--workers`, `--ramp` (60s), `--ramp-profile`                                                | Nutzer, Prozesse, Anlauf (`linear`, `step` = 5 Schübe, `spike` = alle auf einmal)   |
+| `--duration` (4m), `--hold` (60s, höchstens 8m)                                                              | Gesamtdauer inklusive Anlauf, mittlere Haltezeit des Warenkorbs                     |
+| `--hot` (20), `--best-available` (0.3), `--ws-ratio` (1)                                                     | umkämpfte Plätze, Anteil Bestplatz / WebSocket                                      |
+| `--checkout-ratio` mit `--allow-orders`                                                                      | Anteil mit Vorkasse-Bestellung (nur eigene Kopie)                                   |
+| `--metrics-token` / `TIX_METRICS_TOKEN`, `--database-url`                                                    | Ressourcen-Momentaufnahmen, optionale lesende Doppelbuchungs-Prüfung per SQL        |
+| `--max-failure-rate` (0.01), `--max-429-rate` (0.001), `--max-503-rate` (0.02), `--max-fanout-p95-ms` (2000) | Grenzen der Prüfungen                                                               |
+| `--ipv4-only`                                                                                                | IPv4 zuerst, kein Wettlauf der Adressfamilien (schließt AAAA- / Cloudflare-Weg aus) |
 
 Halte die Haltezeit deutlich unter der Warenkorb-Uhr (Standard 10 Minuten): eine Sperre, die
 während des Tests abläuft, darf ein anderer legitim bekommen, was die Exklusivitätsprüfung nicht
@@ -254,6 +255,42 @@ So liest man sie:
   Server den Platz freigegeben hat, bevor eine andere Sitzung ihn bekam. Nur eine _sichere_
   Überlappung lässt den Lauf fehlschlagen.
 
+### Wer hat geantwortet? (Fehlerproben, Netzwerkursachen, Zeitverlauf)
+
+Unerklärliche Statuscodes (405 auf `POST /api/events/<id>/seats`, 504 von einem Proxy, der erst nach
+15 Minuten abbricht, Seitenaufrufe im Timeout) kommen meist von etwas vor der Anwendung. Ausgabe und
+JSON zeigen deshalb:
+
+- **Fehlerproben** (`errorSamples`): bis zu 3 je `Endpunkt:Status` für jede Antwort, die nicht 2xx /
+  304 und kein 409 (Sperrkonflikt) ist: Methode, Pfad (ohne Query), Zeit seit Start, Antwortzeit, eine
+  sichere Auswahl der Antwort-Header (`server`, `via`, `allow`, `content-type`, `content-length`,
+  `location`, `retry-after`, `x-request-id`, `x-tix-upstream`, `cf-ray`, `cf-cache-status`,
+  `x-powered-by`, Traefik-Header; nie Cookies, Authorization oder das Lasttest-Token) und die ersten
+  200 Zeichen des Bodys. Antworten der App sind JSON mit `code` / `message` (oder die kleine Seite des
+  Proxys mit "ticket shop"); alles andere (`server: Microsoft-IIS`, ein Traefik-"404 page not found",
+  eine Cloudflare-HTML-Seite) kam von einem anderen Gerät.
+- **Netzwerkfehler** (`networkErrorCauses`): Status 0 nach Ursache gruppiert
+  (`UND_ERR_CONNECT_TIMEOUT`, `UND_ERR_HEADERS_TIMEOUT`, `UND_ERR_BODY_TIMEOUT`, `ECONNRESET`,
+  `ECONNREFUSED`, `ETIMEDOUT`, ...) mit Zählung je Endpunkt. `TimeoutError` / `harness-timeout` ist
+  der eigene 30-s-Abbruch des Generators (nichts hat rechtzeitig geantwortet); alles andere sind
+  Fehler auf Verbindungsebene.
+- **Wegindikator** (`pathIndicator`): "responses via Cloudflare: N of M" zählt `cf-ray` /
+  `server: cloudflare`. Bei einem Lauf über einen Hosts-Datei-Eintrag ins LAN muss der Wert 0 sein.
+  Ein Wert größer 0 heißt, dass Verbindungen den Eintrag umgangen haben (zum Beispiel IPv6 zum
+  öffentlichen AAAA-Eintrag, wenn die LAN-Verbindung langsam ist): mit `--ipv4-only` wiederholen. Die
+  Ausgabe nennt auch die Gegenstellen-Adressen der Verbindungen (Top 5, nur eingebautes fetch, keine
+  WebSockets), damit man prüfen kann, dass der Eintrag greift.
+- **Zeitverlauf** (`timeline`): je 10 s Anfragen, Fehler (5xx, Status 0, 4xx außer 409), p95,
+  Timeouts und aktive Käufer (Summe der Spitzenwerte der Prozesse), damit man sieht, _wann_ es kippt.
+- **Generator** (`generator`): Gesamt-CPU des Generator-Rechners (Mittel / Spitze, alle 2 s) und die
+  p99-Spitze der Event-Loop-Verzögerung je Worker. Über 85 % CPU-Spitze (oder 200 ms Verzögerung)
+  meldet die Diagnose "generator CPU is saturated: results are limited by the load generator":
+  `--workers` erhöhen, stärkeren Rechner oder einen zweiten Generator nutzen.
+
+Der Diagnoseblock verknüpft das: Cloudflare-Header vorhanden heißt, ein Teil des Verkehrs lief über
+Cloudflare; eine 405- / 502- / 504-Probe, die weder App-JSON noch die Proxy-Seite ist, wird als "not
+produced by the TIX app (header ... / body ...): check Traefik / the network device in front" gemeldet.
+
 Was während eines Laufs auf dem Server zu beobachten ist:
 
 - `docker stats` für **alle** Container (`tix`, Postgres, Redis, Proxy), nicht nur den Web-Container:
@@ -262,6 +299,18 @@ Was während eines Laufs auf dem Server zu beobachten ist:
 - `top` (oder `vmstat 1`) auf der VM / dem Host: hohes `wa` (I/O-Wait) heißt langsame Platten, hohes
   `st` (Steal) heißt, der Hypervisor gibt der VM weniger CPU, als sie anzeigt (typisch bei geteilten
   Proxmox-Hosts).
+
+#### 503 BUSY vom Proxy ist kein Serverfehler
+
+Der eingebaute Proxy begrenzt die gleichzeitig laufenden Anfragen je Web-Prozess (Seiten 16, API 96,
+Assets 128) und stellt den Rest in eine Warteschlange. Bei einem Ansturm bekommt eine Anfrage, die länger
+als das Warte-Limit wartet (15 s Seiten, 10 s API/Assets), `503` mit `Retry-After: 5` und dem Code `BUSY`;
+der Generator führt sie unter den Status-Spalten auf.
+Das ist die gewollte, schnelle Antwort bei Überlast (früher verwarf der Kernel
+Verbindungsversuche und der Generator sah ein `ETIMEDOUT` nach etwa 2 Minuten). Viele `BUSY`-Antworten
+bedeuten, dass die Prozesse ausgelastet sind: mehr Web-Prozesse (`TIX_WEB_PROCESSES`) einsetzen oder den
+Warteraum nutzen; siehe „Verhalten bei Überlast" in INSTALL.de.md. In `/__tix/health?detail=1` (innerhalb
+des Containers) müssen `ListenOverflows` / `ListenDrops` konstant bleiben.
 
 ## Einschränkungen
 

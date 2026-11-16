@@ -21,6 +21,8 @@ export class UpstreamPool {
     this.now = opts.now ?? Date.now;
     this.backoffMs = opts.backoffMs ?? 1_000;
     this.maxBackoffMs = opts.maxBackoffMs ?? 5_000;
+    /** concurrent upstream requests per child and request class (missing class = unlimited) */
+    this.limits = opts.limits ?? {};
     this.children = ports.map((port) => ({
       port,
       inflight: 0,
@@ -28,8 +30,87 @@ export class UpstreamPool {
       downUntil: 0,
       lastFailAt: 0,
       ready: true,
+      /** per request class: inflight (running + queued), active (running), queue, counters */
+      classes: {},
     }));
     this.cursor = 0;
+  }
+
+  classState(i, cls) {
+    const c = this.children[i];
+    return (c.classes[cls] ??= { inflight: 0, active: 0, queue: [], served: 0, busy503: 0 });
+  }
+
+  /**
+   * Takes one of the child's slots for the class. Returns an entry; `entry.granted` is true when the
+   * slot is held right away. Otherwise the entry waits in the class queue: set `entry.onGrant` to be
+   * called when a slot frees up. `entry.release()` is idempotent: it frees a held slot (and hands it
+   * to the next waiter) or removes a waiting entry from the queue.
+   */
+  acquire(i, cls) {
+    const s = this.classState(i, cls);
+    const limit = this.limits[cls] ?? Infinity;
+    const entry = { state: 'queued', granted: false, onGrant: null };
+    entry.release = () => {
+      if (entry.state === 'queued') {
+        const at = s.queue.indexOf(entry);
+        if (at >= 0) s.queue.splice(at, 1);
+      } else if (entry.state === 'active') {
+        s.active -= 1;
+      } else {
+        return;
+      }
+      entry.state = 'done';
+      this.#drain(s, limit);
+    };
+    if (s.active < limit) {
+      entry.state = 'active';
+      entry.granted = true;
+      s.active += 1;
+      s.served += 1;
+    } else {
+      s.queue.push(entry);
+    }
+    return entry;
+  }
+
+  #drain(s, limit) {
+    while (s.active < limit && s.queue.length) {
+      const next = s.queue.shift();
+      next.state = 'active';
+      next.granted = true;
+      s.active += 1;
+      s.served += 1;
+      next.onGrant?.();
+    }
+  }
+
+  /** A request of the class was answered 503 BUSY because it waited too long for a slot. */
+  noteBusy(i, cls) {
+    this.classState(i, cls).busy503 += 1;
+  }
+
+  /** Per child counters (for the loopback-only detailed health answer). */
+  stats() {
+    return this.children.map((c, i) => ({
+      index: i,
+      port: c.port,
+      ready: c.ready,
+      inflight: c.inflight,
+      classes: Object.fromEntries(
+        Object.entries(c.classes).map(([name, s]) => [
+          name,
+          {
+            limit: this.limits[name] ?? null,
+            inflight: s.inflight,
+            active: s.active,
+            queued: s.queue.length,
+            served: s.served,
+            busy503: s.busy503,
+          },
+        ]),
+      ),
+    }));
   }
 
   get size() {
@@ -67,15 +148,22 @@ export class UpstreamPool {
   /**
    * Index of the child to use, or null when `exclude` leaves nothing. Ready children that are not
    * down win; when none is left, the one that failed longest ago is tried (the marks may be stale).
+   * With a request class the child with the fewest requests of THAT class in flight (running and
+   * queued) wins; the total in flight breaks ties.
    * @param {Set<number>} [exclude]
+   * @param {string} [cls]
    */
-  pick(exclude) {
+  pick(exclude, cls) {
     const n = this.children.length;
     let best = -1;
+    const load = (i) => (cls ? (this.children[i].classes[cls]?.inflight ?? 0) : 0);
+    const less = (a, b) =>
+      load(a) < load(b) ||
+      (load(a) === load(b) && this.children[a].inflight < this.children[b].inflight);
     for (let k = 0; k < n; k++) {
       const i = (this.cursor + k) % n;
       if (exclude?.has(i) || !this.children[i].ready || this.isDown(i)) continue;
-      if (best < 0 || this.children[i].inflight < this.children[best].inflight) best = i;
+      if (best < 0 || less(i, best)) best = i;
     }
     if (best < 0) {
       for (let k = 0; k < n; k++) {
@@ -89,13 +177,18 @@ export class UpstreamPool {
     return best;
   }
 
-  begin(i) {
+  begin(i, cls) {
     this.children[i].inflight += 1;
+    if (cls) this.classState(i, cls).inflight += 1;
   }
 
-  end(i) {
+  end(i, cls) {
     const c = this.children[i];
     if (c.inflight > 0) c.inflight -= 1;
+    if (cls) {
+      const s = this.classState(i, cls);
+      if (s.inflight > 0) s.inflight -= 1;
+    }
   }
 
   /** The connection to child `i` was refused. */

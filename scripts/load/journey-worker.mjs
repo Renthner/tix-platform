@@ -1,7 +1,18 @@
 // Worker process of the journey load test (forked by journey.mjs). Runs a slice of the virtual
 // users with realistic journeys and streams its results back over IPC. Not meant to be started
 // by hand.
-import { Vu, pick, rng, shuffle, sleep, socketIo } from './lib/common.mjs';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
+import {
+  Vu,
+  applyIpv4Only,
+  pick,
+  rng,
+  shuffle,
+  sleep,
+  socketIo,
+  subscribeConnections,
+} from './lib/common.mjs';
+import { Diagnostics } from './lib/diag.mjs';
 import { EndpointStats, Histogram, classifyEnter, rampOffsets } from './lib/stats.mjs';
 
 process.on('message', (msg) => {
@@ -19,7 +30,18 @@ let stopping = false;
 
 async function run(m) {
   const { cfg, eventId, world, slice, plan } = m;
+  applyIpv4Only(cfg);
   const stats = new EndpointStats();
+  const diag = new Diagnostics(m.runStart ?? Date.now());
+  subscribeConnections((a) => diag.noteAddress(a));
+  // event loop lag of this process: a saturated generator distorts every latency it measures
+  const loop = monitorEventLoopDelay({ resolution: 10 });
+  loop.enable();
+  let peakLagP99Ms = 0;
+  const sampleLoop = () => {
+    peakLagP99Ms = Math.max(peakLagP99Ms, loop.percentile(99) / 1e6);
+    loop.reset();
+  };
   const fanout = new Histogram();
   const counters = {};
   const count = (k, by = 1) => (counters[k] = (counters[k] ?? 0) + by);
@@ -44,6 +66,8 @@ async function run(m) {
       reqs += l.n;
       limited += l.statuses[429] ?? 0;
     }
+    sampleLoop();
+    diag.noteActive(active);
     process.send({ type: 'progress', active, reqs, limited });
   };
   const ticker = setInterval(send, 2000);
@@ -52,10 +76,11 @@ async function run(m) {
     const id = slice.start + k;
     await sleep(offsets[k]);
     if (stopping) return;
-    const vu = new Vu(cfg, id, stats);
+    const vu = new Vu(cfg, id, stats, diag);
     const rand = rng(plan.seed * 7919 + id);
     active++;
     peakActive = Math.max(peakActive, active);
+    diag.noteActive(active);
     try {
       await journey(vu, rand, id);
     } catch (err) {
@@ -263,7 +288,7 @@ async function run(m) {
   let probeTurn = 0;
   const probe = (async () => {
     if (!io || !m.probeSeats?.length) return;
-    const vu = new Vu(cfg, 4_000_000 + slice.index, stats);
+    const vu = new Vu(cfg, 4_000_000 + slice.index, stats, diag);
     const rand = rng(plan.seed * 31 + slice.index);
     if (!(await enter(vu, rand))) return;
     await sleep(Math.min(3000, plan.rampMs / 4)); // let the first sockets connect
@@ -304,8 +329,12 @@ async function run(m) {
   await probe;
   clearInterval(ticker);
   for (const s of sockets) s.close();
+  sampleLoop();
+  loop.disable();
   process.send({
     type: 'done',
+    diag: diag.toJSON(),
+    loopLag: { peakP99Ms: peakLagP99Ms },
     stats: stats.toJSON(),
     fanout: fanout.toJSON(),
     counters,

@@ -37,7 +37,7 @@ Die `.env`-Datei enthält nur die wenigen technischen Einstellungen.
 ### 1. Die zwei Dateien herunterladen
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.32
+export TIX_VERSION=1.0.0-alpha.33
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -164,7 +164,7 @@ Scanner-URL und Backups. Dieselbe Liste mit Erklärungen steht unter
 
 ```bash
 cd tix
-export TIX_VERSION=1.0.0-alpha.32
+export TIX_VERSION=1.0.0-alpha.33
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/tix-update.sh
 chmod +x tix-update.sh        # einmalig; das Skript gehört zu jedem Release
 unset TIX_VERSION
@@ -322,17 +322,49 @@ wenn jeder Adresse vertraut wird (`0.0.0.0/0`).
 Derselbe eingebaute Proxy schützt sich mit diesen optionalen Variablen (in `.env` setzen; die Vorgaben
 passen für die meisten Installationen):
 
-| Variable                       | Vorgabe   | Bedeutung                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------------------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TIX_ALLOWED_HOSTS`            | leer      | Zusätzliche Hostnamen (kommagetrennt oder mit Leerzeichen), für die der Shop antwortet. Ist `APP_URL` keine Loopback-Adresse, bekommt eine Anfrage von einer **nicht vertrauten** Adresse mit fremdem `Host` **421**: der direkte Aufruf `http://<Server-IP>:8080` scheitert, außer der Name steht hier oder du setzt `*` (alles erlaubt). Anfragen von einer `TRUSTED_PROXIES`-Adresse werden nie geprüft. |
-| `TIX_PROXY_SOCKET_TIMEOUT_MS`  | `120000`  | Inaktivitätslimit je Client-Verbindung (Millisekunden, `0` = keins). Wird bei jedem Byte zurückgesetzt, große Uploads funktionieren also weiter.                                                                                                                                                                                                                                                            |
-| `TIX_PROXY_REQUEST_TIMEOUT_MS` | `3600000` | Längste Zeit, um EINE Anfrage samt Body zu empfangen (`0` = unbegrenzt).                                                                                                                                                                                                                                                                                                                                    |
-| `TIX_PROXY_MAX_CONNS_PER_IP`   | `200`     | Gleichzeitige Verbindungen je Client-Adresse, die kein vertrauter Proxy ist (`0` = unbegrenzt).                                                                                                                                                                                                                                                                                                             |
+| Variable                       | Vorgabe                            | Bedeutung                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------ | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TIX_ALLOWED_HOSTS`            | leer                               | Zusätzliche Hostnamen (kommagetrennt oder mit Leerzeichen), für die der Shop antwortet. Ist `APP_URL` keine Loopback-Adresse, bekommt eine Anfrage von einer **nicht vertrauten** Adresse mit fremdem `Host` **421**: der direkte Aufruf `http://<Server-IP>:8080` scheitert, außer der Name steht hier oder du setzt `*` (alles erlaubt). Anfragen von einer `TRUSTED_PROXIES`-Adresse werden nie geprüft. |
+| `TIX_PROXY_SOCKET_TIMEOUT_MS`  | `120000`                           | Inaktivitätslimit je Client-Verbindung (Millisekunden, `0` = keins). Wird bei jedem Byte zurückgesetzt, große Uploads funktionieren also weiter.                                                                                                                                                                                                                                                            |
+| `TIX_PROXY_REQUEST_TIMEOUT_MS` | `3600000`                          | Längste Zeit, um EINE Anfrage samt Body zu empfangen (`0` = unbegrenzt).                                                                                                                                                                                                                                                                                                                                    |
+| `TIX_PROXY_MAX_CONNS_PER_IP`   | `200`                              | Gleichzeitige Verbindungen je Client-Adresse, die kein vertrauter Proxy ist (`0` = unbegrenzt).                                                                                                                                                                                                                                                                                                             |
+| `TIX_WEB_PAGE_CONCURRENCY`     | `16`                               | Seiten-Renderings (HTML, Server Actions), die der Proxy **je Web-Prozess** gleichzeitig ausführt; weitere warten in einer Warteschlange. Minimum `1`.                                                                                                                                                                                                                                                       |
+| `TIX_WEB_API_CONCURRENCY`      | `96`                               | Dasselbe für API-Aufrufe (`/api/...`: Sitzplatzsperren, Warenkorb, Status). Eigenes Limit, damit Seiten-Renderings sie nicht aushungern.                                                                                                                                                                                                                                                                    |
+| `TIX_WEB_STATIC_CONCURRENCY`   | `128`                              | Dasselbe für Assets (`/_next/static`, Bilder, Schriften, Dateien mit Endung).                                                                                                                                                                                                                                                                                                                               |
+| `TIX_PROXY_QUEUE_TIMEOUT_MS`   | `30000` Seiten, `10000` API/Assets | Wie lange eine Anfrage auf einen freien Platz warten darf, bevor sie mit `503 BUSY` + `Retry-After: 5` beantwortet wird (Millisekunden, `0` = unbegrenzt warten). Gesetzt, gilt der Wert für alle drei Klassen.                                                                                                                                                                                             |
 
 Jeder Kindprozess (Web, Worker, Realtime) erhält nur die Secrets, die er braucht: das Realtime-Gateway
 bekommt weder die Datenbank-URL noch den Schlüsselbund, und `POSTGRES_PASSWORD` erreicht keinen von ihnen
 (sie nutzen `DATABASE_URL`). Realtime-Gateway und Worker-Health-Endpunkt lauschen im Container auf
 `127.0.0.1`; von anderen Containern ist nur Port 8080 erreichbar.
+
+### Verhalten bei Überlast
+
+Ein Web-Prozess rendert Seiten CPU-gebunden und nimmt neue Verbindungen nur dazwischen an. Würden ihm bei
+einem Ansturm Hunderte Verbindungen gleichzeitig geschickt, liefe seine Annahmewarteschlange (Backlog 511)
+über und der Kernel würde Verbindungsversuche stillschweigend verwerfen; Besucher:innen warteten dann etwa
+zwei Minuten bis zum Timeout. Der eingebaute Proxy lässt deshalb nie mehr als eine feste Zahl von Anfragen
+**je Web-Prozess und Anfrageklasse** gleichzeitig laufen (Seiten 16, API 96, Assets 128: weit unter 511).
+Alles andere wartet in der eigenen Warteschlange des Proxys und wird bedient, sobald Plätze frei werden; den
+nächsten Auftrag erhält der in dieser Klasse am wenigsten ausgelastete Prozess.
+
+- Eine Anfrage, die länger als das Warte-Limit wartet (30 s für Seiten, 10 s für API und Assets), wird mit
+  `503` und `Retry-After: 5` beantwortet. Das ist die gewollte, saubere Antwort: Die „Ausgelastet"-Seite lädt
+  sich selbst neu, API-Clients erhalten `{"error":{"code":"BUSY",...}}`. Wer die Seite während des Wartens
+  schließt, verlässt die Warteschlange sofort.
+- Die Klassen sind absichtlich getrennt: Ein Stau bei Seiten-Renderings verzögert weder Sitzplatzsperren
+  noch den Warenkorb.
+- Feinabstimmung: Das Seiten-Limit sollte etwa zur CPU-Zeit eines Renderings passen, nicht zur Zahl der
+  Besucher:innen. Mit einem Kern je Prozess sind meist 8-16 richtig; ein höherer Wert macht jedes Rendering
+  langsamer, nicht den Shop schneller. Für mehr Durchsatz mehr Web-Prozesse (`TIX_WEB_PROCESSES`) einsetzen.
+  Die drei Limits zusammen unter 500 halten (sonst Hinweis beim Start).
+- Der Warteraum ergänzt das: Er hält die Zahl gleichzeitiger Käufer:innen in dem Rahmen,
+  den der Server verkraftet, die Limits schützen den Server nur vor Spitzen (etwa zum Verkaufsstart).
+- Diagnose: `/__tix/health?detail=1` (nur Loopback, von innerhalb des Containers) listet je Web-Prozess und
+  Klasse die aktuell wartenden, bedienten und mit `503 BUSY` beantworteten Anfragen sowie die Kernel-Zähler
+  `ListenOverflows` / `ListenDrops` des Containers. Das Protokoll zeigt `proxy overload: N requests answered
+503 BUSY ...` (höchstens alle 10 s) und, wenn die Zähler wachsen, `kernel dropped connection attempts:
+listen queue overflowed`.
 
 ### Auf mehr Kerne skalieren
 

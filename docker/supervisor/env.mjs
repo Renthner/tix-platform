@@ -413,6 +413,30 @@ export function resolveEnv(source, opts = {}) {
   );
   // Concurrent connections per (untrusted) client address; 0 = unlimited.
   const maxConnsPerIp = intIn(source, 'TIX_PROXY_MAX_CONNS_PER_IP', 200, 0, 1_000_000, errors);
+  // In-flight upstream requests per web process and request class (see proxy.mjs). The sum stays far
+  // below the listen backlog of a Next.js process (511) so its accept queue can never overflow.
+  const webConcurrency = {
+    page: intIn(source, 'TIX_WEB_PAGE_CONCURRENCY', 16, 1, 10_000, errors),
+    api: intIn(source, 'TIX_WEB_API_CONCURRENCY', 96, 1, 10_000, errors),
+    static: intIn(source, 'TIX_WEB_STATIC_CONCURRENCY', 128, 1, 10_000, errors),
+  };
+  // Wait for a free slot before 503 BUSY: one value for all classes, or 30 s page / 10 s api+static.
+  const queueExplicit = source.TIX_PROXY_QUEUE_TIMEOUT_MS;
+  const queueSet = queueExplicit !== undefined && queueExplicit !== '';
+  const queueMs = queueSet
+    ? intIn(source, 'TIX_PROXY_QUEUE_TIMEOUT_MS', 10_000, 0, 3_600_000, errors)
+    : undefined;
+  const queueTimeouts = {
+    page: queueMs ?? 30_000,
+    api: queueMs ?? 10_000,
+    static: queueMs ?? 10_000,
+  };
+  const concurrencySum = webConcurrency.page + webConcurrency.api + webConcurrency.static;
+  if (concurrencySum >= 500) {
+    notes.push(
+      `TIX_WEB_*_CONCURRENCY add up to ${concurrencySum} per web process: keep the sum below 500, the listen backlog of a Next.js process is 511 and connections beyond it are silently dropped by the kernel.`,
+    );
+  }
   const drainMs = intIn(source, 'TIX_SHUTDOWN_TIMEOUT_MS', 35_000, 1_000, 600_000, errors);
   const { roles, errors: roleErrors } = parseRoles(source.TIX_ROLE);
   errors.push(...roleErrors);
@@ -499,6 +523,8 @@ export function resolveEnv(source, opts = {}) {
     socketTimeoutMs,
     requestTimeoutMs,
     maxConnsPerIp,
+    webConcurrency,
+    queueTimeouts,
     allowedHosts: source.TIX_ALLOWED_HOSTS ?? '',
     trustedProxies: source.TRUSTED_PROXIES ?? '',
     migrate: !/^(0|false|no|off)$/i.test(source.TIX_MIGRATE ?? '1'),

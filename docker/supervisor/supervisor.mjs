@@ -18,7 +18,9 @@ import {
   createProxyServer,
   listenDualStack,
   parseTrustedProxies,
+  readListenCounters,
   trustWarnings,
+  watchListenCounters,
 } from './proxy.mjs';
 
 const APP_DIR = process.env.TIX_APP_DIR || '/app';
@@ -198,6 +200,8 @@ async function serve() {
     socketTimeoutMs: settings.socketTimeoutMs,
     requestTimeoutMs: settings.requestTimeoutMs,
     maxConnsPerIp: settings.maxConnsPerIp,
+    concurrency: settings.webConcurrency,
+    queueTimeouts: settings.queueTimeouts,
     allowedHosts,
     webPorts: settings.webPorts,
     debugUpstream: process.env.TIX_PROXY_DEBUG_UPSTREAM === '1',
@@ -227,12 +231,17 @@ async function serve() {
                 status: h.status,
                 components: h.components,
                 ...(detail && h.webProcesses ? { webProcesses: h.webProcesses } : {}),
+                ...(detail
+                  ? { proxy: proxy.stats(), kernel: readListenCounters() ?? undefined }
+                  : {}),
               }),
         );
       });
       return true;
     },
   });
+
+  if (has('web')) watchListenCounters((m) => log.warn(m));
 
   // Listen first: during migrations users and health checks get the "updating" page.
   await new Promise((resolve, reject) => {

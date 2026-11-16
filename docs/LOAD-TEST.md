@@ -194,6 +194,7 @@ the generator on a VPS in the same region as the server and give it one vCPU per
 | `--checkout-ratio` with `--allow-orders`                                                                     | share placing a bank-transfer order (dedicated copy only)                             |
 | `--metrics-token` / `TIX_METRICS_TOKEN`, `--database-url`                                                    | resource snapshots, optional read-only double-booking SQL check                       |
 | `--max-failure-rate` (0.01), `--max-429-rate` (0.001), `--max-503-rate` (0.02), `--max-fanout-p95-ms` (2000) | assertion limits                                                                      |
+| `--ipv4-only`                                                                                                | resolve IPv4 first, no address-family racing (rules out an AAAA / Cloudflare path)    |
 
 Keep the hold time well below the cart timer (default 10 minutes): a lock that expires during the
 test can legitimately be taken by someone else, which the exclusivity check cannot tell from a
@@ -249,6 +250,40 @@ How to read them:
   `CART_CLEAR`, `PROBE_UNLOCK`) timed out, so the generator cannot know whether the server released
   the seat before another session got it. Only a _certain_ overlap fails the run.
 
+#### Which component answered? (error samples, network causes, timeline)
+
+Status codes that nobody can explain (405 on `POST /api/events/<id>/seats`, 504 from a proxy that only
+times out after 15 minutes, page loads that time out) usually come from something in front of the
+app. The summary and the JSON therefore show:
+
+- **error samples** (`errorSamples`): up to 3 per `endpoint:status` for every response that is not
+  2xx / 304 and not a 409 lock conflict: method, path (no query), time since the start, latency, a
+  safe subset of the response headers (`server`, `via`, `allow`, `content-type`, `content-length`,
+  `location`, `retry-after`, `x-request-id`, `x-tix-upstream`, `cf-ray`, `cf-cache-status`,
+  `x-powered-by`, Traefik headers; never cookies, authorization or the load test token) and the first
+  200 characters of the body. App answers are JSON with `code` / `message` (or the proxy's small page
+  mentioning the ticket shop); anything else (`server: Microsoft-IIS`, a Traefik "404 page not found",
+  a Cloudflare HTML page) was produced by another device.
+- **network errors** (`networkErrorCauses`): status 0 grouped by cause (`UND_ERR_CONNECT_TIMEOUT`,
+  `UND_ERR_HEADERS_TIMEOUT`, `UND_ERR_BODY_TIMEOUT`, `ECONNRESET`, `ECONNREFUSED`, `ETIMEDOUT`, ...)
+  with counts per endpoint. `TimeoutError` / `harness-timeout` is the generator's own 30 s abort
+  (nothing answered in time); everything else is a connection-level error.
+- **path indicator** (`pathIndicator`): "responses via Cloudflare: N of M" counts `cf-ray` /
+  `server: cloudflare`. For a run through a hosts-file entry to the LAN it must be 0. A non-zero value
+  means some connections bypassed the entry (for example IPv6 racing to the public AAAA record when
+  the LAN connect is slow): run with `--ipv4-only`. The summary also lists the remote addresses of the
+  connections (top 5, built-in fetch only, no WebSockets) so you can verify the entry is honoured.
+- **timeline** (`timeline`): per 10 s requests, errors (5xx, status 0, 4xx other than 409), p95,
+  timeouts and active shoppers (sum of the per-process peaks), so you see _when_ it broke.
+- **generator** (`generator`): overall CPU of the generator machine (average / peak, sampled every
+  2 s) and the event loop lag p99 peak per worker. Above 85 % CPU peak (or 200 ms lag) the diagnosis
+  says "generator CPU is saturated: results are limited by the load generator": raise `--workers`,
+  use a stronger machine or a second generator.
+
+The diagnosis block combines them: Cloudflare headers present means part of the traffic went through
+Cloudflare; a 405 / 502 / 504 sample that is neither app JSON nor the proxy page is reported as "not
+produced by the TIX app (header ... / body ...): check Traefik / the network device in front".
+
 What to watch on the server during a run:
 
 - `docker stats` for **all** containers (`tix`, postgres, redis, the proxy), not only the web one:
@@ -256,6 +291,17 @@ What to watch on the server during a run:
   process.
 - `top` (or `vmstat 1`) on the VM / host: a high `wa` (I/O wait) means slow disks, a high `st`
   (steal) means the hypervisor gives the VM less CPU than it shows (typical on shared Proxmox hosts).
+
+#### 503 BUSY from the proxy is not a failure of the server
+
+The built-in proxy limits the requests running at the same time per web process (pages 16, API 96,
+assets 128) and queues the rest. In a spike a request that waits longer than the queue timeout (15 s
+pages, 10 s API/assets) gets `503` with `Retry-After: 5` and the body code `BUSY`; the generator lists
+these under the status columns.
+That is the intended, fast answer under overload (before, the kernel dropped connection attempts and
+the generator saw a ~2 minute `ETIMEDOUT`). Many `BUSY` answers mean the processes are saturated: add
+web processes (`TIX_WEB_PROCESSES`) or use the waiting room; see "Overload behaviour" in INSTALL.md. In
+`/__tix/health?detail=1` (inside the container) `ListenOverflows` / `ListenDrops` must stay constant.
 
 ### Caveats
 

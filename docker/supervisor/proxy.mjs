@@ -11,6 +11,7 @@
 //    untrusted address is the client (strict mode). A peer that is not trusted is never believed.
 import { BlockList, isIP } from 'node:net';
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { UpstreamPool } from './pool.mjs';
 
@@ -287,13 +288,13 @@ export function statusPage(kind) {
   return pages[kind];
 }
 
-function sendStatus(req, res, kind, requestId) {
+function sendStatus(req, res, kind, requestId, opts = {}) {
   if (res.headersSent) {
     res.destroy();
     return;
   }
   const page = statusPage(kind);
-  const wantsHtml = (req.headers.accept ?? '').includes('text/html');
+  const wantsHtml = !opts.json && (req.headers.accept ?? '').includes('text/html');
   const retry = page.status === 503 ? { 'retry-after': '5' } : {};
   const common = { 'cache-control': 'no-store', 'x-request-id': requestId, ...retry };
   if (wantsHtml) {
@@ -318,6 +319,75 @@ function rejectUpgrade(socket, status, reason) {
     );
   }
   socket.destroy();
+}
+
+export const REQUEST_CLASSES = ['page', 'api', 'static'];
+
+/**
+ * Request class towards a web process; each class has its own concurrency limit per process so that
+ * CPU-bound page renders cannot starve API calls (seat locks, cart) or assets.
+ *  - api:    /api/...
+ *  - static: /_next/static, /_next/image, and GET/HEAD of a path whose last segment has a file
+ *            extension (images, fonts, css, js, ico, webmanifest, txt, xml)
+ *  - page:   everything else (HTML renders, server actions, RSC fetches, /_next/data)
+ */
+export function classifyRequest(method, url) {
+  const path = String(url ?? '')
+    .split(/[?#]/, 1)[0]
+    .replace(/^\/{2,}/, '/');
+  if (path === '/api' || path.startsWith('/api/')) return 'api';
+  if (path.startsWith('/_next/data/')) return 'page';
+  if (path.startsWith('/_next/static/') || path.startsWith('/_next/image')) return 'static';
+  if ((method === 'GET' || method === 'HEAD') && /\.[A-Za-z0-9]{1,12}$/.test(path.split('/').pop()))
+    return 'static';
+  return 'page';
+}
+
+/**
+ * TcpExt ListenOverflows / ListenDrops of this network namespace (the container's), or null when
+ * /proc/net/netstat is not readable (not Linux).
+ */
+export function parseListenCounters(text) {
+  const lines = String(text).split('\n');
+  for (let i = 0; i + 1 < lines.length; i++) {
+    if (!lines[i].startsWith('TcpExt:') || !lines[i + 1].startsWith('TcpExt:')) continue;
+    const names = lines[i].trim().split(/\s+/).slice(1);
+    const values = lines[i + 1].trim().split(/\s+/).slice(1);
+    const at = (n) => Number(values[names.indexOf(n)]);
+    const overflows = at('ListenOverflows');
+    const drops = at('ListenDrops');
+    if (Number.isFinite(overflows) && Number.isFinite(drops))
+      return { listenOverflows: overflows, listenDrops: drops };
+  }
+  return null;
+}
+
+export function readListenCounters(read = (p) => readFileSync(p, 'utf8')) {
+  try {
+    return parseListenCounters(read('/proc/net/netstat'));
+  } catch {
+    return null;
+  }
+}
+
+/** Logs a warning whenever the kernel's listen queue counters grew; returns a stop function. */
+export function watchListenCounters(log, { intervalMs = 10_000, read = readListenCounters } = {}) {
+  let last = read();
+  const timer = setInterval(() => {
+    const cur = read();
+    if (
+      cur &&
+      last &&
+      (cur.listenOverflows > last.listenOverflows || cur.listenDrops > last.listenDrops)
+    ) {
+      log(
+        `kernel dropped connection attempts: listen queue overflowed (ListenOverflows +${cur.listenOverflows - last.listenOverflows}, ListenDrops +${cur.listenDrops - last.listenDrops} in the last ${Math.round(intervalMs / 1000)} s). A web process cannot accept connections fast enough; lower TIX_WEB_*_CONCURRENCY or add web processes.`,
+      );
+    }
+    last = cur ?? last;
+  }, intervalMs);
+  timer.unref();
+  return () => clearInterval(timer);
 }
 
 export function isRealtimePath(url) {
@@ -480,11 +550,16 @@ export function listenDualStack(server, port) {
  *   every byte, so large uploads on a slow link still work; a stalled one is dropped.
  * @param {number} [cfg.requestTimeoutMs]  max time to receive one whole request (default 1 h, 0 = none)
  * @param {number} [cfg.maxConnsPerIp]  concurrent connections per untrusted peer (default 200, 0 = none)
- * @param {number} [cfg.maxSockets]  upstream sockets towards EACH web process (default 1024)
+ * @param {{page?: number, api?: number, static?: number}} [cfg.concurrency]  in-flight upstream
+ *   requests per web process and request class (defaults 16 / 96 / 128); excess requests wait in a
+ *   queue (a process renders pages CPU-bound and has a small accept queue: never flood it)
+ * @param {number} [cfg.maxSockets]  shorthand: the same limit for every class
  * @param {boolean} [cfg.debugUpstream]  answer with `x-tix-upstream: <index>` (tests, TIX_PROXY_DEBUG_UPSTREAM=1)
  * @param {number} [cfg.downBackoffMs]  how long a refused web process is skipped (default 1 s, grows to 5 s)
- * @param {number} [cfg.queueTimeoutMs]  how long a request may wait for a free upstream socket
- *   before it is answered with 503 (default 10 s) - one slow endpoint cannot stall everyone
+ * @param {{page?: number, api?: number, static?: number}} [cfg.queueTimeouts]  how long a request
+ *   may wait for a free slot before it is answered with 503 BUSY (defaults 30 s page, 10 s api and
+ *   static; 0 = wait forever)
+ * @param {number} [cfg.queueTimeoutMs]  shorthand: the same wait limit for every class
  * @param {Set<string>|null} [cfg.allowedHosts]  see buildAllowedHosts; null = any Host
  * @param {string} [cfg.upstreamHost]  override the upstream host for both targets (tests)
  * @param {(msg: string) => void} [cfg.log]
@@ -501,18 +576,64 @@ export function createProxyServer(cfg) {
   const socketTimeoutMs = cfg.socketTimeoutMs ?? 120_000;
   const requestTimeoutMs = cfg.requestTimeoutMs ?? 3_600_000;
   const maxConnsPerIp = cfg.maxConnsPerIp ?? 200;
-  const queueTimeoutMs = cfg.queueTimeoutMs ?? 10_000;
+  const DEFAULT_LIMITS = { page: 16, api: 96, static: 128 };
+  const DEFAULT_QUEUE_MS = { page: 30_000, api: 10_000, static: 10_000 };
+  const limits = {};
+  const queueMs = {};
+  for (const cls of REQUEST_CLASSES) {
+    limits[cls] = cfg.concurrency?.[cls] ?? cfg.maxSockets ?? DEFAULT_LIMITS[cls];
+    queueMs[cls] = cfg.queueTimeouts?.[cls] ?? cfg.queueTimeoutMs ?? DEFAULT_QUEUE_MS[cls];
+  }
   const allowedHosts = cfg.allowedHosts ?? null;
   const log = cfg.log ?? (() => {});
   const pool = new UpstreamPool(cfg.webPorts?.length ? cfg.webPorts : [cfg.webPort], {
     now,
     backoffMs: cfg.downBackoffMs,
+    limits,
   });
   const agentFor = {
-    // one keep-alive pool per web process
-    web: pool.ports.map(
-      () => new http.Agent({ keepAlive: true, maxSockets: cfg.maxSockets ?? 1024 }),
+    // one keep-alive agent per web process and request class; maxSockets = the class limit
+    web: pool.ports.map(() =>
+      Object.fromEntries(
+        REQUEST_CLASSES.map((cls) => [
+          cls,
+          new http.Agent({ keepAlive: true, maxSockets: limits[cls] }),
+        ]),
+      ),
     ),
+  };
+  // Overload log: one throttled line per interval when requests were answered 503 BUSY.
+  const BUSY_LOG_INTERVAL_MS = 10_000;
+  const busyTotals = { page: 0, api: 0, static: 0 };
+  const busyPending = { page: 0, api: 0, static: 0 };
+  let busyLastLog = -Infinity;
+  let busyTimer = null;
+  const queuedNow = () =>
+    pool
+      .stats()
+      .reduce((sum, c) => sum + Object.values(c.classes).reduce((s, k) => s + k.queued, 0), 0);
+  const flushBusyLog = () => {
+    busyTimer = null;
+    const { page, api, static: assets } = busyPending;
+    const total = page + api + assets;
+    if (total === 0) return;
+    busyPending.page = busyPending.api = busyPending.static = 0;
+    busyLastLog = now();
+    log(
+      `proxy overload: ${total} requests answered 503 BUSY in the last ${BUSY_LOG_INTERVAL_MS / 1000} s ` +
+        `(page ${page}, api ${api}${assets ? `, static ${assets}` : ''}), queued now ${queuedNow()}`,
+    );
+  };
+  const recordBusy = (cls) => {
+    busyTotals[cls] += 1;
+    busyPending[cls] += 1;
+    if (busyTimer) return;
+    const wait = BUSY_LOG_INTERVAL_MS - (now() - busyLastLog);
+    if (wait <= 0) flushBusyLog();
+    else {
+      busyTimer = setTimeout(flushBusyLog, wait);
+      busyTimer.unref();
+    }
   };
   // Realtime: long-polling requests are long-lived and the gateway closes idle sockets after 5 s
   // (Node default): no pooling, loopback connections are cheap.
@@ -579,11 +700,15 @@ export function createProxyServer(cfg) {
       const retryable =
         !framing.hasBody &&
         (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS');
+      const cls = target === 'web' ? classifyRequest(req.method, req.url) : null;
       let current = null;
       let clientGone = false;
+      /** gives up the slot (or queue entry) of the attempt in progress */
+      let cancelPending = null;
       res.on('close', () => {
         if (!res.writableFinished) {
           clientGone = true;
+          cancelPending?.(); // still waiting for a slot: leave the queue
           current?.destroy(); // stop the upstream work, free the socket
         }
       });
@@ -596,109 +721,129 @@ export function createProxyServer(cfg) {
       const attempt = (forcedIndex) => {
         let index = 0;
         if (target === 'web') {
-          index = forcedIndex ?? pool.pick(tried);
+          index = forcedIndex ?? pool.pick(tried, cls);
           if (index === null) {
             // nothing left to try: "Starting" only when no process is up
             sendStatus(req, res, pool.allDown() ? 'starting' : 'bad_gateway', requestId);
             return;
           }
           tried.add(index);
-          pool.begin(index);
+          pool.begin(index, cls);
         }
-        let upstream;
-        try {
-          upstream = http.request(
-            {
-              host: hostFor(target),
-              port: target === 'realtime' ? cfg.realtimePort : pool.children[index].port,
-              method: req.method,
-              path: req.url,
-              headers,
-              agent: target === 'realtime' ? agentFor.realtime : agentFor.web[index],
-              setHost: false,
-            },
-            (up) => {
-              up.setTimeout(0);
-              if (target === 'web') pool.markUp(index);
-              const outHeaders = cleanResponseHeaders(up.headers);
-              if (cfg.debugUpstream && target === 'web')
-                outHeaders['x-tix-upstream'] = String(index);
-              outHeaders['x-request-id'] ??= requestId;
-              res.writeHead(up.statusCode ?? 502, up.statusMessage, outHeaders);
-              up.pipe(res); // honours backpressure
-              up.on('error', () => res.destroy());
-            },
-          );
-        } catch (e) {
-          // e.g. an invalid header value: the slot must not leak
-          if (target === 'web') pool.end(index);
-          log(`proxy ${target} request failed ${e.code ?? e.message} id=${requestId}`);
-          sendStatus(req, res, 'bad_gateway', requestId);
-          return;
-        }
-        current = upstream;
+        let released = false;
+        let entry = null;
+        const release = () => {
+          if (released) return;
+          released = true;
+          if (cancelPending === release) cancelPending = null;
+          if (target === 'web') {
+            entry.release();
+            pool.end(index, cls);
+          }
+        };
         if (target === 'web') {
-          let released = false;
-          const release = () => {
-            if (released) return;
-            released = true;
-            pool.end(index);
-          };
+          entry = pool.acquire(index, cls);
+          cancelPending = release;
+          if (!entry.granted) {
+            // Wait for a slot of this class on this process (bounded by the queue timeout).
+            let timer = null;
+            if (queueMs[cls] > 0) {
+              timer = setTimeout(() => {
+                release();
+                pool.noteBusy(index, cls);
+                recordBusy(cls);
+                sendStatus(req, res, 'busy', requestId, { json: cls === 'api' });
+              }, queueMs[cls]);
+            }
+            entry.onGrant = () => {
+              clearTimeout(timer);
+              if (clientGone) return release();
+              dispatch();
+            };
+            return;
+          }
+        }
+        dispatch();
+
+        function dispatch() {
+          let upstream;
+          try {
+            upstream = http.request(
+              {
+                host: hostFor(target),
+                port: target === 'realtime' ? cfg.realtimePort : pool.children[index].port,
+                method: req.method,
+                path: req.url,
+                headers,
+                agent: target === 'realtime' ? agentFor.realtime : agentFor.web[index][cls],
+                setHost: false,
+              },
+              (up) => {
+                up.setTimeout(0);
+                if (target === 'web') pool.markUp(index);
+                const outHeaders = cleanResponseHeaders(up.headers);
+                if (cfg.debugUpstream && target === 'web')
+                  outHeaders['x-tix-upstream'] = String(index);
+                outHeaders['x-request-id'] ??= requestId;
+                res.writeHead(up.statusCode ?? 502, up.statusMessage, outHeaders);
+                up.pipe(res); // honours backpressure
+                up.on('error', () => res.destroy());
+              },
+            );
+          } catch (e) {
+            // e.g. an invalid header value: the slot must not leak
+            release();
+            log(`proxy ${target} request failed ${e.code ?? e.message} id=${requestId}`);
+            sendStatus(req, res, 'bad_gateway', requestId);
+            return;
+          }
+          current = upstream;
           upstream.once('close', release);
-        }
-        // No free upstream socket within queueTimeoutMs: answer 503 instead of queueing forever.
-        const queueTimer =
-          queueTimeoutMs > 0
-            ? setTimeout(() => {
-                // destroy() of a request without a socket only takes effect once a socket is
-                // assigned, so answer right now and let the late destroy clean up.
-                log(`proxy ${target} busy (no free upstream socket) ${req.method} id=${requestId}`);
-                sendStatus(req, res, 'busy', requestId);
-                upstream.destroy();
-              }, queueTimeoutMs)
-            : null;
-        upstream.once('socket', () => clearTimeout(queueTimer));
-        upstream.once('close', () => clearTimeout(queueTimer));
-        if (timeoutMs > 0) {
-          upstream.setTimeout(timeoutMs, () =>
-            upstream.destroy(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })),
-          );
-        }
-        upstream.on('error', (err) => {
-          // Nothing listens on that web process (starting / restarting / dead): skip it for a moment.
-          if (target === 'web' && err.code === 'ECONNREFUSED') pool.markDown(index);
-          if (clientGone || res.writableEnded || res.destroyed) return;
-          // A pooled keep-alive socket that the upstream closed in the meantime: a body-less request
-          // is sent once more to the SAME process on a fresh socket. An ECONNRESET can also mean
-          // that the process read the request and died, so it never fails over to another process.
-          if (!resetRetried && retryable && upstream.reusedSocket && err.code === 'ECONNRESET') {
-            resetRetried = true;
-            return attempt(target === 'web' ? index : undefined);
+          if (timeoutMs > 0) {
+            upstream.setTimeout(timeoutMs, () =>
+              upstream.destroy(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })),
+            );
           }
-          // Refused: nothing was received. A body-less request moves on to a process it has not
-          // been sent to yet (never after a reset retry; a request with a body is never repeated).
-          if (target === 'web' && err.code === 'ECONNREFUSED' && retryable && !resetRetried) {
-            const next = pool.pick(tried);
-            if (next !== null) return attempt(next);
+          upstream.on('error', (err) => {
+            // Nothing listens on that web process (starting / restarting / dead): skip it for a moment.
+            if (target === 'web' && err.code === 'ECONNREFUSED') pool.markDown(index);
+            if (clientGone || res.writableEnded || res.destroyed) return;
+            // A pooled keep-alive socket that the upstream closed in the meantime: a body-less request
+            // is sent once more to the SAME process on a fresh socket. An ECONNRESET can also mean
+            // that the process read the request and died, so it never fails over to another process.
+            if (!resetRetried && retryable && upstream.reusedSocket && err.code === 'ECONNRESET') {
+              resetRetried = true;
+              release();
+              return attempt(target === 'web' ? index : undefined);
+            }
+            // Refused: nothing was received. A body-less request moves on to a process it has not
+            // been sent to yet (never after a reset retry; a request with a body is never repeated).
+            if (target === 'web' && err.code === 'ECONNREFUSED' && retryable && !resetRetried) {
+              const next = pool.pick(tried, cls);
+              if (next !== null) {
+                release();
+                return attempt(next);
+              }
+            }
+            log(
+              `proxy ${target} error ${err.code ?? err.message} ${req.method} ${req.url.split('?')[0]} id=${requestId}`,
+            );
+            // "Starting" only when no web process is up (all refuse); a refusal by one of several is
+            // a plain bad gateway.
+            const kind =
+              err.code === 'ETIMEDOUT'
+                ? 'timeout'
+                : err.code === 'ECONNREFUSED' && (target !== 'web' || pool.allDown())
+                  ? 'starting'
+                  : 'bad_gateway';
+            sendStatus(req, res, kind, requestId);
+          });
+          if (!framing.hasBody) {
+            upstream.end();
+          } else {
+            req.pipe(upstream); // honours backpressure; ends upstream when the body ends
+            req.on('error', () => upstream.destroy());
           }
-          log(
-            `proxy ${target} error ${err.code ?? err.message} ${req.method} ${req.url.split('?')[0]} id=${requestId}`,
-          );
-          // "Starting" only when no web process is up (all refuse); a refusal by one of several is
-          // a plain bad gateway.
-          const kind =
-            err.code === 'ETIMEDOUT'
-              ? 'timeout'
-              : err.code === 'ECONNREFUSED' && (target !== 'web' || pool.allDown())
-                ? 'starting'
-                : 'bad_gateway';
-          sendStatus(req, res, kind, requestId);
-        });
-        if (!framing.hasBody) {
-          upstream.end();
-        } else {
-          req.pipe(upstream); // honours backpressure; ends upstream when the body ends
-          req.on('error', () => upstream.destroy());
         }
       };
       attempt();
@@ -849,9 +994,21 @@ export function createProxyServer(cfg) {
     server,
     /** The web upstream pool (the supervisor drives its ready state). */
     pool,
+    /** Effective per-process limits and queue timeouts per request class. */
+    limits,
+    queueTimeouts: queueMs,
+    /** Per class and web process: queued now, served, busy503 (cumulative); plus busy totals. */
+    stats() {
+      return {
+        limits,
+        queueTimeoutMs: queueMs,
+        busy503: { ...busyTotals },
+        children: pool.stats(),
+      };
+    },
     /** Drops pooled upstream connections (they would keep the process alive). */
     destroyAgents() {
-      for (const agent of agentFor.web) agent.destroy();
+      for (const agents of agentFor.web) for (const agent of Object.values(agents)) agent.destroy();
       agentFor.realtime.destroy();
     },
     /** Stops accepting connections, then force-closes what is left after `graceMs`. */

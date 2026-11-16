@@ -1,7 +1,10 @@
 // Shared helpers of the load generator: HTTP "virtual user" with cookie jar, latency metrics,
 // bounded concurrency, and lazy access to the pg / ioredis / socket.io-client packages of the
 // monorepo (no extra dependencies, no docker image for the generator).
+import diagnosticsChannel from 'node:diagnostics_channel';
+import dns from 'node:dns';
 import { createRequire } from 'node:module';
+import net from 'node:net';
 import { performance } from 'node:perf_hooks';
 
 const root = new URL('../../../', import.meta.url);
@@ -111,10 +114,11 @@ export function fakeIp(index) {
 }
 
 export class Vu {
-  constructor(cfg, id, metrics) {
+  constructor(cfg, id, metrics, diag = null) {
     this.cfg = cfg;
     this.id = id;
     this.metrics = metrics;
+    this.diag = diag; // optional Diagnostics (lib/diag.mjs): error samples, causes, timeline
     this.jar = new Map();
     this.ip = fakeIp(id);
   }
@@ -144,6 +148,9 @@ export class Vu {
     let body = null;
     let code = '';
     let bytes = 0;
+    let resHeaders = null;
+    let rawText = '';
+    let failure = null;
     try {
       const res = await fetch(this.cfg.base + path, {
         method,
@@ -153,6 +160,7 @@ export class Vu {
         signal: AbortSignal.timeout(this.cfg.timeoutMs),
       });
       status = res.status;
+      resHeaders = res.headers;
       for (const c of res.headers.getSetCookie()) {
         const [pair] = c.split(';');
         const eq = pair.indexOf('=');
@@ -161,6 +169,7 @@ export class Vu {
         else this.jar.set(pair.slice(0, eq), pair.slice(eq + 1));
       }
       const text = await res.text();
+      rawText = text;
       bytes = Buffer.byteLength(text);
       try {
         body = JSON.parse(text);
@@ -169,12 +178,27 @@ export class Vu {
       }
       code = body?.error?.code ?? '';
     } catch (err) {
+      failure = err;
       code =
         err?.name === 'TimeoutError' ? 'TIMEOUT' : `NETWORK:${err?.cause?.code ?? err?.message}`;
     }
     const ms = now() - t0;
     this.metrics.record(label, status, code, ms, bytes);
-    return { status, body, code, ms, bytes, wallStart, wallEnd: Date.now() };
+    const wallEnd = Date.now();
+    this.diag?.observe({
+      label,
+      method,
+      path,
+      status,
+      ms,
+      wallEnd,
+      headers: resHeaders,
+      text: rawText,
+      err: failure,
+      code,
+      secret: this.cfg.loadtestToken,
+    });
+    return { status, body, code, ms, bytes, wallStart, wallEnd };
   }
 }
 
@@ -237,6 +261,32 @@ export async function scanKeys(redis, pattern) {
   return out;
 }
 
+/**
+ * --ipv4-only: resolve IPv4 first and do not race address families (no happy eyeballs towards a
+ * public AAAA record when the LAN connect is slow). Applies to this process only: call it in every
+ * worker too.
+ */
+export function applyIpv4Only(cfg) {
+  if (!cfg?.ipv4Only) return;
+  dns.setDefaultResultOrder('ipv4first');
+  if (typeof net.setDefaultAutoSelectFamily === 'function') net.setDefaultAutoSelectFamily(false);
+}
+
+/**
+ * Calls onAddress(remoteAddress) for every new connection of the built-in fetch (undici publishes
+ * 'undici:client:connected'). Best effort: silently does nothing when the channel is not published.
+ */
+export function subscribeConnections(onAddress) {
+  try {
+    diagnosticsChannel.subscribe('undici:client:connected', (msg) => {
+      const a = msg?.socket?.remoteAddress;
+      if (a) onAddress(a);
+    });
+  } catch {
+    /* diagnostics only */
+  }
+}
+
 /** Common run configuration derived from CLI args / environment. */
 export function buildConfig(args) {
   const base = String(args.target ?? process.env.LOAD_TARGET ?? 'http://localhost:18080').replace(
@@ -249,6 +299,7 @@ export function buildConfig(args) {
     fakeIp: args['fake-ip'] === true || process.env.LOAD_FAKE_IP === '1',
     loadtestToken: args['loadtest-token'] ?? process.env.TIX_LOADTEST_TOKEN ?? null,
     timeoutMs: Number(args.timeout ?? 30_000),
+    ipv4Only: args['ipv4-only'] === true || args['ipv4-only'] === 'true',
     vus: Number(args.vus ?? process.env.LOAD_VUS ?? 1200),
     seed: Number(args.seed ?? 42),
     warmupConcurrency: Number(args['warmup-concurrency'] ?? 150),

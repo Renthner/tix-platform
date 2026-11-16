@@ -14,7 +14,8 @@ import { fork } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { Vu, buildConfig, openDb, parseArgs, sleep } from './lib/common.mjs';
+import { Vu, applyIpv4Only, buildConfig, openDb, parseArgs, sleep } from './lib/common.mjs';
+import { CpuSampler, Diagnostics, diagnoseDiagnostics, summarizeLoopLag } from './lib/diag.mjs';
 import {
   EndpointStats,
   Histogram,
@@ -59,6 +60,8 @@ const HELP = `Journey load test (see docs/LOAD-TEST.md)
                             (read-only session; private / LAN hosts are refused unless --allow-private)
   --allow-private           allow a private / LAN database host for --database-url
   --locale <de|en>          locale prefix of the pages (default: none = the shop's default locale)
+  --ipv4-only               resolve IPv4 first and do not race address families: rules out a
+                            public AAAA / Cloudflare path when you test via a hosts-file entry
   --out <file>              result JSON (default scripts/load/results/journey.json)
   --max-failure-rate / --max-429-rate / --max-503-rate / --max-fanout-p95-ms   assertion limits
 `;
@@ -148,11 +151,14 @@ const cfg = {
   fakeIp: false, // never spoof client addresses against a real target: the token is the sanctioned way
 };
 
+applyIpv4Only(cfg);
+
 console.log(`Journey load test
   target        ${targetCheck.url.origin}
   event         ${eventId}${plan.eventSlug ? ` (${plan.eventSlug})` : ''}
   virtual users ${vus} in ${workers} process(es), ramp ${plan.rampProfile} ${rampMs / 1000}s, run ${durationMs / 1000}s, hold ~${holdMs / 1000}s
   hot seats     ${cfg.hot}, best-available ${plan.bestAvailableRatio}, websocket ${plan.wsRatio}, checkout ${checkoutRatio}
+  network       ${cfg.ipv4Only ? 'IPv4 only (--ipv4-only)' : 'default address selection (use --ipv4-only to exclude AAAA / Cloudflare paths)'}
   token         ${token ? 'provided (sent as X-Tix-Loadtest header)' : 'not provided'}
   limits        ${JSON.stringify(limits)}`);
 if (dryRun) {
@@ -208,6 +214,8 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
     for (const c of children) c.send({ type: 'stop' });
   });
 }
+
+let generatorCpu = null;
 
 async function main() {
   const before = await snapshot();
@@ -265,6 +273,8 @@ async function main() {
   const slices = sliceUsers(vus, workers);
   const t0 = Date.now();
   const results = [];
+  const cpu = new CpuSampler(2000);
+  cpu.start();
   const progress = new Map();
   // private seats of the fan-out probes (4 per process), not used by the shoppers' random picks
   const probeSeats = world.coldSeats.splice(-(slices.length * 4));
@@ -299,6 +309,7 @@ async function main() {
           slice: { ...slice, index: w },
           plan: { ...plan, wsRatio: plan.wsRatio },
           probeSeats: probeSeats.slice(w * 4, w * 4 + 4),
+          runStart: t0,
         });
       }),
   );
@@ -328,6 +339,7 @@ ABORT: ${abortReason}`);
   } finally {
     clearInterval(status);
     sampling = false;
+    generatorCpu = cpu.stop();
     await sampler;
     for (const c of children) if (c.exitCode === null) c.kill();
   }
@@ -352,6 +364,12 @@ ABORT: ${abortReason}`);
     for (const s of r.hot.wonSeats) hotWonSeats.add(s);
     ws += r.wsConnectedMax;
   }
+  const diag = new Diagnostics(t0);
+  for (const r of results) if (r.diag) diag.merge(Diagnostics.fromJSON(r.diag));
+  const generator = {
+    cpu: generatorCpu,
+    loopLag: summarizeLoopLag(results.map((r) => r.loopLag)),
+  };
   const seconds = (Date.now() - t0) / 1000;
   const summary = total.summary(seconds);
   const { certain: overlaps, indeterminate } = findOverlaps(intervals);
@@ -424,7 +442,7 @@ ABORT: ${abortReason}`);
     startedAt: new Date(t0).toISOString(),
     target: cfg.base,
     eventId,
-    plan: { ...plan, vus, workers, limits },
+    plan: { ...plan, vus, workers, limits, timeoutMs: cfg.timeoutMs },
     seconds: Math.round(seconds * 10) / 10,
     summary,
     hotSeats: { ...hot, seatsWon: hotWonSeats.size, of: world.hotSeats.length },
@@ -436,7 +454,15 @@ ABORT: ${abortReason}`);
     indeterminateOverlapDetails: indeterminate.slice(0, 20).map((o) => o.details),
     leakedLocks: leaked.length,
     resources: { before, after, peaksDuringRun: peaks, metricScrapes: scrapes },
-    diagnosis: diagnosisHints({ summary, peaks, scrapes }),
+    errorSamples: diag.errorSamples(),
+    networkErrorCauses: diag.networkErrorCauses(),
+    pathIndicator: diag.pathIndicator({ ipv4Only: cfg.ipv4Only }),
+    timeline: diag.timeline(),
+    generator,
+    diagnosis: [
+      ...diagnosisHints({ summary, peaks, scrapes }),
+      ...diagnoseDiagnostics({ diag, generator }),
+    ],
     checks,
     passed,
     aborted: aborted || Boolean(abortReason),
@@ -469,6 +495,44 @@ function print(o, file) {
       `${label.padEnd(22)} ${String(e.requests).padStart(6)} ${String(e.p50).padStart(7)} ${String(e.p95).padStart(7)} ${String(e.p99).padStart(7)} ${String(e.max).padStart(7)}   ${JSON.stringify(e.statuses)}`,
     );
   }
+  const pi = o.pathIndicator;
+  line(
+    `\nresponses via Cloudflare: ${pi.cloudflare} of ${pi.responses} (cf-ray ${pi.cfRay}, server: cloudflare ${pi.serverCloudflare}); ipv4-only ${pi.ipv4Only ? 'yes' : 'no'}`,
+  );
+  if (pi.remoteAddresses.length)
+    line(
+      `remote addresses used (${pi.distinctRemoteAddresses} distinct, top 5 by connections): ${pi.remoteAddresses.map((a) => `${a.address} x${a.connections}`).join(', ')}`,
+    );
+  if (pi.cloudflare > 0 && !pi.ipv4Only)
+    line(
+      `WARNING: ${pi.cloudflare} responses came via Cloudflare although a LAN path was intended; re-run with --ipv4-only to rule out an IPv6 / AAAA path`,
+    );
+  const nc = o.networkErrorCauses;
+  if (nc.harnessTimeouts + nc.connectionErrors > 0) {
+    line(
+      `\nnetwork errors (status 0): ${nc.harnessTimeouts} harness-side aborts (our ${o.plan.timeoutMs / 1000} s timeout), ${nc.connectionErrors} connection-level errors`,
+    );
+    for (const [cause, c] of Object.entries(nc.causes))
+      line(
+        `  ${cause.padEnd(26)} ${String(c.count).padStart(6)}  [${c.kind}]  ${JSON.stringify(c.byEndpoint)}`,
+      );
+  }
+  if (o.errorSamples.length) {
+    line('\nerror samples (up to 3 per endpoint:status; 409 lock conflicts excluded):');
+    for (const s of o.errorSamples)
+      line(
+        `  [+${(s.atMs / 1000).toFixed(1)}s] ${s.status} ${s.method} ${s.path} (${s.endpoint}, ${s.ms} ms)\n      headers ${JSON.stringify(s.headers)}\n      body    ${JSON.stringify(s.body)}`,
+      );
+  }
+  line('\ntimeline (10 s buckets)   from-to     reqs  errors  p95 ms  timeouts  active');
+  for (const t of o.timeline)
+    line(
+      `  ${`${t.fromS}-${t.toS}s`.padEnd(12)} ${String(t.requests).padStart(8)} ${String(t.errors).padStart(7)} ${String(t.p95Ms ?? '-').padStart(7)} ${String(t.timeouts).padStart(9)} ${String(t.activeShoppers).padStart(7)}`,
+    );
+  const g = o.generator;
+  line(
+    `\ngenerator: CPU avg ${g.cpu?.avgPercent ?? '?'} %, peak ${g.cpu?.peakPercent ?? '?'} % (${g.cpu?.samples ?? 0} samples); event loop lag p99 peak per worker ${JSON.stringify(g.loopLag.perWorkerPeakP99Ms)} ms`,
+  );
   line(
     `\nrealtime fan-out (lock request -> delta received): ${o.realtime.samples} deliveries, p50 ${o.realtime.p50} ms, p95 ${o.realtime.p95} ms, p99 ${o.realtime.p99} ms, max ${o.realtime.max} ms; sockets ${o.realtime.connected}`,
   );

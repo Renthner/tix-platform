@@ -8,6 +8,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.33] - 2026-11-16
+
+### Fixed
+
+- **Connection attempts silently dropped in a traffic spike.** Measured with 2,000 simulated users: the
+  kernel counters `ListenOverflows` and `ListenDrops` were 600, exactly the number of `proxy web error
+ETIMEDOUT` lines (a ~2 minute wait, then a 504). The built-in proxy opened up to 1024 simultaneous
+  connections to ONE web process, which renders pages CPU-bound and could not accept them fast enough, so
+  its accept queue (511) overflowed. The proxy now bounds the requests in flight per web process and
+  request class (pages 16, API 96, assets 128 by default, far below 511), queues the rest and answers
+  `503 BUSY` with `Retry-After: 5` when a request waits longer than the queue timeout (30 s pages, 10 s
+  API/assets). Page renders can no longer starve API calls (seat locks, cart); the next request goes to the
+  process with the fewest requests of its class. A client that gives up while queued leaves the queue.
+
+### Added
+
+- **Overload settings and counters.** `TIX_WEB_PAGE_CONCURRENCY`, `TIX_WEB_API_CONCURRENCY`, `TIX_WEB_STATIC_CONCURRENCY` (per web process) and `TIX_PROXY_QUEUE_TIMEOUT_MS`; `/__tix/health?detail=1` (loopback) lists queued, served and 503 BUSY per class and web process plus the kernel `ListenOverflows` / `ListenDrops`; the log shows `proxy overload: ...` (at most every 10 s) and a warning when the kernel dropped connection attempts. New section "Overload behaviour" in docs/INSTALL.md / .de.md.
+- **Load test diagnostics: which component answered?** The journey test now keeps error samples (up to 3 per endpoint and status, with safe response headers and the first 200 body characters), groups network errors by cause (harness 30 s abort vs. connection-level), counts responses via Cloudflare and lists the remote addresses used, prints a 10 s timeline (requests, errors, p95, timeouts, active shoppers) and reports generator CPU and event loop lag; new flag `--ipv4-only`. The diagnosis flags status codes that were not produced by the app. Documented in docs/LOAD-TEST.md / .de.md.
+
 ## [1.0.0-alpha.32] - 2026-11-16
 
 ### Added
