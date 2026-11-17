@@ -255,7 +255,7 @@ test.describe('colour contrast (admin)', () => {
       const collapsed = page.locator(`${scope} button[aria-expanded="false"]`);
       while ((await collapsed.count()) > 0) await collapsed.first().click();
     };
-    await expandAll('aside');
+    await expandAll('aside nav');
     await collect('aside a[href^="/admin"]');
     await page.goto('/admin/settings/general');
     await expandAll('nav[aria-label]');
