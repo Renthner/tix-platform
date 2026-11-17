@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.40] - 2026-11-17
+
+Contains the admin portal reorganisation of 1.0.0-alpha.38 below. The tags `v1.0.0-alpha.38` and `v1.0.0-alpha.39` were created while the release pipeline was not ready and were never published; use this version.
+
+### Fixed
+
+- **Release pipeline checks (tests only, no change to the application).** The end-to-end colour-contrast test of the admin area no longer hangs after the menu reorganisation (it expands only the menu sections, not the language dropdown), and the payment reference fuzz test has an explicit timeout so it does not fail on slow CI runners.
+
 ## [1.0.0-alpha.38] - 2026-11-17
 
 ### Changed
