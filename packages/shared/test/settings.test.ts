@@ -223,11 +223,11 @@ describe('emailHeader setting', () => {
     }
   });
 
-  it('limits the e-mail logo height to 16-64 px (null = automatic)', () => {
+  it('limits the e-mail logo height to 16-200 px (null = automatic)', () => {
     expect(parseSetting('emailHeader', { logoHeight: 16 }).logoHeight).toBe(16);
-    expect(parseSetting('emailHeader', { logoHeight: 64 }).logoHeight).toBe(64);
+    expect(parseSetting('emailHeader', { logoHeight: 200 }).logoHeight).toBe(200);
     expect(parseSetting('emailHeader', { logoHeight: null }).logoHeight).toBeNull();
-    for (const bad of [15, 65, 20.5]) {
+    for (const bad of [15, 201, 20.5]) {
       expect(() => parseSetting('emailHeader', { logoHeight: bad }), String(bad)).toThrow();
     }
   });

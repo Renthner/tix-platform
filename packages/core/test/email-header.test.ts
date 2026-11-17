@@ -54,9 +54,17 @@ describe('e-mail header band', () => {
 
   it('an explicit e-mail logo height (16-64 px) wins over the shop-header height', () => {
     expect(emailLogoSize(36, { width: 100, height: 100 }, 56)).toEqual({ width: 56, height: 56 });
-    expect(emailLogoSize(36, { width: 100, height: 100 }, 200).height).toBe(64);
+    expect(emailLogoSize(36, { width: 100, height: 100 }, 300).height).toBe(200);
     expect(emailLogoSize(36, { width: 100, height: 100 }, 2).height).toBe(16);
-    expect(emailLogoSize(36, { width: 1000, height: 100 }, 64)).toEqual({ width: 160, height: 16 });
+    expect(emailLogoSize(36, { width: 1000, height: 100 }, 64)).toEqual({ width: 528, height: 53 });
+    expect(emailLogoSize(36, { width: 400, height: 100 }, 150)).toEqual({
+      width: 528,
+      height: 132,
+    });
+    expect(emailLogoSize(36, { width: 200, height: 100 }, 100)).toEqual({
+      width: 200,
+      height: 100,
+    });
     expect(emailLogoSize(90, { width: 100, height: 100 }, null).height).toBe(EMAIL_LOGO_MAX_HEIGHT);
   });
 

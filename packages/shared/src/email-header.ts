@@ -31,13 +31,18 @@ export const EMAIL_HEADER_HEX_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 /** Logo height range of the explicit e-mail logo height (px). */
 export const EMAIL_HEADER_LOGO_HEIGHT_MIN = 16;
-export const EMAIL_HEADER_LOGO_HEIGHT_MAX = 64;
+export const EMAIL_HEADER_LOGO_HEIGHT_MAX = 200;
 
 /** Largest logo height when derived from the shop-header logo height (px). */
 export const EMAIL_LOGO_MAX_HEIGHT = 36;
 export const EMAIL_LOGO_MIN_HEIGHT = 16;
 /** Widest logo (px) so a wide wordmark does not squeeze the title on phones. */
 export const EMAIL_LOGO_MAX_WIDTH = 160;
+/**
+ * Widest logo (px) with an explicit e-mail logo height: the mail content area (600 px container
+ * minus 2 x 28 px padding) minus room for the chip padding.
+ */
+export const EMAIL_LOGO_EXPLICIT_MAX_WIDTH = 528;
 
 const CHIP_PADDING_PX: Record<EmailHeaderChipPadding, number> = { SMALL: 4, MEDIUM: 8 };
 const CHIP_RADIUS_PX = 6;
@@ -85,7 +90,7 @@ function esc(value: string): string {
 /**
  * Pixel size of the logo in the mail within the width cap, keeping the aspect ratio. Without an
  * explicit height the shop-header height is used, clamped to 16-36 px; an explicit e-mail height
- * (16-64 px) wins.
+ * (16-200 px) wins and may be as wide as the content area (528 px).
  */
 export function emailLogoSize(
   configuredHeight: number,
@@ -103,8 +108,9 @@ export function emailLogoSize(
   if (!natural.width || !natural.height) return { width: null, height };
   const ratio = natural.width / natural.height;
   let width = Math.round(height * ratio);
-  if (width > EMAIL_LOGO_MAX_WIDTH) {
-    width = EMAIL_LOGO_MAX_WIDTH;
+  const maxWidth = explicitHeight != null ? EMAIL_LOGO_EXPLICIT_MAX_WIDTH : EMAIL_LOGO_MAX_WIDTH;
+  if (width > maxWidth) {
+    width = maxWidth;
     height = Math.max(1, Math.round(width / ratio));
   }
   return { width: Math.max(1, width), height };

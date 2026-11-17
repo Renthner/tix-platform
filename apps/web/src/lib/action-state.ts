@@ -65,7 +65,7 @@ export type ActionState =
   | { status: 'idle' }
   | {
       status: 'success';
-      message?: 'saved' | 'created' | 'deleted' | 'reset' | 'published';
+      message?: 'saved' | 'created' | 'deleted' | 'reset' | 'published' | 'categoryActivated';
       at: number;
     }
   | {

@@ -1,6 +1,6 @@
 'use server';
 
-import { eventTags } from '@tix/core';
+import { eventTags, updatePriceCategoryTx } from '@tix/core';
 import {
   events,
   findPgError,
@@ -109,17 +109,18 @@ export async function saveCategoryAction(
     bestAvailableEnabled: flag(fd, 'bestAvailableEnabled'),
   };
   const { db } = getCore();
+  let activated = false;
   try {
     await withTransaction(db, async (tx) => {
       await lockEvent(tx, eventId);
       if (categoryId) {
-        const updated = await tx
-          .update(priceCategories)
-          .set(values)
-          .where(and(eq(priceCategories.id, categoryId), eq(priceCategories.eventId, eventId)))
-          .returning({ id: priceCategories.id });
-        if (updated.length === 0) throw new Error('NOT_FOUND');
-        await audit(tx, session, 'pricecategory.update', 'price_category', categoryId, values);
+        const result = await updatePriceCategoryTx(tx, eventId, categoryId, values);
+        if (!result) throw new Error('NOT_FOUND');
+        activated = result.activated;
+        await audit(tx, session, 'pricecategory.update', 'price_category', categoryId, {
+          ...result.values,
+          ...(activated ? { autoActivated: true } : {}),
+        });
       } else {
         const [created] = await tx
           .insert(priceCategories)
@@ -145,7 +146,7 @@ export async function saveCategoryAction(
     throw err;
   }
   await refreshShop(eventTags(eventId));
-  return success(categoryId ? 'saved' : 'created');
+  return success(activated ? 'categoryActivated' : categoryId ? 'saved' : 'created');
 }
 
 export async function deleteCategoryAction(

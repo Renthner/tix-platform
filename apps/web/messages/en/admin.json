@@ -45,7 +45,8 @@
     "created": "Created successfully.",
     "deleted": "Deleted.",
     "reset": "The waiting room was reset.",
-    "published": "The event is now published."
+    "published": "The event is now published.",
+    "categoryActivated": "The category now has a price: it was activated and is offered in all tariffs."
   },
   "errors": {
     "required": "This field is required.",
@@ -1467,7 +1468,7 @@
       },
       "alignHint": "The layout “Logo above title, centred” is always centred.",
       "logoHeight": "Logo height in e-mails",
-      "logoHeightHint": "{min}–{max} px. Empty = derived from the logo height of the shop header (at most 36 px). Wide logos are limited to 160 px width and shrink proportionally.",
+      "logoHeightHint": "{min}–{max} px. Empty = derived from the logo height of the shop header (at most 36 px). Without a height, wide logos are limited to 160 px width; with a height they may be as wide as the mail content (528 px). Too-wide logos shrink proportionally.",
       "chipColor": "Box colour",
       "chipCorners": "Box corners",
       "corners": {

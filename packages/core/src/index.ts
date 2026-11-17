@@ -27,6 +27,7 @@ export * from './event-transfer';
 export * from './symbols';
 export * from './event-admin';
 export * from './event-duplicate';
+export * from './price-category-update';
 export * from './fees';
 export * from './tax-rates';
 export * from './storage';

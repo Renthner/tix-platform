@@ -44,7 +44,7 @@ event – no master plan is created).
 The current plan copy (with all edits and blocked seats) is deleted. Price categories, tariffs and
 prices of the event stay; plan categories are matched to price categories **by name**, unknown names
 become new categories **without a price and deactivated** (a price of 0 would otherwise be sold as such –
-the admin prices and activates them under Pricing; the same applies to plan categories of an imported event
+when the admin later gives such an inactive category a price above 0 under Pricing, it is activated and offered in all tariffs of the event automatically (missing matrix rows only, in the same transaction; deliberately deactivated categories that already had a price are not touched); the same applies to plan categories of an imported event
 that are not part of its price categories), seats without a matching category stay unassigned. Scanner
 entrance assignments of the event (devices, pairing codes) pointed at entrances of the old plan and are
 cleared; the result reports how many. The audit entry is written in the swap's transaction; the follow-up

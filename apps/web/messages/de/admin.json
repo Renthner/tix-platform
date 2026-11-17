@@ -45,7 +45,8 @@
     "created": "Erfolgreich angelegt.",
     "deleted": "Gelöscht.",
     "reset": "Der Warteraum wurde zurückgesetzt.",
-    "published": "Die Veranstaltung ist jetzt veröffentlicht."
+    "published": "Die Veranstaltung ist jetzt veröffentlicht.",
+    "categoryActivated": "Die Kategorie hat jetzt einen Preis: Sie wurde aktiviert und in allen Tarifen angeboten."
   },
   "errors": {
     "required": "Dieses Feld ist erforderlich.",
@@ -1467,7 +1468,7 @@
       },
       "alignHint": "Das Layout „Logo über dem Titel, zentriert“ ist immer zentriert.",
       "logoHeight": "Logo-Höhe in E-Mails",
-      "logoHeightHint": "{min}–{max} px. Leer = abgeleitet von der Logo-Höhe der Shop-Kopfzeile (höchstens 36 px). Breite Logos werden auf 160 px Breite begrenzt und proportional verkleinert.",
+      "logoHeightHint": "{min}–{max} px. Leer = abgeleitet von der Logo-Höhe der Shop-Kopfzeile (höchstens 36 px). Ohne Höhe werden breite Logos auf 160 px Breite begrenzt; mit Höhe darf das Logo so breit wie der Mail-Inhalt sein (528 px). Zu breite Logos werden proportional verkleinert.",
       "chipColor": "Farbe der Box",
       "chipCorners": "Ecken der Box",
       "corners": {

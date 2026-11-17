@@ -8,6 +8,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.37] - 2026-11-17
+
+### Changed
+
+- **Larger e-mail logo.** The configurable e-mail header logo height now goes up to 200 px (was 64) and the logo may be as wide as the mail content area (528 px); it scales down proportionally when the width limit is reached.
+- **Price categories without a price get activated automatically.** A category created deactivated and without a price (seat plan swap, plan import, event import) becomes active and is offered in all tariffs as soon as a price above 0 is saved; existing matrix rows are never overwritten and deliberately deactivated priced categories stay untouched.
+
 ## [1.0.0-alpha.36] - 2026-11-17
 
 ### Added
