@@ -225,7 +225,8 @@ ${check}`,
           }
         }
       }
-    });
+      // 2000 numbers x many spellings: needs well over the 5 s default on a slow CI runner.
+    }, 60_000);
   });
 });
 
