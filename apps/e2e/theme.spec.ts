@@ -249,12 +249,16 @@ test.describe('colour contrast (admin)', () => {
       }
     };
     await page.goto('/admin');
-    // Sidebar sections are collapsed accordions: open them all so every link is rendered.
-    for (const btn of await page.locator('aside button[aria-expanded="false"]').all()) {
-      await btn.click();
-    }
+    // Menu sections are collapsed accordions: open them all so every link is rendered. Always
+    // click the first collapsed one (a locator list would re-resolve after each click).
+    const expandAll = async (scope: string) => {
+      const collapsed = page.locator(`${scope} button[aria-expanded="false"]`);
+      while ((await collapsed.count()) > 0) await collapsed.first().click();
+    };
+    await expandAll('aside');
     await collect('aside a[href^="/admin"]');
     await page.goto('/admin/settings/general');
+    await expandAll('nav[aria-label]');
     await collect('nav[aria-label] a[href^="/admin/settings"]');
     await page.goto('/admin/events');
     // The first real event (not "shop-order" and the like): its id is a UUID.
