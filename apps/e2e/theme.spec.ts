@@ -249,6 +249,10 @@ test.describe('colour contrast (admin)', () => {
       }
     };
     await page.goto('/admin');
+    // Sidebar sections are collapsed accordions: open them all so every link is rendered.
+    for (const btn of await page.locator('aside button[aria-expanded="false"]').all()) {
+      await btn.click();
+    }
     await collect('aside a[href^="/admin"]');
     await page.goto('/admin/settings/general');
     await collect('nav[aria-label] a[href^="/admin/settings"]');

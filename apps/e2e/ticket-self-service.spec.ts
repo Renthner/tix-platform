@@ -17,7 +17,7 @@ let adminOrderUrl = '';
 let ticketPath = '';
 
 test('self-service is switched on globally (deadline 0)', async ({ page }) => {
-  await page.goto('/admin/settings/accounts');
+  await page.goto('/admin/settings/selfService');
   const section = page.locator('#ticketSelfService');
   await expect(section).toBeVisible();
   const toggle = section.getByRole('switch').first();

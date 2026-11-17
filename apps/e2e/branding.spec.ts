@@ -86,7 +86,7 @@ async function contrastViolations(page: Page): Promise<string[]> {
 }
 
 async function removeSponsorsAndLogo(page: Page): Promise<void> {
-  await page.goto('/admin/settings/appearance');
+  await page.goto('/admin/settings/sponsors');
   const sForm = sponsorsForm(page);
   const sw = sForm.getByRole('switch').first();
   if ((await sw.getAttribute('aria-checked')) === 'true') await sw.click();
@@ -94,6 +94,7 @@ async function removeSponsorsAndLogo(page: Page): Promise<void> {
     await sForm.getByRole('button', { name: 'Remove sponsor' }).first().click();
   }
   await saved(sForm);
+  await page.goto('/admin/settings/appearance');
   const form = brandingForm(page);
   const logoPicker = form.locator('input[name="logoAssetId"]').locator('xpath=..');
   const remove = logoPicker.getByRole('button', { name: 'Remove', exact: true });
@@ -349,6 +350,7 @@ test.describe.serial('brand colour, theme mode, logo and sponsors', () => {
     await expect(form.getByRole('button', { name: 'Remove', exact: true }).first()).toBeVisible();
     await saved(form);
 
+    await page.goto('/admin/settings/sponsors');
     const sForm = sponsorsForm(page);
     const sw = sForm.getByRole('switch').first();
     if ((await sw.getAttribute('aria-checked')) !== 'true') await sw.click();
@@ -566,7 +568,7 @@ test.describe.serial('brand colour, theme mode, logo and sponsors', () => {
     }
     await saveBranding(page, { logoHeight: '40' });
     if (SHOTS) {
-      await page.goto('/admin/settings/appearance#sponsors');
+      await page.goto('/admin/settings/sponsors');
       await page.screenshot({ path: `${SHOTS}/settings-appearance-sponsors.png` });
     }
   });

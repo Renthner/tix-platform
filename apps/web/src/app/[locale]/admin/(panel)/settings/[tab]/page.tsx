@@ -66,6 +66,7 @@ import {
 } from '@/server/admin/wallet';
 import { loadWalletDesignValues } from '@/server/admin/wallet-design';
 import { getCore } from '@/server/core';
+import { buildSettingsSearchIndex } from '@/server/admin/settings-search';
 import { getEnv } from '@/server/env';
 import { clientIp } from '@/server/http';
 import { descriptionToHtml } from '@/server/rich-text';
@@ -89,13 +90,17 @@ export default async function SettingsTabPage({
   const { tab } = await params;
   if (!(SETTINGS_TABS as readonly string[]).includes(tab)) notFound();
   const t = await getTranslations('admin.settings');
+  // PayPal lives in the Finance section of the admin menu: only its card, no settings menu.
+  const standalone = tab === 'paypal';
 
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
-      <SettingsTabs />
-      <div className="max-w-5xl space-y-6 p-6">
-        <TabContent tab={tab as SettingsTab} locale={locale} adminEmail={session.email} />
+      <PageHeader title={standalone ? t('tabs.paypal') : t('title')} />
+      <div className="flex flex-col gap-6 p-6 md:flex-row md:items-start">
+        {!standalone && <SettingsTabs index={await buildSettingsSearchIndex()} />}
+        <div className="min-w-0 max-w-4xl flex-1 space-y-6">
+          <TabContent tab={tab as SettingsTab} locale={locale} adminEmail={session.email} />
+        </div>
       </div>
     </>
   );
@@ -166,7 +171,12 @@ async function TabContent({
         </>
       );
     }
-    case 'appearance': {
+    case 'appearance':
+    case 'startPage':
+    case 'shopLayout':
+    case 'sponsors':
+    case 'seatDisplay':
+    case 'cookies': {
       const [branding, seatDisplay, shopLayout, startPage, general, cookieNotice, sponsors] =
         await Promise.all([
           getSetting(core, 'branding'),
@@ -185,84 +195,90 @@ async function TabContent({
       );
       return (
         <>
-          {section(
-            'branding',
-            <BrandingSettingsForm
-              action={saveSettingsAction.bind(null, 'branding')}
-              shopName={general.shopName}
-              initial={{
-                logo: await pickerAsset(branding.logoAssetId),
-                favicon: await pickerAsset(branding.faviconAssetId),
-                logoHeight: branding.logoHeight,
-                brandColor: branding.brandColor,
-                brandColorDark: branding.brandColorDark,
-                themeMode: branding.themeMode,
-                defaultTheme: branding.defaultTheme,
-                imprintUrl: branding.imprintUrl,
-                privacyUrl: branding.privacyUrl,
-                termsUrl: branding.termsUrl,
-                footerText: descriptionToHtml(branding.footerText),
-              }}
-            />,
-          )}
-          {section(
-            'sponsors',
-            <SponsorsSettingsForm
-              action={saveSettingsAction.bind(null, 'sponsors')}
-              initial={{
-                enabled: sponsors.enabled,
-                height: sponsors.height,
-                label: sponsors.label as Record<string, string>,
-                defaultLocale: general.defaultLocale,
-                items: await Promise.all(
-                  sponsors.items.map(async (s) => ({
-                    key: s.id,
-                    asset: await pickerAsset(s.assetId),
-                    durationSeconds: String(s.durationSeconds),
-                    url: s.url ?? '',
-                    alt: s.alt as Record<string, string>,
-                  })),
-                ),
-              }}
-            />,
-          )}
-          {section(
-            'seatDisplay',
-            <SeatDisplaySettingsForm
-              action={saveSettingsAction.bind(null, 'seatDisplay')}
-              initial={seatDisplay}
-            />,
-          )}
-          {section(
-            'cookieNotice',
-            <CookieNoticeSettingsForm
-              action={saveSettingsAction.bind(null, 'cookieNotice')}
-              initial={cookieNotice}
-            />,
-          )}
-          {section(
-            'shopLayout',
-            <ShopLayoutSettingsForm
-              action={saveSettingsAction.bind(null, 'shopLayout')}
-              initial={shopLayout}
-            />,
-          )}
-          {section(
-            'startPage',
-            <StartPageSettingsForm
-              action={saveSettingsAction.bind(null, 'startPage')}
-              initial={{
-                mode: startPage.mode,
-                layout: startPage.layout,
-                hero: await pickerAsset(startPage.heroAssetId),
-                gallery: await Promise.all(startPage.galleryAssetIds.map(pickerAsset)),
-                buttonUrl: startPage.buttonUrl,
-                buttonAlign: startPage.buttonAlign,
-                defaultLocale: general.defaultLocale,
-                texts: startPageTexts,
-              }}
-            />,
-          )}
+          {tab === 'appearance' &&
+            section(
+              'branding',
+              <BrandingSettingsForm
+                action={saveSettingsAction.bind(null, 'branding')}
+                shopName={general.shopName}
+                initial={{
+                  logo: await pickerAsset(branding.logoAssetId),
+                  favicon: await pickerAsset(branding.faviconAssetId),
+                  logoHeight: branding.logoHeight,
+                  brandColor: branding.brandColor,
+                  brandColorDark: branding.brandColorDark,
+                  themeMode: branding.themeMode,
+                  defaultTheme: branding.defaultTheme,
+                  imprintUrl: branding.imprintUrl,
+                  privacyUrl: branding.privacyUrl,
+                  termsUrl: branding.termsUrl,
+                  footerText: descriptionToHtml(branding.footerText),
+                }}
+              />,
+            )}
+          {tab === 'sponsors' &&
+            section(
+              'sponsors',
+              <SponsorsSettingsForm
+                action={saveSettingsAction.bind(null, 'sponsors')}
+                initial={{
+                  enabled: sponsors.enabled,
+                  height: sponsors.height,
+                  label: sponsors.label as Record<string, string>,
+                  defaultLocale: general.defaultLocale,
+                  items: await Promise.all(
+                    sponsors.items.map(async (s) => ({
+                      key: s.id,
+                      asset: await pickerAsset(s.assetId),
+                      durationSeconds: String(s.durationSeconds),
+                      url: s.url ?? '',
+                      alt: s.alt as Record<string, string>,
+                    })),
+                  ),
+                }}
+              />,
+            )}
+          {tab === 'seatDisplay' &&
+            section(
+              'seatDisplay',
+              <SeatDisplaySettingsForm
+                action={saveSettingsAction.bind(null, 'seatDisplay')}
+                initial={seatDisplay}
+              />,
+            )}
+          {tab === 'cookies' &&
+            section(
+              'cookieNotice',
+              <CookieNoticeSettingsForm
+                action={saveSettingsAction.bind(null, 'cookieNotice')}
+                initial={cookieNotice}
+              />,
+            )}
+          {tab === 'shopLayout' &&
+            section(
+              'shopLayout',
+              <ShopLayoutSettingsForm
+                action={saveSettingsAction.bind(null, 'shopLayout')}
+                initial={shopLayout}
+              />,
+            )}
+          {tab === 'startPage' &&
+            section(
+              'startPage',
+              <StartPageSettingsForm
+                action={saveSettingsAction.bind(null, 'startPage')}
+                initial={{
+                  mode: startPage.mode,
+                  layout: startPage.layout,
+                  hero: await pickerAsset(startPage.heroAssetId),
+                  gallery: await Promise.all(startPage.galleryAssetIds.map(pickerAsset)),
+                  buttonUrl: startPage.buttonUrl,
+                  buttonAlign: startPage.buttonAlign,
+                  defaultLocale: general.defaultLocale,
+                  texts: startPageTexts,
+                }}
+              />,
+            )}
         </>
       );
     }
@@ -297,30 +313,34 @@ async function TabContent({
           initial={await getSetting(core, 'organizer')}
         />,
       );
-    case 'checkout': {
+    case 'checkout':
+    case 'waitlist': {
       const detectedIp = await clientIp();
       return (
         <>
-          {section(
-            'checkout',
-            <CheckoutSettingsForm
-              action={saveSettingsAction.bind(null, 'checkout')}
-              initial={await getSetting(core, 'checkout')}
-              detectedIp={detectedIp}
-              detectedIpPrivate={detectedIp === '0.0.0.0' || isNonPublicAddress(detectedIp)}
-            />,
-          )}
-          {section(
-            'waitlist',
-            <WaitlistSettingsForm
-              action={saveSettingsAction.bind(null, 'waitlist')}
-              initial={await getSetting(core, 'waitlist')}
-            />,
-          )}
+          {tab === 'checkout' &&
+            section(
+              'checkout',
+              <CheckoutSettingsForm
+                action={saveSettingsAction.bind(null, 'checkout')}
+                initial={await getSetting(core, 'checkout')}
+                detectedIp={detectedIp}
+                detectedIpPrivate={detectedIp === '0.0.0.0' || isNonPublicAddress(detectedIp)}
+              />,
+            )}
+          {tab === 'waitlist' &&
+            section(
+              'waitlist',
+              <WaitlistSettingsForm
+                action={saveSettingsAction.bind(null, 'waitlist')}
+                initial={await getSetting(core, 'waitlist')}
+              />,
+            )}
         </>
       );
     }
-    case 'payments': {
+    case 'payments':
+    case 'paypal': {
       const [bankTransfer, paypal, secretStored] = await Promise.all([
         getSetting(core, 'bankTransfer'),
         getSetting(core, 'paypal'),
@@ -329,54 +349,59 @@ async function TabContent({
       const webhookUrl = `${getEnv().APP_URL.replace(/\/+$/, '')}/api/paypal/webhook`;
       return (
         <>
-          {section(
-            'bankTransfer',
-            <BankTransferSettingsForm
-              action={saveSettingsAction.bind(null, 'bankTransfer')}
-              initial={bankTransfer}
-            />,
+          {tab === 'payments' &&
+            section(
+              'bankTransfer',
+              <BankTransferSettingsForm
+                action={saveSettingsAction.bind(null, 'bankTransfer')}
+                initial={bankTransfer}
+              />,
+            )}
+          {tab === 'paypal' && (
+            <SettingsSection
+              id="paypal"
+              title={t('paypal.title')}
+              description={t('paypal.description')}
+            >
+              <details className="mb-4 rounded-md border bg-muted/40 p-3 text-sm [&[open]>summary]:mb-3">
+                <summary className="cursor-pointer font-medium">{t('paypal.guide.title')}</summary>
+                <p className="mb-2 text-muted-foreground">{t('paypal.guide.intro')}</p>
+                <ol className="list-decimal space-y-2 pl-5">
+                  {(['account', 'app', 'webhook', 'enable', 'test', 'live'] as const).map(
+                    (step) => (
+                      <li key={step}>
+                        {t.rich(`paypal.guide.steps.${step}`, {
+                          b: (chunks) => <strong>{chunks}</strong>,
+                          link: (chunks) => (
+                            <a
+                              href="https://developer.paypal.com/dashboard/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline"
+                            >
+                              {chunks}
+                            </a>
+                          ),
+                        })}
+                      </li>
+                    ),
+                  )}
+                </ol>
+              </details>
+              <div className="mb-4 rounded-md bg-muted p-3 text-sm">
+                <p>{t('paypal.webhookUrlHint')}</p>
+                <code className="mt-1 block font-mono text-xs break-all select-all">
+                  {webhookUrl}
+                </code>
+              </div>
+              <PaypalSettingsForm
+                action={saveSettingsAction.bind(null, 'paypal')}
+                initial={paypal}
+                secretStored={secretStored}
+              />
+              <PaypalTestForm action={testPayPalConnectionAction} />
+            </SettingsSection>
           )}
-          <SettingsSection
-            id="paypal"
-            title={t('paypal.title')}
-            description={t('paypal.description')}
-          >
-            <details className="mb-4 rounded-md border bg-muted/40 p-3 text-sm [&[open]>summary]:mb-3">
-              <summary className="cursor-pointer font-medium">{t('paypal.guide.title')}</summary>
-              <p className="mb-2 text-muted-foreground">{t('paypal.guide.intro')}</p>
-              <ol className="list-decimal space-y-2 pl-5">
-                {(['account', 'app', 'webhook', 'enable', 'test', 'live'] as const).map((step) => (
-                  <li key={step}>
-                    {t.rich(`paypal.guide.steps.${step}`, {
-                      b: (chunks) => <strong>{chunks}</strong>,
-                      link: (chunks) => (
-                        <a
-                          href="https://developer.paypal.com/dashboard/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline"
-                        >
-                          {chunks}
-                        </a>
-                      ),
-                    })}
-                  </li>
-                ))}
-              </ol>
-            </details>
-            <div className="mb-4 rounded-md bg-muted p-3 text-sm">
-              <p>{t('paypal.webhookUrlHint')}</p>
-              <code className="mt-1 block font-mono text-xs break-all select-all">
-                {webhookUrl}
-              </code>
-            </div>
-            <PaypalSettingsForm
-              action={saveSettingsAction.bind(null, 'paypal')}
-              initial={paypal}
-              secretStored={secretStored}
-            />
-            <PaypalTestForm action={testPayPalConnectionAction} />
-          </SettingsSection>
         </>
       );
     }
@@ -393,7 +418,8 @@ async function TabContent({
           />
         </SettingsSection>
       );
-    case 'email': {
+    case 'email':
+    case 'emailHeader': {
       const [smtp, passwordStored, header, branding, general] = await Promise.all([
         getSetting(core, 'smtp'),
         hasSecretSetting(core, 'smtp.credentials'),
@@ -406,54 +432,60 @@ async function TabContent({
         : null;
       return (
         <>
-          <SettingsSection id="smtp" title={t('smtp.title')} description={t('smtp.description')}>
-            <SmtpSettingsForm
-              action={saveSettingsAction.bind(null, 'smtp')}
-              initial={smtp}
-              passwordStored={passwordStored}
-            />
-            <SmtpTestForm
-              action={sendTestEmailAction}
-              defaultRecipient={adminEmail}
-              defaultLocale={locale}
-            />
-          </SettingsSection>
-          <SettingsSection
-            id="emailHeader"
-            title={t('emailHeader.title')}
-            description={t('emailHeader.description')}
-          >
-            <EmailHeaderSettingsForm
-              action={saveSettingsAction.bind(null, 'emailHeader')}
-              shopName={general.shopName}
-              brandColor={branding.brandColor}
-              shopLogo={
-                shopLogoAsset && isPublicMediaKind(shopLogoAsset.kind)
-                  ? {
-                      id: shopLogoAsset.id,
-                      width: shopLogoAsset.width,
-                      height: shopLogoAsset.height,
-                      supported: EMAIL_LOGO_MIMES.includes(shopLogoAsset.mimeType),
-                      shopHeaderHeight: branding.logoHeight,
-                    }
-                  : null
-              }
-              initial={{
-                logoDisplay: header.logoDisplay,
-                layout: header.layout,
-                align: header.align,
-                logoHeight: header.logoHeight,
-                chipColor: header.chipColor,
-                chipCorners: header.chipCorners,
-                chipPadding: header.chipPadding,
-                override: await pickerAsset(header.logoAssetId),
-              }}
-            />
-          </SettingsSection>
+          {tab === 'email' && (
+            <SettingsSection id="smtp" title={t('smtp.title')} description={t('smtp.description')}>
+              <SmtpSettingsForm
+                action={saveSettingsAction.bind(null, 'smtp')}
+                initial={smtp}
+                passwordStored={passwordStored}
+              />
+              <SmtpTestForm
+                action={sendTestEmailAction}
+                defaultRecipient={adminEmail}
+                defaultLocale={locale}
+              />
+            </SettingsSection>
+          )}
+          {tab === 'emailHeader' && (
+            <SettingsSection
+              id="emailHeader"
+              title={t('emailHeader.title')}
+              description={t('emailHeader.description')}
+            >
+              <EmailHeaderSettingsForm
+                action={saveSettingsAction.bind(null, 'emailHeader')}
+                shopName={general.shopName}
+                brandColor={branding.brandColor}
+                shopLogo={
+                  shopLogoAsset && isPublicMediaKind(shopLogoAsset.kind)
+                    ? {
+                        id: shopLogoAsset.id,
+                        width: shopLogoAsset.width,
+                        height: shopLogoAsset.height,
+                        supported: EMAIL_LOGO_MIMES.includes(shopLogoAsset.mimeType),
+                        shopHeaderHeight: branding.logoHeight,
+                      }
+                    : null
+                }
+                initial={{
+                  logoDisplay: header.logoDisplay,
+                  layout: header.layout,
+                  align: header.align,
+                  logoHeight: header.logoHeight,
+                  chipColor: header.chipColor,
+                  chipCorners: header.chipCorners,
+                  chipPadding: header.chipPadding,
+                  override: await pickerAsset(header.logoAssetId),
+                }}
+              />
+            </SettingsSection>
+          )}
         </>
       );
     }
-    case 'wallet': {
+    case 'wallet':
+    case 'walletApple':
+    case 'walletGoogle': {
       const [apple, google, certsStored, credsStored, design, tw] = await Promise.all([
         getSetting(core, 'wallet.apple'),
         getSetting(core, 'wallet.google'),
@@ -494,79 +526,92 @@ async function TabContent({
       );
       return (
         <>
-          <SettingsSection id="walletIntro" title={tw('title')} description={tw('description')}>
-            <p className="text-sm text-muted-foreground">{tw('optionalNote')}</p>
-          </SettingsSection>
-          <SettingsSection
-            id="walletApple"
-            title={tw('apple.title')}
-            description={tw('apple.description')}
-          >
-            {guide(
-              'apple',
-              ['account', 'passType', 'certificate', 'export', 'wwdr', 'upload', 'test'],
-              'https://developer.apple.com/account/resources/identifiers/list/passTypeId',
-            )}
-            <AppleWalletForm
-              action={saveAppleWalletAction}
-              initial={apple}
-              certificatesStored={certsStored}
-              passphraseStored={applePassphraseStored}
-            />
-            <div className="mt-4">
-              <WalletCheck action={checkAppleWalletAction} />
-            </div>
-          </SettingsSection>
-          <SettingsSection
-            id="walletGoogle"
-            title={tw('google.title')}
-            description={tw('google.description')}
-          >
-            {guide(
-              'google',
-              ['console', 'issuer', 'project', 'serviceAccount', 'access', 'upload', 'test'],
-              'https://pay.google.com/business/console',
-            )}
-            <GoogleWalletForm
-              action={saveGoogleWalletAction}
-              initial={google}
-              credentialsStored={credsStored}
-            />
-            <div className="mt-4">
-              <WalletCheck action={checkGoogleWalletAction} />
-            </div>
-          </SettingsSection>
-          <SettingsSection
-            id="walletDesign"
-            title={tw('design.title')}
-            description={tw('design.description')}
-          >
-            <WalletDesignForm
-              action={saveWalletDesignAction.bind(null, null)}
-              initial={design.values}
-              isOverride={design.isOverride}
-            />
-          </SettingsSection>
+          {tab === 'wallet' && (
+            <SettingsSection id="walletIntro" title={tw('title')} description={tw('description')}>
+              <p className="text-sm text-muted-foreground">{tw('optionalNote')}</p>
+            </SettingsSection>
+          )}
+          {tab === 'walletApple' && (
+            <SettingsSection
+              id="walletApple"
+              title={tw('apple.title')}
+              description={tw('apple.description')}
+            >
+              {guide(
+                'apple',
+                ['account', 'passType', 'certificate', 'export', 'wwdr', 'upload', 'test'],
+                'https://developer.apple.com/account/resources/identifiers/list/passTypeId',
+              )}
+              <AppleWalletForm
+                action={saveAppleWalletAction}
+                initial={apple}
+                certificatesStored={certsStored}
+                passphraseStored={applePassphraseStored}
+              />
+              <div className="mt-4">
+                <WalletCheck action={checkAppleWalletAction} />
+              </div>
+            </SettingsSection>
+          )}
+          {tab === 'walletGoogle' && (
+            <SettingsSection
+              id="walletGoogle"
+              title={tw('google.title')}
+              description={tw('google.description')}
+            >
+              {guide(
+                'google',
+                ['console', 'issuer', 'project', 'serviceAccount', 'access', 'upload', 'test'],
+                'https://pay.google.com/business/console',
+              )}
+              <GoogleWalletForm
+                action={saveGoogleWalletAction}
+                initial={google}
+                credentialsStored={credsStored}
+              />
+              <div className="mt-4">
+                <WalletCheck action={checkGoogleWalletAction} />
+              </div>
+            </SettingsSection>
+          )}
+          {tab === 'wallet' && (
+            <SettingsSection
+              id="walletDesign"
+              title={tw('design.title')}
+              description={tw('design.description')}
+            >
+              <WalletDesignForm
+                action={saveWalletDesignAction.bind(null, null)}
+                initial={design.values}
+                isOverride={design.isOverride}
+              />
+            </SettingsSection>
+          )}
         </>
       );
     }
-    case 'security': {
+    case 'security':
+    case 'monitoring': {
       const tm = await getTranslations('system.security');
       return (
         <>
-          <SettingsSection
-            id="security"
-            title={ts('settings.security.title')}
-            description={ts('settings.security.description')}
-          >
-            <SecuritySettingsForm
-              action={saveSettingsAction.bind(null, 'security')}
-              initial={await getSetting(core, 'security')}
-            />
-          </SettingsSection>
-          <SettingsSection id="monitoring" title={tm('title')} description={tm('description')}>
-            <MetricsTokenCard enabled={await isMetricsEnabled(core)} />
-          </SettingsSection>
+          {tab === 'security' && (
+            <SettingsSection
+              id="security"
+              title={ts('settings.security.title')}
+              description={ts('settings.security.description')}
+            >
+              <SecuritySettingsForm
+                action={saveSettingsAction.bind(null, 'security')}
+                initial={await getSetting(core, 'security')}
+              />
+            </SettingsSection>
+          )}
+          {tab === 'monitoring' && (
+            <SettingsSection id="monitoring" title={tm('title')} description={tm('description')}>
+              <MetricsTokenCard enabled={await isMetricsEnabled(core)} />
+            </SettingsSection>
+          )}
         </>
       );
     }
@@ -596,28 +641,33 @@ async function TabContent({
         </SettingsSection>
       );
     case 'accounts':
+    case 'selfService':
       return (
         <>
-          <SettingsSection
-            id="customerAccounts"
-            title={t('customerAccounts.title')}
-            description={t('customerAccounts.description')}
-          >
-            <CustomerAccountsSettingsForm
-              action={saveSettingsAction.bind(null, 'customerAccounts')}
-              initial={await getSetting(core, 'customerAccounts')}
-            />
-          </SettingsSection>
-          <SettingsSection
-            id="ticketSelfService"
-            title={t('ticketSelfService.title')}
-            description={t('ticketSelfService.description')}
-          >
-            <TicketSelfServiceSettingsForm
-              action={saveSettingsAction.bind(null, 'ticketSelfService')}
-              initial={await getSetting(core, 'ticketSelfService')}
-            />
-          </SettingsSection>
+          {tab === 'accounts' && (
+            <SettingsSection
+              id="customerAccounts"
+              title={t('customerAccounts.title')}
+              description={t('customerAccounts.description')}
+            >
+              <CustomerAccountsSettingsForm
+                action={saveSettingsAction.bind(null, 'customerAccounts')}
+                initial={await getSetting(core, 'customerAccounts')}
+              />
+            </SettingsSection>
+          )}
+          {tab === 'selfService' && (
+            <SettingsSection
+              id="ticketSelfService"
+              title={t('ticketSelfService.title')}
+              description={t('ticketSelfService.description')}
+            >
+              <TicketSelfServiceSettingsForm
+                action={saveSettingsAction.bind(null, 'ticketSelfService')}
+                initial={await getSetting(core, 'ticketSelfService')}
+              />
+            </SettingsSection>
+          )}
         </>
       );
   }

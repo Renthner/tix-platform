@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.38] - 2026-11-17
+
+### Changed
+
+- **Admin portal reorganised.** The sidebar is shorter: dashboard and box office stay visible, the other entries live in collapsible sections (Sales, Events & check-in, Design & content, Finance, Administration; the section with the current page opens automatically, open refunds show their badge on the collapsed heading). PayPal moved to the Finance section and opens only its own card.
+- **Settings: one topic per page.** The settings tabs became a grouped, collapsible side menu with one card per page (27 pages instead of 13 tabs) and a search over page names and field labels. The URLs `appearance`, `payments`, `email`, `wallet` and `accounts` stay valid but now show only their first card; new pages: start page, event list, sponsors, seat colours, cookie notice, waiting list, ticket self-service, PayPal, e-mail header, Apple Wallet, Google Wallet, monitoring.
+- Shorter menu labels and card descriptions (German and English); no function was added or removed.
+
 ## [1.0.0-alpha.37] - 2026-11-17
 
 ### Changed

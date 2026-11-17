@@ -56,7 +56,7 @@ test('a confirmation is an in-page dialog, never a native confirm()', async ({ p
     void dialog.dismiss();
   });
 
-  await page.goto('/admin/settings/security');
+  await page.goto('/admin/settings/monitoring');
   const monitoring = page.locator('#monitoring');
   const generate = page.getByRole('button', { name: /Generate new token|Regenerate/ });
   await generate.click();
@@ -85,13 +85,13 @@ test('the e-mail template editor warns before leaving with unsaved changes', asy
   const url = page.url();
 
   // Clean editor: navigation is not blocked.
-  await page.locator('aside a[href$="/admin/orders"]').click();
+  await clickOrdersLink(page);
   await expect(page).toHaveURL(/\/admin\/orders/);
   await page.goBack();
   await expect(subject).toBeVisible();
 
   await subject.fill(`${await subject.inputValue()} (edited)`);
-  await page.locator('aside a[href$="/admin/orders"]').click();
+  await clickOrdersLink(page);
   const dialog = page.getByTestId('confirm-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('Discard unsaved changes?');
@@ -103,10 +103,19 @@ test('the e-mail template editor warns before leaving with unsaved changes', asy
   await expect(subject).toHaveValue(/\(edited\)$/);
 
   // Discard: leaves.
-  await page.locator('aside a[href$="/admin/orders"]').click();
+  await clickOrdersLink(page);
   await page.getByRole('button', { name: 'Discard changes' }).click();
   await expect(page).toHaveURL(/\/admin\/orders/);
 });
+
+/** The sidebar sections are collapsed accordions: open the one holding "Orders" before clicking it. */
+async function clickOrdersLink(page: import('@playwright/test').Page): Promise<void> {
+  const link = page.locator('aside a[href$="/admin/orders"]');
+  if (!(await link.isVisible())) {
+    await page.locator('aside button[aria-expanded="false"]', { hasText: 'Sales' }).click();
+  }
+  await link.click();
+}
 
 async function demoEventId(page: import('@playwright/test').Page): Promise<string> {
   await page.goto('/admin/events');
@@ -135,7 +144,7 @@ test('untouched guarded forms never block navigation (no false "unsaved" prompt)
     await page.goto(url);
     // Past the guard's baseline delay; rich-text editors have initialised by then.
     await page.waitForTimeout(1200);
-    await page.locator('aside a[href$="/admin/orders"]').click();
+    await clickOrdersLink(page);
     await expect(page, `leaving ${url}`).toHaveURL(/\/admin\/orders/);
     await expect(page.getByTestId('confirm-dialog')).toHaveCount(0);
   }
@@ -148,7 +157,7 @@ test('an edited settings form asks before an internal link is followed', async (
     .locator('main form input:not([type]), main form input[type="text"], main form textarea')
     .first();
   await field.fill('Changed by the e2e guard test');
-  await page.locator('aside a[href$="/admin/orders"]').click();
+  await clickOrdersLink(page);
   await expect(page.getByTestId('confirm-dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Keep editing' }).click();
   await expect(page).toHaveURL(/\/admin\/settings\/seo/);

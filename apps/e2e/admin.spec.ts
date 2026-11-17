@@ -50,7 +50,7 @@ test('event row is clickable as a whole, Duplicate does not navigate', async ({ 
 });
 
 test('appearance settings show the start page card', async ({ page }) => {
-  await page.goto('/admin/settings/appearance');
+  await page.goto('/admin/settings/startPage');
   await expect(page.getByText('Home page without events')).toBeVisible();
 });
 
