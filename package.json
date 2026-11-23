@@ -37,9 +37,9 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
-    "@playwright/test": "^1.65.0",
+    "@playwright/test": "^1.65.1",
     "prettier": "^3.10.1",
-    "turbo": "^2.11.11",
+    "turbo": "^2.11.13",
     "typescript": "~6.0.3"
   }
 }
