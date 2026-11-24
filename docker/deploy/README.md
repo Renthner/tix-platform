@@ -75,7 +75,7 @@ Before database changes of an update are applied, an encrypted database backup i
 automatically (Admin -> Backups, "Before update"); if that fails, nothing is migrated. Restoring it
 keeps the new version and brings back the old data; going back to an older version is not supported
 once a newer schema was applied (`tix-update.sh` refuses a lower version without `--force`). The running
-version is shown in Admin -> System, the admin sidebar and in `GET /api/health`.
+version is shown in Admin -> System and in the admin sidebar (also in `GET /api/health` with the metrics bearer token).
 
 ## Versions
 

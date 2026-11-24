@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { audit } from '@/server/admin/audit';
 import { adminForApi } from '@/server/auth';
 import { getCore } from '@/server/core';
-import { apiError, handle } from '@/server/http';
+import { apiError, assertSameOrigin, handle } from '@/server/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,10 +91,7 @@ export async function POST(request: Request) {
     const session = await adminForApi(['EVENT_MANAGER']);
     if (!session) return apiError('FORBIDDEN', 'Not allowed', 403);
     // Defence in depth on top of the SameSite=strict admin cookie.
-    const origin = request.headers.get('origin');
-    if (origin && new URL(origin).host !== request.headers.get('host')) {
-      return apiError('FORBIDDEN', 'Cross-site request', 403);
-    }
+    assertSameOrigin(request);
     const declaredLength = Number(request.headers.get('content-length') ?? 0);
     if (declaredLength > MEDIA_MAX_BYTES + 1024 * 1024) {
       return apiError('MEDIA_TOO_LARGE', 'The image is too large (max 10 MB)', 413);

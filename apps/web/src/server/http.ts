@@ -4,6 +4,7 @@ import {
   DomainError,
   LOAD_TEST_HEADER,
   noteLoadTestBypass,
+  readBodyText,
   verifyLoadTestToken,
   type LoadTestBypassBucket,
 } from '@tix/core';
@@ -66,7 +67,10 @@ export async function handle(
       );
       return busyResponse();
     }
-    logger.error({ err }, '[api] unhandled error');
+    const reqId = await headers()
+      .then((h) => h.get('x-request-id') ?? undefined)
+      .catch(() => undefined);
+    logger.error({ err, reqId }, '[api] unhandled error');
     return apiError('INTERNAL_ERROR', 'Something went wrong. Please try again.', 500);
   }
 }
@@ -108,17 +112,24 @@ export function assertSameOrigin(request: Request): void {
   if (!allowed.has(host)) reject();
 }
 
+/** Default byte cap for JSON request bodies (public routes only carry a few ids / small forms). */
+export const DEFAULT_MAX_BODY_BYTES = 64 * 1024;
+
+export { readBodyText };
+
 export async function parseBody<T extends z.ZodType>(
   request: Request,
   schema: T,
+  options: { maxBytes?: number } = {},
 ): Promise<z.output<T>> {
   assertSameOrigin(request);
   if (!request.headers.get('content-type')?.toLowerCase().includes('application/json')) {
     throw new DomainError('UNSUPPORTED_MEDIA_TYPE', 'Content-Type must be application/json', 415);
   }
+  const text = await readBodyText(request, options.maxBytes ?? DEFAULT_MAX_BODY_BYTES);
   let raw: unknown;
   try {
-    raw = await request.json();
+    raw = JSON.parse(text);
   } catch {
     throw new DomainError('INVALID_JSON', 'Request body must be JSON', 400);
   }
@@ -139,8 +150,19 @@ export async function clientIp(): Promise<string> {
     .map((part) => part.trim())
     .filter(Boolean)
     .at(-1);
-  return forwarded || h.get('x-real-ip') || '0.0.0.0';
+  const ip = forwarded || h.get('x-real-ip');
+  if (ip) return ip;
+  // Safe fallback: all unknown clients share one rate-limit bucket (stricter, never bypassed).
+  if (!warnedMissingIp) {
+    warnedMissingIp = true;
+    logger.warn(
+      '[http] no client address (X-Forwarded-For / X-Real-IP missing); check the proxy setup',
+    );
+  }
+  return '0.0.0.0';
 }
+
+let warnedMissingIp = false;
 
 /** Throws HTTP 429 when the subject exceeded `max` requests in the window. */
 export async function enforceRateLimit(

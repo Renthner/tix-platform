@@ -1,7 +1,7 @@
 import { DomainError, renderSingleTicketPdf } from '@tix/core';
 import { getCore } from '@/server/core';
 import { handle, uuidParam } from '@/server/http';
-import { canAccessOrder } from '@/server/order-access';
+import { canAccessOrder, enforceOrderDocumentLimit } from '@/server/order-access';
 import { pdfResponse } from '@/server/pdf-response';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +18,7 @@ export async function GET(
     if (!(await canAccessOrder(orderId, t))) {
       throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
     }
+    await enforceOrderDocumentLimit(orderId);
     return pdfResponse(await renderSingleTicketPdf(getCore(), uuidParam.parse(ticketId), orderId));
   });
 }

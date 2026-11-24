@@ -25,7 +25,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const started = await startPayPalPayment(core, id).catch(rethrowPayPalCredentials);
     if (started.status === 'REDIRECT') return NextResponse.json({ redirect: started.url });
     const [order] = await core.db
-      .select({ id: orders.id, orderNumber: orders.orderNumber, locale: orders.locale })
+      .select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        locale: orders.locale,
+        tokenVersion: orders.tokenVersion,
+      })
       .from(orders)
       .where(eq(orders.id, id));
     return NextResponse.json({ redirect: orderUrl(core, order!) });

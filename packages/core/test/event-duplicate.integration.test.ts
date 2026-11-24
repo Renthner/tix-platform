@@ -33,6 +33,7 @@ import { Redis } from 'ioredis';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createCoreContext, duplicateEvent, ensureEventSigningKey, type CoreContext } from '../src';
+import { wallMs, wallToInstant } from '../src/zoned-time';
 
 loadRootEnv();
 const adminUrl = process.env.TEST_DATABASE_URL;
@@ -121,7 +122,9 @@ describe.skipIf(!adminUrl || !redisUrl)('duplicateEvent (integration)', () => {
       })
       .returning();
 
-    sourceStarts = new Date(Date.now() + 30 * DAY);
+    // Fixed (not now-based): 2030-03-01 18:00 Berlin (CET); the copy below lands in CEST, so the
+    // test always crosses the DST change instead of depending on the day it runs.
+    sourceStarts = wallToInstant(Date.UTC(2030, 2, 1, 18, 0), 'Europe/Berlin');
     const [ev] = await db
       .insert(events)
       .values({
@@ -254,7 +257,9 @@ describe.skipIf(!adminUrl || !redisUrl)('duplicateEvent (integration)', () => {
   it('copies the configuration with new ids, shifted dates, DRAFT and a fresh key', async () => {
     const db = handle.db;
     const [before] = await db.select().from(events).where(eq(events.id, sourceId));
-    const newStart = new Date(sourceStarts.getTime() + 100 * DAY);
+    // Same wall-clock time of day, 100 calendar days later (a different UTC offset: DST).
+    const newStart = wallToInstant(wallMs(sourceStarts, 'Europe/Berlin') + 100 * DAY, 'Europe/Berlin');
+    expect(newStart.getTime() - sourceStarts.getTime()).toBe(100 * DAY - 3_600_000);
     const { eventId, slug } = await duplicateEvent(ctx, {
       sourceEventId: sourceId,
       userId: NO_USER,

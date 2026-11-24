@@ -55,6 +55,8 @@ import {
   verifyCustomerEmail,
   type CoreContext,
   type JobQueues,
+  accountLock,
+  ACCOUNT_LOCK_THRESHOLD,
 } from '../src';
 
 loadRootEnv();
@@ -140,6 +142,7 @@ describe.skipIf(!adminUrl || !redisUrl)('customer accounts (integration)', () =>
   }
 
   beforeAll(async () => {
+    accountLock.threshold = 5; // low threshold so the mechanism is testable; defaults are tested separately
     admin = new pg.Client({ connectionString: adminUrl });
     await admin.connect();
     await admin.query(`CREATE DATABASE "${dbName}"`);
@@ -171,6 +174,7 @@ describe.skipIf(!adminUrl || !redisUrl)('customer accounts (integration)', () =>
   });
 
   afterAll(async () => {
+    accountLock.threshold = ACCOUNT_LOCK_THRESHOLD;
     await handle?.close();
     if (redis) {
       const keys = await redis.keys(`${ctx.keys.prefix}:*`);
@@ -380,6 +384,34 @@ describe.skipIf(!adminUrl || !redisUrl)('customer accounts (integration)', () =>
       passwordCleared: false,
     });
     expect(await authenticateCustomer(ctx, { email, password: PASSWORD })).toEqual({ customerId });
+  });
+
+  it('soft lockout: ordinary repeated failures do not lock; the high default threshold does', async () => {
+    const low = accountLock.threshold;
+    accountLock.threshold = ACCOUNT_LOCK_THRESHOLD;
+    try {
+      const email = 'softlock@example.invalid';
+      const customerId = await verifiedAccount(email);
+      for (let i = 1; i <= 12; i += 1) {
+        await expectCode(
+          authenticateCustomer(ctx, { email, password: `wrong-${i}-password` }),
+          'INVALID_CREDENTIALS',
+        );
+      }
+      // The legitimate owner still gets in (the lock is not triggered by a few dozen guesses).
+      expect(await authenticateCustomer(ctx, { email, password: PASSWORD })).toEqual({ customerId });
+      await handle.db
+        .update(customers)
+        .set({ failedLoginCount: ACCOUNT_LOCK_THRESHOLD - 1 })
+        .where(eq(customers.id, customerId));
+      await expectCode(
+        authenticateCustomer(ctx, { email, password: 'wrong-final-password' }),
+        'ACCOUNT_LOCKED',
+      );
+      await expectCode(authenticateCustomer(ctx, { email, password: PASSWORD }), 'ACCOUNT_LOCKED');
+    } finally {
+      accountLock.threshold = low;
+    }
   });
 
   it('gives login links their own lifetime, independent of password reset links', async () => {

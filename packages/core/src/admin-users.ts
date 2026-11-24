@@ -43,6 +43,7 @@ import {
 import { DomainError, requireCapability, type CoreContext } from './context';
 import { createEmailMessage, dispatchEmailMessage } from './email/request';
 import { formatDateTime } from './format';
+import { accountLock } from './login-lockout';
 import { getSetting } from './settings';
 
 /**
@@ -620,12 +621,15 @@ async function registerFailedAttempt(
   ipAddress: string | null | undefined,
   method: 'password' | 'second_factor' | 'passkey',
 ): Promise<boolean> {
-  const { maxFailedLogins, lockoutMinutes } = await getSetting(ctx, 'security');
+  // Soft lock: only a high, account-wide failure count locks (see login-lockout.ts); the strict
+  // per-address + per-IP limit is enforced by the web layer.
+  const { lockoutMinutes } = await getSetting(ctx, 'security');
+  const threshold = accountLock.threshold;
   const [row] = await ctx.db
     .update(adminUsers)
     .set({
-      failedLoginCount: sql`CASE WHEN ${adminUsers.failedLoginCount} + 1 >= ${maxFailedLogins} THEN 0 ELSE ${adminUsers.failedLoginCount} + 1 END`,
-      lockedUntil: sql`CASE WHEN ${adminUsers.failedLoginCount} + 1 >= ${maxFailedLogins} THEN now() + make_interval(mins => ${lockoutMinutes}) ELSE NULL END`,
+      failedLoginCount: sql`CASE WHEN ${adminUsers.failedLoginCount} + 1 >= ${threshold} THEN 0 ELSE ${adminUsers.failedLoginCount} + 1 END`,
+      lockedUntil: sql`CASE WHEN ${adminUsers.failedLoginCount} + 1 >= ${threshold} THEN now() + make_interval(mins => ${lockoutMinutes}) ELSE NULL END`,
     })
     .where(
       and(

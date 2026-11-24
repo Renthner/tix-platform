@@ -45,7 +45,15 @@ const parser = new XMLParser({
   parseTagValue: false,
   parseAttributeValue: false,
   trimValues: true,
-  processEntities: true,
+  // DOCTYPE/ENTITY declarations are rejected before parsing (`parseCamt`), so only the five
+  // predefined XML entities can occur; the limits are a second line of defence.
+  processEntities: {
+    enabled: true,
+    maxEntityCount: 10,
+    maxEntitySize: 1_000,
+    maxTotalExpansions: 5_000_000,
+    maxExpandedLength: 50_000_000,
+  },
   htmlEntities: false,
   isArray: (name) => ARRAY_TAGS.has(name),
 });
@@ -276,8 +284,19 @@ export function looksLikeCamt(content: string): 'CAMT053' | 'CAMT052' | 'CAMT054
   return null;
 }
 
+/** Upper bound of a camt document (characters), checked before anything is parsed. */
+export const MAX_CAMT_CHARS = 20 * 1024 * 1024;
+
+/** True when the document declares a DTD / entities (XXE, billion laughs). */
+export function hasXmlDeclarations(xml: string): boolean {
+  return /<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)/i.test(xml);
+}
+
 export function parseCamt(xml: string): ParsedStatementFile {
-  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) {
+  if (xml.length > MAX_CAMT_CHARS) {
+    throw new StatementParseError('INVALID_XML', 'XML document is too large');
+  }
+  if (hasXmlDeclarations(xml)) {
     throw new StatementParseError('INVALID_XML', 'XML documents with DTDs are not accepted');
   }
   const valid = XMLValidator.validate(xml);

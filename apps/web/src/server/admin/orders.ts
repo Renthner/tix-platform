@@ -8,6 +8,7 @@ import {
   recordManualPayment,
   resendOrderEmail,
   resendOrderTickets,
+  revokeOrderAccessTokens,
   setKeepReserved,
   updateInternalNote,
 } from '@tix/core';
@@ -70,6 +71,25 @@ export async function keepReservedAction(
     await setKeepReserved(core, { orderId, keep, reason, userId: session.userId });
     await audit(core.db, session, 'order.keep_reserved', 'order', orderId, { keep, reason });
     return ok(keep ? 'keepReservedOn' : 'keepReservedOff');
+  });
+}
+
+/** Invalidates every guest access link issued for the order (leaked link); resent mails carry new ones. */
+export async function revokeAccessLinksAction(
+  orderId: string,
+  _prev: OrderActionState,
+  _fd: FormData,
+): Promise<OrderActionState> {
+  const session = await requireAdmin(['FINANCE', 'EVENT_MANAGER']);
+  return run(orderId, async () => {
+    const core = getCore();
+    const { tokenVersion } = await revokeOrderAccessTokens(core, orderId, {
+      userId: session.userId,
+    });
+    await audit(core.db, session, 'order.access_tokens_revoked', 'order', orderId, {
+      tokenVersion,
+    });
+    return ok('accessLinksRevoked');
   });
 }
 

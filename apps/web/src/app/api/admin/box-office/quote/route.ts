@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   return handle(async () => {
     const session = await adminForApi(BOX_OFFICE_ROLES);
     if (!session) return apiError('FORBIDDEN', 'Not allowed', 403);
-    const body = await parseBody(request, quoteSchema);
+    const body = await parseBody(request, quoteSchema, { maxBytes: 256 * 1024 });
     const allowed = boxOfficePermissions(session);
     if (
       (body.payment === 'COMPLIMENTARY' && !allowed.complimentary) ||

@@ -517,10 +517,24 @@ function ImapFields({
               id="senderAllowlist"
               name="senderAllowlist"
               rows={3}
-              defaultValue={config.senderAllowlist.join('\n')}
+              required
+              defaultValue={(config.senderAllowlist ?? []).join('\n')}
             />
           </BankField>
           <div className="space-y-4">
+            <BankField
+              label={t('fields.trustedAuthservId')}
+              htmlFor="trustedAuthservId"
+              error={err('trustedAuthservId')}
+              hint={t('fields.trustedAuthservIdHint')}
+            >
+              <Input
+                id="trustedAuthservId"
+                name="trustedAuthservId"
+                defaultValue={config.trustedAuthservId ?? ''}
+                maxLength={255}
+              />
+            </BankField>
             <BankField
               label={t('fields.subjectFilter')}
               htmlFor="subjectFilter"

@@ -49,6 +49,8 @@ import {
   verifyAdminSecondFactor,
   type CoreContext,
   type JobQueues,
+  accountLock,
+  ACCOUNT_LOCK_THRESHOLD,
 } from '../src';
 
 loadRootEnv();
@@ -125,6 +127,7 @@ describe.skipIf(!adminUrl || !redisUrl)('admin users (integration)', () => {
   }
 
   beforeAll(async () => {
+    accountLock.threshold = 3; // low threshold so the mechanism is testable; defaults are tested separately
     admin = new pg.Client({ connectionString: adminUrl });
     await admin.connect();
     await admin.query(`CREATE DATABASE "${dbName}"`);
@@ -156,6 +159,7 @@ describe.skipIf(!adminUrl || !redisUrl)('admin users (integration)', () => {
   });
 
   afterAll(async () => {
+    accountLock.threshold = ACCOUNT_LOCK_THRESHOLD;
     await handle?.close();
     if (redis) {
       const keys = await redis.keys(`${ctx.keys.prefix}:*`);
@@ -346,6 +350,17 @@ describe.skipIf(!adminUrl || !redisUrl)('admin users (integration)', () => {
   });
 
   it('accepts a TOTP code once (replay protection) and recovery codes once', async () => {
+    // Three deliberate failures below must not hit the (test-lowered) account lock.
+    const low = accountLock.threshold;
+    accountLock.threshold = ACCOUNT_LOCK_THRESHOLD;
+    try {
+      await replayAndRecovery();
+    } finally {
+      accountLock.threshold = low;
+    }
+  });
+
+  async function replayAndRecovery() {
     const { userId, secret, recoveryCodes, setupAt } =
       await makeTwoFactorUser('second@example.org');
     // The setup consumed the current step: the same code is a replay (same fixed time, so the
@@ -367,7 +382,7 @@ describe.skipIf(!adminUrl || !redisUrl)('admin users (integration)', () => {
     ).toBe('recovery_code');
     await expectCode(verifyAdminSecondFactor(ctx, userId, code), 'INVALID_CODE');
     expect(normalizeRecoveryCode('abcd-efgh-ijkl-mnop')).toBe('ABCDEFGH1JK1MN0P');
-  });
+  }
 
   it('counts wrong second-factor codes towards the lockout', async () => {
     await saveSetting(ctx, 'security', { maxFailedLogins: 3, lockoutMinutes: 10 }, null);
@@ -499,6 +514,39 @@ describe.skipIf(!adminUrl || !redisUrl)('admin users (integration)', () => {
     expect(after!.lockedUntil!.getTime()).toBe(until);
     expect(after!.failedLoginCount).toBe(0);
     await saveSetting(ctx, 'security', {}, null);
+  });
+
+  it('soft lockout: the account-wide lock only occurs at the high default threshold', async () => {
+    const low = accountLock.threshold;
+    accountLock.threshold = ACCOUNT_LOCK_THRESHOLD;
+    try {
+      await saveSetting(ctx, 'security', { maxFailedLogins: 3, lockoutMinutes: 10 }, null);
+      const userId = await makeUser('soft@example.org');
+      // The "max failed logins" setting no longer locks the account by itself (that is keyed by
+      // address + IP in the web layer): a stranger cannot lock the owner out.
+      for (let i = 0; i < 6; i += 1) {
+        expect((await checkAdminPassword(ctx, 'soft@example.org', `wrong-${i}`)).status).toBe(
+          'invalid',
+        );
+      }
+      const [counted] = await handle.db.select().from(adminUsers).where(eq(adminUsers.id, userId));
+      expect(counted!.failedLoginCount).toBe(6);
+      expect(counted!.lockedUntil).toBeNull();
+      expect((await checkAdminPassword(ctx, 'soft@example.org', PASSWORD)).status).toBe('ok');
+      // At the threshold the lock applies and lasts `lockoutMinutes`.
+      await handle.db
+        .update(adminUsers)
+        .set({ failedLoginCount: ACCOUNT_LOCK_THRESHOLD - 1 })
+        .where(eq(adminUsers.id, userId));
+      await checkAdminPassword(ctx, 'soft@example.org', 'wrong-final');
+      const [locked] = await handle.db.select().from(adminUsers).where(eq(adminUsers.id, userId));
+      expect(locked!.lockedUntil!.getTime()).toBeGreaterThan(Date.now() + 9 * 60_000);
+      expect(locked!.lockedUntil!.getTime()).toBeLessThanOrEqual(Date.now() + 10 * 60_000);
+      expect((await checkAdminPassword(ctx, 'soft@example.org', PASSWORD)).status).toBe('invalid');
+    } finally {
+      accountLock.threshold = low;
+      await saveSetting(ctx, 'security', {}, null);
+    }
   });
 
   it('lets a super admin unlock a user and deactivation drops open links', async () => {

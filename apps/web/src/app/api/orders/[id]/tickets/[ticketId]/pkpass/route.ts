@@ -1,7 +1,7 @@
 import { DomainError, ensureApplePass, listOrderTickets } from '@tix/core';
 import { getCore } from '@/server/core';
 import { handle, uuidParam } from '@/server/http';
-import { canAccessOrder } from '@/server/order-access';
+import { canAccessOrder, enforceOrderDocumentLimit } from '@/server/order-access';
 import { withWalletErrors, withWalletRedirect } from '@/server/wallet-errors';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,7 @@ export async function GET(
       if (!(await canAccessOrder(orderId, t))) {
         throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
       }
+      await enforceOrderDocumentLimit(orderId);
       const core = getCore();
       const owned = (await listOrderTickets(core, orderId)).some((row) => row.id === ticket);
       if (!owned) throw new DomainError('TICKET_NOT_FOUND', 'Ticket not found', 404);

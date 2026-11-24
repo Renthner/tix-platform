@@ -6,7 +6,7 @@ import { parseCsv } from './csv';
 import { looksLikeMt940, parseMt940 } from './mt940';
 import { isZip, readZip } from './zip';
 
-export { parseCamt, looksLikeCamt } from './camt';
+export { parseCamt, looksLikeCamt, hasXmlDeclarations, MAX_CAMT_CHARS } from './camt';
 export { parseMt940, parseSepaTags } from './mt940';
 export { parseCsv, tokenizeCsv, detectDelimiter, normalizeHeader } from './csv';
 export { readZip, isZip, type ZipEntry } from './zip';

@@ -2,7 +2,7 @@ import { requestLogger } from '@/server/logger';
 import { DomainError, handlePayPalWebhook } from '@tix/core';
 import { NextResponse } from 'next/server';
 import { getCore } from '@/server/core';
-import { clientIp, enforceRateLimit } from '@/server/http';
+import { clientIp, enforceRateLimit, readBodyText } from '@/server/http';
 import { readMaintenance } from '@/server/maintenance-gate';
 
 export const dynamic = 'force-dynamic';
@@ -50,9 +50,14 @@ export async function POST(request: Request) {
     requestLogger(request).error({ err }, '[paypal] webhook rate limiter failed');
     return NextResponse.json({ error: 'PROCESSING_FAILED' }, { status: 500 });
   }
-  const raw = await request.text();
-  if (raw.length > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: 'PAYLOAD_TOO_LARGE' }, { status: 413 });
+  let raw: string;
+  try {
+    raw = await readBodyText(request, MAX_BODY_BYTES);
+  } catch (err) {
+    if (err instanceof DomainError && err.status === 413) {
+      return NextResponse.json({ error: 'PAYLOAD_TOO_LARGE' }, { status: 413 });
+    }
+    return NextResponse.json({ error: 'BAD_REQUEST' }, { status: 400 });
   }
   try {
     const outcome = await handlePayPalWebhook(getCore(), request.headers, raw);

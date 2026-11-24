@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { audit } from '@/server/admin/audit';
 import { adminForApi } from '@/server/auth';
 import { getCore } from '@/server/core';
-import { apiError, handle, uuidParam } from '@/server/http';
+import { apiError, assertSameOrigin, handle, uuidParam } from '@/server/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,9 +44,10 @@ export async function POST(request: Request) {
     const session = await adminForApi(['FINANCE']);
     if (!session) return apiError('FORBIDDEN', 'Not allowed', 403);
     // Defence in depth on top of the SameSite=strict admin cookie.
-    const origin = request.headers.get('origin');
-    if (origin && new URL(origin).host !== request.headers.get('host')) {
-      return apiError('FORBIDDEN', 'Cross-site request', 403);
+    assertSameOrigin(request);
+    const declaredLength = Number(request.headers.get('content-length') ?? 0);
+    if (declaredLength > MAX_FILES * MAX_STATEMENT_FILE_BYTES + 1024 * 1024) {
+      return apiError('FILE_TOO_LARGE', 'The upload is too large', 413);
     }
     const form = await request.formData().catch(() => null);
     if (!form) return apiError('INVALID_BODY', 'Multipart body expected', 400);

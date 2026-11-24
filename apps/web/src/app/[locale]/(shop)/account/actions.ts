@@ -39,6 +39,7 @@ import {
   signInCustomer,
 } from '@/server/customer-session';
 import { clientIp, enforceRateLimit } from '@/server/http';
+import { loginThrottled } from '@/server/login-throttle';
 
 type FieldErrors = Partial<Record<string, AccountFieldError>>;
 
@@ -194,13 +195,11 @@ export async function loginAction(
   const password = str(fd, 'password');
   if (!password) return fail('VALIDATION_FAILED', { fieldErrors: { password: 'required' } });
   // The form also signs in admin accounts, so the admin sign-in limits apply as well.
-  const blocked = await limited([
-    ['customer-login-ip', ip, 20, 15 * MINUTE],
-    ['customer-login-email', emailSubject(email.data), 10, 15 * MINUTE],
-    ['admin-login-ip', ip, 20, 15 * MINUTE],
-    ['admin-login-email', emailSubject(email.data), 10, 15 * MINUTE],
-  ]);
-  if (blocked) return blocked;
+  // The strict limits are keyed by client (IPv6 as /64) and address + client, so a stranger
+  // hammering an address cannot lock the owner out from elsewhere; see `loginThrottled`.
+  if (await loginThrottled(emailSubject(email.data), ip, ['customer', 'admin'])) {
+    return fail('RATE_LIMITED');
+  }
   let result: Awaited<ReturnType<typeof checkSharedLogin>>;
   try {
     result = await checkSharedLogin(

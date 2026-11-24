@@ -52,6 +52,8 @@ import {
   splitDisplayName,
   type CoreContext,
   type JobQueues,
+  accountLock,
+  ACCOUNT_LOCK_THRESHOLD,
 } from '../src';
 
 loadRootEnv();
@@ -159,6 +161,7 @@ describe.skipIf(!adminUrl || !redisUrl)('shared sign-in (integration)', () => {
   });
 
   beforeAll(async () => {
+    accountLock.threshold = 5; // low threshold so the mechanism is testable; defaults are tested separately
     admin = new pg.Client({ connectionString: adminUrl });
     await admin.connect();
     await admin.query(`CREATE DATABASE "${dbName}"`);
@@ -189,6 +192,7 @@ describe.skipIf(!adminUrl || !redisUrl)('shared sign-in (integration)', () => {
   });
 
   afterAll(async () => {
+    accountLock.threshold = ACCOUNT_LOCK_THRESHOLD;
     await handle?.close();
     if (redis) {
       const keys = await redis.keys(`${ctx.keys.prefix}:*`);

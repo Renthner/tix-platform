@@ -375,6 +375,26 @@ async function matchLocked(
     ]);
   }
 
+  // ── Untrusted origin (IMAP mail without trusted DKIM/DMARC pass) ─────────────────────
+  // Anyone can forge a bank notification mail: such rows are imported but never auto-fulfilled;
+  // an admin assigns them in the review queue.
+  const untrusted =
+    typeof tx.rawData === 'object' &&
+    tx.rawData !== null &&
+    (tx.rawData as Record<string, unknown>).untrustedSource === true;
+  if (untrusted && (referenced.length > 0 || referencedAdjustments.length > 0)) {
+    return review('ORDER_NOT_PAYABLE', [
+      ...referenced.map((o) => direct(o, 90, 'UNTRUSTED_SOURCE')),
+      ...referencedAdjustments.map((a) => ({
+        orderId: a.adjustment.orderId,
+        orderNumber: a.orderNumber,
+        score: 90,
+        reasons: ['REFERENCE', 'ADJUSTMENT', 'UNTRUSTED_SOURCE'] as MatchCandidateReason[],
+        adjustmentId: a.adjustment.id,
+      })),
+    ]);
+  }
+
   // ── Additional payment (tariff change) ────────────────────────────────────
   if (referencedAdjustments.length > 0) {
     const asCandidate = (

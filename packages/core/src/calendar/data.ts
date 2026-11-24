@@ -5,7 +5,6 @@ import { contentLocale } from '../content-locale';
 import type { CoreContext } from '../context';
 import { formatTime } from '../format';
 import { mailTranslator } from '../i18n/mail-messages';
-import { orderAccessToken } from '../orders/access';
 import { getSetting } from '../settings';
 import { googleCalendarUrl, type CalendarEvent } from './ics';
 
@@ -123,11 +122,11 @@ export async function loadOrderCalendarEvents(
 
 /** Relative download path of an order's calendar file (all events, or one with `eventId`). */
 export function orderCalendarPath(
-  ctx: Pick<CoreContext, 'sessionSecret'>,
+  token: string,
   orderId: string,
   eventId?: string,
 ): string {
-  const query = new URLSearchParams({ t: orderAccessToken(ctx, orderId) });
+  const query = new URLSearchParams({ t: token });
   if (eventId) query.set('event', eventId);
   return `/api/orders/${orderId}/calendar.ics?${query.toString()}`;
 }

@@ -319,17 +319,16 @@ export async function redeemAccessCode(
     throw new DomainError('CODE_INVALID', 'Invalid or expired code', 422);
   }
 
-  const [existing] = await ctx.db
-    .select({ id: accessCodeRedemptions.id })
-    .from(accessCodeRedemptions)
-    .where(
-      and(
-        eq(accessCodeRedemptions.accessCodeId, code.id),
-        eq(accessCodeRedemptions.sessionId, sessionId),
-      ),
-    );
-  if (!existing) {
+  {
     await ctx.db.transaction(async (tx) => {
+      // The unique index (code, session) makes the insert the arbiter: only the transaction that
+      // actually inserted the row counts the use, so concurrent re-submits never double-count.
+      const inserted = await tx
+        .insert(accessCodeRedemptions)
+        .values({ accessCodeId: code.id, sessionId })
+        .onConflictDoNothing()
+        .returning({ id: accessCodeRedemptions.id });
+      if (inserted.length === 0) return;
       const updated = await tx
         .update(accessCodes)
         .set({ redemptionCount: sql`${accessCodes.redemptionCount} + 1` })
@@ -345,7 +344,6 @@ export async function redeemAccessCode(
         .returning({ id: accessCodes.id });
       if (updated.length === 0)
         throw new DomainError('CODE_EXHAUSTED', 'This code has already been used', 409);
-      await tx.insert(accessCodeRedemptions).values({ accessCodeId: code.id, sessionId });
     });
   }
   await ctx.redis.set(ctx.keys.queueAccessCode(event.id, sessionId), code.id, 'EX', 24 * 3600);

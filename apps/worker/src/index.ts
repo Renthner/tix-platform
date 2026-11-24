@@ -191,6 +191,7 @@ async function main(): Promise<void> {
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   let shuttingDown = false;
+  let fatalExit = false;
   const shutdown = async (signal: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
@@ -211,10 +212,21 @@ async function main(): Promise<void> {
     await redis.close();
     await dbHandle.close();
     logger.info('shutdown complete');
-    process.exit(0);
+    process.exit(fatalExit ? 1 : 0);
   };
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   process.on('SIGINT', () => void shutdown('SIGINT'));
+
+  // A stray rejection / exception leaves the process in an unknown state: log it, stop cleanly
+  // (bounded) and exit non-zero so the supervisor / orchestrator restarts a healthy process.
+  const fatal = (kind: string) => (err: unknown) => {
+    logger.fatal({ err, kind }, 'fatal process error – exiting');
+    fatalExit = true;
+    setTimeout(() => process.exit(1), 10_000).unref();
+    void shutdown(kind).catch(() => process.exit(1));
+  };
+  process.on('unhandledRejection', fatal('unhandledRejection'));
+  process.on('uncaughtException', fatal('uncaughtException'));
 }
 
 main().catch((err) => {

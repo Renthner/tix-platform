@@ -148,6 +148,13 @@ Credits are matched by payment reference (Luhn check digit) and amount (setting
   the open web form; `consent_expires_at` mirrors the PSD2 consent.
 - `FILE_IMPORT` / `IMAP` – CSV profile (delimiter, encoding, date/decimal format, optional
   column mapping); originals are stored in the documents bucket under `bank-statements/`.
+  `IMAP` additionally requires `senderAllowlist` (addresses or `@domain`; a connection with an
+  empty list does not import and shows an error). Mails that are skipped (foreign sender,
+  subject mismatch, oversize) get the keyword `$TixSkipped` (remove it to have a mail read
+  again). Transactions are auto-matched only if the topmost `Authentication-Results` header
+  shows `dkim=pass` or `spf=pass` aligned with the allow-listed sender domain; otherwise they
+  carry `raw_data.untrustedSource` and always land in the review queue (Klärfälle).
+  camt files containing a DOCTYPE/ENTITY declaration, or larger than 20 MB, are rejected.
 
 ### Templates & communication
 

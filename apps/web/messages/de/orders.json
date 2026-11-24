@@ -292,7 +292,8 @@
       "adjustmentSettledByCredit": "Der Tarif wurde geändert und mit der Überzahlung verrechnet. Der Kunde hat die neuen Tickets per E-Mail erhalten.",
       "existingRefundRecorded": "Die vorhandene PayPal-Erstattung wurde erfasst: Tickets storniert, Gutschrift erstellt, an PayPal wurde nichts gesendet.",
       "reconciliationSkipped": "Der PayPal-Abgleich wurde übersprungen. Automatische Erstattungen laufen wieder.",
-      "reconciliationRequested": "Der Abgleich mit PayPal wurde gestartet."
+      "reconciliationRequested": "Der Abgleich mit PayPal wurde gestartet.",
+      "accessLinksRevoked": "Die Zugriffslinks dieser Bestellung wurden zurückgesetzt. Links in früheren E-Mails funktionieren nicht mehr; ab jetzt versendete E-Mails enthalten neue Links."
     },
     "actions": {
       "keepReserved": {
@@ -351,6 +352,13 @@
         "title": "Plätze ändern",
         "description": "Verschiebt Tickets dieser Bestellung auf andere Plätze mit gleichem Preis. Bezahlte Tickets erhalten einen neuen QR-Code, die alten werden ungültig.",
         "open": "Plätze ändern"
+      },
+      "revokeLinks": {
+        "title": "Zugriffslinks zurücksetzen",
+        "description": "Macht alle bereits versendeten Bestellungslinks ungültig (z. B. wenn ein Link in falsche Hände geraten ist). Mit alten E-Mails kann die Kundschaft Bestellung, Tickets und Rechnungen erst nach erneutem Versand wieder öffnen.",
+        "submit": "Links zurücksetzen",
+        "confirmTitle": "Zugriffslinks zurücksetzen?",
+        "confirmDescription": "Alle bisher versendeten Bestellungslinks funktionieren danach nicht mehr. Sende anschließend „E-Mail erneut senden“ oder „Tickets erneut senden“, damit du wieder funktionierende Links verschickst."
       }
     },
     "tickets": {

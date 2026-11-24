@@ -363,6 +363,7 @@ async function main(): Promise<void> {
 }
 
 let stopping = false;
+let fatalExit = false;
 async function shutdown(signal: string): Promise<void> {
   if (stopping) return;
   stopping = true;
@@ -374,10 +375,21 @@ async function shutdown(signal: string): Promise<void> {
   maintenanceWatcher.stop();
   await new Promise<void>((resolve) => io.close(() => resolve()));
   await redis.close();
-  process.exit(0);
+  process.exit(fatalExit ? 1 : 0);
 }
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
+
+// A stray rejection / exception leaves the process in an unknown state: log it, stop cleanly
+// (bounded) and exit non-zero so the supervisor / orchestrator restarts a healthy process.
+const fatal = (kind: string) => (err: unknown) => {
+  logger.fatal({ err, kind }, 'fatal process error – exiting');
+  fatalExit = true;
+  setTimeout(() => process.exit(1), 10_000).unref();
+  void shutdown(kind).catch(() => process.exit(1));
+};
+process.on('unhandledRejection', fatal('unhandledRejection'));
+process.on('uncaughtException', fatal('uncaughtException'));
 
 main().catch((err) => {
   logger.fatal({ err }, 'realtime gateway failed to start');

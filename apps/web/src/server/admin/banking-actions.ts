@@ -20,13 +20,13 @@ import {
   saveBankConnection,
   searchOrders,
   startFinApiWebForm,
+  parseStoredImapConfig,
   testImapConnection,
 } from '@tix/core';
 import { bankTransactions } from '@tix/db';
 import {
   BANK_STATEMENT_FORMATS,
   CSV_COLUMN_KEYS,
-  imapConfigSchema,
   localizedPath,
   type SupportedBankAdapter,
 } from '@tix/shared';
@@ -287,6 +287,7 @@ function configFrom(adapter: SupportedBankAdapter, fd: FormData): Record<string,
           .map((s) => s.trim())
           .filter(Boolean),
         subjectFilter: text(fd, 'subjectFilter'),
+        trustedAuthservId: text(fd, 'trustedAuthservId'),
         attachmentFormats: BANK_STATEMENT_FORMATS.filter((f) => flag(fd, `attachmentFormats.${f}`)),
         lookbackDays: num(fd, 'lookbackDays'),
         csvProfile: csvProfileFrom(fd),
@@ -457,7 +458,7 @@ export async function testImapAction(
   if (!secrets) return formError('noCredentials');
   try {
     const result = await testImapConnection(
-      imapConfigSchema.parse(loaded.connection.config),
+      parseStoredImapConfig(loaded.connection.config),
       secrets.password,
     );
     return ok('imapOk', { values: { messages: result.messages } });

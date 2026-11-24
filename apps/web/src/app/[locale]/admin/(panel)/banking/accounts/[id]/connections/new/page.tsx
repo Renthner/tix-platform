@@ -60,7 +60,7 @@ function defaults(adapter: SupportedBankAdapter, iban: string): ConnectionFormVa
         secure: true,
         username: '',
         mailbox: 'INBOX',
-        senderAllowlist: [],
+        senderAllowlist: [], // empty until the admin enters senders (required by the form)
         attachmentFormats: ['CAMT052', 'CAMT053', 'MT940', 'CSV'],
         lookbackDays: 14,
         csvProfile,

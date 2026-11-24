@@ -8,10 +8,11 @@ import {
   type CsvProfile,
   type StatementFormatHint,
 } from '@tix/shared';
-import { and, eq, inArray, ne, or } from 'drizzle-orm';
+import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { requireCapability, type CoreContext } from '../context';
 import type { BankAccountRow } from './connections';
 import { fingerprintBatch } from './fingerprint';
+import { coreLog } from '../log';
 import { linkHeldRows, type HoldReason, type LinkRow } from './holds';
 import {
   detectStatementFormat,
@@ -25,6 +26,62 @@ import { StatementParseError, type ParsedTransaction } from './types';
 /** Upper bound for one uploaded / mailed statement file. */
 export const MAX_STATEMENT_FILE_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 500;
+
+/**
+ * A TRUSTED import of a transaction that already exists as an untrusted (forged-mail) row clears
+ * the `untrustedSource` flag, otherwise a forged mail sent first would keep the real booking out
+ * of auto-matching forever. Returns the ids the matcher should look at again (credits that are
+ * still open and not held).
+ */
+async function promoteTrustedRows(
+  ctx: Pick<CoreContext, 'db'>,
+  bankAccountId: string,
+  where: { fingerprints: string[] } | { importId: string },
+): Promise<string[]> {
+  const scope =
+    'fingerprints' in where
+      ? where.fingerprints.length > 0
+        ? inArray(bankTransactions.fingerprint, where.fingerprints)
+        : undefined
+      : eq(bankTransactions.importId, where.importId);
+  if (!scope) return [];
+  const rows = await ctx.db
+    .update(bankTransactions)
+    .set({ rawData: sql`${bankTransactions.rawData} - 'untrustedSource'` })
+    .where(
+      and(
+        eq(bankTransactions.bankAccountId, bankAccountId),
+        scope,
+        sql`${bankTransactions.rawData}->>'untrustedSource' = 'true'`,
+      ),
+    )
+    .returning({
+      id: bankTransactions.id,
+      amount: bankTransactions.amount,
+      matchStatus: bankTransactions.matchStatus,
+      rawData: bankTransactions.rawData,
+    });
+  if (rows.length > 0) {
+    coreLog.warn(
+      { bankAccountId, count: rows.length },
+      '[banking] trusted import cleared untrustedSource on existing transactions',
+    );
+  }
+  return rows
+    .filter(
+      (r) =>
+        r.amount > 0 &&
+        (r.matchStatus === 'UNMATCHED' || r.matchStatus === 'NEEDS_REVIEW') &&
+        !heldReasonOf(r.rawData),
+    )
+    .map((r) => r.id);
+}
+
+function heldReasonOf(raw: unknown): boolean {
+  return (
+    typeof raw === 'object' && raw !== null && !!(raw as { hold?: unknown }).hold
+  );
+}
 
 export interface StoredBatch {
   /** Ids of newly inserted transactions that the matcher may act on (credits, not held). */
@@ -100,6 +157,8 @@ export async function storeTransactions(
     syncRunId?: string | null;
     transactions: readonly ParsedTransaction[];
     interimWindowDays?: number;
+    /** false = origin not authenticated: rows are never auto-matched (see `matching.ts`). */
+    trusted?: boolean;
   },
 ): Promise<StoredBatch> {
   const txs = params.transactions;
@@ -258,6 +317,7 @@ export async function storeTransactions(
         ...(tx.raw ?? {}),
         ...(tx.bookingText ? { bookingText: tx.bookingText } : {}),
         ...(plan.hold ? { hold: plan.hold } : {}),
+        ...(params.trusted === false ? { untrustedSource: true } : {}),
       },
       matchStatus: tx.amount > 0 && !plan.hold ? ('UNMATCHED' as const) : ('IGNORED' as const),
     }));
@@ -269,6 +329,13 @@ export async function storeTransactions(
       })
       .returning({ id: bankTransactions.id, fingerprint: bankTransactions.fingerprint });
     inserted += rows.length;
+    if (params.trusted !== false && rows.length < slice.length) {
+      const insertedFps = new Set(rows.map((r) => r.fingerprint));
+      const conflicting = slice.map((e) => e.plan.fingerprint).filter((fp) => !insertedFps.has(fp));
+      insertedIds.push(
+        ...(await promoteTrustedRows(ctx, params.bankAccountId, { fingerprints: conflicting })),
+      );
+    }
     const byFp = new Map(slice.map((e) => [e.plan.fingerprint, e]));
     for (const row of rows) {
       const entry = byFp.get(row.fingerprint)!;
@@ -356,6 +423,8 @@ export interface ImportStatementParams {
   uploadedByUserId?: string | null;
   formatHint?: StatementFormatHint;
   csvProfile?: CsvProfile;
+  /** false = mail origin not proven (DKIM/SPF): transactions go to the review queue only. Default true. */
+  trusted?: boolean;
 }
 
 const EXTENSION: Record<BankStatementFormat, string> = {
@@ -461,8 +530,14 @@ async function importOne(
       ),
     );
   if (existing && existing.status !== 'FAILED') {
+    // The identical file may have arrived first through a forged (untrusted) mail.
+    const promoted =
+      params.trusted !== false
+        ? await promoteTrustedRows(ctx, params.account.id, { importId: existing.id })
+        : [];
     return {
       ...failure(fileName, format, null, existing.id),
+      insertedIds: promoted,
       status: 'DUPLICATE_FILE',
       errorCode: null,
       errorMessage: null,
@@ -588,7 +663,13 @@ async function importOne(
       bankAccountId: params.account.id,
       importId,
       transactions,
+      trusted: params.trusted,
     });
+    if (params.trusted === false) {
+      parsed.warnings.push(
+        'Mail sender not authenticated (no aligned DKIM/DMARC pass from the trusted mail server for an accepted domain): transactions are never booked automatically and wait in the review queue',
+      );
+    }
     parsed.warnings.push(...heldWarnings(stored));
     const imported = stored.fetched - stored.duplicates;
     await ctx.db

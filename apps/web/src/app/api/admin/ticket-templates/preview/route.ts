@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     if (origin && new URL(origin).host !== request.headers.get('host')) {
       return apiError('FORBIDDEN', 'Cross-site request', 403);
     }
-    const body = await parseBody(request, bodySchema);
+    const body = await parseBody(request, bodySchema, { maxBytes: 2 * 1024 * 1024 });
     const bytes = await renderTicketPreviewPdf(
       getCore(),
       {

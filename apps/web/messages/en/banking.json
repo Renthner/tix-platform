@@ -72,6 +72,7 @@
     "AMOUNT_NEAR": "Amount (within tolerance)",
     "ORDER_NOT_PAYABLE": "Order not payable",
     "TEST_ORDER": "Test order",
+    "UNTRUSTED_SOURCE": "Unverified mail sender",
     "ALREADY_PAID": "Already paid",
     "CURRENCY": "Other currency",
     "ADJUSTMENT": "Additional payment (tariff change)"
@@ -218,7 +219,9 @@
       "processedMailbox": "Move processed mails to",
       "processedMailboxHint": "Leave empty to keep them in the folder (they are tagged as imported).",
       "senderAllowlist": "Accepted senders",
-      "senderAllowlistHint": "One address or @domain per line. Empty = any sender (not recommended).",
+      "senderAllowlistHint": "Required: one address or @domain per line. Only mails from these senders are read. Payments are booked automatically only when your mail server confirms DKIM or DMARC for that domain (see the field below); otherwise they go to the review queue.",
+      "trustedAuthservId": "Trusted mail server (authserv-id)",
+      "trustedAuthservIdHint": "Hostname of YOUR mail server that writes the Authentication-Results header; you can see it at the start of that header in a received mail (full headers). Without it, IMAP imports are never matched automatically and always go to the review queue.",
       "subjectFilter": "Subject contains",
       "attachmentFormats": "Imported attachment formats"
     },
@@ -311,7 +314,8 @@
       "lastError": "Last provider message: {code}"
     },
     "imap": {
-      "lastChecked": "Last mailbox check"
+      "lastChecked": "Last mailbox check",
+      "allowlistMissing": "No accepted senders are set, so this mailbox is not imported. Edit the connection and add at least one sender address or @domain."
     }
   },
   "tan": {

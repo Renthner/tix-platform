@@ -34,6 +34,7 @@ import { z } from 'zod';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email/request';
 import { getSetting } from '../settings';
+import { accountLock } from '../login-lockout';
 
 /**
  * Optional customer accounts.
@@ -610,8 +611,9 @@ const timingDummy = () => (dummyHash ??= hashPassword('tix-timing-dummy-password
 /**
  * Verifies e-mail + password and returns the customer (the caller creates the session).
  *
- * Lockout: after `security.maxFailedLogins` consecutive failures the account is locked for
- * `security.lockoutMinutes`. Unknown addresses, guests and password-less accounts get the
+ * Lockout (soft, see login-lockout.ts): after `accountLock.threshold` (100) consecutive failures
+ * the account is locked for `security.lockoutMinutes`; the strict per-address + per-IP limit sits
+ * in the web layer. Unknown addresses, guests and password-less accounts get the
  * same INVALID_CREDENTIALS / ACCOUNT_LOCKED sequence (counted in Redis) and the same Argon2
  * work, so neither the error nor its timing reveals whether an account exists.
  */
@@ -664,10 +666,10 @@ async function unknownLoginFailure(
     ctx.keys,
     'customer-login-unknown',
     hashToken(email).slice(0, 40),
-    security.maxFailedLogins - 1,
+    accountLock.threshold - 1,
     security.lockoutMinutes * 60_000,
   );
-  if (attempt.count > security.maxFailedLogins) return accountLocked(security.lockoutMinutes);
+  if (attempt.count > accountLock.threshold) return accountLocked(security.lockoutMinutes);
   return attempt.allowed ? invalidCredentials() : accountLocked(security.lockoutMinutes);
 }
 
@@ -677,7 +679,7 @@ async function passwordLoginFailure(
   security: SecuritySettings,
   customerId: string,
 ): Promise<DomainError> {
-  const reached = sql`${customers.failedLoginCount} + 1 >= ${security.maxFailedLogins}`;
+  const reached = sql`${customers.failedLoginCount} + 1 >= ${accountLock.threshold}`;
   const [updated] = await ctx.db
     .update(customers)
     .set({

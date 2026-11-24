@@ -1,7 +1,7 @@
 import { DomainError, loadInvoicePdf } from '@tix/core';
 import { getCore } from '@/server/core';
 import { handle, uuidParam } from '@/server/http';
-import { canAccessOrder } from '@/server/order-access';
+import { canAccessOrder, enforceOrderDocumentLimit } from '@/server/order-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +17,7 @@ export async function GET(
     if (!(await canAccessOrder(orderId, t))) {
       throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
     }
+    await enforceOrderDocumentLimit(orderId);
     const pdf = await loadInvoicePdf(getCore(), uuidParam.parse(invoiceId));
     if (pdf.orderId !== orderId) {
       throw new DomainError('INVOICE_NOT_FOUND', 'Invoice not found', 404);

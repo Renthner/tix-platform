@@ -18,7 +18,7 @@ import {
 } from '../documents/order-data';
 import { formatDate, formatDateTime, formatIban, formatMoney, formatTime } from '../format';
 import { mailTranslator, type MailTranslator } from '../i18n/mail-messages';
-import { orderAccessToken, orderUrl } from '../orders/access';
+import { issueOrderAccessToken, orderUrl } from '../orders/access';
 import { getSetting } from '../settings';
 import { calendarVariables } from '../calendar/email';
 import { ticketLinksVariable } from '../tickets/email-links';
@@ -441,7 +441,7 @@ async function ticketsPdfUrl(ctx: CoreContext, orderId: string): Promise<string 
     .where(and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID')))
     .limit(1);
   if (!valid) return null;
-  return `${ctx.appUrl}/api/orders/${orderId}/tickets?t=${encodeURIComponent(orderAccessToken(ctx, orderId))}`;
+  return `${ctx.appUrl}/api/orders/${orderId}/tickets?t=${encodeURIComponent(await issueOrderAccessToken(ctx, orderId))}`;
 }
 
 /** Variables of ADDITIONAL_PAYMENT_REQUEST / _REMINDER, built from the stored adjustment. */

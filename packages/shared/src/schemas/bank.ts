@@ -152,10 +152,21 @@ export const imapConfigSchema = z.object({
   mailbox: z.string().min(1).max(255).default('INBOX'),
   /** Processed mails are moved here; empty = they stay and get flagged instead. */
   processedMailbox: z.string().max(255).optional(),
-  /** Accepted senders: full addresses or `@domain`; empty = any sender. */
-  senderAllowlist: z.array(z.string().min(3).max(255)).max(50).default([]),
+  /** Accepted senders: full addresses or `@domain`. Mandatory (at least one entry). */
+  senderAllowlist: z.array(z.string().min(3).max(255)).min(1).max(50),
   /** Case-insensitive text the subject must contain. */
   subjectFilter: z.string().max(255).optional(),
+  /**
+   * Hostname (authserv-id) of the own mail server that writes the `Authentication-Results`
+   * header. Only a header with exactly this id is trusted; empty = nothing is ever trusted
+   * (imports go to the review queue only).
+   */
+  trustedAuthservId: z
+    .string()
+    .trim()
+    .max(255)
+    .regex(/^[A-Za-z0-9.-]+$/)
+    .optional(),
   attachmentFormats: z
     .array(z.enum(BANK_STATEMENT_FORMATS))
     .min(1)
@@ -163,6 +174,14 @@ export const imapConfigSchema = z.object({
   /** Only mails received within this many days are searched. */
   lookbackDays: z.number().int().min(1).max(365).default(14),
   csvProfile: csvProfileSchema.prefault({}),
+});
+
+/**
+ * Reads a stored IMAP config: connections created before the allow-list became mandatory may
+ * have an empty list; they parse here but do not import (see `assertImapAllowlist`).
+ */
+export const imapStoredConfigSchema = imapConfigSchema.extend({
+  senderAllowlist: z.array(z.string().min(3).max(255)).max(50).default([]),
 });
 
 export const bankConnectionConfigSchema = z.discriminatedUnion('adapter', [
@@ -284,6 +303,8 @@ export const MATCH_CANDIDATE_REASONS = [
   'ADJUSTMENT',
   /** The order is a super-admin test order: never booked automatically. */
   'TEST_ORDER',
+  /** The statement came from a mail whose sender authentication (DKIM/SPF) was not proven. */
+  'UNTRUSTED_SOURCE',
 ] as const;
 export type MatchCandidateReason = (typeof MATCH_CANDIDATE_REASONS)[number];
 

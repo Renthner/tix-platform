@@ -17,8 +17,8 @@ MAJOR.MINOR.PATCH-rc.N           release candidate    1.0.0-rc.1
 ```
 
 The `scripts/release/VERSION` file is the single source of truth. `scripts/release/set-version.mjs` copies it
-into every `package.json`, `packages/shared/src/version.ts` (shown in the admin sidebar, in
-`GET /api/health` and in the worker / realtime start log) and `apps/android/gradle.properties`.
+into every `package.json`, `packages/shared/src/version.ts` (shown in the admin sidebar, in Admin -> System
+and in the worker / realtime start log) and `apps/android/gradle.properties`.
 CI fails when these drift apart (`node scripts/release/set-version.mjs --check`).
 
 ### Android versionCode
@@ -372,8 +372,7 @@ A self-hosted runner executes repository code with the rights of its user.
 
 With the release files (see above): `docker compose pull && docker compose up -d` (or change
 `TIX_CHANNEL` first). Take a backup first (Admin -> Backups) and read the release notes: alpha
-versions may contain schema changes that cannot be rolled back. `GET /api/health` reports the
-running `version`.
+versions may contain schema changes that cannot be rolled back. The running version is shown in Admin -> System.
 
 Step-by-step instructions for operators are in [INSTALL.md](INSTALL.md#updates-backups-uninstall).
 

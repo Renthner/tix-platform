@@ -1,4 +1,4 @@
-import { imapConfigSchema, type BankStatementFormat, type ImapConfig } from '@tix/shared';
+import { imapStoredConfigSchema, type BankStatementFormat, type ImapConfig } from '@tix/shared';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, type AddressObject } from 'mailparser';
 import type { CoreContext } from '../../context';
@@ -13,6 +13,13 @@ import {
 import { importStatementFile, type StatementImportResult } from '../importer';
 import { detectStatementFormat, expandStatementFiles } from '../parsers';
 import { decodeText } from '../text';
+import {
+  classifyMail,
+  isTrustedMailAuth,
+  parseAuthenticationResults,
+  parseAuthenticationResultsHeader,
+  senderAllowed,
+} from './imap-policy';
 
 /**
  * IMAP mailbox watcher: searches recent mails (sender allow-list, subject filter), imports
@@ -23,6 +30,7 @@ import { decodeText } from '../text';
  */
 
 export const IMAP_PROCESSED_KEYWORD = '$TixImported';
+export const IMAP_SKIPPED_KEYWORD = '$TixSkipped';
 const MAX_MESSAGES_PER_RUN = 50;
 const MAX_MESSAGE_BYTES = 25 * 1024 * 1024;
 
@@ -31,15 +39,26 @@ export interface ImapSyncResult {
   imports: StatementImportResult[];
 }
 
-/** `name@example.org` or `@example.org` entries; empty list = any sender. */
-export function senderAllowed(from: string | null, allowlist: readonly string[]): boolean {
-  if (allowlist.length === 0) return true;
-  if (!from) return false;
-  const address = from.trim().toLowerCase();
-  return allowlist.some((entry) => {
-    const e = entry.trim().toLowerCase();
-    return e.startsWith('@') ? address.endsWith(e) : address === e;
-  });
+export {
+  senderAllowed,
+  classifyMail,
+  isTrustedMailAuth,
+  parseAuthenticationResults,
+  parseAuthenticationResultsHeader,
+};
+
+/** Stored configs may predate the mandatory allow-list: such a connection must not import. */
+export function parseStoredImapConfig(raw: unknown): ImapConfig {
+  return imapStoredConfigSchema.parse(raw);
+}
+
+export function assertImapAllowlist(config: Pick<ImapConfig, 'senderAllowlist'>): void {
+  if (config.senderAllowlist.length === 0) {
+    throw new BankSyncError(
+      'IMAP_ALLOWLIST_REQUIRED',
+      'No accepted senders configured: add at least one sender address or @domain to this connection before it imports mail',
+    );
+  }
 }
 
 function fromAddress(from: AddressObject | AddressObject[] | undefined): string | null {
@@ -79,7 +98,8 @@ export async function syncImap(
     password: string;
   },
 ): Promise<ImapSyncResult> {
-  const config = imapConfigSchema.parse(params.connection.config);
+  const config = parseStoredImapConfig(params.connection.config);
+  assertImapAllowlist(config);
   await assertImapHostAllowed(config.host);
   const client = createImapClient(config, params.password);
   try {
@@ -99,10 +119,17 @@ export async function syncImap(
           ? IMAP_PROCESSED_KEYWORD
           : '\\Seen';
       const since = new Date(Date.now() - config.lookbackDays * 24 * 3600 * 1000);
+      // Skipped mails (foreign sender, wrong subject, oversize) get their own keyword so that
+      // they drop out of the search and cannot fill the per-run window forever.
       const query =
         keyword === '\\Seen'
           ? { since, seen: false }
-          : { since, unKeyword: IMAP_PROCESSED_KEYWORD };
+          : { since, unKeyword: IMAP_PROCESSED_KEYWORD, not: { keyword: IMAP_SKIPPED_KEYWORD } };
+      // \Seen fallback (server without custom keywords): skipped mails are NOT flagged – marking
+      // foreign mails as read would be a side effect on mail that is none of our business.
+      // Consequence: they stay in the search and count against the per-run window (50 mails)
+      // until they leave the lookback period; use a dedicated mailbox or a server with keywords.
+      const skipKeyword = keyword === '\\Seen' ? null : IMAP_SKIPPED_KEYWORD;
       const found = await client.search(
         config.subjectFilter ? { ...query, subject: config.subjectFilter } : query,
         {
@@ -110,21 +137,46 @@ export async function syncImap(
         },
       );
       const uids = (found || []).slice(0, MAX_MESSAGES_PER_RUN);
+      const skipInput = {
+        maxBytes: MAX_MESSAGE_BYTES,
+        allowlist: config.senderAllowlist,
+        subjectFilter: config.subjectFilter,
+      };
       for (const uid of uids) {
-        const message = await client.fetchOne(
-          String(uid),
-          { source: true, size: true },
-          { uid: true },
-        );
-        if (!message || !message.source || (message.size ?? 0) > MAX_MESSAGE_BYTES) continue;
-        const mail = await simpleParser(message.source);
-        if (!senderAllowed(fromAddress(mail.from), config.senderAllowlist)) continue;
-        if (
-          config.subjectFilter &&
-          !(mail.subject ?? '').toLowerCase().includes(config.subjectFilter.toLowerCase())
-        ) {
+        const skip = async () => {
+          if (!skipKeyword) return;
+          try {
+            await client.messageFlagsAdd(String(uid), [skipKeyword], { uid: true });
+          } catch {
+            /* flagging is best effort; the per-run window just advances next time */
+          }
+        };
+        // Size first: oversize mails are never downloaded.
+        const head = await client.fetchOne(String(uid), { size: true }, { uid: true });
+        if (!head) continue;
+        if (classifyMail({ ...skipInput, size: head.size, from: null, subject: null }) === 'OVERSIZE') {
+          await skip();
           continue;
         }
+        const message = await client.fetchOne(String(uid), { source: true }, { uid: true });
+        if (!message || !message.source) continue;
+        const mail = await simpleParser(message.source);
+        const from = fromAddress(mail.from);
+        if (
+          classifyMail({ ...skipInput, size: head.size, from, subject: mail.subject }) !== null
+        ) {
+          await skip();
+          continue;
+        }
+        const trusted = isTrustedMailAuth({
+          authenticationResults: mail.headers.get('authentication-results') as
+            | string
+            | string[]
+            | undefined,
+          from,
+          allowlist: config.senderAllowlist,
+          trustedAuthservId: config.trustedAuthservId,
+        });
         messages += 1;
         for (const attachment of mail.attachments) {
           const fileName = (attachment.filename ?? 'attachment').replace(/[\\/]/g, '_');
@@ -150,6 +202,7 @@ export async function syncImap(
               fileName,
               bytes,
               csvProfile: config.csvProfile,
+              trusted,
             })),
           );
         }

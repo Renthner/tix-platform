@@ -1,5 +1,5 @@
 import { coreLog } from '../log';
-import { orderAccessToken } from '../orders/access';
+import { issueOrderAccessToken } from '../orders/access';
 import { escapeHtml, trustedHtml } from '../email/template';
 import type { CoreContext } from '../context';
 import { mailTranslator } from '../i18n/mail-messages';
@@ -58,7 +58,7 @@ export async function walletLinksForOrder(
     if (!available.apple && !available.google) return [];
     const rows = await loadWalletTicketData(ctx.db, { orderId });
     if (rows.some((row) => row.isTest)) return []; // test orders: no wallet passes
-    const token = orderAccessToken(ctx, orderId);
+    const token = await issueOrderAccessToken(ctx, orderId);
     const base = ctx.appUrl ?? '';
     return rows.map((row) => ({
       ticketId: row.ticketId,

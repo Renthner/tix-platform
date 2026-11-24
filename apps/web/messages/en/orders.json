@@ -292,7 +292,8 @@
       "adjustmentSettledByCredit": "The tariff was changed and settled with the overpayment. The customer was e-mailed the new tickets.",
       "existingRefundRecorded": "The existing PayPal refund was recorded: tickets cancelled, credit note issued, nothing was sent to PayPal.",
       "reconciliationSkipped": "The PayPal reconciliation was skipped. Automatic refunds resume.",
-      "reconciliationRequested": "The comparison with PayPal was started."
+      "reconciliationRequested": "The comparison with PayPal was started.",
+      "accessLinksRevoked": "The access links of this order have been reset. Links in earlier e-mails no longer work; e-mails sent from now on carry new links."
     },
     "actions": {
       "keepReserved": {
@@ -351,6 +352,13 @@
         "title": "Change seats",
         "description": "Moves tickets of this order to other seats with the same price. Paid tickets get a new QR code, the old ones become invalid.",
         "open": "Change seats"
+      },
+      "revokeLinks": {
+        "title": "Reset access links",
+        "description": "Invalidates every order link already sent to the customer (e.g. if a link leaked). The customer can no longer open the order, tickets or invoices with old e-mails until you resend one.",
+        "submit": "Reset links",
+        "confirmTitle": "Reset access links?",
+        "confirmDescription": "All order links sent so far stop working. Use \"Send e-mail again\" or \"Send tickets again\" afterwards so the customer gets working links."
       }
     },
     "tickets": {

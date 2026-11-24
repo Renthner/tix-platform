@@ -1220,7 +1220,12 @@ describe.skipIf(!adminUrl || !redisUrl)('bank reconciliation (integration)', () 
       name: 'IMAP',
       isActive: true,
       pollIntervalSeconds: 300,
-      config: { adapter: 'IMAP', host: 'imap.example.invalid', username: 'bank@example.invalid' },
+      config: {
+        adapter: 'IMAP',
+        host: 'imap.example.invalid',
+        username: 'bank@example.invalid',
+        senderAllowlist: ['@bank.example.invalid'],
+      },
       secrets: { password: 'pw' },
     });
     const before = await connectionRow(id);

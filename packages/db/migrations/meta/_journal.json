@@ -295,6 +295,13 @@
       "when": 1794786359450,
       "tag": "0041_waitlist_trigger_any_category",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795560932937,
+      "tag": "0042_access_redemption_unique_token_version",
+      "breakpoints": true
     }
   ]
 }

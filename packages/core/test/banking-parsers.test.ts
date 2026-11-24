@@ -9,6 +9,8 @@ import {
   detectStatementFormat,
   expandStatementFiles,
   fingerprintBatch,
+  hasXmlDeclarations,
+  MAX_CAMT_CHARS,
   parseAmountToCents,
   parseCamt,
   parseCsv,
@@ -222,6 +224,18 @@ describe('camt.053', () => {
     );
     expect(() => parseCamt('<Document><Foo/></Document>')).toThrow(/Not a camt/);
   });
+
+  it('rejects entity tricks and oversize documents before parsing', () => {
+    const lol =
+      '<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;">]><Document>&lol2;</Document>';
+    expect(() => parseCamt(lol)).toThrow(/DTDs/);
+    expect(() => parseCamt('<! DOCTYPE x><Document/>')).toThrow(/DTDs/);
+    expect(() => parseCamt('<!ENTITY a "b"><Document/>')).toThrow(/DTDs/);
+    expect(hasXmlDeclarations(camt053)).toBe(false);
+    expect(() => parseCamt(`<Document>${' '.repeat(MAX_CAMT_CHARS)}</Document>`)).toThrow(
+      /too large/,
+    );
+  });
 });
 
 describe('camt.052 (FinTS HKCAZ / intraday report)', () => {
@@ -399,7 +413,7 @@ describe('matching helpers', () => {
   });
 
   it('checks IMAP sender allow-lists', () => {
-    expect(senderAllowed('noreply@bank.example', [])).toBe(true);
+    expect(senderAllowed('noreply@bank.example', [])).toBe(false);
     expect(senderAllowed('noreply@bank.example', ['@bank.example'])).toBe(true);
     expect(senderAllowed('NoReply@Bank.Example', ['noreply@bank.example'])).toBe(true);
     expect(senderAllowed('evil@other.example', ['@bank.example'])).toBe(false);

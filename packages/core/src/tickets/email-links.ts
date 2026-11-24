@@ -2,7 +2,7 @@ import { coreLog } from '../log';
 import { escapeHtml, trustedHtml } from '../email/template';
 import type { CoreContext } from '../context';
 import { mailTranslator } from '../i18n/mail-messages';
-import { orderAccessToken } from '../orders/access';
+import { issueOrderAccessToken } from '../orders/access';
 import { loadWalletTicketData, walletPlaceLabel } from '../wallet/data';
 import { walletAvailability, walletTicketPath } from '../wallet/links';
 
@@ -38,7 +38,7 @@ export async function ticketEmailLinks(
   const available = rows.some((row) => row.isTest)
     ? { apple: false, google: false }
     : await walletAvailability(ctx);
-  const token = orderAccessToken(ctx, orderId);
+  const token = await issueOrderAccessToken(ctx, orderId);
   const base = ctx.appUrl;
   return rows.map((row) => ({
     ticketId: row.ticketId,

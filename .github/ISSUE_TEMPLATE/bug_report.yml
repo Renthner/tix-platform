@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: TIX version
-      description: Shown in the admin sidebar and at /api/health, for example 1.0.0-alpha.3.
+      description: Shown in the admin sidebar, in Admin → System, or at /api/health with the metrics bearer token, for example 1.0.0-alpha.3.
     validations:
       required: true
   - type: dropdown

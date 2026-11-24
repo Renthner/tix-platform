@@ -3,8 +3,9 @@
 import type { OrderStatus } from '@tix/shared';
 import { useFormatter, useTranslations } from 'next-intl';
 import { CheckCircle2 } from 'lucide-react';
-import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import { ActionForm, SubmitButton } from '@/components/admin/form-controls';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,6 +24,7 @@ import {
   recordPaymentAction,
   resendEmailAction,
   resendTicketsAction,
+  revokeAccessLinksAction,
   type OrderActionState,
 } from '@/server/admin/orders';
 
@@ -142,6 +144,7 @@ export function OrderAdminActions(props: {
       {(props.status === 'PAID' || props.status === 'PARTIALLY_REFUNDED') && (
         <ResendTicketsCard orderId={props.orderId} />
       )}
+      <RevokeLinksCard orderId={props.orderId} />
       <NoteCard orderId={props.orderId} note={props.internalNote} />
     </>
   );
@@ -478,6 +481,41 @@ function ResendTicketsCard({ orderId }: { orderId: string }) {
             {t('submit')}
           </SubmitButton>
         </ActionForm>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RevokeLinksCard({ orderId }: { orderId: string }) {
+  const t = useTranslations('orders.admin.actions.revokeLinks');
+  const [state, action] = useActionState(revokeAccessLinksAction.bind(null, orderId), IDLE);
+  useFeedback(state);
+  const [confirm, setConfirm] = useState(false);
+  const [pending, startTransition] = useTransition();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t('title')}</CardTitle>
+        <CardDescription>{t('description')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() => setConfirm(true)}
+        >
+          {t('submit')}
+        </Button>
+        <ConfirmDialog
+          open={confirm}
+          onOpenChange={setConfirm}
+          title={t('confirmTitle')}
+          description={t('confirmDescription')}
+          confirmLabel={t('submit')}
+          onConfirm={() => startTransition(() => action(new FormData()))}
+        />
       </CardContent>
     </Card>
   );

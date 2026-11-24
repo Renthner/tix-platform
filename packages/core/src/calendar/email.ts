@@ -2,6 +2,7 @@ import { escapeHtml, trustedHtml } from '../email/template';
 import type { CoreContext } from '../context';
 import { mailTranslator } from '../i18n/mail-messages';
 import { coreLog } from '../log';
+import { issueOrderAccessToken } from '../orders/access';
 import { loadOrderCalendarEvents, orderCalendarPath } from './data';
 
 const BUTTON =
@@ -27,10 +28,11 @@ export async function calendarVariables(
     if (eventsOfOrder.length === 0) return empty;
     const t = mailTranslator(locale);
     const base = ctx.appUrl;
+    const token = await issueOrderAccessToken(ctx, orderId);
     const button = (url: string, label: string) =>
       `<a href="${escapeHtml(url)}" style="${BUTTON}">${escapeHtml(label)}</a>`;
     const blocks = eventsOfOrder.map((event) => {
-      const icsUrl = base + orderCalendarPath(ctx, orderId, event.id);
+      const icsUrl = base + orderCalendarPath(token, orderId, event.id);
       return {
         directionsUrl: event.directionsUrl,
         html: `<p style="margin:0 0 4px;font-size:13px;color:#52525b">${escapeHtml(event.title)}</p><p style="margin:0 0 14px">${button(icsUrl, t('calendar.ics'))}${button(event.googleUrl, t('calendar.google'))}${button(event.directionsUrl, t('calendar.directions'))}</p>`,

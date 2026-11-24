@@ -72,6 +72,7 @@
     "AMOUNT_NEAR": "Betrag (innerhalb der Toleranz)",
     "ORDER_NOT_PAYABLE": "Bestellung nicht bezahlbar",
     "TEST_ORDER": "Testbestellung",
+    "UNTRUSTED_SOURCE": "Nicht verifizierter E-Mail-Absender",
     "ALREADY_PAID": "Bereits bezahlt",
     "CURRENCY": "Andere Währung",
     "ADJUSTMENT": "Nachzahlung (Tarifwechsel)"
@@ -218,7 +219,9 @@
       "processedMailbox": "Verarbeitete Mails verschieben nach",
       "processedMailboxHint": "Leer lassen, um sie im Ordner zu belassen (sie werden als importiert markiert).",
       "senderAllowlist": "Erlaubte Absender",
-      "senderAllowlistHint": "Eine Adresse oder @domain pro Zeile. Leer = jeder Absender (nicht empfohlen).",
+      "senderAllowlistHint": "Pflichtfeld: eine Adresse oder @domain pro Zeile. Nur Mails dieser Absender werden gelesen. Automatisch gebucht wird nur, wenn dein Mailserver DKIM oder DMARC für diese Domain bestätigt (siehe Feld unten); sonst landen die Zahlungen in den Klärfällen.",
+      "trustedAuthservId": "Vertrauenswürdiger Mailserver (authserv-id)",
+      "trustedAuthservIdHint": "Hostname DEINES Mailservers, der den Authentication-Results-Header schreibt; du findest ihn am Anfang dieses Headers in einer empfangenen Mail (vollständige Kopfzeilen). Ohne Angabe werden IMAP-Importe nie automatisch zugeordnet und landen immer in den Klärfällen.",
       "subjectFilter": "Betreff enthält",
       "attachmentFormats": "Importierte Anhangsformate"
     },
@@ -311,7 +314,8 @@
       "lastError": "Letzte Meldung des Dienstleisters: {code}"
     },
     "imap": {
-      "lastChecked": "Letzte Postfachprüfung"
+      "lastChecked": "Letzte Postfachprüfung",
+      "allowlistMissing": "Es sind keine erlaubten Absender hinterlegt, deshalb wird dieses Postfach nicht importiert. Bearbeite die Verbindung und trage mindestens eine Absenderadresse oder @domain ein."
     }
   },
   "tan": {

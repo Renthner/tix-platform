@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     const sid = await readSessionId();
     if (!sid) throw new DomainError('CART_EMPTY', 'Your cart is empty', 409);
     await enforceRateLimit('checkout', sid, 10, 60_000);
-    const input = await parseBody(request, checkoutInputSchema);
+    const input = await parseBody(request, checkoutInputSchema, { maxBytes: 256 * 1024 });
     // Safety net per IP address (configurable, off when empty / 0). Charged only for requests
     // that passed input validation, so malformed submissions do not use up the allowance.
     const { checkoutsPerIpPer10Min } = await getSetting(getCore(), 'checkout');

@@ -225,6 +225,8 @@ export const orders = pgTable(
     paidAt: tstz('paid_at'),
     /** Incremented whenever a bank allocation reversal undoes a payment: tells paid cycles apart. */
     paidCycle: integer('paid_cycle').notNull().default(0),
+    /** Version embedded in guest access links; bumping it invalidates every issued link (admin reset). */
+    tokenVersion: integer('token_version').notNull().default(0),
     cancelledAt: tstz('cancelled_at'),
     expiredAt: tstz('expired_at'),
     cancellationReason: text('cancellation_reason'),

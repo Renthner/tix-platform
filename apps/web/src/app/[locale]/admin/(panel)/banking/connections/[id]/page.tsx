@@ -169,6 +169,11 @@ export default async function ConnectionPage({
                 </div>
               ))}
             </dl>
+            {config.adapter === 'IMAP' && (config.senderAllowlist ?? []).length === 0 ? (
+              <Alert variant="destructive">
+                <AlertDescription>{t('connection.imap.allowlistMissing')}</AlertDescription>
+              </Alert>
+            ) : null}
             {c.lastSyncStatus === 'FAILED' && c.lastError ? (
               <Alert variant="destructive">
                 <AlertDescription>

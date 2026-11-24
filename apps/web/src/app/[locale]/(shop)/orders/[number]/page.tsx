@@ -3,6 +3,7 @@ import {
   getSetting,
   getOrderView,
   loadOrderCalendarEvents,
+  orderAccessToken,
   orderCalendarPath,
   getTicketSelfServiceStates,
   walletAvailability,
@@ -322,7 +323,13 @@ export default async function OrderPage({
                   <div className="font-medium">{event.title}</div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Button asChild variant="outline" size="sm">
-                      <a href={orderCalendarPath(core, order.id, event.id)}>
+                      <a
+                        href={orderCalendarPath(
+                          orderAccessToken(core, order.id, order.tokenVersion),
+                          order.id,
+                          event.id,
+                        )}
+                      >
                         <CalendarPlus className="size-4" />
                         {t('calendar.ics')}
                       </a>

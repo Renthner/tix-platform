@@ -34,7 +34,7 @@ import { nextNumber } from '../numbering';
 import { publishSeatDelta } from '../realtime';
 import { getSetting } from '../settings';
 import { isDraftEvent, shopSaleState, type ShopActorLike } from '../shop-actor';
-import { orderAccessToken } from './access';
+import { issueOrderAccessToken } from './access';
 import { mirrorSeats } from './fulfillment';
 import { computeBankTransferTerms } from './payment-terms';
 import { quoteForMethod, type CheckoutQuote } from './pricing';
@@ -243,7 +243,7 @@ async function placeOrderLocked(ctx: CoreContext, params: PlaceOrderParams): Pro
       currency: existing.currency,
       paymentReference: existing.paymentReference,
       paymentDueAt: existing.paymentDueAt?.toISOString() ?? null,
-      accessToken: orderAccessToken(ctx, existing.orderId),
+      accessToken: await issueOrderAccessToken(ctx, existing.orderId),
       locale: existing.locale,
     };
   }
@@ -276,7 +276,7 @@ async function placeOrderLocked(ctx: CoreContext, params: PlaceOrderParams): Pro
       }
       return {
         ...created,
-        accessToken: orderAccessToken(ctx, created.orderId),
+        accessToken: await issueOrderAccessToken(ctx, created.orderId),
         locale: input.locale,
       };
     } catch (err) {

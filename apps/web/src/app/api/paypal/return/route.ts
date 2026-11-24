@@ -1,6 +1,7 @@
 import { requestLogger } from '@/server/logger';
 import {
   completePayPalPayment,
+  DomainError,
   PayPalCredentialsError,
   verifyOrderAccessToken,
   type CompletePayPalResult,
@@ -10,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { getCore } from '@/server/core';
 import { getEnv } from '@/server/env';
+import { enforceRateLimit } from '@/server/http';
 import { readMaintenance } from '@/server/maintenance-gate';
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +38,7 @@ export async function GET(request: Request) {
   // Restore running: no capture, no database access. The maintenance page reloads when it is over.
   if ((await readMaintenance()).active) return NextResponse.redirect(`${base}/`, 303);
   const core = getCore();
-  if (!paypalOrderId || verifyOrderAccessToken(core, t) !== orderId) {
+  if (!paypalOrderId || (await verifyOrderAccessToken(core, t)) !== orderId) {
     return NextResponse.redirect(`${base}/`, 303);
   }
   const [order] = await core.db
@@ -45,6 +47,16 @@ export async function GET(request: Request) {
     .where(eq(orders.id, orderId));
   if (!order) return NextResponse.redirect(`${base}/`, 303);
   const page = `${base}/${order.locale}/orders/${encodeURIComponent(order.orderNumber)}?t=${encodeURIComponent(t)}`;
+  // No shortcut on order.status === 'PAID': additional-payment (tariff change) returns always come
+  // back on an already PAID order. completePayPalPayment is idempotent (CAPTURED attempt -> PAID).
+  try {
+    await enforceRateLimit('paypal-return-order', orderId, 20, 10 * 60_000);
+  } catch (err) {
+    if (err instanceof DomainError && err.status === 429) {
+      return NextResponse.redirect(`${page}&paypal=pending`, 303);
+    }
+    throw err;
+  }
 
   let outcome = 'failed';
   try {

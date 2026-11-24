@@ -28,6 +28,7 @@ import {
 } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { clientIp, enforceRateLimit } from '@/server/http';
+import { loginThrottled } from '@/server/login-throttle';
 import { cookieDefaults } from '@/server/session';
 
 export interface LoginState {
@@ -57,10 +58,9 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   if (!parsed.success) return { step: 'password', error: 'INVALID' };
   const email = parsed.data.email.trim().toLowerCase();
   const ip = await clientIp();
-  if (
-    (await limited('admin-login-ip', ip, 20)) ||
-    (await limited('admin-login-email', emailSubject(email), 10))
-  ) {
+  // Strict limits per client and per address + client (a stranger cannot lock the owner out from
+  // elsewhere), a high account-wide block and a serialising gate: see `loginThrottled`.
+  if (await loginThrottled(emailSubject(email), ip, ['admin'])) {
     return { step: 'password', error: 'RATE_LIMITED' };
   }
 

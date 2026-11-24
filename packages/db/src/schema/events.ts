@@ -584,6 +584,8 @@ export const accessCodeRedemptions = pgTable(
   (t) => [
     index('access_code_redemptions_code_idx').on(t.accessCodeId),
     index('access_code_redemptions_order_idx').on(t.orderId),
+    /** One redemption per code and session (NULL sessions stay distinct). */
+    uniqueIndex('access_code_redemptions_code_session_uq').on(t.accessCodeId, t.sessionId),
     check('access_code_redemptions_ticket_count', sql`${t.ticketCount} >= 0`),
   ],
 );

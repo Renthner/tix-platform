@@ -438,11 +438,12 @@ export async function startPayPalPayment(
   // PayPal appends `token` (its order id) and `PayerID`; `t` authorises the order page.
   const returnUrl = new URL(`${base}/api/paypal/return`);
   returnUrl.searchParams.set('order', order.id);
-  returnUrl.searchParams.set('t', orderAccessToken(ctx, order.id));
+  returnUrl.searchParams.set('t', orderAccessToken(ctx, order.id, order.tokenVersion));
   const cancelUrl = orderUrl(ctx, {
     id: order.id,
     orderNumber: order.orderNumber,
     locale: order.locale,
+    tokenVersion: order.tokenVersion,
   });
   const created = await api<PayPalOrder>(ctx, config, 'POST', '/v2/checkout/orders', {
     requestId: `tix-create-${order.id}-${allAttempts.length + 1}`,
@@ -819,11 +820,12 @@ export async function startAdjustmentPayPalPayment(
   ]);
   const returnUrl = new URL(`${base}/api/paypal/return`);
   returnUrl.searchParams.set('order', order.id);
-  returnUrl.searchParams.set('t', orderAccessToken(ctx, order.id));
+  returnUrl.searchParams.set('t', orderAccessToken(ctx, order.id, order.tokenVersion));
   const cancelUrl = orderUrl(ctx, {
     id: order.id,
     orderNumber: order.orderNumber,
     locale: order.locale,
+    tokenVersion: order.tokenVersion,
   });
   const attemptNo = allAttempts.length + 1;
   const created = await api<PayPalOrder>(ctx, config, 'POST', '/v2/checkout/orders', {

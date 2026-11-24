@@ -1,11 +1,11 @@
 import { bankConnections } from '@tix/db';
-import { POLLING_BANK_ADAPTERS, type BankSyncTrigger, imapConfigSchema } from '@tix/shared';
+import { POLLING_BANK_ADAPTERS, type BankSyncTrigger } from '@tix/shared';
 import { and, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { QUEUE_NAMES } from '../job-queues';
 import { syncFinApi, type FinApiDeps } from './adapters/finapi';
 import { syncFinTs, type FinTsClientFactory } from './adapters/fints';
-import { syncImap } from './adapters/imap';
+import { assertImapAllowlist, parseStoredImapConfig, syncImap } from './adapters/imap';
 import { BankSyncError, decryptConnectionSecrets, loadConnection } from './connections';
 import { storeTransactions } from './importer';
 import { matchBankTransactions, matchPendingBankTransactions } from './matching';
@@ -140,7 +140,7 @@ export async function runBankSync(
       case 'IMAP': {
         const secrets = decryptConnectionSecrets(ctx, connection, 'IMAP');
         if (!secrets) throw new BankSyncError('NO_CREDENTIALS', 'Password missing');
-        imapConfigSchema.parse(connection.config);
+        assertImapAllowlist(parseStoredImapConfig(connection.config));
         const result = await syncImap(ctx, { connection, account, password: secrets.password });
         const ids: string[] = [];
         for (const r of result.imports) {

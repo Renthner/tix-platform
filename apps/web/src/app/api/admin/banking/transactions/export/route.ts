@@ -1,4 +1,5 @@
-import { getSetting } from '@tix/core';
+import { buildCsv, getSetting } from '@tix/core';
+import { audit } from '@/server/admin/audit';
 import { getTranslations } from 'next-intl/server';
 import { hasLocale } from 'next-intl';
 import { routing } from '@/i18n/routing';
@@ -20,7 +21,9 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
   return handle(async () => {
-    if (!(await adminForApi(['FINANCE']))) return apiError('FORBIDDEN', 'Not allowed', 403);
+    const session = await adminForApi(['FINANCE']);
+    if (!session) return apiError('FORBIDDEN', 'Not allowed', 403);
+    const core = getCore();
     const url = new URL(request.url);
     const sp = Object.fromEntries(url.searchParams.entries());
     const locale = hasLocale(routing.locales, sp.locale) ? sp.locale : routing.defaultLocale;
@@ -28,10 +31,6 @@ export async function GET(request: Request) {
     const rows = await exportTransactions(parseTransactionFilters(sp));
     const orderNumbers = await allocatedOrderNumbers(rows.map((r) => r.tx.id));
     const decimal = locale === 'de' ? ',' : '.';
-    const cell = (value: string | number | null | undefined) => {
-      const s = value === null || value === undefined ? '' : String(value);
-      return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
     const header = [
       t('export.bookingDate'),
       t('export.valueDate'),
@@ -49,11 +48,13 @@ export async function GET(request: Request) {
       t('export.orders'),
       t('export.note'),
     ];
-    const lines = rows.map(({ tx, accountName, iban }) =>
-      [
+    const body = buildCsv(
+      header,
+      rows.map(({ tx, accountName, iban }) => [
         tx.bookingDate,
         tx.valueDate,
-        (tx.amount / 100).toFixed(2).replace('.', decimal),
+        // Amounts stay untouched (negative values start with "-"); all text cells are formula-safe.
+        { raw: (tx.amount / 100).toFixed(2).replace('.', decimal) },
         tx.currency,
         tx.counterpartyName,
         tx.counterpartyIban,
@@ -66,13 +67,13 @@ export async function GET(request: Request) {
         tx.extractedReference,
         (orderNumbers.get(tx.id) ?? []).join(', '),
         tx.reviewNote,
-      ]
-        .map(cell)
-        .join(';'),
+      ]),
     );
-    const body = `﻿${[header.map(cell).join(';'), ...lines].join('\r\n')}\r\n`;
+    await audit(core.db, session, 'bank.transactions.export', 'bank_transaction', null, {
+      rows: rows.length,
+    });
     // Calendar date in the shop time zone (UTC would show yesterday just after midnight).
-    const { defaultTimeZone } = await getSetting(getCore(), 'general');
+    const { defaultTimeZone } = await getSetting(core, 'general');
     const date = new Intl.DateTimeFormat('en-CA', {
       timeZone: defaultTimeZone,
       year: 'numeric',
