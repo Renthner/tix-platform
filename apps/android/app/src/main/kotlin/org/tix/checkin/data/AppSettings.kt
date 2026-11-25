@@ -96,6 +96,12 @@ class AppSettings(context: Context) {
     /** Optional `host:port` of a master when mDNS is blocked on the venue WiFi. */
     val lanManual: StateFlow<String> = _lanManual
 
+    private val _lanStartBlocked = MutableStateFlow(prefs.getBoolean(KEY_LAN_START_BLOCKED, false))
+
+    /** The system refused to start the master's foreground service in the background: shown on the next app open. */
+    val lanStartBlocked: StateFlow<Boolean> = _lanStartBlocked
+    fun setLanStartBlocked(v: Boolean) { _lanStartBlocked.value = v; prefs.edit().putBoolean(KEY_LAN_START_BLOCKED, v).apply() }
+
     /** Seconds the GREEN result stays on screen. */
     val greenSeconds: StateFlow<Int> = _greenSeconds
 
@@ -163,6 +169,7 @@ class AppSettings(context: Context) {
         const val KEY_LAN_MASTER = "lan_master"
         const val KEY_LAN_PORT = "lan_port"
         const val KEY_LAN_MANUAL = "lan_manual"
+        const val KEY_LAN_START_BLOCKED = "lan_start_blocked"
         const val KEY_GREEN = "green_seconds"
         const val KEY_ALERT = "alert_seconds"
         const val KEY_SOUND = "sound"

@@ -51,6 +51,8 @@ data class LanUi(
     val serverError: Boolean = false,
     /** Another master serves the same event(s): the venue's scanners would split between two masters. */
     val duplicateMaster: Boolean = false,
+    /** The system refused to run the master service in the background (see AppSettings.lanStartBlocked). */
+    val startBlocked: Boolean = false,
 )
 
 /**
@@ -160,6 +162,7 @@ class LanManager(
         val available = isAvailable()
         val now = clock.nowMillis()
         val masterRunning = server?.isRunning == true
+        val blocked = settings.lanStartBlocked.value
         _ui.value = when {
             !available -> LanUi(available = false, serverError = serverError)
             masterRunning -> LanUi(
@@ -175,7 +178,7 @@ class LanManager(
                 duplicateMaster = !settings.lanMaster.value &&
                     LanMasterPicker.duplicates(nsd.masters.value.map { it.advert }, lanEventIds()),
             )
-        }
+        }.copy(startBlocked = blocked)
     }
 
     /** DNS-SD: another master than this device advertises one of our events. */

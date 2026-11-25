@@ -53,6 +53,8 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import java.util.concurrent.Executors
 import org.tix.checkin.R
+import org.tix.checkin.core.FrameSelection
+import org.tix.checkin.core.FrameSelector
 import org.tix.checkin.core.ScanDebouncer
 
 private fun Context.hasCameraPermission() =
@@ -70,6 +72,13 @@ fun QrScanner(
     onCode: (String) -> Unit,
     modifier: Modifier = Modifier,
     debounceMillis: Long = 2_000,
+    /**
+     * Pass a debouncer owned by a longer-lived holder (the ViewModel) so it survives layout changes / rotation;
+     * the default lives as long as this composable.
+     */
+    debouncer: ScanDebouncer = remember(debounceMillis) { ScanDebouncer(debounceMillis) },
+    /** Called (main thread) for a frame that shows two or more different codes: nothing is booked for it. */
+    onMultipleCodes: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(context.hasCameraPermission()) }
@@ -83,7 +92,7 @@ fun QrScanner(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { granted = context.hasCameraPermission() }
 
     if (granted) {
-        CameraScanner(onCode, modifier, debounceMillis)
+        CameraScanner(onCode, onMultipleCodes, modifier, debouncer)
     } else {
         Column(
             modifier = modifier.fillMaxSize().padding(24.dp),
@@ -107,11 +116,11 @@ fun QrScanner(
 }
 
 @Composable
-private fun CameraScanner(onCode: (String) -> Unit, modifier: Modifier, debounceMillis: Long) {
+private fun CameraScanner(onCode: (String) -> Unit, onMultipleCodes: () -> Unit, modifier: Modifier, debouncer: ScanDebouncer) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnCode by rememberUpdatedState(onCode)
-    val debouncer = remember(debounceMillis) { ScanDebouncer(debounceMillis) }
+    val currentOnMultiple by rememberUpdatedState(onMultipleCodes)
     var torch by remember { mutableStateOf(false) }
     val viewfinderDescription = stringResource(R.string.scan_viewfinder_description)
     val hasFlash = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH) }
@@ -144,10 +153,11 @@ private fun CameraScanner(onCode: (String) -> Unit, modifier: Modifier, debounce
                 ImageAnalysis.COORDINATE_SYSTEM_VIEW_REFERENCED,
                 mainExecutor,
             ) { result ->
-                val codes = result?.getValue(scanner).orEmpty()
-                for (barcode in codes) {
-                    val value = barcode.rawValue ?: continue
-                    if (debouncer.accept(value)) currentOnCode(value)
+                // One ticket per frame: several different codes are ambiguous and book nothing.
+                when (val s = FrameSelector.select(result?.getValue(scanner).orEmpty().map { it.rawValue })) {
+                    is FrameSelection.Single -> if (debouncer.accept(s.code)) currentOnCode(s.code)
+                    FrameSelection.Multiple -> currentOnMultiple()
+                    FrameSelection.None -> Unit
                 }
             },
         )

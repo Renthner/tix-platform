@@ -103,6 +103,9 @@ again; the visible activity restarts it as well.
   (bound to the request, so an old answer cannot be replayed to a new request).
 - Receiver checks: event known (has a secret), key id, `|ts - now| <= 60 s`, GCM tag, nonce not seen
   (bounded LRU keyed `deviceId:nonce`, filled only after a successful decrypt).
+  The cache is memory-only, so for the first 60 s after the master server started it cannot know what was served
+  before the restart: in that window only requests stamped *after* the start are accepted (bare `401` otherwise; a
+  legitimate client just retries with a fresh stamp), so an envelope captured before the restart cannot be replayed.
 - Every authentication problem is a bare `401` without body. Two cases add `X-Tix-Error` (neither reveals anything
   usable): `key-mismatch` (the key id is a hash prefix; the app shows "LAN key outdated - sync with server") and
   `clock` (the timestamp is outside the 60 s window, checked before any decryption; the app shows "Clock differs from
@@ -127,7 +130,9 @@ All are `POST` (a GET with a body would be non-standard; `hello` is a POST too).
   config forbids is answered `REJECTED_CHECK_OUT_NOT_ALLOWED` (RED) and changes nothing, so a client with a stale
   configuration can never check out where the server forbids it.
   Idempotent per `(deviceId, clientScanId)` (a client that timed out and decided locally with the same id gets the
-  same answer on retry; another device using the same id does not). `state` carries the ticket's check-in fields so
+  same answer on retry; another device using the same id does not). The answer is persisted (Room table
+  `lan_scan_answers`, newest 5000 kept, written in the same transaction as the ticket state), so a retry after a
+  restart of the master gets the stored answer instead of RED "already checked in". `state` carries the ticket's check-in fields so
   the client mirrors them (also for RED results, e.g. already checked in).
 - `/sync`: change feed of tickets whose state changed on the master (scans, reported scans, and status/check-in
   changes learned from the server); `cursor` is a position (`tickets.lanSeq`). `epoch` names the generation of the
@@ -159,8 +164,8 @@ All are `POST` (a GET with a body would be non-standard; `hello` is a POST too).
   bumps `lanSeq`, so cancellations and check-ins made elsewhere reach the LAN clients through the feed.
 - A client adopts a non-VALID status from the master (a tombstone, checked before the time rule, never revived by
   the LAN) and creates a tombstone row for a void ticket it does not know yet, so a scan of it is RED.
-- Room schema v1 (`tickets.lanDirty` / `lanSeq`, `lan_state`, `scan_journal.seq` are part of it; no build was shipped
-  before, so there are no migrations - the first release defines version 1).
+- Room schema: v1 contains `tickets.lanDirty` / `lanSeq`, `lan_state`, `scan_journal.seq`; v4 adds `lan_scan_answers`
+  (`MIGRATION_3_4`, never destructive; exported schema in `app/schemas`).
 
 ## Android
 
@@ -174,6 +179,15 @@ All are `POST` (a GET with a body would be non-standard; `hello` is a POST too).
   configuration to load before starting the server (it never shuts the master down because the configuration is not
   loaded yet). While master mode is on the service also runs the server sync loop, so the master keeps pulling tickets
   and cancellations with the app in the background (it coalesces with the activity's own loop).
+- If the system refuses `startForeground` (e.g. `ForegroundServiceStartNotAllowedException` after a sticky restart in
+  the background), the service stops itself and sets a persistent flag; the scanner screen shows a red line until the
+  operator taps it away (or toggles master mode). The master runs again as soon as the visible app starts it.
+- NSD (client side): a resolved address is accepted only if `LanSourcePolicy.isLanSource` allows it (private,
+  link-local, loopback, ULA), like the server side does for peers. Before Android 14 a pending `resolveService` can
+  block the single-resolve queue forever: each resolve gets a 5 s timeout that resets the flag and continues.
+- A result decided on the device alone because a usable master did not answer in time (or refused) carries
+  `lanFallback` and the result screen shows a subtle "decided on this device (LAN master too slow or unavailable)"
+  line. "No master known" is the normal offline case and shows nothing.
 - While master mode is on the service holds WifiLocks (the WiFi chip would otherwise power-save with the screen off
   and answer other doors with seconds of delay): `WIFI_MODE_FULL_LOW_LATENCY` on API 29+ (the platform applies it only
   while the screen is on and the app is in the foreground) plus `FULL_HIGH_PERF` on API 28-33 (works with the screen off;

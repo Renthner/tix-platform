@@ -213,6 +213,30 @@ class LanMasterTest {
     }
 
     @Test
+    fun `retry after a master restart gets the stored answer, not already checked in`() = runBlocking {
+        fun newMasterProcessor() = LanRequestProcessor(
+            { master.id }, { master.cfg.events[it]?.lanSecret }, clock,
+            LanMasterHandler({ master.cfg }, master.db, master.lock, clock, LanPeers()) { master.id },
+        )
+        var proc = newMasterProcessor()
+        val door = Device("Door A", "a", SECRET, clock, master, masterProcessor = { proc })
+        seed(1, master.db, door.db)
+        val cmd = ScanCommand("scan-1", EVENT_A, ScanAction.CHECK_IN, org.tix.checkin.core.contract.ScanSource.CAMERA, payload = TestKeys.payload(ticketId(1)), scannedAtMillis = clock.nowMillis())
+        val req = LanScanRequest(cmd.toRequest(), "Door A")
+        val r1 = door.client.scan(LanEndpoint("m", 1), EVENT_A, req)
+        assertEquals(ScanResult.ACCEPTED, r1.result)
+
+        proc = newMasterProcessor() // the master process restarted: in-memory caches are gone, the database is not
+        val r2 = door.client.scan(LanEndpoint("m", 1), EVENT_A, req)
+        assertEquals(ScanResult.ACCEPTED, r2.result)
+        assertEquals(1, master.db.tickets.getValue(ticketId(1)).checkInCount)
+
+        // a NEW scan of the same ticket is still RED (no cooldown, no special case)
+        val again = ScanCommand("scan-2", EVENT_A, ScanAction.CHECK_IN, org.tix.checkin.core.contract.ScanSource.CAMERA, payload = TestKeys.payload(ticketId(1)), scannedAtMillis = clock.nowMillis())
+        assertEquals(ScanResult.REJECTED_ALREADY_CHECKED_IN, door.client.scan(LanEndpoint("m", 1), EVENT_A, LanScanRequest(again.toRequest(), "Door A")).result)
+    }
+
+    @Test
     fun `unknown ticket with a valid signature is admitted by the master and visible to the other door`() {
         val a = client("Door A", "a")
         val b = client("Door B", "b")
@@ -230,9 +254,11 @@ class LanMasterTest {
         seed(2, master.db, door.db)
         val viaMaster = door.scan(1)
         assertEquals(DecidedBy.LAN, viaMaster.decidedBy)
+        assertFalse(viaMaster.lanFallback)
         door.wire.up = false
         val alone = door.scan(2)
         assertEquals(DecidedBy.LOCAL, alone.decidedBy)
+        assertTrue(alone.lanFallback) // the master was usable but did not answer: hint on the result
         assertEquals(ScanResult.ACCEPTED, alone.result)
         // The master being unreachable is remembered: the next scan does not even try (no stall).
         assertNull(door.link.usable(EVENT_A))

@@ -429,16 +429,20 @@ class FallbackScanAuthority(
             (command.action == ScanAction.CHECK_IN && dirty.checkInState == CheckInState.CHECKED_IN) ||
                 (command.action == ScanAction.CHECK_OUT && dirty.checkInState != CheckInState.CHECKED_IN)
             )
+        var lanFailed = false
         if (lan != null && !knownRed) {
             try {
                 return lan.scan(command)
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                // master unreachable / refused: decide on this device
+            } catch (e: Exception) {
+                // master unreachable / slow / refused: decide on this device. "No master" or "LAN not applicable"
+                // (LanUnavailableException) is the normal offline case and gets no hint.
+                lanFailed = e is org.tix.checkin.core.lan.LanException
             }
         }
-        return local.scan(command)
+        val verdict = local.scan(command)
+        return if (lanFailed) verdict.copy(lanFallback = true) else verdict
     }
 
     /** The ticket was scanned on this device and that scan is not uploaded yet: the server cannot know it. */

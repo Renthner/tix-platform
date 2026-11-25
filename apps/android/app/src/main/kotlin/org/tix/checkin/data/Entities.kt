@@ -153,6 +153,23 @@ data class TicketFtsEntity(
 @Entity(tableName = "lan_state")
 data class LanStateEntity(@PrimaryKey val id: Int = 1, val seq: Long, val epoch: String)
 
+/**
+ * LAN master: the answer given to a client's scan (`<deviceId>/<clientScanId>` -> response JSON), so a retry after a
+ * restart of the master gets the same answer instead of "already checked in". Bounded (newest [MAX_ROWS] kept),
+ * written in the same transaction as the ticket state. Added in DB v4.
+ */
+@Entity(tableName = "lan_scan_answers", indices = [Index(value = ["answerKey"], unique = true)])
+data class LanScanAnswerEntity(
+    @PrimaryKey(autoGenerate = true) val seq: Long = 0,
+    val answerKey: String,
+    val response: String,
+    val createdAt: Long,
+) {
+    companion object {
+        const val MAX_ROWS = 5_000L
+    }
+}
+
 @Entity(
     tableName = "scan_journal",
     indices = [

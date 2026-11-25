@@ -167,6 +167,16 @@ class FakeDb : ScanStore, JournalUploadStore, TicketSyncStore, LanMasterStore, L
         tickets[ticket.id] = ticket.copy(lanSeq = ++lanSeq)
     }
 
+    /** Persisted LAN scan answers; a test "restarts the master" by building a new handler on the same FakeDb. */
+    val lanAnswers = LinkedHashMap<String, String>()
+
+    override suspend fun lanAnswer(key: String): String? = lanAnswers[key]
+
+    override suspend fun commitLanScan(ticket: LocalTicket?, key: String, answerJson: String, nowMillis: Long) {
+        ticket?.let { commitLan(it) }
+        lanAnswers[key] = answerJson
+    }
+
     override suspend fun lanEpoch() = lanEpoch
 
     override suspend fun epoch(masterId: String, eventId: String) = lanEpochs["$masterId/$eventId"]

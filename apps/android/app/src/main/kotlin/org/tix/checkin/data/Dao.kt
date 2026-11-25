@@ -113,6 +113,14 @@ interface TixDao {
     @Query("DELETE FROM tickets WHERE localDirty = 0 AND lanDirty = 0")
     suspend fun deleteCleanTickets()
 
+    /**
+     * After a wipe of the synced data the retained rows (unsent / LAN-learned) must not win against server rows
+     * of a new sync epoch: the server's syncVersion counter may restart lower, and `Merge.mergeIncoming` ignores
+     * incoming rows with a lower version. Version 0 lets the next sync row merge into them (local check-in kept).
+     */
+    @Query("UPDATE tickets SET syncVersion = 0 WHERE localDirty = 1 OR lanDirty = 1")
+    suspend fun zeroRetainedSyncVersions()
+
     // ─── tickets ───
     @Query("SELECT * FROM tickets WHERE id = :id")
     suspend fun ticket(id: String): TicketEntity?
@@ -170,6 +178,16 @@ interface TixDao {
 
     @Query("SELECT epoch FROM lan_state WHERE id = 1")
     suspend fun lanEpochValue(): String?
+
+    @Query("SELECT response FROM lan_scan_answers WHERE answerKey = :key")
+    suspend fun lanAnswer(key: String): String?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putLanAnswer(answer: LanScanAnswerEntity)
+
+    /** Keeps the newest [keep] answers (bounded table). */
+    @Query("DELETE FROM lan_scan_answers WHERE seq <= (SELECT MAX(seq) FROM lan_scan_answers) - :keep")
+    suspend fun pruneLanAnswers(keep: Long)
 
     /** Offline decisions of this device with journal position > [since]: reported to the LAN master. */
     @Query("SELECT * FROM scan_journal WHERE decidedBy = 'LOCAL' AND eventId = :eventId AND seq > :since ORDER BY seq LIMIT :limit")

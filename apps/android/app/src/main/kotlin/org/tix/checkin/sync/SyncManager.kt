@@ -160,17 +160,36 @@ class SyncManager(
         }
         // A scan answered with 401/403 INVALID_TOKEN / DEVICE_REVOKED: unpair right away instead of waiting for the next sync.
         monitor.onUnauthorized = {
+            clearTokenCache()
             scope.launch {
                 mutex.withLock { if (dao.deviceConfig() != null) requestUnpair(PairingNotice.REVOKED) }
             }
         }
     }
 
+    /**
+     * The decrypted token, kept in memory only (a Keystore decrypt per request is slow on some devices). Keyed by the
+     * stored ciphertext, so a new pairing never reuses an old token; cleared on unpair, revocation and any 401.
+     */
+    private class CachedToken(val cipher: String, val token: String)
+
+    @Volatile
+    private var tokenCache: CachedToken? = null
+
+    private fun cachedToken(cipher: String): String {
+        tokenCache?.takeIf { it.cipher == cipher }?.let { return it.token }
+        return TokenVault.decrypt(cipher).also { tokenCache = CachedToken(cipher, it) }
+    }
+
+    private fun clearTokenCache() {
+        tokenCache = null
+    }
+
     /** @throws TokenUnavailableException when the Keystore cannot decrypt the token (never a reason to unpair). */
     suspend fun session(): Session? {
         val cfg = dao.deviceConfig() ?: return null
         val token = try {
-            TokenVault.decrypt(cfg.tokenCipher)
+            cachedToken(cfg.tokenCipher)
         } catch (e: TokenUnavailableException) {
             if (!_status.value.tokenUnavailable) _status.value = _status.value.copy(tokenUnavailable = true)
             throw e
@@ -221,6 +240,7 @@ class SyncManager(
      * were never uploaded: then nothing is deleted and [unpairBlock] asks the operator (export, then discard).
      */
     suspend fun requestUnpair(notice: String?) {
+        if (notice == PairingNotice.REVOKED) clearTokenCache() // the token is dead
         val unsent = dao.unsentCount()
         if (unsent > 0) {
             dao.setUnpairBlock(true, notice) // persisted: restored on the next app start
@@ -265,6 +285,7 @@ class SyncManager(
             throw e
         } catch (e: ApiException) {
             if (e.isUnauthorized) {
+                clearTokenCache()
                 dao.setUnpairBlock(true, PairingNotice.REVOKED)
                 _unpairBlock.value = UnpairBlock(dao.unsentCount(), PairingNotice.REVOKED)
                 _unpairRetry.value = UnpairRetry()
@@ -297,6 +318,7 @@ class SyncManager(
     suspend fun unpair(notice: String?) {
         _unpairBlock.value = null
         _unpairRetry.value = UnpairRetry()
+        clearTokenCache()
         TokenVault.deleteKey()
         dbLock.withLock { config.wipeAll() }
         store.ensureLanState()

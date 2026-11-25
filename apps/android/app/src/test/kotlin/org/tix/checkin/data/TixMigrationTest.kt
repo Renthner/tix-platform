@@ -141,6 +141,30 @@ class TixMigrationTest {
     }
 
     @Test
+    fun migration3To4AddsLanAnswersAndKeepsAllRows() {
+        helper.createDatabase(dbName, 3).use { db ->
+            insertSampleRows(db)
+            insertTicket(db, "t1", "ABCDE12345", "Erika Mustermann", "Stalls", "B", "7")
+        }
+
+        val db = helper.runMigrationsAndValidate(dbName, 4, true, MIGRATION_3_4)
+
+        for (table in tables) assertEquals("rows in $table", if (table == "tickets") 2 else 1, count(db, table))
+        assertEquals(0, count(db, "lan_scan_answers"))
+        // the table works as the DAO uses it: unique key, newest rows kept
+        db.execSQL("INSERT INTO lan_scan_answers (answerKey, response, createdAt) VALUES ('a/1', '{}', 1)")
+        db.execSQL("INSERT OR REPLACE INTO lan_scan_answers (answerKey, response, createdAt) VALUES ('a/1', '{\"x\":1}', 2)")
+        assertEquals(1, count(db, "lan_scan_answers"))
+        db.query("SELECT response FROM lan_scan_answers WHERE answerKey = 'a/1'").use {
+            assertTrue(it.moveToFirst()); assertEquals("{\"x\":1}", it.getString(0))
+        }
+        // unsent journal untouched
+        db.query("SELECT clientScanId FROM scan_journal").use {
+            assertTrue(it.moveToFirst()); assertEquals("v-scan_journal-clientScanId", it.getString(0))
+        }
+    }
+
+    @Test
     fun currentDatabaseOpensThroughRoomWithAllMigrations() {
         helper.createDatabase(dbName, 1).use { insertSampleRows(it) }
 

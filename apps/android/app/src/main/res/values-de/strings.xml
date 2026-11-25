@@ -240,4 +240,7 @@
     <string name="unpair_blocked_refused">Der Server hat die übrigen Scans abgelehnt, sie werden nicht erneut versucht. Als Datei exportieren oder verwerfen.</string>
     <string name="unpair_blocked_last_error">Letzter Versuch fehlgeschlagen: %1$s</string>
     <string name="unpair_blocked_cancel">Abbrechen, nicht entkoppeln</string>
+    <string name="scan_multiple_codes">Mehrere QR-Codes im Bild – scanne bitte ein Ticket nach dem anderen</string>
+    <string name="result_lan_fallback">Auf diesem Gerät entschieden (LAN-Master zu langsam oder nicht erreichbar)</string>
+    <string name="lan_master_start_blocked">Das System hat den LAN-Master im Hintergrund blockiert, er wurde beendet. Lass die App geöffnet und prüfe den LAN-Status. Zum Schließen tippen.</string>
 </resources>

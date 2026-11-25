@@ -185,6 +185,27 @@ class LanEnvelopeTest {
     }
 
     @Test
+    fun `after a restart a request captured before it is not replayable, a fresh one works`() = runBlocking {
+        val w = Wire()
+        client(w).call(ep, "/lan/v1/scan", "E", "a".toByteArray(), 500)
+        val capturedHeaders = w.lastHeaders
+        val capturedBody = w.lastBody
+        clock.t += 10_000 // master restarts 10 s later: empty nonce cache, still inside the 60 s window of the old request
+        val restarted = LanRequestProcessor({ "master" }, { if (it == "E") secret else null }, clock, echo)
+        assertEquals(401, restarted.process("POST", "/lan/v1/scan", capturedHeaders, capturedBody).status)
+        assertEquals(1, echo.calls)
+        // a legitimate client sends its next request with a fresh stamp
+        val viaRestarted = object : LanWire {
+            override suspend fun post(host: String, port: Int, path: String, headers: Map<String, String>, body: ByteArray, timeoutMillis: Long) =
+                restarted.process("POST", path, headers, body)
+        }
+        assertEquals("cba", client(viaRestarted).call(ep, "/lan/v1/scan", "E", "abc".toByteArray(), 500).toString(Charsets.UTF_8))
+        // after the warm-up window the normal rules apply again
+        clock.t += 61_000
+        assertEquals("cba", client(viaRestarted).call(ep, "/lan/v1/scan", "E", "abc".toByteArray(), 500).toString(Charsets.UTF_8))
+    }
+
+    @Test
     fun `tampered body, path or method is refused`() = runBlocking {
         val w = Wire()
         client(w).call(ep, "/lan/v1/scan", "E", "a".toByteArray(), 500)

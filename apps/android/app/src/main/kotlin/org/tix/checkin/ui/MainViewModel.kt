@@ -203,7 +203,10 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
     // ─── LAN ───
     val lanState: StateFlow<org.tix.checkin.lan.LanUi> = c.lan.ui
 
+    fun dismissLanStartBlocked() = settings.setLanStartBlocked(false)
+
     fun setLanMaster(enabled: Boolean) {
+        settings.setLanStartBlocked(false)
         c.lan.retryMaster()
         settings.setLanMaster(enabled)
         if (enabled && c.lan.isAvailable()) {
@@ -267,6 +270,29 @@ class MainViewModel(private val app: Application, private val c: AppContainer) :
     }
 
     // ─── scanning ───
+
+    /**
+     * Repeat suppression for the live camera (same code in view). Held here, not in the composable, so a rotation /
+     * layout change does not forget a code that is still in front of the camera. Only suppresses while the code stays
+     * in view; there is no cooldown after a verdict - a rescan after the camera lost the code is a new scan.
+     */
+    val scanDebouncer = org.tix.checkin.core.ScanDebouncer(2_500)
+
+    private val _multiCodeHint = MutableStateFlow<Long?>(null)
+
+    /** Non-null while a frame with several different codes was seen recently; the value changes with every such frame. */
+    val multiCodeHint: StateFlow<Long?> = _multiCodeHint
+    private var multiSeq = 0L
+
+    /** A frame showed two or more different QR codes: nothing is booked, the operator is told to scan one at a time. */
+    fun onMultipleCodes() {
+        if (unpairBlock.value != null) return
+        _multiCodeHint.value = ++multiSeq
+    }
+
+    fun clearMultiCodeHint(seq: Long) {
+        if (_multiCodeHint.value == seq) _multiCodeHint.value = null
+    }
 
     fun onCode(raw: String) {
         if (unpairBlock.value != null) return // scanning is disabled while an unpair waits for the operator

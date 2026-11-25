@@ -143,6 +143,11 @@ data class ScanVerdict(
      * the last sync). [result] stays REJECTED_INVALID_SIGNATURE (log contract); the UI shows a distinct hint.
      */
     val unknownKey: Boolean = false,
+    /**
+     * A LAN master was known and usable but did not answer in time (or refused): this device decided alone.
+     * The UI shows a subtle hint; the decision itself is a normal local one.
+     */
+    val lanFallback: Boolean = false,
 )
 
 /** One scan, before it is decided. */

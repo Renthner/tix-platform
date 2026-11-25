@@ -45,7 +45,8 @@ class AppContainer(private val app: Application) {
 
     val store = RoomStore(db, appVersion = BuildConfig.VERSION_CODE, clearLanCursors = settings::clearLanCursors)
     val config = ConfigRepository(db)
-    val clock = OffsetClock()
+    // Monotonic (counts deep sleep): a wall-clock change after the server time was learned cannot move scan times.
+    val clock = OffsetClock(mono = android.os.SystemClock::elapsedRealtime)
     val monitor = ConnectionMonitor(app)
     val feedback = Feedback(app)
 

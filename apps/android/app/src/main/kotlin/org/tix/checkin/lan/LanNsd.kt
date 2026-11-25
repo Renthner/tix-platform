@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import org.tix.checkin.core.lan.LAN_SERVICE_TYPE
 import org.tix.checkin.core.lan.LanAdvert
 import org.tix.checkin.core.lan.LanEndpoint
+import org.tix.checkin.core.lan.LanSourcePolicy
 
 /** A master seen on the network. */
 data class LanFound(val endpoint: LanEndpoint, val advert: LanAdvert)
@@ -38,6 +39,8 @@ class LanNsd(context: Context) {
     // Android < 14: one resolve at a time.
     private val resolveQueue = ArrayDeque<NsdServiceInfo>()
     private var resolving = false
+    private var resolveGeneration = 0L
+    private val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val infoCallbacks = HashMap<String, NsdManager.ServiceInfoCallback>()
 
     @Synchronized
@@ -181,8 +184,24 @@ class LanNsd(context: Context) {
             if (resolving) return
             val n = resolveQueue.removeFirstOrNull() ?: return
             resolving = true
+            resolveGeneration++
             n
         }
+        val generation = synchronized(this) { resolveGeneration }
+        // Before Android 14 a resolve can stay pending forever (neither callback fires) and would block every later
+        // one: give up after RESOLVE_TIMEOUT_MILLIS, reset the flag and go on with the queue.
+        val timeout = Runnable {
+            val stale = synchronized(this@LanNsd) {
+                if (resolving && resolveGeneration == generation) {
+                    resolving = false
+                    true
+                } else {
+                    false
+                }
+            }
+            if (stale) resolveNext()
+        }
+        timeoutHandler.postDelayed(timeout, RESOLVE_TIMEOUT_MILLIS)
         try {
             m.resolveService(
                 next,
@@ -194,13 +213,23 @@ class LanNsd(context: Context) {
                     }
 
                     private fun done() {
-                        synchronized(this@LanNsd) { resolving = false }
-                        resolveNext()
+                        timeoutHandler.removeCallbacks(timeout)
+                        // A callback of a resolve that already timed out must not clear the flag of the current one.
+                        val current = synchronized(this@LanNsd) {
+                            if (resolveGeneration == generation) {
+                                resolving = false
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        if (current) resolveNext()
                     }
                 },
             )
         } catch (_: RuntimeException) {
-            synchronized(this) { resolving = false }
+            timeoutHandler.removeCallbacks(timeout)
+            synchronized(this) { if (resolveGeneration == generation) resolving = false }
         }
     }
 
@@ -215,6 +244,8 @@ class LanNsd(context: Context) {
                 info.host?.takeIf { it is Inet4Address }
             }
             ) ?: return
+        // Only local-network addresses: a spoofed or misconfigured advert must not point the client elsewhere.
+        if (!LanSourcePolicy.isLanSource(address)) return
         val host = address.hostAddress ?: return
         synchronized(this) {
             found[info.serviceName] = LanFound(LanEndpoint(host, info.port, advert.deviceId, advert.name), advert)
@@ -227,5 +258,9 @@ class LanNsd(context: Context) {
             found.remove(serviceName)
             _masters.value = found.values.toList()
         }
+    }
+
+    private companion object {
+        const val RESOLVE_TIMEOUT_MILLIS = 5_000L
     }
 }

@@ -149,7 +149,7 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit, onOpenSettings: 
                     },
                     style = MaterialTheme.typography.bodySmall,
                 )
-                LanStatusLine(lan)
+                LanStatusLine(lan, onDismissStartBlocked = vm::dismissLanStartBlocked)
                 versionHint?.let { VersionHintStrip(it, onOpenSettings) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
@@ -169,19 +169,43 @@ fun ScannerScreen(vm: MainViewModel, onChooseEvent: () -> Unit, onOpenSettings: 
         }
     }
     // Switching layouts recreates the QrScanner; its DisposableEffect unbinds and rebinds the camera to the lifecycle.
+    val multiHint by vm.multiCodeHint.collectAsState()
+    LaunchedEffect(multiHint) {
+        val seq = multiHint ?: return@LaunchedEffect
+        delay(2_000) // restarted by every frame that still shows several codes
+        vm.clearMultiCodeHint(seq)
+    }
+    val scannerArea: @Composable (Modifier) -> Unit = { areaModifier ->
+        Box(areaModifier) {
+            QrScanner(
+                onCode = vm::onCode, modifier = Modifier.fillMaxSize(),
+                debouncer = vm.scanDebouncer, onMultipleCodes = vm::onMultipleCodes,
+            )
+            if (multiHint != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.scan_multiple_codes),
+                        style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    )
+                }
+            }
+        }
+    }
     if (wide) {
         Row(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f).fillMaxHeight()) {
-                QrScanner(onCode = vm::onCode, modifier = Modifier.fillMaxSize(), debounceMillis = 2_500)
-            }
+            scannerArea(Modifier.weight(1f).fillMaxHeight())
             statusPanel(Modifier.width(340.dp).fillMaxHeight())
         }
     } else {
         Column(Modifier.fillMaxSize()) {
             statusPanel(Modifier)
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                QrScanner(onCode = vm::onCode, modifier = Modifier.fillMaxSize(), debounceMillis = 2_500)
-            }
+            scannerArea(Modifier.weight(1f).fillMaxWidth())
         }
     }
 }
@@ -351,6 +375,9 @@ private fun ResultDetails(v: ScanVerdict, style: ResultStyle, fg: Color) {
     if (v.decidedBy != DecidedBy.SERVER && v.notice == null) {
         Text(stringResource(if (v.decidedBy == DecidedBy.LAN) R.string.result_lan_decision else R.string.result_offline_decision), style = MaterialTheme.typography.bodyMedium, color = fg.copy(alpha = 0.85f))
     }
+    if (v.lanFallback && v.notice == null) {
+        Text(stringResource(R.string.result_lan_fallback), style = MaterialTheme.typography.bodySmall, color = fg.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+    }
     if (v.notice == org.tix.checkin.core.scan.VerdictNotice.OFFLINE_NOT_ALLOWED) {
         Text(stringResource(R.string.verdict_offline_not_allowed_hint), style = MaterialTheme.typography.bodyLarge, color = fg, textAlign = TextAlign.Center)
     }
@@ -358,7 +385,15 @@ private fun ResultDetails(v: ScanVerdict, style: ResultStyle, fg: Color) {
 
 /** LAN state in the status bar: nothing while LAN is not available for this device. */
 @Composable
-fun LanStatusLine(lan: org.tix.checkin.lan.LanUi) {
+fun LanStatusLine(lan: org.tix.checkin.lan.LanUi, onDismissStartBlocked: (() -> Unit)? = null) {
+    // The system refused the master's background service earlier: remembered until the operator taps it away.
+    if (lan.startBlocked) {
+        Text(
+            stringResource(R.string.lan_master_start_blocked),
+            style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = RedBg,
+            modifier = if (onDismissStartBlocked != null) Modifier.clickable(onClick = onDismissStartBlocked) else Modifier,
+        )
+    }
     if (!lan.available) return
     // Two masters for one event split the venue: shown prominently on every device that notices it.
     if (lan.duplicateMaster) {

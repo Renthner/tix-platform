@@ -66,6 +66,16 @@ class RoomStore(
         db.withTransaction { dao.putTicket(ticket.copy(lanSeq = reserveLanSeq(1)).toEntity()) }
     }
 
+    override suspend fun lanAnswer(key: String): String? = dao.lanAnswer(key)
+
+    override suspend fun commitLanScan(ticket: LocalTicket?, key: String, answerJson: String, nowMillis: Long) {
+        db.withTransaction {
+            if (ticket != null) dao.putTicket(ticket.copy(lanSeq = reserveLanSeq(1)).toEntity())
+            dao.putLanAnswer(LanScanAnswerEntity(answerKey = key, response = answerJson, createdAt = nowMillis))
+            dao.pruneLanAnswers(LanScanAnswerEntity.MAX_ROWS)
+        }
+    }
+
     override suspend fun changedSince(eventId: String, seq: Long, limit: Int) =
         dao.changedSince(eventId, seq, limit).map { it.toLocal() }
 
@@ -140,6 +150,7 @@ class RoomStore(
     suspend fun resetSyncData(newEpoch: String?) {
         db.withTransaction {
             dao.deleteCleanTickets()
+            dao.zeroRetainedSyncVersions()
             dao.clearSyncStates()
             dao.deviceConfig()?.let { dao.putDeviceConfig(it.copy(syncEpoch = newEpoch ?: it.syncEpoch)) }
         }

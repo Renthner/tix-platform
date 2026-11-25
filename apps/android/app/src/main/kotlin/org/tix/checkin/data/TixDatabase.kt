@@ -10,9 +10,9 @@ import org.tix.checkin.core.scan.LocalSearch
     entities = [
         DeviceConfigEntity::class, EventEntity::class, KeyEntity::class, TicketTypeEntity::class,
         CategoryEntity::class, EntranceEntity::class, SectionEntity::class, SyncStateEntity::class,
-        TicketEntity::class, JournalEntity::class, LanStateEntity::class, TicketFtsEntity::class,
+        TicketEntity::class, JournalEntity::class, LanStateEntity::class, TicketFtsEntity::class, LanScanAnswerEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class TixDatabase : RoomDatabase() {
@@ -88,5 +88,19 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     private fun android.database.Cursor.getStringOrNull(i: Int): String? = if (isNull(i)) null else getString(i)
 }
 
+/**
+ * v3 -> v4: persistent idempotency table of the LAN master (`lan_scan_answers`). New table only (SQL as in schema 4.json);
+ * nothing existing is touched.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `lan_scan_answers` (`seq` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`answerKey` TEXT NOT NULL, `response` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)",
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_lan_scan_answers_answerKey` ON `lan_scan_answers` (`answerKey`)")
+    }
+}
+
 /** Every migration, in one place: the app and the migration test both use this list. Never add a destructive fallback. */
-val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)

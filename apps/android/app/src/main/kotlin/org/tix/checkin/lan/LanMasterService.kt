@@ -55,10 +55,18 @@ class LanMasterService : Service() {
             .setContentIntent(open)
             .setOngoing(true)
             .build()
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        val container = (application as TixApplication).container
+        try {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        } catch (e: Exception) {
+            // ForegroundServiceStartNotAllowedException (background start restrictions, Android 12+), SecurityException
+            // (type / permission), ...: no master without the foreground state. Remember it for the next app open.
+            container.settings.setLanStartBlocked(true)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         // Held for the whole master mode, released in onDestroy (also when startMaster fails and the service stops itself).
         (locks ?: MasterLocks(this).also { locks = it }).acquire()
-        val container = (application as TixApplication).container
         val lan = container.lan
         // The wake lock has a safety timeout: renew it hourly so a long event night never loses it.
         renewal?.cancel()

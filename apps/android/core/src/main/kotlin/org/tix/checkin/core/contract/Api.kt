@@ -87,11 +87,41 @@ fun interface Clock {
     fun nowMillis(): Long
 }
 
-class OffsetClock(@Volatile var offsetMillis: Long = 0L) : Clock {
-    override fun nowMillis(): Long = System.currentTimeMillis() + offsetMillis
+/**
+ * Server-corrected "now". Once the server time is known (or an offset restored) it is anchored to a monotonic
+ * source: `now = serverTimeAtAnchor + (mono() - monoAtAnchor)`. A later change of the device's wall clock
+ * (manual time change, NTP jump, time zone switch) therefore cannot move the scan timestamps. Before the first
+ * anchor the clock follows the wall clock. [mono] must keep counting in sleep (the app passes
+ * `SystemClock.elapsedRealtime`); the JVM default is only for tests and tools.
+ */
+class OffsetClock(
+    offsetMillis: Long? = null,
+    private val wall: () -> Long = System::currentTimeMillis,
+    private val mono: () -> Long = { System.nanoTime() / 1_000_000 },
+) : Clock {
+    private class Anchor(val serverMillis: Long, val monoMillis: Long)
+
+    @Volatile
+    private var anchor: Anchor? = null
+
+    override fun nowMillis(): Long {
+        val a = anchor ?: return wall()
+        return a.serverMillis + (mono() - a.monoMillis)
+    }
+
+    /** Current offset to the device's wall clock (what is persisted); setting it anchors the clock "now". */
+    var offsetMillis: Long
+        get() = nowMillis() - wall()
+        set(value) {
+            anchor = Anchor(wall() + value, mono())
+        }
+
+    init {
+        if (offsetMillis != null) this.offsetMillis = offsetMillis
+    }
 
     /** Learns the offset from a `serverTime` value received "now". */
     fun learn(serverTime: String?) {
-        Iso.parseMillis(serverTime)?.let { offsetMillis = it - System.currentTimeMillis() }
+        Iso.parseMillis(serverTime)?.let { anchor = Anchor(it, mono()) }
     }
 }

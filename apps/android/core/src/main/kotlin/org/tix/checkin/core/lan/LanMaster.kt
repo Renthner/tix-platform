@@ -27,6 +27,16 @@ interface LanMasterStore : ScanStore {
      */
     suspend fun commitLan(ticket: LocalTicket)
 
+    /** The stored answer (JSON of the response) to a LAN scan with this key, or null. Survives a restart of the master. */
+    suspend fun lanAnswer(key: String): String?
+
+    /**
+     * Atomically writes the ticket state of a decided LAN scan (like [commitLan]; null = nothing to write, e.g. a
+     * rejection) and remembers the answer under [key], so a retry of the same scan after a master restart gets the
+     * same answer instead of "already checked in". The store keeps a bounded number of the newest answers.
+     */
+    suspend fun commitLanScan(ticket: LocalTicket?, key: String, answerJson: String, nowMillis: Long)
+
     /** Tickets of [eventId] changed on this device with feed position > [seq], ascending. */
     suspend fun changedSince(eventId: String, seq: Long, limit: Int): List<LocalTicket>
 
@@ -79,6 +89,7 @@ class LanPeers {
     }
 }
 
+/** Bounded map; used for the push idempotency memory (scan answers are persisted by the store). */
 private class Lru<V>(private val capacity: Int) {
     private val map = object : LinkedHashMap<String, V>(64, 0.75f, false) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, V>?) = size > capacity
@@ -104,7 +115,6 @@ class LanMasterHandler(
     private val selfDeviceId: () -> String,
 ) : LanHandler {
     private val local = LocalScanAuthority(config, store, lock)
-    private val answers = Lru<ByteArray>(2_000)
     private val pushed = Lru<Boolean>(5_000)
 
     override suspend fun handle(path: String, eventId: String, deviceId: String, body: ByteArray): ByteArray {
@@ -151,12 +161,12 @@ class LanMasterHandler(
         return lock.withLock {
             // A retry of a scan we already decided (the client timed out) gets the same answer.
             val answerKey = "$deviceId/${sr.clientScanId}"
-            answers[answerKey]?.let { return@withLock ScannerJson.decodeFromString<LanScanResponse>(it.toString(Charsets.UTF_8)) }
+            // The answer is persisted in the same transaction as the ticket state: also valid after a master restart.
+            store.lanAnswer(answerKey)?.let { return@withLock ScannerJson.decodeFromString<LanScanResponse>(it) }
             // Check-out permission = the master's own server-provided event flag (checkOutAllowed stays null, like a
             // client checks its own flag before asking): the venue never checks out where the server forbids it.
             // The envelope's event is authenticated (its key opened the message): a ticket of any other event is RED.
             val d = local.decide(cmd, DecideContext(req.deviceName, sr.entranceId, lan = true), expectedEventId = eventId)
-            d.updated?.let { store.commitLan(it) }
             val v = d.verdict
             val cfg = config()
             val response = LanScanResponse(
@@ -164,7 +174,7 @@ class LanMasterHandler(
                 warningTexts = v.warningTexts, ticket = v.ticket, firstScan = v.firstScan,
                 state = d.current?.let { stateOf(cfg, it) }, provisional = v.provisional,
             )
-            answers[answerKey] = encode(response)
+            store.commitLanScan(d.updated, answerKey, ScannerJson.encodeToString(response), clock.nowMillis())
             response
         }
     }

@@ -240,4 +240,7 @@
     <string name="unpair_blocked_refused">The server refused the remaining scans, so they will not be retried. Export them as a file or discard them.</string>
     <string name="unpair_blocked_last_error">Last attempt failed: %1$s</string>
     <string name="unpair_blocked_cancel">Cancel, do not unpair</string>
+    <string name="scan_multiple_codes">Several QR codes in view – scan one ticket at a time</string>
+    <string name="result_lan_fallback">Decided on this device (LAN master too slow or unavailable)</string>
+    <string name="lan_master_start_blocked">The system blocked the LAN master in the background, so it was stopped. Keep this app open and check the LAN status. Tap to dismiss.</string>
 </resources>

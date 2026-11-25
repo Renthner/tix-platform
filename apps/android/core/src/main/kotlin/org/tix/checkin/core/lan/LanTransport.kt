@@ -103,6 +103,14 @@ class LanRequestProcessor(
     private val replay: NonceCache = NonceCache(),
     private val onAuthenticated: (deviceId: String) -> Unit = {},
 ) {
+    /**
+     * The nonce cache lives in memory only: after a restart it cannot tell whether a request inside the clock window
+     * was already served before. For the first [LanCrypto.CLOCK_WINDOW_MILLIS] only requests stamped after this start
+     * are accepted (a replay of an envelope captured before the restart carries an older stamp); a legitimate client
+     * simply sends its next request with a fresh stamp.
+     */
+    private val startedAt = clock.nowMillis()
+
     suspend fun process(method: String, path: String, headers: Map<String, String>, body: ByteArray): WireResponse {
         val eventId = headers[LanCrypto.HEADER_EVENT]
         val deviceId = headers[LanCrypto.HEADER_DEVICE]
@@ -121,6 +129,7 @@ class LanRequestProcessor(
         val key = LanCrypto.deriveKey(secret)
         val plain = LanCrypto.open(key, nonce, LanCrypto.requestAad(method, path, eventId, ts, deviceId), body)
             ?: return unauthorized()
+        if (now - startedAt <= LanCrypto.CLOCK_WINDOW_MILLIS && ts < startedAt) return unauthorized() // warm-up, see startedAt
         if (!replay.checkAndAdd("$deviceId:$nonceText", now)) return unauthorized()
         onAuthenticated(deviceId)
 
