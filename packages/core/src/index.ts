@@ -70,6 +70,7 @@ export * from './orders/admin';
 export * from './orders/refunds';
 export * from './orders/event-cancellation';
 export * from './orders/event-mailing';
+export * from './orders/event-holders';
 export * from './orders/email-change';
 export * from './orders/communication';
 export * from './orders/refund-reconcile';

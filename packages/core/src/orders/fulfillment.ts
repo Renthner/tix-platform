@@ -18,7 +18,11 @@ import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage, type EmailRequest } from '../email';
 import { QUEUE_NAMES } from '../job-queues';
 import { publishSeatDelta } from '../realtime';
-import { dispatchMessages, queueHolderCancelledMails } from '../tickets/holder-mail';
+import {
+  dispatchMessages,
+  queueHolderCancelledMails,
+  type HolderTicketRef,
+} from '../tickets/holder-mail';
 import { voidTicketsForItems } from '../tickets/issue';
 import { currentPaidCycle, orderPaidJobId } from './paid-cycle';
 
@@ -365,6 +369,12 @@ export interface CancelOrderParams {
    * the order holds no active items of events other than `eventId` (those need a manual decision).
    */
   onlyIfNothingPaid?: { eventId: string };
+  /**
+   * Replaces the standard "ticket no longer valid" mail to the holders of voided passed-on tickets
+   * (e.g. EVENT_CANCELLED_HOLDER of the cancellation assistant). Runs in the cancellation
+   * transaction and returns the outbox ids to dispatch after the commit.
+   */
+  holderNotice?: (tx: Executor, holders: HolderTicketRef[]) => Promise<string[]>;
 }
 
 /**
@@ -443,7 +453,9 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
       items.map((i) => i.id),
       'CANCELLED',
     );
-    const holderMessageIds = await queueHolderCancelledMails(ctx, tx, voided.holders);
+    const holderMessageIds = params.holderNotice
+      ? await params.holderNotice(tx, voided.holders)
+      : await queueHolderCancelledMails(ctx, tx, voided.holders);
     // Standing areas: give the spots back to the DB capacity counter.
     const gaBySection = new Map<string, number>();
     for (const item of items) {

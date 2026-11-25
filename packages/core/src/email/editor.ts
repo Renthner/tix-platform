@@ -294,11 +294,14 @@ export function sampleEmailVariables(
     transferMessage: locale === 'de' ? 'Viel Spaß bei der Show!' : 'Enjoy the show!',
     ticketPlace: s.seat,
     ticketCode: 'SAMPLE-1',
-    ticketPageUrl: `${base}/tickets/sample-token`,
+    // The buyer version of the event notices shows the order link, not a holder ticket link.
+    ticketPageUrl:
+      key === 'EVENT_MESSAGE' || key === 'EVENT_POSTPONED' ? null : `${base}/tickets/sample-token`,
     ticketPdfUrl: `${base}/api/tickets/sample/pdf?t=sample-token`,
     appleWalletUrl: 'https://wallet.example.org/pass',
     googleWalletUrl: 'https://wallet.example.org/pass',
     newHolderEmail: 'robin.example@example.org',
+    ticketHolder: null,
     sentAt: locale === 'de' ? '01.03.2026, 12:00 Uhr' : '1 March 2026, 12:00 PM',
     eventCancellationReason: locale === 'de' ? 'Krankheit im Ensemble' : 'Illness in the cast',
     eventNewDate: locale === 'de' ? '15.09.2026, 20:00 Uhr' : '15 September 2026, 8:00 PM',

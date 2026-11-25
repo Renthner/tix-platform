@@ -65,17 +65,17 @@ as intended, but the person turning the switch on should have set theirs up firs
 
 SUPER_ADMIN may do everything. For the other roles:
 
-| Action                                                                                                 | Event manager | Finance | Door staff |
-| ------------------------------------------------------------------------------------------------------ | :-----------: | :-----: | :--------: |
-| View orders, resend e-mails / tickets, internal note, keep reserved                                    |      yes      |   yes   |     no     |
-| Cancel unpaid orders                                                                                   |      yes      |   yes   |     no     |
-| Cancel paid orders / single tickets (credit note, refund rows)                                         |      yes      |   yes   |     no     |
-| Record bank / cash / card payments (also for additional payments)                                      |      yes      |   yes   |     no     |
-| Change the buyer e-mail of an order, message the buyer of one order, send a failed order e-mail again  |      yes      |   yes   |     no     |
-| Message all buyers of an event (event mailing, incl. test mail), postpone an event (with buyer notice) |      yes      |   no    |     no     |
-| Event cancellation assistant (cancel event, refund all orders)                                         |      yes      |   no    |     no     |
-| Mark refunds as done, retry refunds, refund overpayments, reverse bank allocations                     |      no       |   yes   |     no     |
-| Banking, accounting export, fees and tax rates (editing)                                               |      no       |   yes   |     no     |
+| Action                                                                                                                   | Event manager | Finance | Door staff |
+| ------------------------------------------------------------------------------------------------------------------------ | :-----------: | :-----: | :--------: |
+| View orders, resend e-mails / tickets, internal note, keep reserved                                                      |      yes      |   yes   |     no     |
+| Cancel unpaid orders                                                                                                     |      yes      |   yes   |     no     |
+| Cancel paid orders / single tickets (credit note, refund rows)                                                           |      yes      |   yes   |     no     |
+| Record bank / cash / card payments (also for additional payments)                                                        |      yes      |   yes   |     no     |
+| Change the buyer e-mail of an order, message the buyer of one order, send a failed order e-mail again                    |      yes      |   yes   |     no     |
+| Message all buyers of an event (event mailing, incl. test mail), postpone an event (with buyer and ticket holder notice) |      yes      |   no    |     no     |
+| Event cancellation assistant (cancel event, refund all orders)                                                           |      yes      |   no    |     no     |
+| Mark refunds as done, retry refunds, refund overpayments, reverse bank allocations                                       |      no       |   yes   |     no     |
+| Banking, accounting export, fees and tax rates (editing)                                                                 |      no       |   yes   |     no     |
 
 Event mailings, postponement and the cancellation assistant live on the event, so they follow the
 event permission (event managers); finance only writes to the buyer of a single order. The refunds

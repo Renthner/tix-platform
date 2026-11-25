@@ -138,10 +138,16 @@ export const EMAIL_VARIABLES = {
     'appleWalletUrl',
     'googleWalletUrl',
     'newHolderEmail',
+    // EVENT_POSTPONED / EVENT_MESSAGE to the holder of a passed-on ticket ("yes"; holders get the
+    // ticket page instead of the order link).
+    'ticketHolder',
   ],
   account: ['verificationUrl', 'resetUrl', 'loginUrl', 'inviteUrl', 'expiresAt'],
   smtpTest: ['sentAt'],
-  /** EVENT_CANCELLED / EVENT_POSTPONED: passed by the event flows (an order can span several events). */
+  /**
+   * EVENT_CANCELLED / EVENT_POSTPONED / EVENT_CANCELLED_HOLDER: passed by the event flows (an order
+   * can span several events).
+   */
   event: [
     'eventCancellationReason',
     'eventNewDate',

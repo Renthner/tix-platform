@@ -69,7 +69,7 @@
   "cancellation": {
     "title": "Cancel event",
     "titleCancelled": "Event cancelled",
-    "description": "Cancels all orders of this event, refunds paid tickets and informs every buyer.",
+    "description": "Cancels all orders of this event, refunds paid tickets and informs every buyer and the holders of passed-on tickets (their refund goes to the buyer).",
     "descriptionCancelled": "Shows the cancellation runs. Run the assistant again to pick up orders that are left.",
     "open": "Cancel event…",
     "rerun": "Run again",
@@ -79,7 +79,7 @@
     "reason": "Reason (shown to buyers)",
     "reasonHint": "Optional, included in the e-mail.",
     "refundFees": "Refund service fees as well",
-    "notify": "Send an e-mail to every affected buyer",
+    "notify": "Send the cancellation e-mail to every affected buyer and ticket holder (without it, holders still get the standard \"ticket no longer valid\" mail)",
     "understood": "I understand that orders are cancelled and money is refunded.",
     "back": "Back",
     "start": "Cancel event and orders",
@@ -108,18 +108,18 @@
   "postpone": {
     "title": "Postpone event",
     "titlePostponed": "Event postponed",
-    "description": "Tickets stay valid. Optionally tell all buyers the new date.",
+    "description": "Tickets stay valid. Optionally tell all buyers and holders of passed-on tickets the new date.",
     "newDate": "New date ({timeZone})",
     "newDateHint": "Optional. Change the real date in the event details.",
     "note": "Note for buyers",
-    "notify": "Send an e-mail to all buyers",
+    "notify": "Send an e-mail to all buyers and ticket holders",
     "postpone": "Postpone",
     "update": "Save and notify",
     "saving": "Saving…"
   },
   "mailing": {
     "title": "Message to buyers",
-    "description": "Sends an e-mail to the buyers of this event. Every address receives it once.",
+    "description": "Sends an e-mail to the buyers of this event and the holders of passed-on tickets (with their ticket link instead of the order). Every address receives it once.",
     "audience": "Recipients",
     "audiences": {
       "PAID": "All paid orders",

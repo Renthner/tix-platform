@@ -19,6 +19,8 @@ import { formatDateTime } from '../format';
 import { QUEUE_NAMES } from '../job-queues';
 import { coreLog } from '../log';
 import { getSetting } from '../settings';
+import { holderTicketUrls } from '../tickets/holder';
+import { loadEventHolderRecipients } from './event-holders';
 import { changeEventStatus } from './test-orders';
 
 /**
@@ -28,8 +30,10 @@ import { changeEventStatus } from './test-orders';
  * Audiences: PAID = orders with paid, active tickets of the event; ACTIVE = additionally unpaid
  * orders that still hold tickets; CATEGORY = active tickets (paid or not) of one price category.
  * One mail per e-mail address (case-insensitive) and mailing, to the buyer's newest matching order
- * (so the mail's order link / locale make sense). Test orders and box-office sales without an
- * address never receive anything.
+ * (so the mail's order link / locale make sense). Holders of passed-on tickets that fall in the
+ * audience (CATEGORY: the ticket's category) are recipients too – deduplicated against buyers and
+ * each other, without the order link (they get their ticket page). Test orders and box-office
+ * sales without an address never receive anything.
  *
  * Sending is chunked and resumable: each recipient is claimed with an insert on
  * `event_mailing_recipients` (unique per mailing and address hash) in the same transaction as its
@@ -50,8 +54,11 @@ export interface MailingAudienceInput {
 
 export interface MailingRecipient {
   email: string;
+  /** Buyer: the order the mail links to. Holder: the source order (envelope only, never linked). */
   orderId: string;
   locale: string;
+  /** Set for the holder of a passed-on ticket (gets the ticket page link instead of the order). */
+  holder?: { ticketId: string; name: string | null };
 }
 
 /** Same rule as the outbox (`createEmailMessage` refuses anything else with INVALID_RECIPIENT). */
@@ -105,6 +112,24 @@ export async function loadMailingRecipients(
     if (!email || seen.has(key)) continue;
     seen.add(key);
     result.push({ email, orderId: row.id, locale: row.locale });
+  }
+  // Holders of passed-on tickets in the audience; an address that is already a buyer gets the
+  // buyer version only.
+  const holders = await loadEventHolderRecipients(db, {
+    eventId: input.eventId,
+    paidOnly: input.audience === 'PAID',
+    categoryId: input.audience === 'CATEGORY' ? input.categoryId : null,
+  });
+  for (const h of holders) {
+    const key = h.email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({
+      email: h.email,
+      orderId: h.orderId,
+      locale: h.locale,
+      holder: { ticketId: h.ticketId, name: h.holderName },
+    });
   }
   return result;
 }
@@ -301,14 +326,32 @@ export async function sendEventMailingChunk(
         );
         return null;
       }
-      const id = await createEmailMessage(ctx, tx, {
-        key: mailing.kind as EventMailingKind,
-        orderId: recipient.orderId,
-        to: recipient.email,
-        eventId: mailing.eventId,
-        locale: recipient.locale,
-        variables: mailVariables(mailing, event, recipient.locale),
-      });
+      const id = recipient.holder
+        ? // Holder of a passed-on ticket: no order link / data (like the other holder mails, the
+          // order id only goes into the envelope), the ticket page instead.
+          await createEmailMessage(ctx, tx, {
+            key: mailing.kind as EventMailingKind,
+            to: recipient.email,
+            eventId: mailing.eventId,
+            locale: recipient.locale,
+            sourceOrderId: recipient.orderId,
+            variables: {
+              ...mailVariables(mailing, event, recipient.locale),
+              ticketHolder: 'yes',
+              firstName: recipient.holder.name,
+              ticketPageUrl:
+                holderTicketUrls(ctx, { id: recipient.holder.ticketId }, recipient.locale)?.page ??
+                null,
+            },
+          })
+        : await createEmailMessage(ctx, tx, {
+            key: mailing.kind as EventMailingKind,
+            orderId: recipient.orderId,
+            to: recipient.email,
+            eventId: mailing.eventId,
+            locale: recipient.locale,
+            variables: mailVariables(mailing, event, recipient.locale),
+          });
       await tx
         .update(eventMailingRecipients)
         .set({ messageId: id })

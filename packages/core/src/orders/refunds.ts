@@ -32,7 +32,11 @@ import {
   isTransientPayPalError,
 } from '../payments/paypal';
 import { getSetting } from '../settings';
-import { dispatchMessages, queueHolderCancelledMails } from '../tickets/holder-mail';
+import {
+  dispatchMessages,
+  queueHolderCancelledMails,
+  type HolderTicketRef,
+} from '../tickets/holder-mail';
 import { lockOrderTickets, voidTicketsForItems } from '../tickets/issue';
 import {
   cancelOpenAdjustmentInTransaction,
@@ -97,6 +101,12 @@ export interface CancelPaidOrderParams {
   existingPaypalRefund?: { providerRefundId: string; paymentId: string; amount: number };
   /** Runs inside the business transaction at the end (e.g. the audit entry). */
   inTransaction?: (tx: Transaction, result: CancelPaidOrderResult) => Promise<void>;
+  /**
+   * Replaces the standard "ticket no longer valid" mail to the holders of voided passed-on tickets
+   * (e.g. EVENT_CANCELLED_HOLDER of the cancellation assistant). Runs in the business transaction
+   * and returns the outbox ids to dispatch after the commit.
+   */
+  holderNotice?: (tx: Transaction, holders: HolderTicketRef[]) => Promise<string[]>;
 }
 
 export interface CancelPaidOrderResult {
@@ -197,7 +207,9 @@ export async function cancelPaidOrder(
       .set({ status: 'REFUNDED', refundedAt: now })
       .where(inArray(orderItems.id, [...selectedIds]));
     const voided = await voidTicketsForItems(tx, [...selectedIds], 'REFUNDED');
-    const holderMessageIds = await queueHolderCancelledMails(ctx, tx, voided.holders);
+    const holderMessageIds = params.holderNotice
+      ? await params.holderNotice(tx, voided.holders)
+      : await queueHolderCancelledMails(ctx, tx, voided.holders);
     const gaBySection = new Map<string, number>();
     for (const item of selected) {
       if (item.kind === 'GENERAL_ADMISSION') {

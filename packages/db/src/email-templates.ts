@@ -1899,6 +1899,7 @@ ${COMMON.de.regardsText}`,
         '{{#if eventPostponementNote}}' + paragraph('{{eventPostponementNote}}') + '{{/if}}',
         paragraph('Your tickets stay valid – you do not have to do anything.'),
         button('en', 'orderUrl', COMMON.en.viewOrder),
+        button('en', 'ticketPageUrl', 'Open your ticket'),
         paragraph(COMMON.en.regards),
       ].join('\n'),
       text: `Hello{{#if firstName}} {{firstName}}{{/if}},
@@ -1911,8 +1912,9 @@ New date: {{eventNewDate}}
 {{/if}}
 Your tickets stay valid – you do not have to do anything.
 
-{{orderUrl}}
-
+{{#if orderUrl}}{{orderUrl}}
+{{/if}}{{#if ticketPageUrl}}Open your ticket: {{ticketPageUrl}}
+{{/if}}
 ${COMMON.en.regardsText}`,
     }),
     de: () => ({
@@ -1928,6 +1930,7 @@ ${COMMON.en.regardsText}`,
         '{{#if eventPostponementNote}}' + paragraph('{{eventPostponementNote}}') + '{{/if}}',
         paragraph('Deine Tickets bleiben gültig – du musst nichts weiter tun.'),
         button('de', 'orderUrl', COMMON.de.viewOrder),
+        button('de', 'ticketPageUrl', 'Ticket öffnen'),
         paragraph(COMMON.de.regards),
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
@@ -1940,8 +1943,9 @@ Neuer Termin: {{eventNewDate}}
 {{/if}}
 Deine Tickets bleiben gültig – du musst nichts weiter tun.
 
-{{orderUrl}}
-
+{{#if orderUrl}}{{orderUrl}}
+{{/if}}{{#if ticketPageUrl}}Ticket öffnen: {{ticketPageUrl}}
+{{/if}}
 ${COMMON.de.regardsText}`,
     }),
   },
@@ -1996,18 +2000,20 @@ ${COMMON.de.regardsText}`,
         paragraph(COMMON.en.hello),
         '{{messageBody}}',
         paragraph(
-          `<span style="${MUTED}">You receive this message because you bought tickets for {{eventTitle}}.</span>`,
+          `<span style="${MUTED}">{{#if ticketHolder}}You receive this message because a ticket for {{eventTitle}} was passed on to you.{{else}}You receive this message because you bought tickets for {{eventTitle}}.{{/if}}</span>`,
         ),
         button('en', 'orderUrl', COMMON.en.viewOrder),
+        button('en', 'ticketPageUrl', 'Open your ticket'),
         paragraph(COMMON.en.regards),
       ].join('\n'),
       text: `Hello{{#if firstName}} {{firstName}}{{/if}},
 
 {{messageBody}}
 
-You receive this message because you bought tickets for {{eventTitle}}.
-{{orderUrl}}
-
+{{#if ticketHolder}}You receive this message because a ticket for {{eventTitle}} was passed on to you.{{else}}You receive this message because you bought tickets for {{eventTitle}}.{{/if}}
+{{#if orderUrl}}{{orderUrl}}
+{{/if}}{{#if ticketPageUrl}}Open your ticket: {{ticketPageUrl}}
+{{/if}}
 ${COMMON.en.regardsText}`,
     }),
     de: () => ({
@@ -2016,18 +2022,20 @@ ${COMMON.en.regardsText}`,
         paragraph(COMMON.de.hello),
         '{{messageBody}}',
         paragraph(
-          `<span style="${MUTED}">Du erhältst diese Nachricht, weil du Tickets für {{eventTitle}} gekauft hast.</span>`,
+          `<span style="${MUTED}">{{#if ticketHolder}}Du erhältst diese Nachricht, weil dir ein Ticket für {{eventTitle}} weitergegeben wurde.{{else}}Du erhältst diese Nachricht, weil du Tickets für {{eventTitle}} gekauft hast.{{/if}}</span>`,
         ),
         button('de', 'orderUrl', COMMON.de.viewOrder),
+        button('de', 'ticketPageUrl', 'Ticket öffnen'),
         paragraph(COMMON.de.regards),
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
 {{messageBody}}
 
-Du erhältst diese Nachricht, weil du Tickets für {{eventTitle}} gekauft hast.
-{{orderUrl}}
-
+{{#if ticketHolder}}Du erhältst diese Nachricht, weil dir ein Ticket für {{eventTitle}} weitergegeben wurde.{{else}}Du erhältst diese Nachricht, weil du Tickets für {{eventTitle}} gekauft hast.{{/if}}
+{{#if orderUrl}}{{orderUrl}}
+{{/if}}{{#if ticketPageUrl}}Ticket öffnen: {{ticketPageUrl}}
+{{/if}}
 ${COMMON.de.regardsText}`,
     }),
   },
@@ -2119,6 +2127,75 @@ ${COMMON.en.regardsText}`,
 die E-Mail-Adresse der Bestellung {{orderNumber}} wurde von dieser Adresse auf eine andere geändert. Du erhältst hier keine Nachrichten zu dieser Bestellung mehr, und frühere Links dazu funktionieren nicht mehr.
 
 Falls du damit nicht gerechnet hast, antworte bitte auf diese E-Mail oder melde dich sofort bei uns.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  EVENT_CANCELLED_HOLDER: {
+    en: () => ({
+      subject: '{{eventTitle}} has been cancelled',
+      html: [
+        paragraph('Hello{{#if recipientName}} {{recipientName}}{{/if}},'),
+        paragraph(
+          'unfortunately <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) has been cancelled.',
+        ),
+        '{{#if eventCancellationReason}}' +
+          paragraph('Reason: {{eventCancellationReason}}') +
+          '{{/if}}',
+        paragraph(
+          'The ticket(s) passed on to you are <strong>no longer valid</strong>: {{ticketPlace}} (ticket {{ticketCode}}). They will be rejected at the entrance.',
+        ),
+        paragraph(
+          '<strong>About the refund:</strong> the money is refunded to the person who originally bought the ticket(s), not to you. Please settle any refund directly with that person – we cannot pay anything back to you.',
+        ),
+        paragraph('We are very sorry for the inconvenience.'),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if recipientName}} {{recipientName}}{{/if}},
+
+unfortunately {{eventTitle}} ({{eventDate}}, {{eventVenue}}) has been cancelled.
+{{#if eventCancellationReason}}
+Reason: {{eventCancellationReason}}
+{{/if}}
+The ticket(s) passed on to you are no longer valid: {{ticketPlace}} (ticket {{ticketCode}}). They will be rejected at the entrance.
+
+About the refund: the money is refunded to the person who originally bought the ticket(s), not to you. Please settle any refund directly with that person – we cannot pay anything back to you.
+
+We are very sorry for the inconvenience.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: '{{eventTitle}} wurde abgesagt',
+      html: [
+        paragraph('Hallo{{#if recipientName}} {{recipientName}}{{/if}},'),
+        paragraph(
+          'leider wurde <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) abgesagt.',
+        ),
+        '{{#if eventCancellationReason}}' +
+          paragraph('Grund: {{eventCancellationReason}}') +
+          '{{/if}}',
+        paragraph(
+          'Die an dich weitergegebenen Tickets sind <strong>nicht mehr gültig</strong>: {{ticketPlace}} (Ticket {{ticketCode}}). Am Einlass werden sie abgewiesen.',
+        ),
+        paragraph(
+          '<strong>Zur Erstattung:</strong> Das Geld erstatten wir an die Person, die die Tickets ursprünglich gekauft hat – nicht an dich. Bitte kläre eine Rückzahlung direkt mit dieser Person; wir können dir nichts erstatten.',
+        ),
+        paragraph('Es tut uns sehr leid für die Umstände.'),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if recipientName}} {{recipientName}}{{/if}},
+
+leider wurde {{eventTitle}} ({{eventDate}}, {{eventVenue}}) abgesagt.
+{{#if eventCancellationReason}}
+Grund: {{eventCancellationReason}}
+{{/if}}
+Die an dich weitergegebenen Tickets sind nicht mehr gültig: {{ticketPlace}} (Ticket {{ticketCode}}). Am Einlass werden sie abgewiesen.
+
+Zur Erstattung: Das Geld erstatten wir an die Person, die die Tickets ursprünglich gekauft hat – nicht an dich. Bitte kläre eine Rückzahlung direkt mit dieser Person; wir können dir nichts erstatten.
+
+Es tut uns sehr leid für die Umstände.
 
 ${COMMON.de.regardsText}`,
     }),

@@ -63,6 +63,7 @@ import {
   saveSecretSetting,
   saveSetting,
   placeOrder,
+  postponeEvent,
   previewEventCancellation,
   recordPayment,
   runEventCancellation,
@@ -503,6 +504,147 @@ describe.skipIf(!adminUrl || !redisUrl)('event cancellation & communication (int
         userId,
       }),
     ).rejects.toMatchObject({ code: 'MESSAGE_REQUIRED' });
+  });
+
+  /** Mails to an address (holder mails carry no order id). */
+  const mailsTo = (email: string, key: string) =>
+    handle.db
+      .select()
+      .from(emailMessages)
+      .where(
+        and(
+          sql`lower(${emailMessages.toEmail}) = ${email.toLowerCase()}`,
+          eq(emailMessages.templateKey, key as never),
+        ),
+      );
+
+  /** Hands the given tickets of an order over to `holderEmail` (as the transfer flow would). */
+  async function passOn(orderId: string, index: number[], holderEmail: string, name: string) {
+    const list = await handle.db
+      .select({ id: tickets.id })
+      .from(tickets)
+      .where(and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID')))
+      .orderBy(tickets.ticketCode);
+    expect(list.length).toBeGreaterThan(Math.max(...index));
+    await handle.db
+      .update(tickets)
+      .set({ holderEmail, attendeeName: name })
+      .where(
+        inArray(
+          tickets.id,
+          index.map((i) => list[i]!.id),
+        ),
+      );
+  }
+
+  it('sends holders of passed-on tickets the holder cancellation notice (once, never to the buyer address)', async () => {
+    const fx = await makeEvent('Holder Cancel Show');
+    const buyerEmail = `holder-buyer-${uuid().slice(0, 6)}@example.invalid`;
+    const holderEmail = `holder-a-${uuid().slice(0, 6)}@example.invalid`;
+    const placed = await order(
+      [{ fx, seats: [fx.seatIds[0]!, fx.seatIds[1]!, fx.seatIds[2]!, fx.seatIds[3]!] }],
+      'PAYPAL',
+      { pay: true, email: buyerEmail },
+    );
+    // Two tickets to one holder, one "passed on" to the buyer's own address (other case), one kept.
+    await passOn(placed, [0, 1], holderEmail, 'Hanna Holder');
+    await passOn(placed, [2], ` ${buyerEmail.toUpperCase()} `, 'Erika Example');
+
+    const { runId } = await startEventCancellation(ctx, {
+      eventId: fx.event.id,
+      reason: 'Storm',
+      refundFees: true,
+      notify: true,
+      userId,
+    });
+    expect((await runEventCancellation(ctx, runId)).cancelledOrders).toBe(1);
+
+    expect((await mails(placed, 'EVENT_CANCELLED')).length).toBe(1);
+    const holderMails = await mailsTo(holderEmail, 'EVENT_CANCELLED_HOLDER');
+    expect(holderMails.length).toBe(1);
+    expect(holderMails[0]!.orderId).toBeNull();
+    const envelope = holderMails[0]!.attachments as { sourceOrderId: string; eventId: string };
+    expect(envelope.sourceOrderId).toBe(placed);
+    expect(envelope.eventId).toBe(fx.event.id);
+    // The holder version replaces the generic "ticket no longer valid" mail.
+    expect((await mailsTo(holderEmail, 'TICKET_HOLDER_CANCELLED')).length).toBe(0);
+    // The buyer's own address only gets the buyer mail.
+    expect((await mailsTo(buyerEmail, 'EVENT_CANCELLED_HOLDER')).length).toBe(0);
+    expect((await mailsTo(buyerEmail, 'TICKET_HOLDER_CANCELLED')).length).toBe(0);
+    expect((await mailsTo(buyerEmail, 'EVENT_CANCELLED')).length).toBe(1);
+
+    // A re-run finds no valid ticket and sends nothing again.
+    const again = await startEventCancellation(ctx, {
+      eventId: fx.event.id,
+      refundFees: true,
+      notify: true,
+      userId,
+    });
+    await runEventCancellation(ctx, again.runId);
+    expect((await mailsTo(holderEmail, 'EVENT_CANCELLED_HOLDER')).length).toBe(1);
+    expect((await mails(placed, 'EVENT_CANCELLED')).length).toBe(1);
+  });
+
+  it('mailings and the postponement notice reach holders of passed-on tickets once', async () => {
+    const fx = await makeEvent('Holder Mailing Show');
+    const buyerA = `mail-a-${uuid().slice(0, 6)}@example.invalid`;
+    const buyerB = `mail-b-${uuid().slice(0, 6)}@example.invalid`;
+    const holder = `mail-h-${uuid().slice(0, 6)}@example.invalid`;
+    const first = await order([{ fx, seats: [fx.seatIds[0]!, fx.seatIds[1]!] }], 'PAYPAL', {
+      pay: true,
+      email: buyerA,
+    });
+    const second = await order([{ fx, seats: [fx.seatIds[2]!, fx.seatIds[3]!] }], 'PAYPAL', {
+      pay: true,
+      email: buyerB,
+    });
+    // The holder gets tickets from both buyers; buyer B also passed one on to buyer A.
+    await passOn(first, [0], holder, 'Hanna Holder');
+    await passOn(second, [0], holder.toUpperCase(), 'Hanna Holder');
+    await passOn(second, [1], buyerA, 'Erika Example');
+
+    const recipients = await loadMailingRecipients(handle.db, {
+      eventId: fx.event.id,
+      audience: 'PAID',
+    });
+    expect(recipients.map((r) => r.email.toLowerCase()).sort()).toEqual(
+      [buyerA, buyerB, holder].sort(),
+    );
+    expect(recipients.filter((r) => r.holder).length).toBe(1);
+    const byCategory = await loadMailingRecipients(handle.db, {
+      eventId: fx.event.id,
+      audience: 'CATEGORY',
+      categoryId: fx.categoryId,
+    });
+    expect(byCategory.length).toBe(3);
+
+    const { mailingId, recipients: count } = await createEventMailing(ctx, {
+      eventId: fx.event.id,
+      audience: 'PAID',
+      subject: 'Parking',
+      body: 'Use the north car park.',
+      userId,
+    });
+    expect(count).toBe(3);
+    expect(await sendEventMailingChunk(ctx, mailingId, 10)).toEqual({ queued: 3, remaining: 0 });
+    expect(await sendEventMailingChunk(ctx, mailingId, 10)).toEqual({ queued: 0, remaining: 0 });
+    const holderMails = await mailsTo(holder, 'EVENT_MESSAGE');
+    expect(holderMails.length).toBe(1);
+    expect(holderMails[0]!.orderId).toBeNull();
+    expect((await mailsTo(buyerA, 'EVENT_MESSAGE')).length).toBe(1);
+    expect((await mailsTo(buyerB, 'EVENT_MESSAGE')).length).toBe(1);
+
+    const postponed = await postponeEvent(ctx, {
+      eventId: fx.event.id,
+      newStartsAt: new Date(Date.now() + 60 * 86_400_000),
+      note: 'New date below.',
+      notify: true,
+      userId,
+    });
+    expect(postponed.recipients).toBe(3);
+    await sendEventMailingChunk(ctx, postponed.mailingId!, 10);
+    expect((await mailsTo(holder, 'EVENT_POSTPONED')).length).toBe(1);
+    expect((await mailsTo(buyerA, 'EVENT_POSTPONED')).length).toBe(1);
   });
 
   const orderStatus = async (id: string) =>

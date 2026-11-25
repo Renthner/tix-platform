@@ -187,7 +187,12 @@ in `ticket_changes`, written to the order history and (admin) the audit log, and
   bank allocation reversal; a seat change honours "notify customer") and `TICKET_HOLDER_CANCELLED`
   when it becomes invalid (cancellation, refund, reversal, admin re-assignment). Both contain the
   ticket only, never order data. **Refunds always go to the buyer** - the holder is not refunded and
-  is told so. After a bank allocation reversal and a new payment the re-issued ticket keeps the holder
+  is told so. Event notices reach holders too: the cancellation assistant (with "notify") sends
+  `EVENT_CANCELLED_HOLDER` instead of `TICKET_HOLDER_CANCELLED` (one per order and holder address,
+  stating that the money goes to the buyer and the holder settles with them), and postponement
+  notices / event mailings include holders of valid passed-on tickets in the audience with their
+  ticket page link instead of the order link. A holder address equal to the buyer's gets only the
+  buyer mail. After a bank allocation reversal and a new payment the re-issued ticket keeps the holder
   and the attendee name (the latest earlier ticket of the seat carries them).
 - **Google Wallet:** the object of a replaced / cancelled / refunded ticket is switched to
   `INACTIVE` (best effort, retried by the ticket backfill job; errors are logged and never block the

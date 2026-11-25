@@ -114,7 +114,7 @@
     },
     "EVENT_POSTPONED": {
       "name": "Event postponed",
-      "description": "Sent to all buyers when an event is postponed. Tickets stay valid."
+      "description": "Sent to all buyers and holders of passed-on tickets when an event is postponed. Tickets stay valid. Holders get their ticket link instead of the order link."
     },
     "ORDER_MESSAGE": {
       "name": "Message to the buyer of an order",
@@ -122,7 +122,7 @@
     },
     "EVENT_MESSAGE": {
       "name": "Message to all buyers of an event",
-      "description": "Frame of the free-text bulk messages sent from the event tab \"Communication\"."
+      "description": "Frame of the free-text bulk messages sent from the event tab \"Communication\" to buyers and holders of passed-on tickets (holders get their ticket link instead of the order link)."
     },
     "ORDER_EMAIL_CHANGED": {
       "name": "Order e-mail changed (new address)",
@@ -147,6 +147,10 @@
     "TICKET_HOLDER_CANCELLED": {
       "name": "Ticket no longer valid (recipient)",
       "description": "Sent to the holder of a handed-over ticket when the ticket was cancelled, refunded or reassigned. Contains no order data."
+    },
+    "EVENT_CANCELLED_HOLDER": {
+      "name": "Event cancelled (recipient)",
+      "description": "Sent to the holder of a handed-over ticket when the event is cancelled: the ticket is void and the money goes to the original buyer, so the holder settles any refund with them. Contains no order or buyer data."
     }
   },
   "page": {

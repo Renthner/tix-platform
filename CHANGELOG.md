@@ -8,10 +8,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.41] - 2026-11-25
+
+**Update notes:** two database migrations (0042, 0043) run automatically on start. **IMAP bank import now requires a sender allowlist** (Banking → connection; without it the connection imports nothing and shows an error), and IMAP transactions are only matched automatically when the mail passed DKIM/SPF for the allow-listed sender domain – otherwise they land in the reconciliation queue (Klärfälle). See docs/DATABASE.md. Redis gets a memory ceiling (`REDIS_MAXMEMORY`, default 1gb, see below).
+
+### Security
+
+- Request bodies are size-limited (64 KB by default, larger only for checkout and template previews); the PayPal webhook reads at most a bounded body.
+- Bank CSV export is protected against spreadsheet formula injection and audit-logged; camt files with DOCTYPE/ENTITY declarations or above 20 MB are rejected.
+- Order links can be revoked: admins can reset an order's access links (old mail links stop working, the buyer gets fresh ones); existing links keep working otherwise.
+- Login throttling per IP and per account, with a high account lock threshold so attackers cannot lock out real users.
+- `/api/health` only reports the overall status publicly; details require the metrics token or an admin session. Ticket PDF and wallet downloads are rate-limited per order.
+- Access code redemptions are unique per code and cart session (duplicates are cleaned up by migration 0042).
+
 ### Added
 
-- **Event cancellation assistant.** Cancelling an event can cancel all its active orders automatically: PayPal payments are refunded automatically, bank transfers become open refund to-dos, buyers get a cancellation mail ("refund fees" is chosen per run, default yes). The run is resumable, shows its progress and ends "with errors" when orders are left over. Items of a cancelled event never get tickets; PayPal payments for them are refused, bank transfers go to the reconciliation queue and a paid order raises an admin alert. Requires migration 0043.
-- **Buyer communication.** Postponement notice, messages to all buyers of an event (paid / active / one category, with test mail) and to a single order; new e-mail templates for cancellation, postponement, messages and e-mail changes.
+- **Event cancellation assistant.** Cancelling an event can cancel all its active orders automatically: PayPal payments are refunded automatically, bank transfers become open refund to-dos, buyers get a cancellation mail ("refund fees" is chosen per run, default yes). The run is resumable, shows its progress and ends "with errors" when orders are left over. Items of a cancelled event never get tickets; PayPal payments for them are refused, bank transfers go to the reconciliation queue and a paid order raises an admin alert. Holders of passed-on tickets get their own cancellation mail stating that the refund goes to the buyer. Requires migration 0043.
+- **Buyer communication.** Postponement notice, messages to all buyers of an event (paid / active / one category, with test mail) and to a single order; new e-mail templates for cancellation, postponement, messages and e-mail changes. Postponement notices and event messages also reach holders of passed-on tickets (with their ticket link, never the order link).
 - **Buyer e-mail can be corrected by an admin** (name and address stay unchanged). Old order links stop working, pending mails to the old address are retired and ticket / payment mails are re-created for the new address; the old address is informed without revealing the new one.
 - **Admin lists and box office tools.** Orders list with sorting, date range, filter chips, CSV export and bulk actions (resend, payment reminder); test orders are hidden by default. Events list with search, sorting and sold count. New cash-up report (`/admin/cash-up`, by seller, payment method and currency, CSV) and door desk (`/admin/door`) for guest list check-in in the browser. Dashboard to-do tiles, audit history on event, customer and order pages, "sign out everywhere" for admins.
 - **Shop.** Order lookup page (`/orders/lookup`, the order mail is sent again to the order's address), GiroCode (EPC QR) next to the bank details, reservation expiry warning, retry instead of endless spinners, price and subtotal in the seat selection, sticky mobile bar, touch-friendly seat plan, live connection notice, share button, event search and filters on the start page, upcoming orders first in the account with ticket download.
@@ -30,6 +43,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 - Realtime gateway: per-socket event rate limit, per-session connection cap, bounded per-socket maps; a flooding client can no longer affect other clients.
 - Checkout re-validates the per-order category, tariff and ticket limits.
 - Worker loop leadership is renewed after every step (lease 15 s) and a lost lease aborts the remaining steps.
+- Checkout and box office re-check that the event is still on sale inside the order transaction (an event cancelled or paused in the same moment can no longer get new orders).
+- Scanner app: only one ticket is accepted per camera frame, sync versions survive a server restore, the clock offset is monotonic, the LAN master remembers answered requests across restarts, LAN discovery and the LAN foreground service fail gracefully.
 
 ## [1.0.0-alpha.40] - 2026-11-17
 

@@ -114,7 +114,7 @@
     },
     "EVENT_POSTPONED": {
       "name": "Veranstaltung verschoben",
-      "description": "Geht bei einer Verschiebung an alle Käufer. Die Tickets bleiben gültig."
+      "description": "Geht bei einer Verschiebung an alle Käufer und Inhaber weitergegebener Tickets. Die Tickets bleiben gültig. Inhaber erhalten ihren Ticket-Link statt des Bestell-Links."
     },
     "ORDER_MESSAGE": {
       "name": "Nachricht an den Käufer einer Bestellung",
@@ -122,7 +122,7 @@
     },
     "EVENT_MESSAGE": {
       "name": "Nachricht an alle Käufer einer Veranstaltung",
-      "description": "Rahmen der Freitext-Rundmails aus dem Event-Tab „Kommunikation“."
+      "description": "Rahmen der Freitext-Rundmails aus dem Event-Tab „Kommunikation“ an Käufer und Inhaber weitergegebener Tickets (Inhaber erhalten ihren Ticket-Link statt des Bestell-Links)."
     },
     "ORDER_EMAIL_CHANGED": {
       "name": "Bestell-E-Mail geändert (neue Adresse)",
@@ -147,6 +147,10 @@
     "TICKET_HOLDER_CANCELLED": {
       "name": "Ticket nicht mehr gültig (Empfänger)",
       "description": "Geht an den Inhaber eines weitergegebenen Tickets, wenn das Ticket storniert, erstattet oder neu vergeben wurde. Enthält keine Bestelldaten."
+    },
+    "EVENT_CANCELLED_HOLDER": {
+      "name": "Veranstaltung abgesagt (Empfänger)",
+      "description": "Geht bei einer Absage an den Inhaber eines weitergegebenen Tickets: Das Ticket ist ungültig, das Geld geht an den ursprünglichen Käufer – die Erstattung klärt der Inhaber direkt mit ihm. Enthält keine Bestell- oder Käuferdaten."
     }
   },
   "page": {

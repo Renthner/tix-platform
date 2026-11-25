@@ -181,6 +181,16 @@ const EVENT_NOTICE = names('event', [
   'cancelledTicketCount',
   'orderWasUnpaid',
 ]);
+/**
+ * EVENT_POSTPONED / EVENT_MESSAGE sent to the holder of a passed-on ticket: `ticketHolder` is "yes"
+ * and `ticketPageUrl` replaces the order link (holders never get order data).
+ */
+const EVENT_HOLDER = names('transfer', ['ticketHolder', 'ticketPageUrl']);
+/** EVENT_CANCELLED_HOLDER: the event notice for a holder – ticket data only, never order data. */
+const EVENT_HOLDER_CANCELLED = [
+  ...HOLDER.filter((v) => !/Url$/.test(v.name)),
+  ...names('event', ['eventCancellationReason', 'cancelledTicketCount']),
+];
 /** ORDER_MESSAGE / EVENT_MESSAGE: free text of the organiser (`messageBody` is generated HTML). */
 const MESSAGE = [
   ...names('message', ['messageSubject']),
@@ -227,9 +237,9 @@ const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
     ...names('order', ['refundAmount', 'creditNoteNumber', 'refundViaPaypal', 'refundManual']),
     ...EVENT_NOTICE,
   ],
-  EVENT_POSTPONED: [...SHOP, ...ORDER, ...EVENT_NOTICE],
+  EVENT_POSTPONED: [...SHOP, ...ORDER, ...EVENT_NOTICE, ...EVENT_HOLDER],
   ORDER_MESSAGE: [...SHOP, ...ORDER, ...MESSAGE],
-  EVENT_MESSAGE: [...SHOP, ...ORDER, ...MESSAGE],
+  EVENT_MESSAGE: [...SHOP, ...ORDER, ...MESSAGE, ...EVENT_HOLDER],
   ORDER_EMAIL_CHANGED: [...SHOP, ...ORDER, ...EMAIL_CHANGE],
   ORDER_EMAIL_CHANGED_OLD: [
     ...SHOP,
@@ -237,6 +247,7 @@ const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
     ...names('order', ['orderNumber']),
     ...EMAIL_CHANGE,
   ],
+  EVENT_CANCELLED_HOLDER: [...SHOP, ...EVENT_HOLDER_CANCELLED],
 };
 
 /** Variables a template of this key can use (de-duplicated, in display order). */

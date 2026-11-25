@@ -393,6 +393,8 @@ export const EMAIL_TEMPLATE_KEYS = values(
   'EVENT_MESSAGE',
   'ORDER_EMAIL_CHANGED',
   'ORDER_EMAIL_CHANGED_OLD',
+  // Event cancellation notice to the holder of a passed-on ticket (refund goes to the buyer).
+  'EVENT_CANCELLED_HOLDER',
 );
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 

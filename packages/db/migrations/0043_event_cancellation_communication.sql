@@ -4,6 +4,7 @@ ALTER TYPE "public"."email_template_key" ADD VALUE 'ORDER_MESSAGE';--> statement
 ALTER TYPE "public"."email_template_key" ADD VALUE 'EVENT_MESSAGE';--> statement-breakpoint
 ALTER TYPE "public"."email_template_key" ADD VALUE 'ORDER_EMAIL_CHANGED';--> statement-breakpoint
 ALTER TYPE "public"."email_template_key" ADD VALUE 'ORDER_EMAIL_CHANGED_OLD';--> statement-breakpoint
+ALTER TYPE "public"."email_template_key" ADD VALUE 'EVENT_CANCELLED_HOLDER';--> statement-breakpoint
 CREATE TABLE "event_cancellation_runs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"event_id" uuid NOT NULL,

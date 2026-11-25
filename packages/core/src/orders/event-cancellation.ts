@@ -17,6 +17,8 @@ import { createEmailMessage, dispatchEmailMessage, type EmailAttachment } from '
 import { formatDateTime, formatMoney } from '../format';
 import { QUEUE_NAMES } from '../job-queues';
 import { coreLog } from '../log';
+import { holderTicketVariables, type HolderTicketRef } from '../tickets/holder-mail';
+import { groupHolderNotices } from './event-holders';
 import { cancelOrder } from './fulfillment';
 import { cancelPaidOrder } from './refunds';
 import { changeEventStatus } from './test-orders';
@@ -35,8 +37,12 @@ import { changeEventStatus } from './test-orders';
  *    counted as `manualOrders`.
  *  - Test orders (super-admin test purchases) are never touched.
  *  - One EVENT_CANCELLED mail per cancelled order (created in the cancellation transaction, so a
- *    re-run can never send it twice). Holders of handed-over tickets get the usual
- *    "ticket no longer valid" mail from the ticket void.
+ *    re-run can never send it twice). Holders of handed-over tickets get one EVENT_CANCELLED_HOLDER
+ *    mail per order and holder address instead of the usual "ticket no longer valid" mail: the
+ *    money goes to the buyer, the holder settles with them. It is created from the tickets voided
+ *    in the same transaction (a re-run finds no valid ticket, so it is never sent twice); holder
+ *    addresses equal to the order address get only the buyer mail. Without "notify" holders get
+ *    the standard "ticket no longer valid" mail.
  *
  * The run row is progress / audit only. The work is derived from the live data in every pass, so a
  * run is idempotent and resumable (a second run simply finds nothing left).
@@ -378,6 +384,63 @@ const emailAddress = z.email();
 const mailable = (email: string | null) =>
   Boolean(email?.trim()) && emailAddress.safeParse(email!.trim()).success;
 
+/**
+ * EVENT_CANCELLED_HOLDER for the holders of the passed-on tickets voided by this cancellation: one
+ * mail per holder address (all of their tickets of the order), ticket data only – no order data,
+ * no order link, nothing about the buyer. Unusable addresses are skipped (never thrown: that would
+ * roll back the refund).
+ */
+async function queueEventCancelledHolderMails(
+  ctx: CoreContext,
+  tx: Executor,
+  rc: RunContext,
+  order: { id: string; email: string | null; locale: string },
+  holders: HolderTicketRef[],
+): Promise<string[]> {
+  const { groups, skipped } = groupHolderNotices(holders, order.email);
+  if (skipped > 0) {
+    coreLog.warn(
+      { orderId: order.id, skipped },
+      '[event-cancellation] invalid holder e-mail address, holder notice skipped',
+    );
+  }
+  const ids: string[] = [];
+  for (const group of groups) {
+    const places: string[] = [];
+    const codes: string[] = [];
+    let recipientName: string | null = null;
+    for (const ticket of group.tickets) {
+      const v = await holderTicketVariables(
+        ctx,
+        tx,
+        ticket,
+        { locale: order.locale, isTest: false },
+        { links: false },
+      );
+      if (v.ticketPlace) places.push(v.ticketPlace);
+      codes.push(ticket.ticketCode);
+      recipientName ??= ticket.attendeeName?.trim() || null;
+    }
+    ids.push(
+      await createEmailMessage(ctx, tx, {
+        key: 'EVENT_CANCELLED_HOLDER',
+        to: group.email,
+        locale: order.locale,
+        eventId: rc.event.id,
+        sourceOrderId: order.id,
+        variables: {
+          ...eventVariables(rc, order, rc.run.reason),
+          recipientName,
+          ticketPlace: places.join('; '),
+          ticketCode: codes.join(', '),
+          cancelledTicketCount: group.tickets.length,
+        },
+      }),
+    );
+  }
+  return ids;
+}
+
 async function processOrder(
   ctx: CoreContext,
   rc: RunContext,
@@ -408,6 +471,11 @@ async function processOrder(
       '[event-cancellation] invalid e-mail address, notice skipped',
     );
   }
+  // Holders of passed-on tickets get the holder version (also when the buyer's address is unusable).
+  const holderNotice = rc.run.notify
+    ? (tx: Executor, holders: HolderTicketRef[]) =>
+        queueEventCancelledHolderMails(ctx, tx, rc, order, holders)
+    : undefined;
 
   if (kind === 'UNPAID_CANCEL') {
     const done = await cancelOrder(ctx, {
@@ -417,6 +485,7 @@ async function processOrder(
       actor: { type: userId ? 'ADMIN' : 'SYSTEM', userId },
       // The candidate was classified from an unlocked snapshot: re-checked on the locked row.
       onlyIfNothingPaid: { eventId: rc.event.id },
+      holderNotice,
       notifyCustomer: notify,
       notification: {
         key: 'EVENT_CANCELLED',
@@ -472,6 +541,7 @@ async function processOrder(
       reason: reason ?? 'EVENT_CANCELLED',
       notify: false,
       userId,
+      holderNotice,
       inTransaction: async (tx, result) => {
         messageId = null;
         if (notify) {

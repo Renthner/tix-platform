@@ -69,7 +69,7 @@
   "cancellation": {
     "title": "Veranstaltung absagen",
     "titleCancelled": "Veranstaltung abgesagt",
-    "description": "Storniert alle Bestellungen dieser Veranstaltung, erstattet bezahlte Tickets und informiert jeden Käufer.",
+    "description": "Storniert alle Bestellungen dieser Veranstaltung, erstattet bezahlte Tickets und informiert jeden Käufer sowie die Inhaber weitergegebener Tickets (deren Erstattung geht an den Käufer).",
     "descriptionCancelled": "Zeigt die Absage-Läufe. Starte den Assistenten erneut, um übrige Bestellungen zu erfassen.",
     "open": "Veranstaltung absagen…",
     "rerun": "Erneut ausführen",
@@ -79,7 +79,7 @@
     "reason": "Grund (für die Käufer sichtbar)",
     "reasonHint": "Optional, steht in der E-Mail.",
     "refundFees": "Servicegebühren ebenfalls erstatten",
-    "notify": "Jedem betroffenen Käufer eine E-Mail senden",
+    "notify": "Jedem betroffenen Käufer und Ticketinhaber die Absage-E-Mail senden (ohne erhalten Inhaber nur die übliche Mail „Ticket nicht mehr gültig“)",
     "understood": "Ich verstehe, dass Bestellungen storniert und Geld erstattet wird.",
     "back": "Zurück",
     "start": "Veranstaltung und Bestellungen absagen",
@@ -108,18 +108,18 @@
   "postpone": {
     "title": "Veranstaltung verschieben",
     "titlePostponed": "Veranstaltung verschoben",
-    "description": "Die Tickets bleiben gültig. Auf Wunsch erfahren alle Käufer den neuen Termin.",
+    "description": "Die Tickets bleiben gültig. Auf Wunsch erfahren alle Käufer und Inhaber weitergegebener Tickets den neuen Termin.",
     "newDate": "Neuer Termin ({timeZone})",
     "newDateHint": "Optional. Den echten Termin änderst du in den Veranstaltungsdetails.",
     "note": "Hinweis für die Käufer",
-    "notify": "Allen Käufern eine E-Mail senden",
+    "notify": "Allen Käufern und Ticketinhabern eine E-Mail senden",
     "postpone": "Verschieben",
     "update": "Speichern und benachrichtigen",
     "saving": "Wird gespeichert…"
   },
   "mailing": {
     "title": "Nachricht an Käufer",
-    "description": "Sendet eine E-Mail an die Käufer dieser Veranstaltung. Jede Adresse erhält sie nur einmal.",
+    "description": "Sendet eine E-Mail an die Käufer dieser Veranstaltung und an die Inhaber weitergegebener Tickets (mit ihrem Ticket-Link statt der Bestellung). Jede Adresse erhält sie nur einmal.",
     "audience": "Empfänger",
     "audiences": {
       "PAID": "Alle bezahlten Bestellungen",
