@@ -277,6 +277,12 @@ dies and you do not have the key, backups and stored secrets cannot be restored,
 restored on **another system** needs the key ring of the system that created it. Never change or
 delete a key that is in use.
 
+**Keep it apart from the backups.** A backup archive is encrypted with this key ring, so the key must NOT live
+only where the backups live: the volume `tix-data` (local backups, generated secrets in `/data/secrets`), the
+same server or the same external backup target. Store the `.env` (at least the `APP_ENCRYPTION_KEYS` line)
+in a different place than the backups, for example a password manager; copy `/data/secrets` the same way if you
+rely on the generated `SESSION_SECRET`. A backup without its key ring cannot be read.
+
 ### File storage
 
 New installations keep files in a directory on the volume `tix-data` (`STORAGE_DIR=/data/storage`):
@@ -393,6 +399,36 @@ How it works and what to know:
 - Start with `auto` on a server with two or more CPUs; leave one core for PostgreSQL, Redis, the worker and
   the realtime gateway when they share the machine. The realtime gateway (live seat updates) and the
   worker stay single processes.
+
+### Memory limit, Redis memory and PostgreSQL
+
+**Container memory limit (optional).** The release `docker-compose.yml` sets no limit, so a running
+installation behaves exactly as before. To cap the application, remove the `#` before
+`mem_limit: ${TIX_MEM_LIMIT:-2g}` in the `tix` service (and set `TIX_MEM_LIMIT` in `.env` if you want another
+value). At startup `tix` reads the limit from the container and logs a memory warning when
+`TIX_WEB_PROCESSES x WEB_MAX_OLD_SPACE_MB` plus the worker (1024 MB) and realtime gateway (256 MB) heap limits
+exceed it. The heap limits are caps, not reservations, but a busy process can reach them. Recommended: **2g**
+with one web process (default heap 768 MB), plus about **1g per additional web process**, e.g. `4g` for
+`TIX_WEB_PROCESSES=3`. A limit below the sum is not an error, but the container is killed (and restarted) when it
+is really exceeded; lower `WEB_MAX_OLD_SPACE_MB` or add memory instead.
+
+**Redis memory.** Redis holds the seat locks, carts, the waiting room and the job queues. These must never be
+evicted, so the policy is `noeviction` on purpose: when Redis is full it **refuses writes** (seat selection and
+checkout then fail with errors) instead of silently dropping locks or jobs. `--maxmemory` is a safety ceiling
+that keeps a runaway Redis from exhausting the server; it defaults to **1gb** (a normal installation uses a few
+dozen MB, a large sale some hundred MB). Change it with `REDIS_MAXMEMORY=2gb` in `.env`. If it ever fills up:
+check the admin page **System** (Redis memory, queue sizes) or `docker compose exec redis redis-cli info memory`,
+look for a queue that grows (failed jobs piling up, a stopped worker) and fix the cause; then raise
+`REDIS_MAXMEMORY` if the load is real and run `docker compose up -d`. Do not set an eviction policy.
+
+> **Updating from an older release:** the 1gb ceiling is now applied to existing installations as well (earlier
+> versions had no limit). If you expect a very large presale, raise `REDIS_MAXMEMORY` in `.env` *before*
+> updating; otherwise writes fail once Redis is full.
+
+**PostgreSQL.** The `postgres` service logs lock waits, deadlocks (`deadlock_timeout=1s`) and statements slower than
+500 ms (`docker compose logs postgres`; bind parameters are not logged, so the logs contain no customer data). `max_connections` is 100 (`POSTGRES_MAX_CONNECTIONS` in `.env` changes it);
+the application stays within `TIX_DB_CONNECTION_BUDGET` (default 90), so raise both together. The flags are
+runtime settings: they do not change the data directory and are safe on an existing installation.
 
 ## HTTPS variants
 
@@ -723,7 +759,7 @@ More details: [SCANNER.md](SCANNER.md) and [apps/android/README.md](../apps/andr
 ```bash
 cd tix
 ./tix-update.sh                 # newest release of the channel in .env (TIX_VERSION)
-./tix-update.sh 1.0.0-alpha.21  # or one exact version
+./tix-update.sh 1.0.0-alpha.40  # or one exact version
 ./tix-update.sh stable          # or a channel: stable, next, alpha, beta, rc, 1, 1.0
 ./tix-update.sh --dry-run       # download and verify only, change nothing
 ```
@@ -780,7 +816,7 @@ installation. Switch it off under Settings → General → Updates.
 | `next`                   | the newest release of any kind, including pre-releases | tests and demos; today the only choice because no stable release exists yet |
 | `stable`                 | the newest stable release                              | production (from 1.0.0 on)                                                  |
 | `1` or `1.0`             | the newest stable release of that line                 | production without surprises                                                |
-| `1.0.0-alpha.3`, `1.0.0` | exactly this version                                   | pinning, rolling back                                                       |
+| `1.0.0-alpha.40`         | exactly this version                                   | pinning, rolling back                                                       |
 
 Pinning an earlier version works only while the database schema is unchanged. Once a newer release
 migrated the database, going back is **not supported** (see "Going back" above): the pre-update
@@ -908,7 +944,7 @@ Service names: `tix`, `postgres`, `redis` (plus `caddy` / `minio` if you added t
 | Log: "another session holds a lock on a table the migration needs"                                   | A long-running transaction blocks the schema change; the migration retries and finally gives up without changing anything                                      | Run the update again (`docker compose up -d`) when the shop is quiet                                                                                                                                                                                                                                                                                                                                                                                   |
 | The container restarts by itself, `docker inspect` shows `OOMKilled`                                 | The host ran out of memory                                                                                                                                     | Free memory or add RAM; the application needs about 2 GB.                                                                                                                                                                                                                                                                                                                                                                                              |
 | Error mentioning `configs.content`, "unknown key" or "additional property"                           | Docker Compose is older than 2.23.1                                                                                                                            | Install Docker from the official repository ([Installing Docker](#installing-docker)). `docker compose version` must show 2.23.1 or newer.                                                                                                                                                                                                                                                                                                             |
-| `manifest unknown` / `not found` when pulling `...:stable`                                           | No stable release exists yet, so the image tag `stable` does not exist                                                                                         | Set `TIX_VERSION=next` (or an exact version such as `1.0.0-alpha.3`) in `.env`, then `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                    |
+| `manifest unknown` / `not found` when pulling `...:stable`                                           | No stable release exists yet, so the image tag `stable` does not exist                                                                                         | Set `TIX_VERSION=next` (or an exact version such as `1.0.0-alpha.40`) in `.env`, then `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                    |
 | Errors such as `password authentication failed`                                                      | The password contains special characters (`@ : / # ? %`), quotes, or was changed after first start                                                             | Use letters and digits only, no quotes. The database password is fixed when the data volume is created: changing `POSTGRES_PASSWORD` later needs `docker compose down -v` on a fresh install (deletes data) or a manual password change in PostgreSQL.                                                                                                                                                                                                 |
 | Browser shows a certificate warning or no HTTPS (Caddy as in the quick start)                        | Caddy could not get a certificate: DNS wrong, ports 80/443 blocked, or Let's Encrypt limit                                                                     | `docker compose logs caddy`. Check that the domain points to this server, ports 80 and 443 are open (provider firewall too) and the Caddyfile holds only the domain (no `https://`). Wait one hour if the log mentions a rate limit.                                                                                                                                                                                                                   |
 | `port is already allocated` / `address already in use` on port 80 or 443                             | Another web server (apache2, nginx) uses the port                                                                                                              | Stop it (`sudo systemctl disable --now apache2`) or use variant B/C/D. `sudo ss -ltnp \| grep -E ':80 \|:443 '` shows who uses the port.                                                                                                                                                                                                                                                                                                               |

@@ -14,8 +14,10 @@ import { defineScript, runScript } from './script';
  * PostgreSQL remains the final authority (partial unique index) when orders are created.
  */
 
-// KEYS: taken, expiries, cartSeats, gaHolds, lock_1..lock_n
-// ARGV: sid, expiresAt, maxPerSession, now, seat_1..seat_n
+// KEYS: taken, expiries, cartSeats, gaHolds, activeLockEvents, lock_1..lock_n
+// ARGV: sid, expiresAt, maxPerSession, now, eventId, seat_1..seat_n
+// activeLockEvents is a global (not event-tagged) key. It is registered inside the script so the
+// sweeper's atomic UNTRACK_IF_IDLE can never interleave between a lock and its registration.
 const LOCK_SEATS = defineScript(
   'lockSeats',
   `
@@ -23,13 +25,13 @@ local sid = ARGV[1]
 local exp = tonumber(ARGV[2])
 local maxSeats = tonumber(ARGV[3])
 local now = tonumber(ARGV[4])
-local n = #KEYS - 4
+local n = #KEYS - 5
 if exp <= now then return {-3, 0} end
 local fresh = 0
 for i = 1, n do
-  local seat = ARGV[4 + i]
+  local seat = ARGV[5 + i]
   if redis.call('HEXISTS', KEYS[1], seat) == 1 then return {-1, i} end
-  local owner = redis.call('GET', KEYS[4 + i])
+  local owner = redis.call('GET', KEYS[5 + i])
   if owner and owner ~= sid then return {-2, i} end
   if not owner then fresh = fresh + 1 end
 end
@@ -40,11 +42,12 @@ if maxSeats > 0 then
   if held + fresh > maxSeats then return {-4, held} end
 end
 for i = 1, n do
-  redis.call('SET', KEYS[4 + i], sid, 'PXAT', exp)
-  redis.call('ZADD', KEYS[2], exp, ARGV[4 + i])
-  redis.call('SADD', KEYS[3], ARGV[4 + i])
+  redis.call('SET', KEYS[5 + i], sid, 'PXAT', exp)
+  redis.call('ZADD', KEYS[2], exp, ARGV[5 + i])
+  redis.call('SADD', KEYS[3], ARGV[5 + i])
 end
 redis.call('PEXPIREAT', KEYS[3], exp + 60000)
+if n > 0 then redis.call('SADD', KEYS[5], ARGV[5]) end
 return {1, fresh}
 `,
 );
@@ -67,17 +70,18 @@ return released
 `,
 );
 
-// KEYS: expiries, cartSeats, gaHolds, gaExpiries, lock_1..lock_n   ARGV: sid, newExp, seat_1..seat_n
+// KEYS: expiries, cartSeats, gaHolds, gaExpiries, activeLockEvents, lock_1..lock_n
+// ARGV: sid, newExp, eventId, seat_1..seat_n
 const EXTEND_CART = defineScript(
   'extendCart',
   `
 local sid = ARGV[1]
 local exp = tonumber(ARGV[2])
 local extended = 0
-for i = 1, #KEYS - 4 do
-  if redis.call('GET', KEYS[4 + i]) == sid then
-    redis.call('PEXPIREAT', KEYS[4 + i], exp)
-    redis.call('ZADD', KEYS[1], exp, ARGV[2 + i])
+for i = 1, #KEYS - 5 do
+  if redis.call('GET', KEYS[5 + i]) == sid then
+    redis.call('PEXPIREAT', KEYS[5 + i], exp)
+    redis.call('ZADD', KEYS[1], exp, ARGV[3 + i])
     extended = extended + 1
   end
 end
@@ -87,6 +91,7 @@ if redis.call('HEXISTS', KEYS[3], sid) == 1 then
   redis.call('ZADD', KEYS[4], exp, sid)
   ga = 1
 end
+if extended > 0 or ga == 1 then redis.call('SADD', KEYS[5], ARGV[3]) end
 return {extended, ga}
 `,
 );
@@ -101,8 +106,8 @@ return expired
 `,
 );
 
-// KEYS: gaAvailable, gaHeld, gaHolds, gaExpiries, cartSeats
-// ARGV: sid, sectionId, delta, expiresAt, now, maxPerSession
+// KEYS: gaAvailable, gaHeld, gaHolds, gaExpiries, cartSeats, activeLockEvents
+// ARGV: sid, sectionId, delta, expiresAt, now, maxPerSession, eventId
 const HOLD_GA = defineScript(
   'holdGeneralAdmission',
   `
@@ -140,6 +145,7 @@ else
   redis.call('HSET', KEYS[3], sid, cjson.encode(holds))
   redis.call('ZADD', KEYS[4], exp, sid)
 end
+if delta > 0 then redis.call('SADD', KEYS[6], ARGV[7]) end
 return {1, mine, available - held}
 `,
 );
@@ -208,6 +214,18 @@ return result
 `,
 );
 
+// KEYS: activeLockEvents, expiries, gaExpiries   ARGV: eventId
+// Untracks an event only if it has no seat locks and no GA holds at this very moment.
+const UNTRACK_IF_IDLE = defineScript(
+  'untrackIfIdle',
+  `
+if redis.call('ZCARD', KEYS[2]) == 0 and redis.call('ZCARD', KEYS[3]) == 0 then
+  return redis.call('SREM', KEYS[1], ARGV[1])
+end
+return 0
+`,
+);
+
 export type LockFailureReason = 'UNAVAILABLE' | 'LOCKED' | 'CART_EXPIRED' | 'LIMIT_EXCEEDED';
 
 export type LockResult =
@@ -250,12 +268,19 @@ export class SeatLockEngine {
         k.seatLockExpiries(eventId),
         k.cartSeats(eventId, sessionId),
         k.generalAdmissionHolds(eventId),
+        k.activeLockEvents(),
         ...seatIds.map((id) => k.seatLock(eventId, id)),
       ],
-      [sessionId, params.expiresAt, params.maxPerSession, params.now ?? Date.now(), ...seatIds],
+      [
+        sessionId,
+        params.expiresAt,
+        params.maxPerSession,
+        params.now ?? Date.now(),
+        eventId,
+        ...seatIds,
+      ],
     );
     if (status === 1) {
-      await this.redis.sadd(k.activeLockEvents(), eventId);
       return { ok: true, newlyLocked: detail };
     }
     switch (status) {
@@ -298,9 +323,10 @@ export class SeatLockEngine {
         k.cartSeats(eventId, sessionId),
         k.generalAdmissionHolds(eventId),
         k.generalAdmissionExpiries(eventId),
+        k.activeLockEvents(),
         ...seatIds.map((id) => k.seatLock(eventId, id)),
       ],
-      [sessionId, expiresAt, ...seatIds],
+      [sessionId, expiresAt, eventId, ...seatIds],
     );
     return extended;
   }
@@ -335,6 +361,7 @@ export class SeatLockEngine {
         k.generalAdmissionHolds(eventId),
         k.generalAdmissionExpiries(eventId),
         k.cartSeats(eventId, sessionId),
+        k.activeLockEvents(),
       ],
       [
         sessionId,
@@ -343,10 +370,10 @@ export class SeatLockEngine {
         params.expiresAt,
         params.now ?? Date.now(),
         params.maxPerSession,
+        eventId,
       ],
     );
     if (status === 1) {
-      if (params.delta > 0) await this.redis.sadd(k.activeLockEvents(), eventId);
       return { ok: true, held, remaining };
     }
     const reason =
@@ -381,6 +408,21 @@ export class SeatLockEngine {
     const result: Record<string, number> = {};
     for (let i = 0; i < flat.length; i += 2) result[String(flat[i])] = Number(flat[i + 1]);
     return result;
+  }
+
+  /**
+   * Stops tracking an event for the sweeper iff it holds no locks/holds right now (atomic, so a
+   * concurrent lock can never be untracked). Returns true when it was untracked.
+   */
+  async untrackIfIdle(eventId: string): Promise<boolean> {
+    const k = this.keys;
+    const removed = await runScript<number>(
+      this.redis,
+      UNTRACK_IF_IDLE,
+      [k.activeLockEvents(), k.seatLockExpiries(eventId), k.generalAdmissionExpiries(eventId)],
+      [eventId],
+    );
+    return removed === 1;
   }
 
   /** Seats of this session whose lock is still owned by it. */

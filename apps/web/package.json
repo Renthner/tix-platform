@@ -24,7 +24,7 @@
     "@tix/shared": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "drizzle-orm": "^0.45.4",
+    "drizzle-orm": "catalog:",
     "konva": "^10.9.1",
     "lucide-react": "^1.72.0",
     "next": "~16.4.6",
@@ -40,7 +40,7 @@
     "socket.io-client": "^4.8.4",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
-    "zod": "^4.6.7"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.5",

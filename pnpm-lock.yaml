@@ -162,6 +162,21 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    bullmq:
+      specifier: ^6.7.6
+      version: 6.7.6
+    drizzle-orm:
+      specifier: ^0.45.4
+      version: 0.45.4
+    ioredis:
+      specifier: ^5.11.1
+      version: 5.11.1
+    zod:
+      specifier: ^4.6.7
+      version: 4.6.7
+
 importers:
 
   .:
@@ -191,7 +206,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       ioredis:
-        specifier: ^5.11.1
+        specifier: 'catalog:'
         version: 5.11.1
       pino:
         specifier: ^10.4.0
@@ -200,7 +215,7 @@ importers:
         specifier: ^4.8.1
         version: 4.8.4
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':
@@ -255,7 +270,7 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
       konva:
         specifier: ^10.9.1
@@ -303,7 +318,7 @@ importers:
         specifier: ^3.7.0
         version: 3.7.0
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@tailwindcss/postcss':
@@ -346,19 +361,19 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       bullmq:
-        specifier: ^6.7.6
+        specifier: 'catalog:'
         version: 6.7.6(ioredis@5.11.1)(pg@8.23.1)
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
       ioredis:
-        specifier: ^5.11.1
+        specifier: 'catalog:'
         version: 5.11.1
       pino:
         specifier: ^10.4.0
         version: 10.4.0
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':
@@ -395,10 +410,10 @@ importers:
         specifier: workspace:*
         version: link:../shared
       bullmq:
-        specifier: ^6.7.6
+        specifier: 'catalog:'
         version: 6.7.6(ioredis@5.11.1)(pg@8.23.1)
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
       fast-xml-parser:
         specifier: ^5.12.1
@@ -407,7 +422,7 @@ importers:
         specifier: ^2.11.0
         version: 2.11.0
       ioredis:
-        specifier: ^5.11.1
+        specifier: 'catalog:'
         version: 5.11.1
       lib-fints:
         specifier: ^1.5.3
@@ -434,7 +449,7 @@ importers:
         specifier: ^0.35.5
         version: 0.35.5(@types/node@24.19.2)
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/mailparser':
@@ -477,13 +492,13 @@ importers:
         specifier: workspace:*
         version: link:../shared
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
       pg:
         specifier: ^8.23.1
         version: 8.23.1
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':
@@ -508,7 +523,7 @@ importers:
   packages/redis:
     dependencies:
       ioredis:
-        specifier: ^5.11.1
+        specifier: 'catalog:'
         version: 5.11.1
     devDependencies:
       '@types/node':
@@ -524,7 +539,7 @@ importers:
   packages/shared:
     dependencies:
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':

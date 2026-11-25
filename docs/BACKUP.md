@@ -37,6 +37,10 @@ the id shown in the backup; the database content inside is encrypted with the sa
 system with the same ring, or enter it at restore time (see "Restoring a backup from another system"). Keep a
 copy of the key ring outside this system - without it a backup cannot be read.
 
+> **Warning:** store the key ring (`APP_ENCRYPTION_KEYS` in `.env`, and `/data/secrets` if you use the generated
+> `SESSION_SECRET`) **separately from the backups**, never only in the volume `tix-data`, on the server or at the
+> external target that also holds the backups. Whoever loses that place loses both the backup and the key.
+
 ## Schedule, retention, verification
 
 - Schedule: daily or weekly (weekday + time), in the shop time zone, DST-safe. A slot missed by more than

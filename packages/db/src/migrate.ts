@@ -160,7 +160,7 @@ export async function runMigrations({
         const detail = holders ? ` Open transactions on: ${holders}.` : '';
         if (attempt >= lockRetries) {
           throw new Error(
-            `[migrate] gave up after ${attempt} attempts: another session holds a lock that the schema change needs for more than ${lockTimeoutMs} ms.${detail} Stop the application (docker compose stop web worker realtime) and run the update again.`,
+            `[migrate] gave up after ${attempt} attempts: another session holds a lock that the schema change needs for more than ${lockTimeoutMs} ms.${detail} Stop the application (docker compose stop tix), then run the update once more with "docker compose run --rm tix migrate" and start it again ("docker compose up -d").`,
             { cause: err },
           );
         }

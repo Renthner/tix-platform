@@ -11,7 +11,15 @@ import {
   removeRealtimeHeartbeat,
   writeRealtimeHeartbeat,
 } from '@tix/redis';
-import { APP_VERSION, type SeatDeltaMessage, type SeatDeltaStatus } from '@tix/shared';
+import {
+  APP_VERSION,
+  ConnectionCounter,
+  TokenBucket,
+  installFloodGuard,
+  setBounded,
+  type SeatDeltaMessage,
+  type SeatDeltaStatus,
+} from '@tix/shared';
 import { verifyToken } from '@tix/shared/server';
 import { pino } from 'pino';
 import { Server, type Socket } from 'socket.io';
@@ -55,6 +63,11 @@ const presence = new PresenceTracker(redis.command, keys);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_EVENT_ROOMS = 8;
 const PING_INTERVAL_MS = 10_000;
+/** Per-socket event budget (sustained rate / burst) and concurrent sockets per shopper session. */
+const EVENTS_PER_SECOND = 20;
+const EVENT_BURST = 40;
+const MAX_CONNECTIONS_PER_SID = 10;
+const connectionsPerSid = new ConnectionCounter(MAX_CONNECTIONS_PER_SID);
 /** Shop clients send a presence heartbeat about every 15 s; faster beats are ignored. */
 const PRESENCE_MIN_INTERVAL_MS = 5_000;
 
@@ -193,6 +206,26 @@ io.use((socket, next) => {
   next();
 });
 
+// Concurrent sockets per shopper session. Last middleware: a refused socket gets a normal
+// connect_error (client backoff, no resync). The slot is released exactly once, when the socket
+// or its transport goes away (also when the handshake is abandoned before 'connection').
+io.use((socket, next) => {
+  const data = socket.data as SocketData;
+  if (!connectionsPerSid.acquire(data.sid)) {
+    logger.warn({ sid: data.sid }, 'too many connections for session: refusing');
+    return next(new Error('too_many_connections'));
+  }
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    connectionsPerSid.release(data.sid);
+  };
+  socket.once('disconnect', release);
+  socket.client.conn.once('close', release);
+  next();
+});
+
 /** `ack` (optional second argument of the client's emit) is called once the socket is in the room. */
 function eventRoomJoin(
   socket: Socket,
@@ -212,6 +245,10 @@ function eventRoomJoin(
 
 io.on('connection', (socket) => {
   const data = socket.data as SocketData;
+  // Flood protection: a client emitting far more events than the UI ever does is disconnected.
+  installFloodGuard(socket, new TokenBucket(EVENT_BURST, EVENTS_PER_SECOND), () =>
+    logger.warn({ sid: data.sid }, 'socket event rate exceeded: disconnecting'),
+  );
   void socket.join(`sid:${data.sid}`);
   if (currentEpoch) socket.emit('realtime:epoch', { epoch: currentEpoch });
 
@@ -228,6 +265,8 @@ io.on('connection', (socket) => {
       data.rooms.delete(room);
       void socket.leave(room);
     }
+    data.lastPing.delete(eventId);
+    data.lastPresence.delete(eventId);
   });
   // Shop presence for the dashboard ("im Shop"): connect/join + heartbeat every ~15 s. Sent by shop
   // pages only (admin sockets never emit it) and independent of the waiting-room counter below.
@@ -236,7 +275,7 @@ io.on('connection', (socket) => {
     const now = Date.now();
     if (now - (data.lastPresence.get(eventId) ?? 0) < PRESENCE_MIN_INTERVAL_MS) return;
     if (!data.presenceEvents.has(eventId) && data.presenceEvents.size >= MAX_EVENT_ROOMS) return;
-    data.lastPresence.set(eventId, now);
+    if (!setBounded(data.lastPresence, eventId, now, MAX_EVENT_ROOMS)) return;
     isShopEvent(eventId)
       .then((known) => {
         if (!known) return;
@@ -258,7 +297,9 @@ io.on('connection', (socket) => {
     if (typeof eventId !== 'string' || !UUID.test(eventId)) return;
     const now = Date.now();
     if (now - (data.lastPing.get(eventId) ?? 0) < PING_INTERVAL_MS) return;
-    data.lastPing.set(eventId, now);
+    // Only events the socket is subscribed to (validated UUIDs, capped per socket).
+    if (!data.rooms.has(`seats:${eventId}`)) return;
+    if (!setBounded(data.lastPing, eventId, now, MAX_EVENT_ROOMS)) return;
     queue.ping(eventId, data.sid).catch((err: unknown) => logger.warn({ err }, 'ping failed'));
   });
 });

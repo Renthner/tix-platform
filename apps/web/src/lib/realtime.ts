@@ -191,7 +191,8 @@ function connect(): Promise<Socket> {
     });
     socket.on('maintenance:start', enterMaintenance);
     socket.on('connect_error', (err) => {
-      state.needsResync = true;
+      // A refused extra connection of the same session needs no resync (nothing was missed).
+      if (err.message !== 'too_many_connections') state.needsResync = true;
       if (err.message === 'maintenance') enterMaintenance();
     });
     for (const name of ['seats:delta', 'queue:update', 'session:message']) {

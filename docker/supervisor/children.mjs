@@ -60,6 +60,14 @@ function pipeLines(stream, name, sink) {
 }
 
 /**
+ * Path of the hung-process watchdog probe per role. The web app answers `?probe=live` without
+ * touching PostgreSQL / Redis, so a database outage cannot make the probe slow or flaky.
+ */
+export function watchdogProbePath(role) {
+  return role === 'web' ? '/api/health?probe=live' : '/healthz';
+}
+
+/**
  * Resolves `fn()` at most once per `ttlMs` (concurrent callers share one in-flight call).
  * Used for the aggregated health check, which any client may poll.
  */
@@ -129,6 +137,13 @@ export class ManagedChild {
    * @param {number} [o.baseDelayMs]
    * @param {number} [o.stableMs]  uptime after which the failure counter resets
    * @param {() => void} [o.onExit]  called whenever the process is gone (also when stopping)
+   * @param {() => Promise<boolean>} [o.probe]  liveness probe (true = the process answers). Only
+   *   "no answer at all" may count as failure: a process that answers with an error status (for
+   *   example because PostgreSQL is down) is alive and must not be killed. The probe should hit a
+   *   pure in-process endpoint (see watchdogProbePath), not one that pings the database / Redis.
+   * @param {number} [o.watchdogIntervalMs]  time between probes (default 10 s)
+   * @param {number} [o.watchdogGraceMs]  no probing this long after a start (default 120 s)
+   * @param {number} [o.watchdogMaxFailures]  consecutive failed probes before SIGKILL (default 6)
    */
   constructor(o) {
     this.o = { baseDelayMs: 1_000, stableMs: 60_000, ...o };
@@ -139,6 +154,8 @@ export class ManagedChild {
     this.stopping = false;
     this.timer = null;
     this.exited = Promise.resolve();
+    this.watchdog = null;
+    this.hungKills = 0;
   }
 
   get running() {
@@ -157,6 +174,7 @@ export class ManagedChild {
         if (done) return;
         done = true;
         this.proc = null;
+        this.stopWatchdog();
         resolve();
         try {
           this.o.onExit?.();
@@ -187,13 +205,58 @@ export class ManagedChild {
     });
     pipeLines(proc.stdout, name, out);
     pipeLines(proc.stderr, name, err);
+    this.startWatchdog(proc, startedAt);
     log.info(`${name} started`, { pid: proc.pid });
+  }
+
+  stopWatchdog() {
+    if (this.watchdog) clearInterval(this.watchdog);
+    this.watchdog = null;
+  }
+
+  /**
+   * A child that is alive but no longer answers (event loop stuck) would never exit and so never
+   * be restarted. After `watchdogMaxFailures` consecutive probes without any answer it gets SIGKILL;
+   * the normal exit handling then restarts it with backoff.
+   */
+  startWatchdog(proc, startedAt) {
+    const { probe, name, log } = this.o;
+    if (!probe) return;
+    const interval = this.o.watchdogIntervalMs ?? 10_000;
+    const grace = this.o.watchdogGraceMs ?? 120_000;
+    const maxFailures = this.o.watchdogMaxFailures ?? 6;
+    let failures = 0;
+    let probing = false;
+    this.watchdog = setInterval(async () => {
+      if (probing || this.stopping || this.proc !== proc || Date.now() - startedAt < grace) return;
+      probing = true;
+      let alive = true;
+      try {
+        alive = await probe();
+      } catch {
+        alive = true; // a broken probe must never kill a healthy child
+      }
+      probing = false;
+      if (this.proc !== proc || this.stopping) return;
+      if (alive) {
+        failures = 0;
+        return;
+      }
+      failures += 1;
+      if (failures < maxFailures) return;
+      this.hungKills += 1;
+      log.error(`${name} does not answer any more, killing it`, { consecutiveFailures: failures });
+      this.stopWatchdog();
+      proc.kill('SIGKILL');
+    }, interval);
+    this.watchdog.unref();
   }
 
   /** SIGTERM now, SIGKILL after `timeoutMs`. Resolves when the process is gone. */
   async stop(timeoutMs) {
     this.stopping = true;
     if (this.timer) clearTimeout(this.timer);
+    this.stopWatchdog();
     const proc = this.proc;
     if (!proc) return;
     proc.kill('SIGTERM');

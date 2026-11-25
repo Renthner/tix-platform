@@ -23,7 +23,13 @@ import {
 } from '@tix/shared';
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { withMutex } from '../banking/runs';
-import { clearCartAfterOrder, holdCartUntil, validateSelection } from '../cart';
+import {
+  assertQuotedItemLimits,
+  assertQuotedTicketLimit,
+  clearCartAfterOrder,
+  holdCartUntil,
+  validateSelection,
+} from '../cart';
 import { discountRejectionError, lockAndCheckDiscountUsage } from '../discounts/plan';
 import { rebuildInventory } from '../inventory';
 import { DomainError, type CoreContext } from '../context';
@@ -246,6 +252,20 @@ async function placeOrderLocked(ctx: CoreContext, params: PlaceOrderParams): Pro
       accessToken: await issueOrderAccessToken(ctx, existing.orderId),
       locale: existing.locale,
     };
+  }
+
+  // Per-order limits (category, tariff, total / access code) are only checked non-atomically while
+  // the cart is filled: re-validate the quoted items before anything is created. Placed after the
+  // idempotent lookup so that a re-submit of an already committed order simply returns it.
+  for (const quoted of quote.events) {
+    assertQuotedItemLimits(quoted.items, maps.get(quoted.eventId)!);
+    await assertQuotedTicketLimit(
+      ctx,
+      sessionId,
+      eventRows.get(quoted.eventId)!,
+      configs.get(quoted.eventId)!.maxTicketsPerOrder,
+      quoted.items.length,
+    );
   }
 
   let attempt = 0;

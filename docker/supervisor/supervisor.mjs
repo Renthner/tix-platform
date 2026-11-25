@@ -10,7 +10,14 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { ManagedChild, cachedAsync, createLogger, runOnce, stopRun } from './children.mjs';
+import {
+  ManagedChild,
+  cachedAsync,
+  createLogger,
+  runOnce,
+  stopRun,
+  watchdogProbePath,
+} from './children.mjs';
 import { summarizeWebHealth } from './pool.mjs';
 import { childEnv, generateKeyRing, resolveEnv, withVersionDefaults } from './env.mjs';
 import {
@@ -332,6 +339,18 @@ async function serve() {
       out,
       err,
       log,
+      // Hung-process watchdog: only "no answer at all" (status 0) counts, never an error status.
+      probe: async () =>
+        (await httpGet(
+          role === 'web'
+            ? settings.webPorts[index]
+            : role === 'realtime'
+              ? settings.realtimePort
+              : settings.workerHealthPort,
+          watchdogProbePath(role),
+          8_000,
+          role === 'web' ? 'localhost' : '127.0.0.1',
+        )) !== 0,
     });
   if (has('web')) settings.webPorts.forEach((_, i) => proxy.pool.setReady(i, false));
   for (const role of ['web', 'realtime', 'worker']) {

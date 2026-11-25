@@ -9,23 +9,27 @@ const fixture = [
   'export TIX_VERSION=1.0.0-alpha.3',
   'curl -fLO https://example.test/v$TIX_VERSION/docker-compose.yml',
   '```',
-  '| `1.0.0-alpha.3`, `1.0.0` | exactly this version |',
+  '| `1.0.0-alpha.3` | exactly this version |',
+  './tix-update.sh 1.0.0-alpha.3  # or one exact version',
+  './tix-update.sh stable',
   'Set TIX_CHANNEL=next (or such as `1.0.0-alpha.3`)',
   '',
 ].join('\n');
 
-test('rewrites only TIX_VERSION assignments and the status line', () => {
+test('rewrites TIX_VERSION assignments, the status line and the version examples', () => {
   const out = rewriteDocPins(fixture, '1.0.0-beta.1');
-  assert.deepEqual(findDocPins(out), ['1.0.0-beta.1', '1.0.0-beta.1']);
+  assert.deepEqual(findDocPins(out), Array(5).fill('1.0.0-beta.1'));
   assert.match(out, /^> \*\*Status:\*\* pre-release \(`1\.0\.0-beta\.1`\)\. Feature-complete\.$/m);
   assert.match(out, /^export TIX_VERSION=1\.0\.0-beta\.1$/m);
   assert.match(out, /v\$TIX_VERSION\/docker-compose\.yml/);
-  assert.match(out, /^\| `1\.0\.0-alpha\.3`, `1\.0\.0` \|/m);
-  assert.match(out, /such as `1\.0\.0-alpha\.3`/);
+  assert.match(out, /^\| \`1\.0\.0-beta\.1\` \|/m);
+  assert.match(out, /such as \`1\.0\.0-beta\.1\`/);
+  assert.match(out, /^\.\/tix-update\.sh 1\.0\.0-beta\.1 {2}#/m);
+  assert.match(out, /^\.\/tix-update\.sh stable$/m);
 });
 
 test('rewrite is idempotent and finds pins', () => {
-  assert.deepEqual(findDocPins(fixture), ['1.0.0-alpha.3', '1.0.0-alpha.3']);
+  assert.deepEqual(findDocPins(fixture), Array(5).fill('1.0.0-alpha.3'));
   const once = rewriteDocPins(fixture, '2.0.0');
   assert.equal(rewriteDocPins(once, '2.0.0'), once);
 });

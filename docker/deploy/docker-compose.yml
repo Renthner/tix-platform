@@ -48,6 +48,11 @@ services:
       TIX_COMPOSE_VERSION: __TIX_VERSION__
     ports:
       - ${HTTP_PORT:-8080}:8080
+    # Optional memory limit (not set by default, so nothing changes for running installations).
+    # The supervisor reads the container limit (cgroup) at start and warns when TIX_WEB_PROCESSES x
+    # WEB_MAX_OLD_SPACE_MB (+ worker 1024 + realtime 256) does not fit. Recommended: at least 2g for
+    # one web process, 1g more per additional web process; see "Memory limit" in the install guide.
+    # mem_limit: ${TIX_MEM_LIMIT:-2g}
     volumes:
       - tix-data:/data
     depends_on:
@@ -74,6 +79,11 @@ services:
     # PostgreSQL 18 images keep PGDATA in a versioned sub-directory of this mount point.
     volumes:
       - postgres-data:/var/lib/postgresql
+    # Runtime flags only (they do not touch the data directory, so this is safe for existing
+    # installations): lock waits, deadlocks and slow statements show up in `docker compose logs
+    # postgres`. max_connections stays at PostgreSQL's default of 100, which the application budget
+    # (TIX_DB_CONNECTION_BUDGET, default 90) is sized for; raise both together.
+    command: postgres -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100} -c log_lock_waits=on -c deadlock_timeout=1s -c log_min_duration_statement=500 -c log_parameter_max_length=0 -c log_parameter_max_length_on_error=0
     shm_size: 256mb
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U tix -d tix']
@@ -93,9 +103,11 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    # Seat locks and queued jobs must never be evicted; AOF keeps them across restarts and the
-    # corrupt-tail setting lets Redis start again after a power loss.
-    command: redis-server --appendonly yes --appendfsync everysec --aof-load-corrupt-tail-max-size 4096 --maxmemory-policy noeviction
+    # Seat locks and queued jobs must never be evicted (noeviction); AOF keeps them across restarts
+    # and the corrupt-tail setting lets Redis start again after a power loss. maxmemory is a safety
+    # ceiling (REDIS_MAXMEMORY in .env): when it is reached Redis refuses writes instead of growing
+    # until the host runs out of memory (see "Redis memory" in the install guide).
+    command: redis-server --appendonly yes --appendfsync everysec --aof-load-corrupt-tail-max-size 4096 --maxmemory-policy noeviction --maxmemory ${REDIS_MAXMEMORY:-1gb}
     volumes:
       - redis-data:/data
     healthcheck:

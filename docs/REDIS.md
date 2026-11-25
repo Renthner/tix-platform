@@ -16,7 +16,7 @@ again after a power loss. Redis is not published and runs without a password ins
 ## Key layout
 
 All keys of one event share the hash tag `{ev:<eventId>}` → same cluster slot, so multi-key
-Lua scripts stay valid on Redis Cluster. `<p>` is `REDIS_KEY_PREFIX` (default `tix`).
+Lua scripts of one event stay valid on Redis Cluster. **Exception:** the seat engine scripts (`lockSeats`, `holdGeneralAdmission`, `extendCart`, `untrackIfIdle`) also touch the global set `<p>:locks:events` (events with live locks, tracked atomically for the sweeper), which lives in another slot. They therefore need a **single-node Redis** (Cluster would answer `CROSSSLOT`); this is what the bundled `redis` service is. `<p>` is `REDIS_KEY_PREFIX` (default `tix`).
 
 | Key                                     | Type   | Content                                                                                            |
 | --------------------------------------- | ------ | -------------------------------------------------------------------------------------------------- |

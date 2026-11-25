@@ -28,6 +28,7 @@ export * from './tickets/qr';
 export * from './tickets/default-layout';
 export * from './tickets/export-file';
 export * from './media';
+export * from './realtime-limits';
 export * from './email-template-editor';
 export * from './email-header';
 export * from './shop-order';

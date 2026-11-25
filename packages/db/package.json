@@ -22,9 +22,9 @@
   },
   "dependencies": {
     "@tix/shared": "workspace:*",
-    "drizzle-orm": "^0.45.4",
+    "drizzle-orm": "catalog:",
     "pg": "^8.23.1",
-    "zod": "^4.6.7"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

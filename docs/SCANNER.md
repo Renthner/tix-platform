@@ -171,6 +171,9 @@ content hash; 304 when unchanged). Fetch on start, after pairing and every sync 
   manifest or a sync response carries an epoch different from the stored one, the app **wipes its
   local tickets and cursors** and resyncs from scratch (the check-in state of the restored database
   can be older than what the devices hold). Pending offline scans stay in the queue and are uploaded.
+  Rows kept because of an unsent scan (or LAN-learned state) get `syncVersion = 0` locally, so later server rows of
+  the new epoch (whose version counter may restart lower) are merged into them instead of being ignored as "older";
+  the unsent check-in itself is kept until the server decided it.
 
 ### `GET /sync?eventId=<uuid>&cursor=<opaque>&limit=<1..1000, default 500>`
 
@@ -310,6 +313,15 @@ for the follow-up manual `/scan`.
 The app learns its offset to the server from the manifest / sync `serverTime` and sends `scannedAt` and `sentAt`
 on this offset-corrected clock. The server's per-batch correction (`serverNow - sentAt`) is then close to zero and
 only catches drift since the last offset measurement (it also stays correct for devices that send raw clocks).
+Once learned, the app keeps the offset anchored to a monotonic clock (`serverTimeAtLearn + elapsedRealtime delta`), so
+a later change of the device's wall clock (manual change, time zone, NTP jump) does not move `scannedAt`.
+
+### Camera frames
+
+One camera frame books at most one ticket: if a frame shows two or more different QR codes, nothing is booked and the
+operator sees "scan one ticket at a time"; the same code twice in one frame counts once. A code that stays in view is not
+booked again for a short window (debounce, held across rotation); there is deliberately no cooldown after a verdict - a
+second scan of the same ticket is a new scan and is RED.
 
 ### App updates (version matching, source)
 

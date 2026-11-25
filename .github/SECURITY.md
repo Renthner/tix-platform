@@ -43,3 +43,21 @@ temporarily for a migration. See [docs/BACKUP.md](../docs/BACKUP.md#restoring-a-
 
 Passkeys, mandatory two-factor authentication and the recovery paths are described in
 [docs/ADMIN-SECURITY.md](../docs/ADMIN-SECURITY.md).
+
+## Libraries that parse untrusted data
+
+Two dependencies are no longer actively maintained upstream or have a history of parser bugs, so TIX keeps
+their exposure small:
+
+- **pdf-lib** (unmaintained) only **creates** PDFs (tickets, invoices, reports); it never opens a PDF supplied
+  by a user (`PDFDocument.load` is used in tests only). The only external input it parses are the PNG / JPEG
+  images of ticket designs, uploaded by signed-in administrators; WebP images are converted to PNG by `sharp`
+  first, and an image that cannot be embedded is skipped with a log warning instead of failing the ticket.
+  Customer-supplied text is drawn as text, never interpreted. Fonts are the bundled Noto Sans.
+- **node-forge** is used for Apple Wallet only: it parses the signing certificate, the WWDR certificate and the
+  private key that an administrator enters in the settings, and signs the pass. It never processes data from
+  shop visitors.
+
+If you do not use Apple Wallet, leave it unconfigured and node-forge is never invoked. Every parse error of
+these inputs is caught and reported in the admin or the log; the container runs with all capabilities dropped
+and `no-new-privileges` (see the release `docker-compose.yml`), which limits the damage of a parser bug.

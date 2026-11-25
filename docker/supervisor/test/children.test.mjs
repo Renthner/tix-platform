@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ManagedChild, backoffDelay, formatChildLine, lineSplitter } from '../children.mjs';
+import {
+  ManagedChild,
+  backoffDelay,
+  formatChildLine,
+  lineSplitter,
+  watchdogProbePath,
+} from '../children.mjs';
 
 test('log lines: pino JSON intact, others prefixed', () => {
   assert.equal(formatChildLine('web', '{"level":30,"msg":"x"}'), '{"level":30,"msg":"x"}');
@@ -73,3 +79,43 @@ test(
     assert.equal(child.running, false);
   },
 );
+
+test('watchdog kills a child that never answers and it is restarted; a throwing probe does not', async () => {
+  const log = { info: () => {}, warn: () => {}, error: () => {} };
+  const make = (probe) =>
+    new ManagedChild({
+      name: 'hung',
+      args: ['-e', 'setInterval(()=>{},1000)'],
+      env: process.env,
+      cwd: process.cwd(),
+      out: () => {},
+      err: () => {},
+      log,
+      baseDelayMs: 20,
+      probe,
+      watchdogIntervalMs: 20,
+      watchdogGraceMs: 0,
+      watchdogMaxFailures: 3,
+    });
+  const hung = make(async () => false);
+  hung.start();
+  await new Promise((r) => setTimeout(r, 1500));
+  assert.ok(hung.hungKills >= 1, `hungKills=${hung.hungKills}`);
+  assert.ok(hung.restarts >= 1, `restarts=${hung.restarts}`);
+  await hung.stop(1000);
+
+  const flaky = make(async () => {
+    throw new Error('probe bug');
+  });
+  flaky.start();
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(flaky.hungKills, 0);
+  assert.equal(flaky.running, true);
+  await flaky.stop(1000);
+});
+
+test('watchdog probes the web app on the in-process liveness path, others on /healthz', () => {
+  assert.equal(watchdogProbePath('web'), '/api/health?probe=live');
+  assert.equal(watchdogProbePath('realtime'), '/healthz');
+  assert.equal(watchdogProbePath('worker'), '/healthz');
+});

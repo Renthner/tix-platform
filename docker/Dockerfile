@@ -37,7 +37,7 @@ COPY apps ./apps
 RUN pnpm --filter @tix/worker build \
  && pnpm --filter @tix/realtime build \
  && pnpm --filter @tix/web build \
- && node -p "require('/repo/packages/core/node_modules/sharp/package.json').version" > /sharp-version
+ && node -e 'const fs=require("fs"),path=require("path");const dir=fs.realpathSync("/repo/packages/core/node_modules/sharp");const pkg=JSON.parse(fs.readFileSync(path.join(dir,"package.json"),"utf8"));const nm=path.dirname(dir);const specs=[pkg.name+"@"+pkg.version];for(const n of Object.keys(pkg.dependencies||{})){specs.push(n+"@"+JSON.parse(fs.readFileSync(path.join(nm,n,"package.json"),"utf8")).version)}console.log(specs.join(" "))' > /sharp-version
 
 # ─── Runtime: the single `tix` image (default target, keep it LAST) ─────────
 # One container runs the web server, the realtime gateway and the worker under a small supervisor
@@ -63,9 +63,13 @@ RUN apk add --no-cache tini postgresql18-client \
  && pg_dump --version | grep -q 'pg_dump (PostgreSQL) 18'
 # `sharp` is native: external to the worker bundle and traced into the Next standalone output.
 # /app/node_modules/sharp serves the worker (resolved upwards from /app/worker/dist); the web
-# server prefers its own traced copy. Same version the lockfile resolved.
+# server prefers its own traced copy. /sharp-version lists sharp AND its runtime dependencies at the
+# exact versions pnpm resolved from pnpm-lock.yaml (the platform packages @img/sharp-* are pinned by
+# sharp itself), so the image does not float with the npm registry; the smoke test fails the build
+# when the native module does not load.
 COPY --from=build /sharp-version /tmp/sharp-version
-RUN npm install --omit=dev --no-save --no-audit --no-fund --ignore-scripts=false "sharp@$(cat /tmp/sharp-version)" \
+RUN npm install --omit=dev --no-save --no-audit --no-fund --ignore-scripts=false $(cat /tmp/sharp-version) \
+ && node -e 'require("sharp")' \
  && npm cache clean --force \
  && rm -rf /tmp/sharp-version /root/.npm
 COPY --from=build /repo/apps/web/.next/standalone ./web

@@ -27,11 +27,8 @@ export async function sweepExpiredLocks(ctx: CoreContext, now = Date.now()): Pro
         ga: Object.keys(ga).length ? ga : undefined,
       });
     }
-    const [locks, holds] = await Promise.all([
-      ctx.redis.zcard(ctx.keys.seatLockExpiries(eventId)),
-      ctx.redis.zcard(ctx.keys.generalAdmissionExpiries(eventId)),
-    ]);
-    if (locks === 0 && holds === 0) await ctx.redis.srem(ctx.keys.activeLockEvents(), eventId);
+    // Atomic emptiness re-check: a lock registered since the sweep keeps the event tracked.
+    await ctx.seats.untrackIfIdle(eventId);
   }
   return released;
 }
@@ -47,12 +44,33 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 const CURSOR_BROADCAST_INTERVAL_MS = 5_000;
+
+/**
+ * The ticker runs every second per active-queue event; the event row (dates, status) changes
+ * rarely, so it is re-read at most every few seconds. Sale-window timing still uses the exact
+ * `now`; only edits made by an admin take up to this long to reach the ticker.
+ */
+const EVENT_ROW_TTL_MS = 5_000;
+const eventRowCache = new Map<string, { row: typeof events.$inferSelect; until: number }>();
+
+async function loadEventForTick(ctx: CoreContext, eventId: string) {
+  const hit = eventRowCache.get(eventId);
+  if (hit && hit.until > Date.now()) return hit.row;
+  const [row] = await ctx.db.select().from(events).where(eq(events.id, eventId));
+  if (!row) {
+    eventRowCache.delete(eventId);
+    return undefined;
+  }
+  if (eventRowCache.size > 500) eventRowCache.clear();
+  eventRowCache.set(eventId, { row, until: Date.now() + EVENT_ROW_TTL_MS });
+  return row;
+}
 const lastBroadcast = new Map<string, number>();
 
 export async function tickWaitingRooms(ctx: CoreContext, now = Date.now()): Promise<void> {
   const eventIds = await ctx.redis.smembers(ctx.keys.activeQueueEvents());
   for (const eventId of eventIds) {
-    const [event] = await ctx.db.select().from(events).where(eq(events.id, eventId));
+    const event = await loadEventForTick(ctx, eventId);
     if (!event) {
       await ctx.redis.srem(ctx.keys.activeQueueEvents(), eventId);
       continue;

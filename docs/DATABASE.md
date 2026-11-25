@@ -29,6 +29,17 @@ Migrations live in [`packages/db/migrations`](../packages/db/migrations):
 - **Secrets at rest:** AES-256-GCM envelopes (`v1.<keyId>.<iv>.<tag>.<ciphertext>`) bound to a context string; the key ring in `APP_ENCRYPTION_KEYS` supports rotation.
 - **Tokens:** admin/customer sessions, customer e-mail tokens, device API tokens and pairing codes are stored only as SHA-256 hashes.
 
+## Migration rules
+
+- Never edit a released migration; schema changes go into the next number.
+- Constraints on large tables (`CHECK`, `FOREIGN KEY`) are added as `NOT VALID` and checked afterwards with
+  `ALTER TABLE ... VALIDATE CONSTRAINT`, which takes only a light lock instead of blocking writes during a full scan.
+- Big index builds go into their own migration file (so a slow build never hides inside an unrelated change).
+  Note: the runner applies all pending migrations in ONE transaction, where `CREATE INDEX CONCURRENTLY` is not
+  allowed. A really large table therefore needs a non-transactional migration step in the runner first
+  (`packages/db/src/migrate.ts`); until then keep the index build in its own file and test its duration.
+- A migration that waits too long for a lock is retried and finally aborted with a hint (see `packages/db/src/migrate.ts`).
+
 ## Domains
 
 ### Identity & audit

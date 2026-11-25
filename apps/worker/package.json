@@ -15,11 +15,11 @@
     "@tix/db": "workspace:*",
     "@tix/redis": "workspace:*",
     "@tix/shared": "workspace:*",
-    "bullmq": "^6.7.6",
-    "drizzle-orm": "^0.45.4",
-    "ioredis": "^5.11.1",
+    "bullmq": "catalog:",
+    "drizzle-orm": "catalog:",
+    "ioredis": "catalog:",
     "pino": "^10.4.0",
-    "zod": "^4.6.7"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

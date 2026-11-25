@@ -84,6 +84,13 @@ Servers. Sie verschlüsselt gespeicherte Geheimnisse (Bank-PINs, API-Schlüssel,
 und deine Backups; ohne sie ist beides nicht wiederherstellbar, **auch nicht auf einem anderen Server**.
 Ändere oder lösche nie einen Schlüssel, der in Benutzung ist.
 
+**Bewahre ihn getrennt von den Backups auf.** Ein Backup-Archiv ist mit diesem Schlüsselbund verschlüsselt, der
+Schlüssel darf also NICHT nur dort liegen, wo auch die Backups liegen: im Volume `tix-data` (lokale Backups,
+erzeugte Geheimnisse in `/data/secrets`), auf demselben Server oder im selben externen Backup-Ziel. Lege die
+`.env` (mindestens die Zeile `APP_ENCRYPTION_KEYS`) an einem anderen Ort als die Backups ab, z. B. in einem
+Passwortmanager; kopiere `/data/secrets` genauso, wenn du dich auf das erzeugte `SESSION_SECRET` verlässt.
+Ein Backup ohne seinen Schlüsselbund ist nicht lesbar.
+
 ### 3. HTTPS mit Caddy
 
 Caddy holt und erneuert das kostenlose Let's-Encrypt-Zertifikat selbst. Lege zwei Dateien neben die
@@ -406,6 +413,39 @@ Wie es funktioniert und was du wissen solltest:
 - Beginne mit `auto` auf einem Server mit mindestens zwei CPUs; lass einen Kern für PostgreSQL, Redis,
   Worker und Realtime-Gateway frei, wenn sie sich die Maschine teilen. Realtime-Gateway (Live-Platzupdates)
   und Worker bleiben einzelne Prozesse.
+
+### Speicherlimit, Redis-Speicher und PostgreSQL
+
+**Speicherlimit des Containers (optional).** Die `docker-compose.yml` des Releases setzt kein Limit, eine
+laufende Installation verhält sich also genau wie bisher. Um die Anwendung zu begrenzen, entferne im
+Dienst `tix` das `#` vor `mem_limit: ${TIX_MEM_LIMIT:-2g}` (und setze `TIX_MEM_LIMIT` in der `.env`, wenn du
+einen anderen Wert willst). Beim Start liest `tix` das Limit aus dem Container und warnt im Log, wenn
+`TIX_WEB_PROCESSES x WEB_MAX_OLD_SPACE_MB` plus die Heap-Limits von Worker (1024 MB) und Realtime-Gateway
+(256 MB) darüber liegen. Die Heap-Limits sind Obergrenzen, keine Reservierungen, ein ausgelasteter Prozess kann
+sie aber erreichen. Empfehlung: **2g** bei einem Web-Prozess (Standard-Heap 768 MB) plus etwa **1g je weiterem
+Web-Prozess**, z. B. `4g` bei `TIX_WEB_PROCESSES=3`. Ein Limit unter der Summe ist kein Fehler, aber der Container
+wird beendet (und neu gestartet), wenn es wirklich überschritten wird; senke dann `WEB_MAX_OLD_SPACE_MB` oder
+gib mehr Speicher.
+
+**Redis-Speicher.** Redis hält die Platzsperren, Warenkörbe, den Warteraum und die Job-Warteschlangen. Sie dürfen
+nie verdrängt werden, deshalb gilt absichtlich `noeviction`: Ist Redis voll, **verweigert es Schreibzugriffe**
+(Platzauswahl und Kasse melden dann Fehler), statt Sperren oder Jobs stillschweigend zu verwerfen. `--maxmemory`
+ist eine Sicherheitsgrenze, damit ein außer Kontrolle geratenes Redis nicht den Server aufbraucht; Standard ist
+**1gb** (eine normale Installation braucht einige zehn MB, ein großer Vorverkauf einige hundert MB). Ändern mit
+`REDIS_MAXMEMORY=2gb` in der `.env`. Wenn die Grenze erreicht wird: Admin-Seite **System** (Redis-Speicher,
+Warteschlangen) oder `docker compose exec redis redis-cli info memory` ansehen, nach einer wachsenden
+Warteschlange suchen (viele fehlgeschlagene Jobs, gestoppter Worker) und die Ursache beheben; ist die Last echt,
+`REDIS_MAXMEMORY` erhöhen und `docker compose up -d` ausführen. Setze keine Verdrängungsrichtlinie.
+
+> **Update von einer älteren Version:** Die 1gb-Grenze gilt jetzt auch für bestehende Installationen (frühere
+> Versionen hatten keine Grenze). Erwartest du einen sehr großen Vorverkauf, erhöhe `REDIS_MAXMEMORY` in der `.env`
+> *vor* dem Update; sonst schlagen Schreibzugriffe fehl, sobald Redis voll ist.
+
+**PostgreSQL.** Der Dienst `postgres` protokolliert Sperrwartezeiten, Deadlocks (`deadlock_timeout=1s`) und
+Anweisungen über 500 ms (`docker compose logs postgres`; Bind-Parameter werden nicht protokolliert, die Logs enthalten also keine Kundendaten). `max_connections` ist 100 (`POSTGRES_MAX_CONNECTIONS` in
+der `.env` ändert es); die Anwendung bleibt innerhalb von `TIX_DB_CONNECTION_BUDGET` (Standard 90), erhöhe also
+beide gemeinsam. Die Flags sind Laufzeiteinstellungen: Sie verändern das Datenverzeichnis nicht und sind auf einer
+bestehenden Installation unbedenklich.
 
 ## HTTPS-Varianten
 
@@ -741,7 +781,7 @@ Mehr dazu: [SCANNER.md](SCANNER.md) und [apps/android/README.md](../apps/android
 ```bash
 cd tix
 ./tix-update.sh                 # neuestes Release des Kanals in der .env (TIX_VERSION)
-./tix-update.sh 1.0.0-alpha.21  # oder eine exakte Version
+./tix-update.sh 1.0.0-alpha.40  # oder eine exakte Version
 ./tix-update.sh stable          # oder ein Kanal: stable, next, alpha, beta, rc, 1, 1.0
 ./tix-update.sh --dry-run       # nur herunterladen und prüfen, nichts ändern
 ```
@@ -800,7 +840,7 @@ Installation sendet. Abschaltbar unter Einstellungen → Allgemein → Updates.
 | `next`                   | dem neuesten Release jeder Art, auch Vorabversionen | Tests und Demos; heute die einzige Wahl, weil es noch kein stabiles Release gibt |
 | `stable`                 | dem neuesten stabilen Release                       | Produktion (ab 1.0.0)                                                            |
 | `1` oder `1.0`           | dem neuesten stabilen Release dieser Linie          | Produktion ohne Überraschungen                                                   |
-| `1.0.0-alpha.3`, `1.0.0` | genau dieser Version                                | Festnageln, Zurückgehen                                                          |
+| `1.0.0-alpha.40`         | genau dieser Version                                | Festnageln, Zurückgehen                                                          |
 
 Eine frühere Version festzunageln funktioniert nur, solange das Datenbankschema unverändert ist. Hat ein
 neueres Release die Datenbank migriert, wird das Zurückgehen **nicht unterstützt** (siehe „Zurückgehen"
@@ -930,7 +970,7 @@ Dienstnamen: `tix`, `postgres`, `redis` (dazu `caddy` / `minio`, wenn du sie erg
 | Log: „another session holds a lock on a table the migration needs"                                                       | Eine lang laufende Transaktion blockiert die Schemaänderung; die Migration versucht es erneut und gibt am Ende auf, ohne etwas zu ändern                             | Führe das Update (`docker compose up -d`) erneut aus, wenn im Shop wenig los ist                                                                                                                                                                                                                                                                                                                                                                                              |
 | Der Container startet von selbst neu, `docker inspect` zeigt `OOMKilled`                                                 | Dem Host ist der Speicher ausgegangen                                                                                                                                | Speicher freigeben oder RAM aufrüsten; für einen Verein reicht ein Server mit 4 GB RAM locker.                                                                                                                                                                                                                                                                                                                                                                                |
 | Fehler mit `configs.content`, „unknown key" oder „additional property"                                                   | Docker Compose ist älter als 2.23.1                                                                                                                                  | Docker aus dem offiziellen Repository installieren ([Docker installieren](#docker-installieren)). `docker compose version` muss 2.23.1 oder neuer zeigen.                                                                                                                                                                                                                                                                                                                     |
-| `manifest unknown` / `not found` beim Laden von `...:stable`                                                             | Es gibt noch kein stabiles Release, der Image-Tag `stable` existiert also nicht                                                                                      | Setze `TIX_VERSION=next` (oder eine exakte Version wie `1.0.0-alpha.3`) in der `.env`, dann `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                                    |
+| `manifest unknown` / `not found` beim Laden von `...:stable`                                                             | Es gibt noch kein stabiles Release, der Image-Tag `stable` existiert also nicht                                                                                      | Setze `TIX_VERSION=next` (oder eine exakte Version wie `1.0.0-alpha.40`) in der `.env`, dann `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                                    |
 | Fehler wie `password authentication failed`                                                                              | Das Passwort enthält Sonderzeichen (`@ : / # ? %`), Anführungszeichen, oder wurde nach dem ersten Start geändert                                                     | Nur Buchstaben und Ziffern, keine Anführungszeichen. Das Datenbank-Passwort wird beim Anlegen des Daten-Volumes festgelegt: `POSTGRES_PASSWORD` später zu ändern braucht `docker compose down -v` bei einer frischen Installation (löscht Daten) oder eine manuelle Passwortänderung in PostgreSQL.                                                                                                                                                                           |
 | Browser zeigt eine Zertifikatswarnung oder kein HTTPS (Caddy wie im Schnellstart)                                        | Caddy konnte kein Zertifikat holen: DNS falsch, Port 80/443 gesperrt oder Let's-Encrypt-Limit                                                                        | `docker compose logs caddy`. Prüfe, dass die Domain auf diesen Server zeigt, Port 80 und 443 offen sind (auch in der Firewall des Anbieters) und die Caddyfile nur die Domain enthält (kein `https://`). Warte eine Stunde, wenn das Log ein Limit erwähnt.                                                                                                                                                                                                                   |
 | `port is already allocated` / `address already in use` auf Port 80 oder 443                                              | Ein anderer Webserver (apache2, nginx) belegt den Port                                                                                                               | Beende ihn (`sudo systemctl disable --now apache2`) oder nimm Variante B/C/D. `sudo ss -ltnp \| grep -E ':80 \|:443 '` zeigt, wer den Port benutzt.                                                                                                                                                                                                                                                                                                                           |

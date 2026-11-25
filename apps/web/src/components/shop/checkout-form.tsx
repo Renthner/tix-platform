@@ -60,6 +60,9 @@ const CART_ERRORS = new Set([
   'SECTION_SOLD_OUT',
   'SELECTION_INVALID',
   'COMPANION_OWNER_MISMATCH',
+  'CATEGORY_LIMIT',
+  'TARIFF_LIMIT',
+  'TICKET_LIMIT',
 ]);
 
 interface Props {

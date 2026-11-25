@@ -4,7 +4,9 @@
  *
  * Cluster readiness: all keys of one event share the hash tag `{ev:<eventId>}` and
  * therefore the same slot. Lua scripts that atomically touch many seats of an event
- * (multi-seat lock, GA holds, queue admission) remain valid on Redis Cluster.
+ * (multi-seat lock, GA holds, queue admission) stay within one slot. Exception: the seat engine
+ * scripts also register the event in the global `activeLockEvents` set, so they require a
+ * single-node Redis (CROSSSLOT on Cluster).
  *
  * The spec's seat lock `SET seat:{eventId}:{seatId} {sessionId} NX EX {ttl}` maps to
  * `seatLock(eventId, seatId)` = `<prefix>:{ev:<eventId>}:seat:<seatId>`.

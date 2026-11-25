@@ -342,6 +342,59 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
     }
   });
 
+  it('re-validates the per-order category, tariff and total limits at checkout', async () => {
+    const session = sid();
+    await enterShop(ctx, event, session);
+    await addSeats(ctx, session, event, [seatIds[5]!, seatIds[6]!]);
+    await setTariff(ctx, session, event, seatIds[5]!, reducedId);
+    await setTariff(ctx, session, event, seatIds[6]!, reducedId);
+    try {
+      const total = (await getCheckoutOptions(ctx, session)).quotes.BANK_TRANSFER.totalGross;
+      const order = () =>
+        placeOrder(ctx, { sessionId: session, input: buyer('BANK_TRANSFER', total) });
+
+      // Limits lowered after the items were added (or slipped past the non-atomic cart check).
+      await handle.db
+        .update(priceCategories)
+        .set({ maxTicketsPerOrder: 1 })
+        .where(eq(priceCategories.eventId, event.id));
+      await expect(order()).rejects.toMatchObject({
+        code: 'CATEGORY_LIMIT',
+        details: { category: 'Cat 1', max: 1 },
+      });
+      await handle.db
+        .update(priceCategories)
+        .set({ maxTicketsPerOrder: null })
+        .where(eq(priceCategories.eventId, event.id));
+
+      await handle.db.update(ticketTypes).set({ maxPerOrder: 1 }).where(eq(ticketTypes.id, reducedId));
+      await expect(order()).rejects.toMatchObject({
+        code: 'TARIFF_LIMIT',
+        details: { tariff: 'Reduced', max: 1 },
+      });
+      await handle.db
+        .update(ticketTypes)
+        .set({ maxPerOrder: null })
+        .where(eq(ticketTypes.id, reducedId));
+
+      await handle.db.update(events).set({ maxTicketsPerOrder: 1 }).where(eq(events.id, event.id));
+      await expect(order()).rejects.toMatchObject({ code: 'TICKET_LIMIT', details: { max: 1 } });
+      // the cart survives every rejected checkout
+      expect((await getCart(ctx, session)).itemCount).toBe(2);
+    } finally {
+      await handle.db
+        .update(priceCategories)
+        .set({ maxTicketsPerOrder: null })
+        .where(eq(priceCategories.eventId, event.id));
+      await handle.db
+        .update(ticketTypes)
+        .set({ maxPerOrder: null })
+        .where(eq(ticketTypes.id, reducedId));
+      await handle.db.update(events).set({ maxTicketsPerOrder: 10 }).where(eq(events.id, event.id));
+      await discardCart(ctx, session);
+    }
+  });
+
   it('extends the cart once by the payment grace period when the checkout starts', async () => {
     const session = sid();
     await enterShop(ctx, event, session);

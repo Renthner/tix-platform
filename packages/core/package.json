@@ -20,11 +20,11 @@
     "@tix/db": "workspace:*",
     "@tix/redis": "workspace:*",
     "@tix/shared": "workspace:*",
-    "bullmq": "^6.7.6",
-    "drizzle-orm": "^0.45.4",
+    "bullmq": "catalog:",
+    "drizzle-orm": "catalog:",
     "fast-xml-parser": "^5.12.1",
     "imapflow": "^2.11.0",
-    "ioredis": "^5.11.1",
+    "ioredis": "catalog:",
     "lib-fints": "^1.5.3",
     "mailparser": "^3.14.3",
     "node-forge": "^1.4.3",
@@ -33,7 +33,7 @@
     "qrcode-generator": "^2.0.4",
     "sanitize-html": "^2.18.2",
     "sharp": "^0.35.5",
-    "zod": "^4.6.7"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/mailparser": "^3.9.0",

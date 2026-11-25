@@ -1,6 +1,8 @@
 // Version pins in the install docs (kept current by set-version.mjs, verified by --check).
-// Only `TIX_VERSION=<v>` assignments and the "> **Status:** ... (`<v>`)" line are pins;
-// the changelog, tag tables and other historical mentions are left alone.
+// Pins are `TIX_VERSION=<v>` assignments, the "> **Status:** ... (`<v>`)" line and the version
+// EXAMPLES that must name a release of the current layout: `./tix-update.sh <v>`, a table row that
+// starts with `<v>` and "such as / wie `<v>`". The changelog, tag tables and other historical
+// mentions are left alone.
 export const DOC_PIN_FILES = [
   'README.md',
   'docs/de/README.md',
@@ -9,10 +11,15 @@ export const DOC_PIN_FILES = [
 ];
 
 const ASSIGN = /^(\s*(?:export\s+)?TIX_VERSION=)\S+/gm;
+const EXAMPLE =
+  /(\.\/tix-update\.sh |(?:such as|wie) `|^\| `)(\d+\.\d+\.\d+(?:-[\w.]+)?)(?=[`\s])/gm;
 const STATUS = /^(> \*\*Status:\*\*[^`\n]*`)[^`\n]+(`)/gm;
 
 export function rewriteDocPins(text, version) {
-  return text.replace(ASSIGN, `$1${version}`).replace(STATUS, `$1${version}$2`);
+  return text
+    .replace(ASSIGN, `$1${version}`)
+    .replace(STATUS, `$1${version}$2`)
+    .replace(EXAMPLE, `$1${version}`);
 }
 
 /** All versions currently pinned in the text (in document order). */
@@ -20,6 +27,7 @@ export function findDocPins(text) {
   const out = [];
   for (const m of text.matchAll(ASSIGN)) out.push(m[0].replace(/^[^=]*=/, ''));
   for (const m of text.matchAll(STATUS)) out.push(m[0].replace(/^[^`]*`/, '').replace(/`$/, ''));
+  for (const m of text.matchAll(EXAMPLE)) out.push(m[2]);
   return out;
 }
 

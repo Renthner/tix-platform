@@ -23,7 +23,10 @@ See [Development in the README](../README.md#development): Node.js 24.7+, pnpm, 
   `apps/web/messages/en/*.json` and `apps/web/messages/de/*.json`; `pnpm test` checks that both
   have the same keys. The Android app has `values/` and `values-de/` with the same rule.
 - Database changes need a migration (`pnpm db:generate`). Never edit a migration that was
-  released.
+  released. Constraints on large tables are added as `NOT VALID` and checked later with `VALIDATE CONSTRAINT`;
+  big index builds go into their own migration file (the runner uses one transaction, so `CONCURRENTLY` needs a
+  runner change first). Details in
+  [docs/DATABASE.md](../docs/DATABASE.md#migration-rules).
 - Nothing organisation-specific in the repository: no real names, domains, bank data or secrets.
   Business settings belong in the Admin Portal, not in code.
 - Update the documentation and add a line under `[Unreleased]` in [CHANGELOG.md](../CHANGELOG.md)

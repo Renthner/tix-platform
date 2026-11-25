@@ -69,7 +69,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-tix}
       TZ: UTC
-    command: postgres -c max_connections=${POSTGRES_MAX_CONNECTIONS:-200} -c shared_buffers=256MB -c log_lock_waits=on -c deadlock_timeout=1s -c log_min_duration_statement=500
+    command: postgres -c max_connections=${POSTGRES_MAX_CONNECTIONS:-200} -c shared_buffers=256MB -c log_lock_waits=on -c deadlock_timeout=1s -c log_min_duration_statement=500 -c log_parameter_max_length=0 -c log_parameter_max_length_on_error=0
     # PostgreSQL 18 images keep PGDATA in a versioned sub-directory of this mount point.
     volumes:
       - postgres-data:/var/lib/postgresql

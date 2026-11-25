@@ -744,6 +744,61 @@ export async function bestAvailable(
 
 // ─── Tariffs (chosen per seat in the cart) ──────────────────────────────────
 
+/**
+ * Checkout re-validation of the per-order category and tariff limits. The cart checks them while
+ * items are added, but non-atomically (concurrent requests of one session can slip past), so the
+ * quoted items are counted again before the order is created. Same error codes as in the cart.
+ */
+export function assertQuotedItemLimits(
+  items: readonly { categoryId: string; ticketTypeId: string }[],
+  map: PublicSeatMap,
+): void {
+  const perCategory = new Map<string, number>();
+  const perTariff = new Map<string, number>();
+  for (const item of items) {
+    perCategory.set(item.categoryId, (perCategory.get(item.categoryId) ?? 0) + 1);
+    perTariff.set(item.ticketTypeId, (perTariff.get(item.ticketTypeId) ?? 0) + 1);
+  }
+  for (const category of map.categories) {
+    if (category.maxPerOrder !== null && (perCategory.get(category.id) ?? 0) > category.maxPerOrder) {
+      throw new DomainError('CATEGORY_LIMIT', 'Category limit per order reached', 422, {
+        category: category.name,
+        max: category.maxPerOrder,
+      });
+    }
+  }
+  for (const tariff of map.ticketTypes) {
+    if (tariff.maxPerOrder != null && (perTariff.get(tariff.id) ?? 0) > tariff.maxPerOrder) {
+      throw new DomainError('TARIFF_LIMIT', 'Tariff limit per order reached', 422, {
+        tariff: tariff.name,
+        max: tariff.maxPerOrder,
+      });
+    }
+  }
+}
+
+/**
+ * Checkout re-validation of the total tickets per order and event: the event / global limit,
+ * restricted by the per-order limit of the access code the session redeemed.
+ */
+export async function assertQuotedTicketLimit(
+  ctx: CoreContext,
+  sessionId: string,
+  event: EventRow,
+  eventLimit: number | null,
+  ticketCount: number,
+): Promise<void> {
+  const limit = await sessionTicketLimit(ctx, sessionId, event, eventLimit);
+  if (limit !== null && limit > 0 && ticketCount > limit) {
+    throw new DomainError(
+      'TICKET_LIMIT',
+      'Maximum number of tickets for this event reached',
+      422,
+      { max: limit },
+    );
+  }
+}
+
 /** Throws TARIFF_LIMIT when one more ticket of this tariff exceeds its per-order limit. */
 function assertTariffRoom(map: PublicSeatMap, ticketTypeId: string, current: number): void {
   const tariff = map.ticketTypes.find((t) => t.id === ticketTypeId);

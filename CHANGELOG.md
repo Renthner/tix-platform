@@ -8,6 +8,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+### Changed
+
+- **Redis memory ceiling now applies to existing installations on update.** `REDIS_MAXMEMORY` (default **1gb**) with the `noeviction` policy is part of the compose file: when Redis is full it refuses writes (seat selection and checkout fail) instead of evicting locks or jobs. A normal installation uses a few dozen MB, a large sale some hundred MB; if you expect more, set e.g. `REDIS_MAXMEMORY=2gb` in `.env` before updating (see the install guide, Redis memory).
+- **PostgreSQL logs no bind parameters** (`log_parameter_max_length=0`, also on error), so slow-query and error logs contain no customer data.
+- Seat engine: events with live locks are registered inside the Lua lock scripts and untracked atomically (fixes a race that could stop the sweeper from broadcasting releases). The seat engine scripts need a single-node Redis (documented).
+
+### Fixed
+
+- Realtime gateway: per-socket event rate limit, per-session connection cap, bounded per-socket maps; a flooding client can no longer affect other clients.
+- Checkout re-validates the per-order category, tariff and ticket limits.
+- Worker loop leadership is renewed after every step (lease 15 s) and a lost lease aborts the remaining steps.
+
 ## [1.0.0-alpha.40] - 2026-11-17
 
 Contains the admin portal reorganisation of 1.0.0-alpha.38 below. The tags `v1.0.0-alpha.38` and `v1.0.0-alpha.39` were created while the release pipeline was not ready and were never published; use this version.
