@@ -9,7 +9,7 @@ allowBuilds:
 
 # Versions shared by several workspace packages live here (referenced as "catalog:" in package.json).
 catalog:
-  bullmq: ^6.7.6
+  bullmq: ^6.7.8
   drizzle-orm: ^0.45.4
   ioredis: ^5.11.1
   zod: ^4.6.7
