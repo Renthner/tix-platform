@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -142,8 +143,68 @@ test('children only get the secrets they need', () => {
     assert.equal(c.APP_ENCRYPTION_KEYS, undefined, role);
     assert.equal(c.S3_SECRET_ACCESS_KEY, undefined, role);
   }
+  // demo-orders creates orders (key ring, storage) and signs links for e-mails (session secret).
+  const demo = childEnv(env, settings, 'demo-orders');
+  assert.ok(demo.APP_ENCRYPTION_KEYS && demo.DATABASE_URL && demo.REDIS_URL);
+  assert.equal(demo.SESSION_SECRET, env.SESSION_SECRET);
+  assert.equal(demo.S3_SECRET_ACCESS_KEY, 'sk');
+  assert.equal(demo.POSTGRES_PASSWORD, undefined);
+  assert.equal(demo.DATABASE_POOL_MAX, '4');
   // the resolved env itself is not modified
   assert.ok(env.APP_ENCRYPTION_KEYS && env.POSTGRES_PASSWORD);
+});
+
+/** Runs supervisor.mjs with a fake app dir whose entry scripts report their argv and env. */
+function runSupervisor(args, appDir, secretsDir) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.join(here, '..', 'supervisor.mjs'), ...args], {
+      env: {
+        PATH: process.env.PATH,
+        SystemRoot: process.env.SystemRoot,
+        TIX_APP_DIR: appDir,
+        TIX_SECRETS_DIR: secretsDir,
+        APP_ENCRYPTION_KEYS: KEYS,
+        POSTGRES_PASSWORD: 'pw',
+      },
+    });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => (out += d));
+    child.stderr.on('data', (d) => (err += d));
+    child.on('close', (code) => resolve({ code, out, err }));
+  });
+}
+
+test('demo-orders: one-off command with arguments and the persisted session secret', async () => {
+  const appDir = tmp();
+  const secretsDir = tmp();
+  const dist = path.join(appDir, 'worker', 'dist');
+  mkdirSync(dist, { recursive: true });
+  const report = `process.stdout.write(JSON.stringify({ args: process.argv.slice(2), session: process.env.SESSION_SECRET ?? null, keys: Boolean(process.env.APP_ENCRYPTION_KEYS) })); process.exit(3);`;
+  for (const name of ['demo-orders', 'create-admin']) {
+    writeFileSync(path.join(dist, `${name}.mjs`), report);
+  }
+
+  const demo = await runSupervisor(
+    ['demo-orders', '--yes-create-demo-data', '--count', '5'],
+    appDir,
+    secretsDir,
+  );
+  assert.equal(demo.code, 3, demo.err); // exit code passes through
+  const seen = JSON.parse(demo.out);
+  assert.deepEqual(seen.args, ['--yes-create-demo-data', '--count', '5']);
+  assert.equal(seen.keys, true);
+  // the same secret the serving container persisted / reads from the data volume
+  assert.equal(seen.session, readFileSync(path.join(secretsDir, 'session_secret'), 'utf8').trim());
+
+  // create-admin stays a one-off without the session secret
+  const admin = await runSupervisor(['create-admin', '--email', 'a@example.org'], appDir, tmp());
+  assert.equal(admin.code, 3, admin.err);
+  assert.equal(JSON.parse(admin.out).session, null);
+
+  const unknown = await runSupervisor(['bogus'], appDir, tmp());
+  assert.equal(unknown.code, 1);
+  assert.match(unknown.err, /create-admin, demo-orders, keygen/);
 });
 
 test('proxy knobs: defaults and validation', () => {

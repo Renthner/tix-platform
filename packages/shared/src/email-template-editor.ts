@@ -92,6 +92,12 @@ const ORDER = [
   ...names('order', ['eventList', 'itemsTable'], 'html'),
 ];
 
+/**
+ * Bank-transfer mails: `paymentQrCode` is the GiroCode (EPC QR code) of the open amount as an
+ * inline image with a short caption; empty when it cannot be built (no reference, not EUR, …).
+ */
+const PAYMENT_QR = names('order', ['paymentQrCode'], 'html');
+
 const ADJUSTMENT = [
   ...names('adjustment', [
     'adjustmentAmount',
@@ -200,9 +206,9 @@ const MESSAGE = [
 const EMAIL_CHANGE = names('message', ['previousEmail']);
 
 const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
-  ORDER_CONFIRMATION_BANK_TRANSFER: [...SHOP, ...ORDER],
+  ORDER_CONFIRMATION_BANK_TRANSFER: [...SHOP, ...ORDER, ...PAYMENT_QR],
   PAYMENT_RECEIVED_TICKETS: [...SHOP, ...ORDER, ...WALLET],
-  PAYMENT_REMINDER: [...SHOP, ...ORDER],
+  PAYMENT_REMINDER: [...SHOP, ...ORDER, ...PAYMENT_QR],
   ORDER_CANCELLED: [...SHOP, ...ORDER],
   REFUND_CONFIRMATION: [
     ...SHOP,
@@ -333,7 +339,7 @@ export function joinEmailContent(parts: EmailContentParts, content: string): str
 const LOGIC_TOKEN = /\{\{\s*(?:#if\b|#unless\b|else\b|\/if\b|\/unless\b)[^{}]*\}\}/g;
 /** Block-level placeholders: only protected when they stand alone between blocks. */
 const BLOCK_VARIABLE =
-  /\{\{\s*(?:itemsTable|eventList|walletLinks|ticketLinks|calendarLinks|adjustmentItems)\s*\}\}/g;
+  /\{\{\s*(?:itemsTable|eventList|walletLinks|ticketLinks|calendarLinks|adjustmentItems|paymentQrCode)\s*\}\}/g;
 const TOKEN = new RegExp(`${LOGIC_TOKEN.source}|${BLOCK_VARIABLE.source}`, 'g');
 
 const BLOCK_TAGS = 'p|table|h[1-6]|ul|ol|blockquote|div|hr';

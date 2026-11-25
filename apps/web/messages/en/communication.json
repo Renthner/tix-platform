@@ -59,11 +59,13 @@
     "empty": "No e-mails yet.",
     "retry": "Send again",
     "retrying": "Sending…",
+    "skippedReservedDomain": "Not sent: the recipient domain is reserved for examples and testing (e.g. example.com) and cannot receive e-mail.",
     "status": {
       "QUEUED": "Queued",
       "SENDING": "Sending",
       "SENT": "Sent",
-      "FAILED": "Failed"
+      "FAILED": "Failed",
+      "SKIPPED": "Not sent"
     }
   },
   "cancellation": {

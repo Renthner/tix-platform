@@ -4,10 +4,20 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -34,6 +44,8 @@ const TAGS = [
 ];
 
 const composeBody = (version) => `services: {}\nx-env:\n  TIX_COMPOSE_VERSION: ${version}\n`;
+const scriptBody = (version) => `#!/bin/sh\n# update script of ${version}\n`;
+const sha = (body) => createHash('sha256').update(body).digest('hex');
 let server;
 let base;
 let dir;
@@ -52,15 +64,23 @@ before(async () => {
       return;
     }
     const compose = composeBody(m[1]);
+    const updater = scriptBody(m[1]);
     if (m[2] === 'docker-compose.yml') res.end(compose);
+    else if (m[2] === 'tix-update.sh') res.end(updater);
     else if (m[2] === 'SHA256SUMS.txt') {
-      res.end(`${createHash('sha256').update(compose).digest('hex')}  docker-compose.yml\n`);
-    } else res.statusCode = 404;
+      res.end(`${sha(compose)}  docker-compose.yml\n${sha(updater)}  tix-update.sh\n`);
+    } else {
+      res.statusCode = 404;
+      res.end();
+    }
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}`;
   dir = mkdtempSync(join(tmpdir(), 'tix-update-'));
-  copyFileSync(script, join(dir, 'tix-update.sh'));
+  // A fake `docker` that accepts every command: real runs then only touch files.
+  mkdirSync(join(dir, 'bin'));
+  writeFileSync(join(dir, 'bin', 'docker'), '#!/bin/sh\nexit 0\n');
+  chmodSync(join(dir, 'bin', 'docker'), 0o755);
 });
 
 after(() => {
@@ -68,8 +88,14 @@ after(() => {
   if (dir) rmSync(dir, { recursive: true, force: true });
 });
 
-function run(args, current = '1.0.0', env = {}, compose = composeBody(current)) {
+function run(args, current = '1.0.0', env = {}, compose = composeBody(current), release = null) {
   writeFileSync(join(dir, 'docker-compose.yml'), compose);
+  // Fresh copy every time: a real run replaces the script with the one of the release.
+  copyFileSync(script, join(dir, 'tix-update.sh'));
+  if (release) {
+    const text = readFileSync(script, 'utf8').replace('__TIX_VERSION__', release);
+    writeFileSync(join(dir, 'tix-update.sh'), text);
+  }
   // Async child: spawnSync would block the event loop that serves the fake API.
   return new Promise((resolve) => {
     const child = spawn('sh', [join(dir, 'tix-update.sh'), ...args], {
@@ -78,6 +104,7 @@ function run(args, current = '1.0.0', env = {}, compose = composeBody(current)) 
         TIX_REPOSITORY: 'o/r',
         TIX_API_URL: base,
         TIX_DOWNLOAD_URL: base,
+        PATH: `${join(dir, 'bin')}${delimiter}${process.env.PATH}`,
         ...env,
       },
     });
@@ -199,4 +226,80 @@ test('the channel comes from TIX_VERSION in .env', { skip }, async () => {
   } finally {
     unlinkSync(join(dir, '.env'));
   }
+});
+
+for (const [pinned, expected] of [
+  ['1.2.0-alpha.2', 'v1.10.0-alpha.1'], // pre-release: newest release of major 1, any stage
+  ['1.0.0', 'v1.1.0'], // final: newest final release of major 1
+  ['2.0.0-rc.2', 'v2.0.0-rc.2'], // already the newest of its line
+]) {
+  test(`an exact version ${pinned} in .env follows its line to ${expected}`, { skip }, async () => {
+    writeFileSync(join(dir, '.env'), `TIX_VERSION=${pinned}\n`);
+    try {
+      const { status, out } = await run(['--dry-run'], pinned);
+      assert.equal(status, 0, out);
+      assert.equal(target(out), expected, out);
+      if (expected.slice(1) === pinned) assert.doesNotMatch(out, /set TIX_VERSION=/);
+      else assert.ok(out.includes(`set TIX_VERSION=${expected.slice(1)} in .env`), out);
+    } finally {
+      unlinkSync(join(dir, '.env'));
+    }
+  });
+}
+
+test('a real run moves a pinned TIX_VERSION and replaces the script', { skip }, async () => {
+  const env = '# keep\nPOSTGRES_PASSWORD=secret\nTIX_VERSION=1.0.0\nAPP_URL=https://x\n';
+  writeFileSync(join(dir, '.env'), env);
+  chmodSync(join(dir, '.env'), 0o600);
+  try {
+    const { status, out } = await run([], '1.0.0');
+    assert.equal(status, 0, out);
+    assert.ok(out.includes('Set TIX_VERSION=1.1.0 in .env (was 1.0.0)'), out);
+    assert.equal(readFileSync(join(dir, '.env'), 'utf8'), env.replace('1.0.0', '1.1.0'));
+    if (process.platform !== 'win32') {
+      assert.equal(statSync(join(dir, '.env')).mode & 0o777, 0o600);
+    }
+    assert.equal(readFileSync(join(dir, 'docker-compose.yml'), 'utf8'), composeBody('1.1.0'));
+    assert.equal(readFileSync(join(dir, 'tix-update.sh'), 'utf8'), scriptBody('1.1.0'));
+    assert.match(out, /Updated tix-update\.sh/);
+  } finally {
+    unlinkSync(join(dir, '.env'));
+  }
+});
+
+test('a pinned .env without a final newline is rewritten, no backup left', { skip }, async () => {
+  writeFileSync(join(dir, '.env'), 'A=1\nTIX_VERSION=1.0.0');
+  try {
+    const { status, out } = await run([], '1.0.0');
+    assert.equal(status, 0, out);
+    assert.equal(readFileSync(join(dir, '.env'), 'utf8'), 'A=1\nTIX_VERSION=1.1.0\n');
+    assert.throws(() => statSync(join(dir, '.env.tix-update-backup')));
+  } finally {
+    unlinkSync(join(dir, '.env'));
+  }
+});
+
+test('a channel in .env is never rewritten', { skip }, async () => {
+  writeFileSync(join(dir, '.env'), 'TIX_VERSION=stable\n');
+  try {
+    const { status, out } = await run([], '1.0.0');
+    assert.equal(status, 0, out);
+    assert.equal(readFileSync(join(dir, '.env'), 'utf8'), 'TIX_VERSION=stable\n');
+    assert.doesNotMatch(out, /Set TIX_VERSION/);
+  } finally {
+    unlinkSync(join(dir, '.env'));
+  }
+});
+
+test('a script newer than the target release keeps itself', { skip }, async () => {
+  const { status, out } = await run(['1.1.0'], '1.0.0', {}, composeBody('1.0.0'), '1.2.0-alpha.2');
+  assert.equal(status, 0, out);
+  assert.doesNotMatch(out, /Updated tix-update\.sh/);
+  assert.match(readFileSync(join(dir, 'tix-update.sh'), 'utf8'), /release 1\.2\.0-alpha\.2/);
+});
+
+test('going to a lower version (--force) keeps the current script', { skip }, async () => {
+  const { status, out } = await run(['--force', '1.0.0'], '1.1.0');
+  assert.equal(status, 0, out);
+  assert.doesNotMatch(out, /Updated tix-update\.sh/);
 });

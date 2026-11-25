@@ -1563,6 +1563,7 @@
           "dns": "The host name could not be resolved. Check the spelling of the SMTP host.",
           "tls": "The secure connection failed. Port 465 normally needs SSL/TLS, port 587 uses STARTTLS; also check the server certificate.",
           "recipientRejected": "The mail server rejected the recipient address. Check the address and the sender permissions.",
+          "reservedDomain": "Nothing was sent: the recipient domain is reserved for examples and testing (e.g. example.com, .test) and cannot receive e-mail. Use a real address.",
           "other": "The mail could not be sent. See the technical detail below."
         },
         "detail": "Technical detail:"

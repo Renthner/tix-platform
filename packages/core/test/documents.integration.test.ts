@@ -44,11 +44,14 @@ import {
   DomainError,
   EmailDeliveryError,
   JobQueues,
+  PAYMENT_QR_CID,
+  collectFindings,
   createCoreContext,
   createEmailMessage,
   deliverEmailMessage,
   enqueueEmail,
   formatMoney,
+  getSetting,
   issueInvoice,
   loadInvoicePdf,
   objectStorageFromEnv,
@@ -604,6 +607,99 @@ describe.skipIf(!adminUrl || !redisUrl)('invoices & e-mail (integration)', () =>
     expect(inactive.subject).toMatch(/^Deine Bestellung/);
   });
 
+  it('attaches the GiroCode of bank-transfer mails as an inline CID image', async () => {
+    const order = await insertOrder({
+      items: [{ eventId: event7, price: 3210, rate: 700 }],
+      status: 'AWAITING_PAYMENT',
+      paymentMethod: 'BANK_TRANSFER',
+    });
+    const rendered = await renderEmail(ctx, {
+      key: 'ORDER_CONFIRMATION_BANK_TRANSFER',
+      orderId: order.id,
+    });
+    expect(rendered.inlineImages).toHaveLength(1);
+    expect(rendered.inlineImages[0]).toMatchObject({
+      cid: PAYMENT_QR_CID,
+      contentType: 'image/png',
+    });
+    expect(rendered.html).toContain(`src="cid:${PAYMENT_QR_CID}"`);
+    expect(rendered.html).toContain('Scan with your banking app');
+    expect(rendered.text).not.toContain('cid:');
+    const reminder = await renderEmail(ctx, { key: 'PAYMENT_REMINDER', orderId: order.id });
+    expect(reminder.inlineImages).toHaveLength(1);
+
+    // Delivered as a related part with a Content-ID; not listed as a sent file.
+    const messageId = await createEmailMessage(ctx, ctx.db, {
+      key: 'ORDER_CONFIRMATION_BANK_TRANSFER',
+      orderId: order.id,
+    });
+    const sender = jsonSender();
+    expect(await deliverEmailMessage(ctx, messageId, { sender })).toMatchObject({ status: 'SENT' });
+    const attachments = sender.sent[0]!.attachments as Record<string, unknown>[];
+    expect(attachments).toEqual([
+      expect.objectContaining({
+        cid: PAYMENT_QR_CID,
+        contentType: 'image/png',
+        filename: 'girocode.png',
+      }),
+    ]);
+    const [row] = await handle.db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.id, messageId));
+    expect((row!.attachments as { sentFiles?: unknown[] }).sentFiles).toEqual([]);
+
+    // Paid order without reference: the placeholder renders empty, nothing is attached.
+    const paid = await insertOrder({ items: [{ eventId: event7, price: 3210, rate: 700 }] });
+    const none = await renderEmail(ctx, {
+      key: 'ORDER_CONFIRMATION_BANK_TRANSFER',
+      orderId: paid.id,
+    });
+    expect(none.inlineImages).toEqual([]);
+    expect(none.html).not.toContain('cid:');
+  });
+
+  it('never hands mails to reserved example domains to SMTP (SKIPPED, no retry, no alert)', async () => {
+    const alertSettings = await getSetting(ctx, 'alerts');
+    const failing = async () =>
+      (await collectFindings(ctx, {}, alertSettings, new Date())).findings.filter(
+        (f) => f.type === 'EMAIL_DELIVERY_FAILING',
+      );
+    const before = await failing();
+    const messageId = await createEmailMessage(ctx, ctx.db, {
+      key: 'SMTP_TEST',
+      to: 'demo.buyer@shop.example.com',
+    });
+    // No SMTP is configured in this suite: a hand-off would fail with a configuration error.
+    expect(await deliverEmailMessage(ctx, messageId)).toEqual({ status: 'SKIPPED' });
+    const [row] = await handle.db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.id, messageId));
+    expect(row).toMatchObject({ status: 'SKIPPED', sentAt: null });
+    expect(row!.lastError).toMatch(/^skipped: /);
+    // A duplicate job neither throws nor sends.
+    expect(await deliverEmailMessage(ctx, messageId, { finalAttempt: true })).toEqual({
+      status: 'SKIPPED',
+    });
+    // The sweeper only looks at QUEUED rows, the alert only at FAILED ones.
+    await handle.db
+      .update(emailMessages)
+      .set({ updatedAt: sql`now() - interval '1 hour'` })
+      .where(eq(emailMessages.id, messageId));
+    await requeueStaleEmails(ctx);
+    const [after] = await handle.db
+      .select({ jobId: emailMessages.jobId, status: emailMessages.status })
+      .from(emailMessages)
+      .where(eq(emailMessages.id, messageId));
+    expect(after).toEqual({ jobId: null, status: 'SKIPPED' });
+    expect(await failing()).toEqual(before);
+
+    // The SMTP test e-mail reports the skip instead of success.
+    const test = await sendTestEmail(ctx, { to: 'admin@example.org' });
+    expect(test).toMatchObject({ ok: false, kind: 'reservedDomain' });
+  });
+
   it('fulfils a paid order once: invoice + payment e-mail with the PDF attached', async () => {
     const order = await insertOrder({
       items: [{ eventId: event7, price: 3210, rate: 700 }],
@@ -773,7 +869,7 @@ describe.skipIf(!adminUrl || !redisUrl)('invoices & e-mail (integration)', () =>
   });
 
   it('reports a missing SMTP configuration on the test e-mail', async () => {
-    const result = await sendTestEmail(ctx, { to: 'admin@example.org' });
+    const result = await sendTestEmail(ctx, { to: 'admin@shop.co.uk' });
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error).toMatch(/SMTP is not configured/);
     const [row] = await handle.db

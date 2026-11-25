@@ -37,7 +37,7 @@ Die `.env`-Datei enthält nur die wenigen technischen Einstellungen.
 ### 1. Die zwei Dateien herunterladen
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.41
+export TIX_VERSION=1.0.0-alpha.42
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -171,7 +171,7 @@ Scanner-URL und Backups. Dieselbe Liste mit Erklärungen steht unter
 
 ```bash
 cd tix
-export TIX_VERSION=1.0.0-alpha.41
+export TIX_VERSION=1.0.0-alpha.42
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/tix-update.sh
 chmod +x tix-update.sh        # einmalig; das Skript gehört zu jedem Release
 unset TIX_VERSION
@@ -179,8 +179,9 @@ unset TIX_VERSION
 ```
 
 Das Skript lädt die `docker-compose.yml` des Ziel-Releases und prüft ihre Prüfsumme, behält eine Kopie
-deiner aktuellen Datei mit Zeitstempel, lädt das Image und startet den Stack neu. Es fasst `.env`
-und `docker-compose.override.yml` nie an; `./tix-update.sh --dry-run` zeigt nur, was sich ändern würde.
+deiner aktuellen Datei mit Zeitstempel, lädt das Image und startet den Stack neu. Es fasst
+`docker-compose.override.yml` nie an; in der `.env` setzt es nur eine exakte `TIX_VERSION` auf die neue
+Version, und es aktualisiert sich selbst auf das Skript des neuen Releases; `./tix-update.sh --dry-run` zeigt nur, was sich ändern würde.
 Datenbank-Migrationen laufen automatisch, und **bevor ein Update eine bestehende Datenbank verändert,
 wird automatisch ein Datenbank-Backup erstellt** (Admin → Backups, „Vor dem Update"). Details,
 Versionen und warum ein Zurückgehen nicht unterstützt wird:
@@ -781,7 +782,7 @@ Mehr dazu: [SCANNER.md](SCANNER.md) und [apps/android/README.md](../apps/android
 ```bash
 cd tix
 ./tix-update.sh                 # neuestes Release des Kanals in der .env (TIX_VERSION)
-./tix-update.sh 1.0.0-alpha.41  # oder eine exakte Version
+./tix-update.sh 1.0.0-alpha.42  # oder eine exakte Version
 ./tix-update.sh stable          # oder ein Kanal: stable, next, alpha, beta, rc, 1, 1.0
 ./tix-update.sh --dry-run       # nur herunterladen und prüfen, nichts ändern
 ```
@@ -792,7 +793,13 @@ prüft die SHA-256 der heruntergeladenen Compose-Datei, behält die bisherige al
 `docker-compose.yml.bak-<Zeit>` und führt dann `docker compose pull` und
 `docker compose up -d --remove-orphans` aus. Die Datei wird validiert (`docker compose config`) und das
 Image geladen, bevor die alte Compose-Datei ersetzt wird; ein fehlgeschlagener Download oder Pull ändert
-also nichts. `.env` und `docker-compose.override.yml` werden nie angefasst. Der Wechsel auf eine
+also nichts. `docker-compose.override.yml` wird nie angefasst. Ohne Argument folgt eine **exakte Version**
+in `TIX_VERSION` (z. B. `1.0.0-alpha.40`) ihrer Linie: eine Vorabversion geht auf das neueste Release
+derselben Hauptversion (alpha, beta, rc oder final), eine finale Version auf das neueste finale Release
+derselben Hauptversion; das Skript schreibt die neue Version dann in die `.env` (nur diese Zeile ändert
+sich), damit ein späteres `docker compose up` sie behält. Ein Kanal (`next`, `stable`, ...) in der `.env`
+wird nie geändert. Nach einem erfolgreichen Update ersetzt sich das Skript durch das `tix-update.sh` des
+neuen Releases (Prüfsumme aus `SHA256SUMS.txt`). Der Wechsel auf eine
 **niedrigere** Version als die laufende wird ohne `--force` abgelehnt (siehe „Zurückgehen" unten). Ein
 ausdrücklich angegebener Kanal oder eine Version gilt für diesen Lauf auch dann, wenn `TIX_VERSION` in der
 `.env` etwas anderes sagt; das Skript erinnert dich, auch die `.env` zu ändern. Eine Compose-Datei des
@@ -840,7 +847,7 @@ Installation sendet. Abschaltbar unter Einstellungen → Allgemein → Updates.
 | `next`           | dem neuesten Release jeder Art, auch Vorabversionen | Tests und Demos; heute die einzige Wahl, weil es noch kein stabiles Release gibt |
 | `stable`         | dem neuesten stabilen Release                       | Produktion (ab 1.0.0)                                                            |
 | `1` oder `1.0`   | dem neuesten stabilen Release dieser Linie          | Produktion ohne Überraschungen                                                   |
-| `1.0.0-alpha.41` | genau dieser Version                                | Festnageln, Zurückgehen                                                          |
+| `1.0.0-alpha.42` | genau dieser Version                                | Festnageln, Zurückgehen                                                          |
 
 Eine frühere Version festzunageln funktioniert nur, solange das Datenbankschema unverändert ist. Hat ein
 neueres Release die Datenbank migriert, wird das Zurückgehen **nicht unterstützt** (siehe „Zurückgehen"
@@ -863,6 +870,35 @@ außerhalb des Servers auf:
 Die Daten liegen in Docker-Volumes des Projekts `tix`: `tix_postgres-data`, `tix_redis-data` und
 `tix_tix-data` (Dateien, lokale Backups, das erzeugte `SESSION_SECRET`), dazu `tix_caddy-data`
 (Zertifikate), wenn du Caddy wie im Schnellstart nutzt. Liste sie mit `docker volume ls` auf.
+
+### Demo-Bestellungen (nur Demo- und Testinstallationen)
+
+Für einen Test des Admins mit realistischen Daten legt `demo-orders` reguläre Bestellungen über den
+normalen Shop- und Abendkassen-Code an. Es entstehen offene und bezahlte Vorkasse-Bestellungen,
+Bestellungen über mehrere Veranstaltungen, Abendkassen-Verkäufe (bar, Karte, Freikarte) und einige
+ermäßigte Tarife. Genutzt werden nur veröffentlichte Veranstaltungen im Verkauf, und höchstens 40 %
+ihrer freien Plätze:
+
+```bash
+docker compose run --rm tix demo-orders --yes-create-demo-data --count 40 \
+  --real du@example.org,kollegin@example.org,dritte@example.org   # optional, bis zu 3
+```
+
+- **Nie auf einem Produktivsystem ausführen.** Bezahlte Bestellungen erzeugen Rechnungen (GoBD),
+  die sich nicht löschen lassen. Mach vorher ein Backup (Admin → Backups): Nur dessen
+  Wiederherstellung entfernt die Demodaten wieder.
+- Ausgedachte Käufer nutzen `@example.org`-Adressen (Mails an sie werden nicht zugestellt).
+  Echte Adressen (`--real`) bekommen echte Mails vom laufenden Worker: A bekommt eine offene,
+  eine bezahlte und eine Bestellung über mehrere Veranstaltungen und gibt ein Ticket an B weiter
+  (nur wenn der Ticket-Self-Service Weitergaben erlaubt). B bekommt eine bezahlte Bestellung. C
+  bekommt eine bezahlte und eine offene Bestellung.
+- Vorkasse braucht ein Bankkonto. Abendkassen-Verkäufe werden dem ältesten aktiven Super-Admin
+  zugeordnet. `--events slug1,slug2` beschränkt die Veranstaltungen, und `--seed <n>` wiederholt
+  einen Lauf. Der Plan wird ausgegeben, bevor etwas angelegt wird; in einem interaktiven Terminal
+  bestätigst du ihn mit `y` (ohne Terminal, z. B. `docker compose run -T`, gilt das Flag
+  `--yes-create-demo-data` als Bestätigung).
+- Der Befehl nimmt seine Einstellungen nur aus der Umgebung der Installation (Datenbank, Redis,
+  Schlüssel); eine eigene `.env`-Datei liest er nie.
 
 ### Deinstallation
 
@@ -970,7 +1006,7 @@ Dienstnamen: `tix`, `postgres`, `redis` (dazu `caddy` / `minio`, wenn du sie erg
 | Log: „another session holds a lock on a table the migration needs"                                                       | Eine lang laufende Transaktion blockiert die Schemaänderung; die Migration versucht es erneut und gibt am Ende auf, ohne etwas zu ändern                                                                                                                                                                                                  | Führe das Update (`docker compose up -d`) erneut aus, wenn im Shop wenig los ist                                                                                                                                                                                                                                                                                                                                                                                              |
 | Der Container startet von selbst neu, `docker inspect` zeigt `OOMKilled`                                                 | Dem Host ist der Speicher ausgegangen                                                                                                                                                                                                                                                                                                     | Speicher freigeben oder RAM aufrüsten; für einen Verein reicht ein Server mit 4 GB RAM locker.                                                                                                                                                                                                                                                                                                                                                                                |
 | Fehler mit `configs.content`, „unknown key" oder „additional property"                                                   | Docker Compose ist älter als 2.23.1                                                                                                                                                                                                                                                                                                       | Docker aus dem offiziellen Repository installieren ([Docker installieren](#docker-installieren)). `docker compose version` muss 2.23.1 oder neuer zeigen.                                                                                                                                                                                                                                                                                                                     |
-| `manifest unknown` / `not found` beim Laden von `...:stable`                                                             | Es gibt noch kein stabiles Release, der Image-Tag `stable` existiert also nicht                                                                                                                                                                                                                                                           | Setze `TIX_VERSION=next` (oder eine exakte Version wie `1.0.0-alpha.41`) in der `.env`, dann `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                                   |
+| `manifest unknown` / `not found` beim Laden von `...:stable`                                                             | Es gibt noch kein stabiles Release, der Image-Tag `stable` existiert also nicht                                                                                                                                                                                                                                                           | Setze `TIX_VERSION=next` (oder eine exakte Version wie `1.0.0-alpha.42`) in der `.env`, dann `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                                   |
 | Fehler wie `password authentication failed`                                                                              | Das Passwort enthält Sonderzeichen (`@ : / # ? %`), Anführungszeichen, oder wurde nach dem ersten Start geändert                                                                                                                                                                                                                          | Nur Buchstaben und Ziffern, keine Anführungszeichen. Das Datenbank-Passwort wird beim Anlegen des Daten-Volumes festgelegt: `POSTGRES_PASSWORD` später zu ändern braucht `docker compose down -v` bei einer frischen Installation (löscht Daten) oder eine manuelle Passwortänderung in PostgreSQL.                                                                                                                                                                           |
 | Browser zeigt eine Zertifikatswarnung oder kein HTTPS (Caddy wie im Schnellstart)                                        | Caddy konnte kein Zertifikat holen: DNS falsch, Port 80/443 gesperrt oder Let's-Encrypt-Limit                                                                                                                                                                                                                                             | `docker compose logs caddy`. Prüfe, dass die Domain auf diesen Server zeigt, Port 80 und 443 offen sind (auch in der Firewall des Anbieters) und die Caddyfile nur die Domain enthält (kein `https://`). Warte eine Stunde, wenn das Log ein Limit erwähnt.                                                                                                                                                                                                                   |
 | `port is already allocated` / `address already in use` auf Port 80 oder 443                                              | Ein anderer Webserver (apache2, nginx) belegt den Port                                                                                                                                                                                                                                                                                    | Beende ihn (`sudo systemctl disable --now apache2`) oder nimm Variante B/C/D. `sudo ss -ltnp \| grep -E ':80 \|:443 '` zeigt, wer den Port benutzt.                                                                                                                                                                                                                                                                                                                           |

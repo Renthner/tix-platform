@@ -66,7 +66,10 @@ and the internal realtime/worker ports listen on `127.0.0.1` inside the containe
    only shows what would change; `./tix-update.sh 1.2.0` or `./tix-update.sh stable` choose a
    version or channel). It downloads the `docker-compose.yml` of the target release, verifies its
    checksum, keeps the old file as `docker-compose.yml.bak-<time>`, pulls the image and restarts
-   the stack. `.env` and `docker-compose.override.yml` are never touched.
+   the stack. `docker-compose.override.yml` is never touched; an exact version in `TIX_VERSION`
+   follows its line (pre-release: newest release of the same major version, final: newest final
+   release of the same major version) and is updated in `.env`. Afterwards the script replaces
+   itself with the checksum-verified `tix-update.sh` of the new release.
 
 By hand: download the `docker-compose.yml` of the release (keep your `.env`), then
 `docker compose pull && docker compose up -d`.
@@ -81,7 +84,8 @@ version is shown in Admin -> System and in the admin sidebar (also in `GET /api/
 
 `TIX_VERSION` in `.env` selects the image: `stable` (newest stable release, production), `next`
 (newest release incl. pre-releases, test servers), `1` / `1.0` (stable line) or an exact version
-such as `__TIX_VERSION__` (pin). Pinning an earlier version works only while the database schema is
+such as `__TIX_VERSION__` (`tix-update.sh` without arguments moves it to the newest release of its
+line and writes the new version to `.env`; `./tix-update.sh __TIX_VERSION__` keeps it). Pinning an earlier version works only while the database schema is
 unchanged; once a newer release migrated the database, going back is not supported.
 
 ## Backups

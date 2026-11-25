@@ -14,13 +14,17 @@ import {
   prepareEmailTemplate,
   renderTemplateDraft,
   sampleEmailVariables,
+  samplePaymentQr,
   type TemplateDraft,
   type TemplateIssue,
   type TemplateValidation,
 } from './editor';
+import { inlineAttachments } from './deliver';
+import type { InlineImage } from './payment-qr';
 import type { EmailTemplateRow } from './render';
 import { EmailConfigurationError, smtpSender, type MailSender } from './transport';
 import { classifyMailError, type MailErrorKind } from './error-kind';
+import { isReservedRecipient, RESERVED_DOMAIN_SKIP_REASON } from './reserved-domain';
 import { shopVariables } from './variables';
 
 /** Admin service of the e-mail template editor (list, edit, override, reset, test send). */
@@ -356,6 +360,17 @@ export async function sendDraftTestEmail(
     }),
   );
   const subject = `[Test] ${rendered.subject}`;
+  if (!params.sender && isReservedRecipient(params.to)) {
+    // Reserved example domain: never handed to SMTP (it would only bounce). An injected sender
+    // (tests) is not SMTP.
+    await logTest(ctx, params, subject, 'SKIPPED', null, RESERVED_DOMAIN_SKIP_REASON);
+    return {
+      ok: false,
+      error: RESERVED_DOMAIN_SKIP_REASON,
+      reason: 'delivery',
+      kind: 'reservedDomain',
+    };
+  }
   let providerMessageId: string | null = null;
   try {
     const sender = params.sender ?? (await smtpSender(ctx));
@@ -366,6 +381,12 @@ export async function sendDraftTestEmail(
       subject,
       html: rendered.html,
       text: rendered.text,
+      // The sample GiroCode, when the draft shows it (inline image referenced via `cid:`).
+      attachments: inlineAttachments(
+        [samplePaymentQr(params.locale)?.image].filter(
+          (image): image is InlineImage => !!image && rendered.html.includes(`cid:${image.cid}`),
+        ),
+      ),
       headers: { 'Auto-Submitted': 'auto-generated' },
     };
     const info = (await sender.transporter.sendMail(mail)) as { messageId?: string };
@@ -388,7 +409,7 @@ async function logTest(
   ctx: CoreContext,
   params: { key: EmailTemplateKey; to: string },
   subject: string,
-  status: 'SENT' | 'FAILED',
+  status: 'SENT' | 'FAILED' | 'SKIPPED',
   providerMessageId: string | null,
   lastError: string | null,
 ): Promise<string> {

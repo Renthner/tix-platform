@@ -14,6 +14,7 @@ import {
   type TemplateVariables,
 } from './template';
 import { messageBodyVariable } from './message-body';
+import { buildPaymentQr, inlineImagesAsDataUris, PAYMENT_QR_VARIABLE } from './payment-qr';
 import { shopVariables } from './variables';
 
 /** Admin-facing checks of a template before it is saved, and sample rendering for previews. */
@@ -319,8 +320,25 @@ export function sampleEmailVariables(
         : 'Doors open 30 minutes earlier.\n\nPlease bring photo ID.',
     ),
     previousEmail: 'old.address@example.org',
+    [PAYMENT_QR_VARIABLE]: samplePaymentQr(locale)?.variable ?? null,
   };
   return variables;
+}
+
+/** GiroCode of the sample order (sample bank details above; `cid:` reference + PNG). */
+export function samplePaymentQr(locale: string) {
+  const s = locale === 'de' ? SAMPLE.de : SAMPLE.en;
+  return buildPaymentQr(
+    {
+      holder: s.holder,
+      iban: 'DE02120300000000202051',
+      bic: 'BYLADEM1001',
+      amountCents: 4800,
+      currency: 'EUR',
+      reference: 'TIX-2026-123456-7',
+    },
+    locale,
+  );
 }
 
 export interface RenderedPreview {
@@ -373,8 +391,12 @@ export async function previewEmailTemplate(
   const variables = sampleEmailVariables(key, locale, shop, {
     orderUrl: ctx.appUrl ?? undefined,
   });
+  const rendered = renderTemplateDraft(clean, variables);
+  // The preview iframe cannot resolve `cid:` images: show the sample GiroCode as a data URI.
+  const qr = samplePaymentQr(locale);
   return {
-    ...renderTemplateDraft(clean, variables),
+    ...rendered,
+    html: qr ? inlineImagesAsDataUris(rendered.html, [qr.image]) : rendered.html,
     validation,
     plainTextGenerated: clean.bodyText === null,
   };

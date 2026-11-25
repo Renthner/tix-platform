@@ -209,6 +209,10 @@
       }
     }
   },
+  "paymentQr": {
+    "caption": "Mit deiner Banking-App scannen (GiroCode)",
+    "alt": "GiroCode für die Überweisung"
+  },
   "calendar": {
     "title": "In deinen Kalender eintragen",
     "ics": "Zum Kalender hinzufügen (.ics)",

@@ -37,6 +37,7 @@ import {
 } from '@/components/shop/order-adjustment';
 import { TicketSelfServiceActions } from '@/components/shop/ticket-self-service';
 import { OrderAutoRefresh } from '@/components/shop/order-auto-refresh';
+import { OrderPaymentWatcher } from '@/components/shop/order-payment-watcher';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -123,6 +124,20 @@ export default async function OrderPage({
     recentlyPaid &&
     ((expectsTickets && issuedTickets.length === 0) ||
       (invoicing.issueInvoices && !order.isTest && view.invoices.length === 0));
+  // Waiting for money from any channel (bank matching, PayPal, admin "Record payment"): the page
+  // watches the live status and reloads itself when the payment arrived.
+  const awaitingPayment =
+    !preparing &&
+    (order.status === 'AWAITING_PAYMENT' || order.status === 'PENDING' || view.adjustment !== null);
+  // Baseline built from the very data this page renders (same format as getOrderLiveStatus /
+  // the status endpoint): a payment landing after getOrderView must still trigger a refresh.
+  const watchedStatus = awaitingPayment
+    ? {
+        status: order.status,
+        amountPaid: order.amountPaid,
+        adjustment: view.adjustment ? `${view.adjustment.id}:${view.adjustment.status}` : null,
+      }
+    : null;
   // Upcoming events of the order: calendar file, Google Calendar and directions.
   const calendarEvents = (await loadOrderCalendarEvents(core, order.id, { locale })).filter(
     (event) => event.endsAt.getTime() > Date.now(),
@@ -205,6 +220,10 @@ export default async function OrderPage({
           token={token ?? null}
           initial={{ validTickets: issuedTickets.length, invoices: view.invoices.length }}
         />
+      )}
+
+      {watchedStatus && (
+        <OrderPaymentWatcher orderId={order.id} token={token ?? null} initial={watchedStatus} />
       )}
 
       <OrderItemsCard

@@ -13,6 +13,8 @@ export * from './editor';
 export * from './message-body';
 export * from './template-admin';
 export * from './header';
+export * from './reserved-domain';
+export * from './payment-qr';
 export { EMAIL_VARIABLES } from './variables';
 
 /**

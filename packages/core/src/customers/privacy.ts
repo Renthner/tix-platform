@@ -887,7 +887,7 @@ export async function runPrivacyRetention(
       })
       .where(
         and(
-          inArray(emailMessages.status, ['SENT', 'FAILED']),
+          inArray(emailMessages.status, ['SENT', 'FAILED', 'SKIPPED']),
           sql`${emailMessages.createdAt} < now() - make_interval(days => ${settings.emailRetentionDays}::int)`,
           sql`NOT coalesce(${emailMessages.attachments} ? 'purgedAt', false)`,
         ),

@@ -4,6 +4,7 @@
 //   serve (default)   migrate + seed, then web + realtime + worker behind the built-in proxy on :8080
 //   migrate | seed    run the database step once and exit
 //   create-admin ...  create/reset an administrator (arguments go to the CLI)
+//   demo-orders ...   DEMO/TEST installations only: create realistic orders (arguments go to the CLI)
 //   keygen            print a fresh APP_ENCRYPTION_KEYS value
 //   healthcheck       exit 0 when the container is healthy (used by HEALTHCHECK)
 import { spawn } from 'node:child_process';
@@ -76,6 +77,7 @@ const entries = {
   migrate: { file: 'worker/dist/migrate.mjs', cwd: 'worker' },
   seed: { file: 'worker/dist/seed.mjs', cwd: 'worker' },
   'create-admin': { file: 'worker/dist/create-admin.mjs', cwd: 'worker' },
+  'demo-orders': { file: 'worker/dist/demo-orders.mjs', cwd: 'worker' },
   worker: { file: 'worker/dist/index.mjs', cwd: 'worker' },
   realtime: { file: 'realtime/dist/index.mjs', cwd: 'realtime' },
   web: { file: 'web/apps/web/server.js', cwd: 'web' },
@@ -97,15 +99,18 @@ async function main() {
 
     case 'migrate':
     case 'seed':
-    case 'create-admin': {
-      const { env, errors, notes, settings } = resolve({ oneOff: true });
+    case 'create-admin':
+    case 'demo-orders': {
+      // demo-orders signs order / holder links that end up in e-mails: it needs the persisted
+      // SESSION_SECRET of the installation (same /data volume), so it is not resolved as a one-off.
+      const { env, errors, notes, settings } = resolve({ oneOff: command !== 'demo-orders' });
       if (errors.length) fail(errors);
       const code = await new Promise((resolve) => {
         // Inherit stdio: interactive prompts and exit codes pass straight through.
         const args = [
           '--enable-source-maps',
           entryPath(command),
-          ...(command === 'create-admin' ? rest : []),
+          ...(command === 'create-admin' || command === 'demo-orders' ? rest : []),
         ];
         const child = spawn(process.execPath, args, {
           env: childEnv(env, settings, command),
@@ -124,7 +129,7 @@ async function main() {
 
     default:
       fail([
-        `unknown command "${command}" (serve, migrate, seed, create-admin, keygen, healthcheck)`,
+        `unknown command "${command}" (serve, migrate, seed, create-admin, demo-orders, keygen, healthcheck)`,
       ]);
   }
 }

@@ -9,6 +9,8 @@ export const MAIL_ERROR_KINDS = [
   'dns',
   'tls',
   'recipientRejected',
+  // Not sent at all: the recipient domain is reserved (example.com, .test, …).
+  'reservedDomain',
   'other',
 ] as const;
 export type MailErrorKind = (typeof MAIL_ERROR_KINDS)[number];

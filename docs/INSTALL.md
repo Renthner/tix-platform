@@ -37,7 +37,7 @@ area. The `.env` file only holds the few technical settings.
 ### 1. Download the two files
 
 ```bash
-export TIX_VERSION=1.0.0-alpha.41
+export TIX_VERSION=1.0.0-alpha.42
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example
@@ -160,7 +160,7 @@ explanations is in [First configuration in the admin](#first-configuration-in-th
 
 ```bash
 cd tix
-export TIX_VERSION=1.0.0-alpha.41
+export TIX_VERSION=1.0.0-alpha.42
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/tix-update.sh
 chmod +x tix-update.sh        # once; the script is part of every release
 unset TIX_VERSION
@@ -169,7 +169,8 @@ unset TIX_VERSION
 
 The script downloads the `docker-compose.yml` of the target release and checks its checksum, keeps a
 timestamped copy of your current file, pulls the image and restarts the stack. It never touches
-`.env` or `docker-compose.override.yml`; `./tix-update.sh --dry-run` only shows what would change.
+`docker-compose.override.yml`; in `.env` it only moves an exact `TIX_VERSION` to the new version, and it
+updates itself to the script of the new release; `./tix-update.sh --dry-run` only shows what would change.
 Database migrations run automatically, and **before an update changes an existing database a
 database backup is taken automatically** (Admin → Backups, "Before update"). Details, versions and
 why going back is not supported:
@@ -759,7 +760,7 @@ More details: [SCANNER.md](SCANNER.md) and [apps/android/README.md](../apps/andr
 ```bash
 cd tix
 ./tix-update.sh                 # newest release of the channel in .env (TIX_VERSION)
-./tix-update.sh 1.0.0-alpha.41  # or one exact version
+./tix-update.sh 1.0.0-alpha.42  # or one exact version
 ./tix-update.sh stable          # or a channel: stable, next, alpha, beta, rc, 1, 1.0
 ./tix-update.sh --dry-run       # download and verify only, change nothing
 ```
@@ -770,7 +771,13 @@ the SHA-256 of the downloaded compose file, keeps the previous one as
 `docker-compose.yml.bak-<time>`, then runs `docker compose pull` and
 `docker compose up -d --remove-orphans`. The file is validated (`docker compose config`) and the
 image is pulled before the old compose file is replaced, so a failed download or pull changes
-nothing. `.env` and `docker-compose.override.yml` are never touched. Going to a **lower** version
+nothing. `docker-compose.override.yml` is never touched. Without an argument an **exact version** in
+`TIX_VERSION` (e.g. `1.0.0-alpha.40`) follows its line: a pre-release moves to the newest release of
+the same major version (alpha, beta, rc or final), a final version to the newest final release of the
+same major version; the script then writes the new version to `.env` (only that line changes), so a
+later plain `docker compose up` keeps it. A channel (`next`, `stable`, ...) in `.env` is never
+changed. After a successful update the script replaces itself with the `tix-update.sh` of the new
+release (checksum from `SHA256SUMS.txt`). Going to a **lower** version
 than the running one is refused without `--force` (see "Going back" below). An explicit version or channel argument is used for that run even when `TIX_VERSION`
 in `.env` says something else; the script reminds you to change `.env` too. A compose file of the old
 three-image layout is never replaced: the script stops and points to
@@ -816,7 +823,7 @@ installation. Switch it off under Settings → General → Updates.
 | `next`           | the newest release of any kind, including pre-releases | tests and demos; today the only choice because no stable release exists yet |
 | `stable`         | the newest stable release                              | production (from 1.0.0 on)                                                  |
 | `1` or `1.0`     | the newest stable release of that line                 | production without surprises                                                |
-| `1.0.0-alpha.41` | exactly this version                                   | pinning, rolling back                                                       |
+| `1.0.0-alpha.42` | exactly this version                                   | pinning, rolling back                                                       |
 
 Pinning an earlier version works only while the database schema is unchanged. Once a newer release
 migrated the database, going back is **not supported** (see "Going back" above): the pre-update
@@ -839,6 +846,32 @@ outside the server:
 The data lives in Docker volumes of the project `tix`: `tix_postgres-data`, `tix_redis-data` and
 `tix_tix-data` (files, local backups, the generated `SESSION_SECRET`), plus `tix_caddy-data`
 (certificates) if you use Caddy as in the quick start. List them with `docker volume ls`.
+
+### Demo orders (demo and test installations only)
+
+To try the admin with realistic data, `demo-orders` creates regular orders through the normal shop
+and box-office code. You get unpaid and paid bank-transfer orders, multi-event orders, box-office
+sales (cash, card, complimentary) and some reduced tariffs. It only uses published events that are
+on sale and takes at most 40 % of their free seats:
+
+```bash
+docker compose run --rm tix demo-orders --yes-create-demo-data --count 40 \
+  --real you@example.org,colleague@example.org,third@example.org   # optional, up to 3
+```
+
+- **Never run it on a production system.** Paid orders get invoices (GoBD) that cannot be
+  deleted. Take a backup first (Admin → Backups): restoring it is the only way to remove the
+  demo data again.
+- Fake buyers use `@example.org` addresses (mails to them are not delivered). Real addresses
+  (`--real`) get real mails from the running worker: A gets an unpaid, a paid and a
+  multi-event order and passes one ticket on to B (only if ticket self-service allows
+  transfers). B gets a paid order. C gets a paid and an unpaid order.
+- Vorkasse needs a bank account. Box-office sales are recorded as the oldest active super admin.
+  `--events slug1,slug2` limits the events, and `--seed <n>` repeats a run. The plan is printed
+  before anything is created; in an interactive terminal you confirm it with `y` (without a
+  terminal, e.g. `docker compose run -T`, the flag `--yes-create-demo-data` is the confirmation).
+- The command takes its settings only from the installation's environment (database, Redis, keys);
+  it never reads a `.env` file of its own.
 
 ### Uninstall
 
@@ -944,7 +977,7 @@ Service names: `tix`, `postgres`, `redis` (plus `caddy` / `minio` if you added t
 | Log: "another session holds a lock on a table the migration needs"                                   | A long-running transaction blocks the schema change; the migration retries and finally gives up without changing anything                                                                                                                                                                                     | Run the update again (`docker compose up -d`) when the shop is quiet                                                                                                                                                                                                                                                                                                                                                                                   |
 | The container restarts by itself, `docker inspect` shows `OOMKilled`                                 | The host ran out of memory                                                                                                                                                                                                                                                                                    | Free memory or add RAM; the application needs about 2 GB.                                                                                                                                                                                                                                                                                                                                                                                              |
 | Error mentioning `configs.content`, "unknown key" or "additional property"                           | Docker Compose is older than 2.23.1                                                                                                                                                                                                                                                                           | Install Docker from the official repository ([Installing Docker](#installing-docker)). `docker compose version` must show 2.23.1 or newer.                                                                                                                                                                                                                                                                                                             |
-| `manifest unknown` / `not found` when pulling `...:stable`                                           | No stable release exists yet, so the image tag `stable` does not exist                                                                                                                                                                                                                                        | Set `TIX_VERSION=next` (or an exact version such as `1.0.0-alpha.41`) in `.env`, then `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                   |
+| `manifest unknown` / `not found` when pulling `...:stable`                                           | No stable release exists yet, so the image tag `stable` does not exist                                                                                                                                                                                                                                        | Set `TIX_VERSION=next` (or an exact version such as `1.0.0-alpha.42`) in `.env`, then `docker compose pull && docker compose up -d`.                                                                                                                                                                                                                                                                                                                   |
 | Errors such as `password authentication failed`                                                      | The password contains special characters (`@ : / # ? %`), quotes, or was changed after first start                                                                                                                                                                                                            | Use letters and digits only, no quotes. The database password is fixed when the data volume is created: changing `POSTGRES_PASSWORD` later needs `docker compose down -v` on a fresh install (deletes data) or a manual password change in PostgreSQL.                                                                                                                                                                                                 |
 | Browser shows a certificate warning or no HTTPS (Caddy as in the quick start)                        | Caddy could not get a certificate: DNS wrong, ports 80/443 blocked, or Let's Encrypt limit                                                                                                                                                                                                                    | `docker compose logs caddy`. Check that the domain points to this server, ports 80 and 443 are open (provider firewall too) and the Caddyfile holds only the domain (no `https://`). Wait one hour if the log mentions a rate limit.                                                                                                                                                                                                                   |
 | `port is already allocated` / `address already in use` on port 80 or 443                             | Another web server (apache2, nginx) uses the port                                                                                                                                                                                                                                                             | Stop it (`sudo systemctl disable --now apache2`) or use variant B/C/D. `sudo ss -ltnp \| grep -E ':80 \|:443 '` shows who uses the port.                                                                                                                                                                                                                                                                                                               |

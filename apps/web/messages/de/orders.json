@@ -260,6 +260,7 @@
         "failed": "Fehlgeschlagen nach {attempts, plural, one {# Versuch} other {# Versuchen}}: {error}",
         "noError": "keine Fehlermeldung",
         "retryError": "Letzter Fehler: {error}",
+        "skipped": "Nicht gesendet: Die Empfängerdomain ist für Beispiele und Tests reserviert (z. B. example.com) und kann keine E-Mails empfangen",
         "attachments": "Anhänge: {files}",
         "attachmentKinds": {
           "invoice": "Rechnung",

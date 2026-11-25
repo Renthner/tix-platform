@@ -209,6 +209,10 @@
       }
     }
   },
+  "paymentQr": {
+    "caption": "Scan with your banking app (GiroCode)",
+    "alt": "GiroCode for the bank transfer"
+  },
   "calendar": {
     "title": "Add to your calendar",
     "ics": "Add to calendar (.ics)",

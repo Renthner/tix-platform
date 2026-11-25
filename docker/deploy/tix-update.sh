@@ -4,11 +4,17 @@
 # Updates this installation: downloads the docker-compose.yml of the target release, verifies it
 # against the SHA256SUMS.txt of that release, validates it with Docker Compose and pulls the images
 # BEFORE anything is replaced, then keeps a timestamped copy of the current file, installs the new
-# one and restarts the stack. It never touches .env or docker-compose.override.yml.
+# one and restarts the stack. It never touches docker-compose.override.yml; in .env it only
+# changes the line TIX_VERSION, and only when that line holds an exact version (see below).
+# Afterwards it replaces itself with the (checksum-verified) tix-update.sh of the new release.
 #
 #   ./tix-update.sh [--dry-run] [--force] [VERSION|CHANNEL]
 #
-#   (no argument)   channel from TIX_VERSION in .env (default: stable)
+#   (no argument)   newest release of the channel of TIX_VERSION in .env (default: stable).
+#                   An exact version there (e.g. 1.2.0-alpha.3) follows its own line: a
+#                   pre-release moves to the newest release of the same major version
+#                   (alpha, beta, rc or final), a final version to the newest final release of
+#                   the same major version. TIX_VERSION in .env is then set to the new version.
 #   1.2.0 / v1.2.0  that exact version (also 1.2.0-rc.1)
 #   stable | next | alpha | beta | rc | 1 | 1.2     newest release of that channel (highest
 #                   SemVer, alpha < beta < rc < final; looked up among the 100 newest releases)
@@ -150,6 +156,8 @@ newest_tag() {
         if (stage != "" || p[1] + 0 != major + 0) next
         if (minor != "" && p[2] + 0 != minor + 0) next
       }
+      if (mode == "follow" && p[1] + 0 != major + 0) next
+      if (mode == "follow-stable" && (stage != "" || p[1] + 0 != major + 0)) next
       if (best == "" || k > bestkey) { best = $0; bestkey = k }
     }
     END { if (best != "") print best }'
@@ -164,6 +172,19 @@ case "$TARGET" in
   *)
     if printf '%s' "$TARGET" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$'; then
       TAG="v$TARGET"
+      if [ "$CHANNEL_FROM_ENV" = 1 ]; then
+        # An exact version in .env follows its line: pre-release -> newest release of the major
+        # version, final -> newest final release of the major version; never lower than itself.
+        case "$TARGET" in
+          *-*) FOLLOWED="$(newest_tag follow "${TARGET%%.*}")" ;;
+          *) FOLLOWED="$(newest_tag follow-stable "${TARGET%%.*}")" ;;
+        esac
+        if [ -z "$FOLLOWED" ]; then
+          say "Note: could not look up newer releases of $TARGET (GitHub API unreachable or rate-limited?); staying on $TARGET."
+        elif [ "$(version_cmp "${FOLLOWED#v}" "$TARGET")" = "1" ]; then
+          TAG="$FOLLOWED"
+        fi
+      fi
     elif printf '%s' "$TARGET" | grep -Eq '^[0-9]+\.[0-9]+$'; then
       TAG="$(newest_tag line "${TARGET%%.*}" "${TARGET#*.}")"
     elif printf '%s' "$TARGET" | grep -Eq '^[0-9]+$'; then
@@ -222,9 +243,35 @@ else
   fi
 fi
 
-# Images are chosen by TIX_VERSION: an explicit argument wins over .env for this run.
+# The update script of the target release (replaces this file at the end), only if listed in its
+# SHA256SUMS.txt and never when going to a lower version or to a release older than this script.
+NEW_SCRIPT=""
+SELF="$(basename "$0")"
+SELF_RELEASE="$(sed -n '2s/.*(release \([^)]*\)).*/\1/p' "$SELF")"
+SCRIPT_SUM="$(grep -E '[[:space:]]\*?tix-update\.sh$' "$TMP/SHA256SUMS.txt" | head -n 1 | cut -d' ' -f1)"
+if [ -n "$SCRIPT_SUM" ] &&
+  { [ -z "$CURRENT" ] || [ "$(version_cmp "$VERSION" "$CURRENT")" != "-1" ]; } &&
+  [ "$(version_cmp "$VERSION" "$SELF_RELEASE")" != "-1" ]; then
+  if fetch "$DOWNLOAD_URL/$REPOSITORY/releases/download/$TAG/tix-update.sh" > "$TMP/tix-update.sh" &&
+    [ "$(sha256 "$TMP/tix-update.sh")" = "$SCRIPT_SUM" ]; then
+    cmp -s "$SELF" "$TMP/tix-update.sh" || NEW_SCRIPT="$TMP/tix-update.sh"
+  else
+    say "Note: the tix-update.sh of $TAG could not be downloaded or verified; this script stays as it is."
+  fi
+fi
+
+# Images are chosen by TIX_VERSION. An exact version in .env is moved to the target version (so a
+# later plain 'docker compose up' keeps it); a channel in .env is left alone.
 ENV_NOTE=""
-if [ "$CHANNEL_FROM_ENV" = 0 ] && [ "$(env_channel)" != "$TARGET" ]; then
+ENV_PINNED="$(env_channel)"
+SET_ENV=0
+if printf '%s' "$ENV_PINNED" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$'; then
+  if [ "${ENV_PINNED#v}" != "$VERSION" ]; then
+    SET_ENV=1
+    TIX_VERSION="$VERSION"
+    export TIX_VERSION
+  fi
+elif [ "$CHANNEL_FROM_ENV" = 0 ] && [ "$ENV_PINNED" != "$TARGET" ]; then
   TIX_VERSION="$TARGET"
   export TIX_VERSION
   ENV_NOTE="Note: images were pulled for \"$TARGET\", but .env says TIX_VERSION=$(env_channel). Set TIX_VERSION=$TARGET in .env to keep it, otherwise the next plain 'docker compose up' switches back."
@@ -237,6 +284,8 @@ if [ "$DRY_RUN" = 1 ]; then
   [ "$CHANGED" = 0 ] || say "  - save docker-compose.yml as docker-compose.yml.bak-<timestamp> and install the file of $TAG"
   say "  - docker compose up -d --remove-orphans"
   [ -z "$ENV_NOTE" ] || say "  - use TIX_VERSION=$TARGET for this run ($(env_channel | sed 's/^$/not set in .env/') in .env)"
+  [ "$SET_ENV" = 0 ] || say "  - set TIX_VERSION=$VERSION in .env (now $ENV_PINNED)"
+  [ -z "$NEW_SCRIPT" ] || say "  - replace this script with the tix-update.sh of $TAG"
   exit 0
 fi
 
@@ -263,6 +312,31 @@ if [ "$CHANGED" = 1 ]; then
   say "Installed docker-compose.yml of $TAG (previous file kept as $BACKUP)."
 fi
 
+# Written before 'up': once the new version migrated the database, a later plain 'docker compose
+# up' must not start the old pinned version again. Only the TIX_VERSION line changes. The new
+# content is built in the private temp directory and checked (same line count, new line present)
+# before it is copied over .env, which keeps its owner and mode; a private copy of the old .env
+# stays next to it until the copy succeeded (a full disk must never leave .env truncated).
+if [ "$SET_ENV" = 1 ]; then
+  awk -v v="$VERSION" '
+    { line[NR] = $0 }
+    /^[[:space:]]*TIX_VERSION=/ { last = NR }
+    END { for (i = 1; i <= NR; i++) print (i == last) ? "TIX_VERSION=" v : line[i] }
+  ' .env > "$TMP/env.new" || die "could not prepare the new .env; nothing was started (images are pulled)"
+  # awk counts a last line without newline too (wc -l would not).
+  [ "$(awk 'END { print NR }' "$TMP/env.new")" = "$(awk 'END { print NR }' .env)" ] &&
+    grep -qxF "TIX_VERSION=$VERSION" "$TMP/env.new" ||
+    die "could not prepare the new .env (disk full?); .env is unchanged, nothing was started"
+  (umask 077 && cp -p .env .env.tix-update-backup) ||
+    die "could not back up .env (disk full?); .env is unchanged, nothing was started"
+  if ! cat "$TMP/env.new" > .env; then
+    cp -p .env.tix-update-backup .env 2> /dev/null || true
+    die "writing .env failed; the previous file is kept as .env.tix-update-backup (restore it with: mv .env.tix-update-backup .env)"
+  fi
+  rm -f .env.tix-update-backup
+  say "Set TIX_VERSION=$VERSION in .env (was $ENV_PINNED)."
+fi
+
 say "Starting $VERSION (database migrations run first; a pre-update backup is taken automatically) ..."
 if ! docker compose up -d --remove-orphans; then
   {
@@ -272,12 +346,24 @@ if ! docker compose up -d --remove-orphans; then
       say "To restore the previous compose file (the new images stay pulled):"
       say "  mv \"$BACKUP\" docker-compose.yml"
     fi
+    if [ "$SET_ENV" = 1 ]; then
+      say "TIX_VERSION in .env was changed from $ENV_PINNED to $VERSION; to go back, set it to $ENV_PINNED again"
+      say "(only if no migration of $VERSION ran yet)."
+    fi
     say "If migrations already ran, do not start an older version (see --help)."
   } >&2
   exit 1
 fi
 say ""
 docker compose ps
+if [ -n "$NEW_SCRIPT" ]; then
+  # mv replaces the directory entry; the shell running this script keeps reading the old file.
+  cp "$NEW_SCRIPT" "$SELF.new"
+  chmod 755 "$SELF.new"
+  mv -f "$SELF.new" "$SELF"
+  say ""
+  say "Updated tix-update.sh to the version of $TAG."
+fi
 if [ -n "$ENV_NOTE" ]; then
   say ""
   say "$ENV_NOTE"

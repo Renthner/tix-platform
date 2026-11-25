@@ -8,6 +8,7 @@ import { getSetting } from '../settings';
 import { deliverEmailMessage, EmailDeliveryError } from './deliver';
 import { createEmailMessage, dispatchEmailMessage, isOrderRecipientOutdated } from './request';
 import { classifyMailError, type MailErrorKind } from './error-kind';
+import { RESERVED_DOMAIN_SKIP_REASON } from './reserved-domain';
 
 /** BullMQ job states in which a message's job will still run. */
 const LIVE_JOB_STATES = new Set([
@@ -113,6 +114,14 @@ export async function sendTestEmail(
       variables: { sentAt: formatDateTime(new Date(), locale, general.defaultTimeZone, 'long') },
     });
     const result = await deliverEmailMessage(ctx, messageId, { finalAttempt: true });
+    if (result.status === 'SKIPPED') {
+      return {
+        ok: false,
+        messageId,
+        error: RESERVED_DOMAIN_SKIP_REASON,
+        kind: 'reservedDomain',
+      };
+    }
     return {
       ok: true,
       messageId,

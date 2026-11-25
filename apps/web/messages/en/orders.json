@@ -260,6 +260,7 @@
         "failed": "Failed after {attempts, plural, one {# attempt} other {# attempts}}: {error}",
         "noError": "no error message",
         "retryError": "Last error: {error}",
+        "skipped": "Not sent: the recipient domain is reserved for examples and testing (e.g. example.com) and cannot receive e-mail",
         "attachments": "Attachments: {files}",
         "attachmentKinds": {
           "invoice": "Invoice",

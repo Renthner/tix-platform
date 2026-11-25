@@ -1,6 +1,6 @@
 {
   "name": "@tix/worker",
-  "version": "1.0.0-alpha.41",
+  "version": "1.0.0-alpha.42",
   "private": true,
   "license": "PolyForm-Shield-1.0.0",
   "type": "module",
@@ -8,6 +8,7 @@
     "dev": "tsx watch --clear-screen=false src/index.ts",
     "build": "node build.mjs",
     "start": "node dist/index.mjs",
+    "demo:orders": "tsx src/cli/demo-orders.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

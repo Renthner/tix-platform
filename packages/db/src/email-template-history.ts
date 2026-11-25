@@ -74,23 +74,31 @@ const EARLIER_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly string[]>> 
     '14603636517de183f1f60e36cab4fc3dd0294e50821b0e4e7346bccd07869fbc',
     // Fixed white text on the brand colour (now {{brandForegroundColor}}).
     '2becd700967b7ec50aa584de81b43b2d334c6c67323f37f42ef0822b5af876c9',
+    // Before the GiroCode ({{paymentQrCode}}) next to the bank details.
+    '7d0ecd715554cd86cbfa4c07b1e3d28a160e8c06e0c504c9637a953a66e76e53',
   ],
   'ORDER_CONFIRMATION_BANK_TRANSFER|de': [
     '304c1cd53010da128c596ac8c156f4d39976f381855d7b95ee61cfe037731c7f',
     '119723746eee8eff8db05d029ee43a82681ec017a19273b06a65e08b7e61e572',
     // Fixed white text on the brand colour (now {{brandForegroundColor}}).
     '11c8dd3f93e21aa4fe5ab9824ade3bee1afec840e847a0ca65dbb30f25c3689e',
+    // Before the GiroCode ({{paymentQrCode}}) next to the bank details.
+    'd94b87456931597d23692718b8f5d56ff2eca77e5b334409f719d41cc250c2f3',
   ],
   'PAYMENT_REMINDER|en': [
     'fd2f4e227a17d2f3ff7740fda08383bb997e6d7d50aede156166a65c8bcbc32f',
     // Fixed white text on the brand colour (now {{brandForegroundColor}}).
     'df0d781691e267d43db06047c3cc8f8984c399f5a98aa359167c462fa074e39d',
+    // Before the GiroCode ({{paymentQrCode}}) next to the bank details.
+    '744a82dfc67ca3cd62a629ea98876164e55fc58bb5004452cdc1426829bb9553',
   ],
   'PAYMENT_REMINDER|de': [
     '08dc1db1d49fd299ee0a89fff84e1f0cebff8e0e0223ccfc15a2a188b6f31192',
     '91714505ac78e34458ceb2c9aa9a9cadb8c83784e9d089bb63770967dfed8ec7',
     // Fixed white text on the brand colour (now {{brandForegroundColor}}).
     '9820af9e00f79f1c3daa68424bfcba1b1e3843a4794d134c34acc92a3b8587be',
+    // Before the GiroCode ({{paymentQrCode}}) next to the bank details.
+    '445ec25f1ec9f4912b5e928980fb10852b2f886fd913310c752eecd54bc3852b',
   ],
   'ORDER_CANCELLED|de': [
     '951c6b844fb1858a25e541259bf99c54c36819ca780e573dd4030b2ced7d6a0e',

@@ -1,12 +1,18 @@
 import { emailTemplates, type Executor } from '@tix/db';
-import type { EmailTemplateKey } from '@tix/shared';
+import { emailTemplateVariables, type EmailTemplateKey } from '@tix/shared';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { loadOrderDocumentData } from '../documents/order-data';
 import { mailTranslator } from '../i18n/mail-messages';
 import { getSetting } from '../settings';
 import { messageBodyVariable } from './message-body';
-import { htmlToText, renderTemplate, type TemplateVariables } from './template';
+import { orderPaymentQr, PAYMENT_QR_VARIABLE, type InlineImage } from './payment-qr';
+import {
+  htmlToText,
+  renderTemplate,
+  templatePlaceholders,
+  type TemplateVariables,
+} from './template';
 import { adjustmentVariables, customerVariables, orderVariables, shopVariables } from './variables';
 
 export type EmailTemplateRow = typeof emailTemplates.$inferSelect;
@@ -79,6 +85,8 @@ export interface RenderedEmail {
   to: string | null;
   /** Placeholders used by the template without a value. */
   missing: string[];
+  /** Images the HTML references via `cid:` (sent as inline MIME parts). */
+  inlineImages: InlineImage[];
 }
 
 /** Renders a stored template with the standard variables (+ `variables` overrides). */
@@ -129,9 +137,22 @@ export async function renderEmail(
   if (typeof variables.messageBody === 'string') {
     variables.messageBody = messageBodyVariable(variables.messageBody);
   }
+  // GiroCode of the open amount: generated only when the template uses it (inline PNG).
+  const candidateImages: InlineImage[] = [];
+  if (
+    emailTemplateVariables(params.key).some((v) => v.name === PAYMENT_QR_VARIABLE) &&
+    templatePlaceholders(template.bodyHtml).includes(PAYMENT_QR_VARIABLE)
+  ) {
+    const qr = data ? await orderPaymentQr(ctx.db, data.order, template.locale) : null;
+    variables[PAYMENT_QR_VARIABLE] = qr?.variable ?? null;
+    if (qr) candidateImages.push(qr.image);
+  }
 
   const subject = renderTemplate(template.subject, variables, 'text');
   const html = renderTemplate(template.bodyHtml, variables, 'html');
+  // Only images the rendered HTML really references (a false `{{#if}}` branch must not leave a
+  // stray attachment behind).
+  const inlineImages = candidateImages.filter((image) => html.output.includes(`cid:${image.cid}`));
   const text = template.bodyText
     ? renderTemplate(template.bodyText, variables, 'text')
     : { output: htmlToText(html.output), missing: [] };
@@ -147,6 +168,7 @@ export async function renderEmail(
     templateId: template.id,
     to,
     missing: [...new Set([...subject.missing, ...html.missing, ...text.missing])],
+    inlineImages,
   };
 }
 

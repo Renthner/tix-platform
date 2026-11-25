@@ -12,6 +12,8 @@ await build({
     migrate: 'src/migrate.ts',
     seed: '../../packages/db/src/cli/seed.ts',
     'create-admin': '../../packages/db/src/cli/create-admin.ts',
+    // Demo/test installations only: realistic orders through the shop / box-office code paths.
+    'demo-orders': 'src/cli/demo-orders.ts',
   },
   outdir: 'dist',
   outExtension: { '.js': '.mjs' },

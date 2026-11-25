@@ -1563,6 +1563,7 @@
           "dns": "Der Host-Name konnte nicht aufgelöst werden. Schreibweise des SMTP-Hosts prüfen.",
           "tls": "Die sichere Verbindung ist fehlgeschlagen. Port 465 benötigt in der Regel SSL/TLS, Port 587 verwendet STARTTLS; außerdem das Serverzertifikat prüfen.",
           "recipientRejected": "Der Mailserver hat die Empfängeradresse abgelehnt. Adresse und Absenderberechtigung prüfen.",
+          "reservedDomain": "Es wurde nichts gesendet: Die Empfängerdomain ist für Beispiele und Tests reserviert (z. B. example.com, .test) und kann keine E-Mails empfangen. Bitte eine echte Adresse verwenden.",
           "other": "Die E-Mail konnte nicht gesendet werden. Technische Details siehe unten."
         },
         "detail": "Technische Details:"

@@ -59,11 +59,13 @@
     "empty": "Noch keine E-Mails.",
     "retry": "Erneut senden",
     "retrying": "Wird gesendet…",
+    "skippedReservedDomain": "Nicht gesendet: Die Empfängerdomain ist für Beispiele und Tests reserviert (z. B. example.com) und kann keine E-Mails empfangen.",
     "status": {
       "QUEUED": "Eingereiht",
       "SENDING": "Wird gesendet",
       "SENT": "Gesendet",
-      "FAILED": "Fehlgeschlagen"
+      "FAILED": "Fehlgeschlagen",
+      "SKIPPED": "Nicht gesendet"
     }
   },
   "cancellation": {

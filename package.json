@@ -1,6 +1,6 @@
 {
   "name": "tix-platform",
-  "version": "1.0.0-alpha.41",
+  "version": "1.0.0-alpha.42",
   "private": true,
   "license": "PolyForm-Shield-1.0.0",
   "description": "High-concurrency ticketing platform with seating editor, virtual waiting room, Vorkasse reconciliation and offline check-in.",
@@ -30,6 +30,7 @@
     "infra:up": "docker compose -p tix-dev up -d postgres redis minio minio-init",
     "infra:down": "docker compose -p tix-dev --profile dev-storage down",
     "db:demo": "pnpm --filter @tix/core db:demo",
+    "demo:orders": "pnpm --filter @tix/worker demo:orders",
     "test:e2e": "node scripts/e2e/run.mjs",
     "test:supervisor": "node --test \"docker/supervisor/test/*.test.mjs\"",
     "test:load": "node --test \"scripts/load/test/*.test.mjs\"",

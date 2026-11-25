@@ -30,7 +30,12 @@ export function createEmailProcessor(deps: WorkerDeps) {
           const result = await deliverEmailMessage(deps.core, messageId, {
             finalAttempt: job.attemptsMade + 1 >= attempts,
           });
-          deps.logger.info({ messageId, status: result.status }, 'e-mail delivered');
+          deps.logger.info(
+            { messageId, status: result.status },
+            result.status === 'SKIPPED'
+              ? 'e-mail skipped (reserved recipient domain)'
+              : 'e-mail delivered',
+          );
           return result;
         } catch (err) {
           const permanent = err instanceof EmailDeliveryError && err.permanent;

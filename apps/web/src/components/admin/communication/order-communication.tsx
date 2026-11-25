@@ -1,5 +1,6 @@
 'use client';
 
+import type { EmailStatus } from '@tix/shared';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useActionState, useRef, useState, useTransition } from 'react';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
@@ -157,7 +158,7 @@ export interface OrderEmailItem {
   templateKey: string | null;
   toEmail: string;
   subject: string;
-  status: 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED';
+  status: EmailStatus;
   attempts: number;
   lastError: string | null;
   createdAt: string;
@@ -219,8 +220,15 @@ export function OrderEmailsCard({
                   {m.status === 'SENT' && m.subject && !m.subject.startsWith('[') && (
                     <div className="truncate text-xs text-muted-foreground">{m.subject}</div>
                   )}
-                  {m.lastError && m.status !== 'SENT' && (
-                    <div className="break-words text-xs text-destructive">{m.lastError}</div>
+                  {m.status === 'SKIPPED' ? (
+                    <div className="break-words text-xs text-muted-foreground">
+                      {t('skippedReservedDomain')}
+                    </div>
+                  ) : (
+                    m.lastError &&
+                    m.status !== 'SENT' && (
+                      <div className="break-words text-xs text-destructive">{m.lastError}</div>
+                    )
                   )}
                 </div>
                 <div className="flex items-center gap-2">

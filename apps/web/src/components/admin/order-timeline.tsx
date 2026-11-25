@@ -355,6 +355,8 @@ export async function OrderTimeline({ view }: { view: OrderAdminView }) {
     ];
     if (m.status === 'SENT') {
       lines.push(tr('email.sent', { time: dateTime(m.sentAt ?? m.createdAt) }));
+    } else if (m.status === 'SKIPPED') {
+      lines.push(tr('email.skipped'));
     } else if (m.status === 'FAILED') {
       lines.push(
         tr('email.failed', { attempts: m.attempts, error: m.lastError ?? tr('email.noError') }),

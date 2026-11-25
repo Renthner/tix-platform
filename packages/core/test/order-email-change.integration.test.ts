@@ -409,6 +409,36 @@ describe.skipIf(!adminUrl || !redisUrl)('order e-mail change (integration)', () 
     expect(confirmations).toHaveLength(1);
   });
 
+  it('re-creates mails skipped for a reserved example address for the new address', async () => {
+    const orderId = await bankOrder('demo@example.com');
+    const [confirmation] = await handle.db
+      .select()
+      .from(emailMessages)
+      .where(
+        and(
+          eq(emailMessages.orderId, orderId),
+          eq(emailMessages.templateKey, 'ORDER_CONFIRMATION_BANK_TRANSFER'),
+        ),
+      );
+    expect(await deliverEmailMessage(ctx, confirmation!.id)).toEqual({ status: 'SKIPPED' });
+
+    await changeOrderEmail(ctx, { orderId, newEmail: 'real-buyer@shop.co.uk', userId });
+
+    // The skipped row keeps its honest status; a fresh confirmation goes to the new address.
+    expect((await message(confirmation!.id)).status).toBe('SKIPPED');
+    const recreated = await handle.db
+      .select()
+      .from(emailMessages)
+      .where(
+        and(
+          eq(emailMessages.orderId, orderId),
+          eq(emailMessages.templateKey, 'ORDER_CONFIRMATION_BANK_TRANSFER'),
+          eq(emailMessages.status, 'QUEUED'),
+        ),
+      );
+    expect(recreated.map((m) => m.toEmail)).toEqual(['real-buyer@shop.co.uk']);
+  });
+
   it('refuses orders whose contact data were erased', async () => {
     const orderId = await bankOrder('erased@example.invalid');
     await handle.db.update(orders).set({ anonymizedAt: new Date() }).where(eq(orders.id, orderId));

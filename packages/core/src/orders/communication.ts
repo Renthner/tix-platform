@@ -1,6 +1,7 @@
 import { auditLogs, emailMessages, orderHistory, orders, withTransaction } from '@tix/db';
 import { desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import type { EmailStatus } from '@tix/shared';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
 import { coreLog } from '../log';
@@ -68,7 +69,7 @@ export interface OrderEmailRow {
   toEmail: string;
   /** Rendered subject once sent; a placeholder (`[KEY]`) before. */
   subject: string;
-  status: 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED';
+  status: EmailStatus;
   attempts: number;
   lastError: string | null;
   createdAt: Date;

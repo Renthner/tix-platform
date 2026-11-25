@@ -216,11 +216,33 @@ export async function changeOrderEmail(
           paidCycle: emailMessages.paidCycle,
           createdAt: emailMessages.createdAt,
         });
+      // Mails never sent because the old address was on a reserved example domain (demo orders):
+      // nobody got them, so they are re-created for the new address as well (the rows stay
+      // SKIPPED – that is what happened to them).
+      const skipped = await tx
+        .select({
+          templateKey: emailMessages.templateKey,
+          attachments: emailMessages.attachments,
+          paidCycle: emailMessages.paidCycle,
+          createdAt: emailMessages.createdAt,
+        })
+        .from(emailMessages)
+        .where(
+          and(
+            eq(emailMessages.orderId, order.id),
+            eq(emailMessages.status, 'SKIPPED'),
+            sql`lower(trim(${emailMessages.toEmail})) = ${previousEmail.trim().toLowerCase()}`,
+            or(
+              isNull(emailMessages.templateKey),
+              ne(emailMessages.templateKey, 'ORDER_EMAIL_CHANGED_OLD'),
+            ),
+          ),
+        );
       replacements.push(
         ...(await recreateRetiredMails(ctx, tx, {
           order: { id: order.id, status: order.status, paidCycle: order.paidCycle },
           to: newEmail,
-          retired,
+          retired: [...retired, ...skipped],
         })),
       );
     }

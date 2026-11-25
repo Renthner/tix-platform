@@ -14,6 +14,8 @@ import {
   parseStoredEmailRequest,
   type EmailAttachment,
 } from './request';
+import type { InlineImage } from './payment-qr';
+import { isReservedRecipient, RESERVED_DOMAIN_SKIP_REASON } from './reserved-domain';
 import { estimateMessageBytes, exceedsMaxMessageSize } from './size';
 import { TemplateSyntaxError } from './template';
 import { isPermanentSmtpError, smtpSender, type MailSender } from './transport';
@@ -40,7 +42,10 @@ export class EmailDeliveryError extends Error {
 }
 
 export interface DeliverOptions {
-  /** Mail sender override (tests, previews); defaults to the SMTP settings. */
+  /**
+   * Mail sender override (tests, previews); defaults to the SMTP settings. Only the SMTP default
+   * skips recipients on reserved example domains (status SKIPPED).
+   */
   sender?: MailSender;
   /** Last try: a failure marks the message FAILED instead of re-queueing it. */
   finalAttempt?: boolean;
@@ -54,7 +59,12 @@ export type DeliverResult =
    * Not sent, marked FAILED: the additional payment it refers to is no longer open, or the
    * order's e-mail address was changed since the mail was queued.
    */
-  | { status: 'OBSOLETE' };
+  | { status: 'OBSOLETE' }
+  /**
+   * Not sent on purpose, marked SKIPPED: the recipient domain is reserved (example.com, .test, …)
+   * and can never receive mail. No retry, no failure, no admin warning.
+   */
+  | { status: 'SKIPPED' };
 
 /** A message stuck in SENDING longer than this is considered abandoned (crashed worker). */
 const SENDING_TIMEOUT = sql`now() - interval '2 minutes'`;
@@ -93,6 +103,7 @@ export async function deliverEmailMessage(
       .where(eq(emailMessages.id, messageId));
     if (!current) throw new EmailDeliveryError(`E-mail message ${messageId} not found`, true);
     if (current.status === 'SENT') return { status: 'ALREADY_SENT' };
+    if (current.status === 'SKIPPED') return { status: 'SKIPPED' };
     if (current.status === 'SENDING') {
       throw new EmailDeliveryError('E-mail message is being sent by another worker', false);
     }
@@ -140,6 +151,15 @@ export async function deliverEmailMessage(
         .where(eq(emailMessages.id, messageId));
       return { status: 'OBSOLETE' };
     }
+    // Reserved example domains (demo orders) never receive mail: no rendering, no SMTP hand-off,
+    // no bounce, no retry. An injected sender (tests) is not SMTP and receives everything.
+    if (!options.sender && isReservedRecipient(message.toEmail)) {
+      await ctx.db
+        .update(emailMessages)
+        .set({ status: 'SKIPPED', lastError: RESERVED_DOMAIN_SKIP_REASON, updatedAt: new Date() })
+        .where(and(eq(emailMessages.id, messageId), eq(emailMessages.status, 'SENDING')));
+      return { status: 'SKIPPED' };
+    }
     const invoiceIds = payload.attachments.flatMap((a) =>
       a.type === 'invoice' ? [a.invoiceId] : [],
     );
@@ -161,7 +181,10 @@ export async function deliverEmailMessage(
     if (allFiles.some((f) => f.isTickets)) {
       const { maxMessageSizeMb } = await getSetting(ctx, 'smtp');
       const estimate = estimateMessageBytes(
-        allFiles.map((f) => f.bytes.byteLength),
+        [
+          ...allFiles.map((f) => f.bytes.byteLength),
+          ...rendered.inlineImages.map((i) => i.bytes.byteLength),
+        ],
         Buffer.byteLength(rendered.html) + Buffer.byteLength(rendered.text),
       );
       if (exceedsMaxMessageSize(estimate, maxMessageSizeMb)) {
@@ -199,11 +222,15 @@ export async function deliverEmailMessage(
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
-      attachments: files.map((f) => ({
-        filename: f.fileName,
-        content: Buffer.from(f.bytes),
-        contentType: f.contentType,
-      })),
+      attachments: [
+        ...files.map((f) => ({
+          filename: f.fileName,
+          content: Buffer.from(f.bytes),
+          contentType: f.contentType,
+        })),
+        // Images referenced from the HTML via `cid:` (e.g. the GiroCode); not listed in sentFiles.
+        ...inlineAttachments(rendered.inlineImages),
+      ],
       headers: { 'Auto-Submitted': 'auto-generated' },
     };
     const info = (await sender.transporter.sendMail(mail)) as { messageId?: string };
@@ -249,6 +276,19 @@ export async function deliverEmailMessage(
     if (err instanceof EmailDeliveryError) throw err;
     throw new EmailDeliveryError(text, permanent, { cause: err });
   }
+}
+
+/** Nodemailer attachments for inline images (`cid` makes them related parts of the HTML). */
+export function inlineAttachments(
+  images: readonly InlineImage[],
+): NonNullable<SendMailOptions['attachments']> {
+  return images.map((image) => ({
+    filename: image.fileName,
+    content: Buffer.from(image.bytes),
+    contentType: image.contentType,
+    cid: image.cid,
+    contentDisposition: 'inline' as const,
+  }));
 }
 
 interface ResolvedFile {

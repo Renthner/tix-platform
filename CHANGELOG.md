@@ -8,6 +8,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.42] - 2026-11-25
+
+### Update notes
+
+- Migration 0044 adds the e-mail status `SKIPPED` (runs automatically).
+- The bank-transfer confirmation and the payment reminder now contain a GiroCode (EPC QR code) via
+  the new placeholder `{{paymentQrCode}}`. Unedited default templates are upgraded automatically;
+  **edited templates and per-event overrides need `{{paymentQrCode}}` added by hand** (next to the
+  bank details).
+- Download the new `tix-update.sh` once; from now on it updates itself.
+
+### Added
+
+- **Demo orders for demo and test installations** (`docker compose run --rm tix demo-orders --yes-create-demo-data [--count 40] [--real a,b,c] [--events …] [--seed …]`). It creates regular orders through the shop and box-office code: unpaid and paid Vorkasse, multi-event orders, box office cash, card and complimentary sales, and reduced tariffs. It takes at most 40 % of the free capacity per event. Fake buyers are on `example.org`. Up to three real addresses get scripted orders and a ticket hand-over. Never use it in production: paid orders create invoices that cannot be deleted, so take a backup first. See docs/INSTALL.md.
+
+### Changed
+
+- **GiroCode in e-mails**: the bank-transfer order confirmation and the payment reminder show an
+  EPC QR code (inline image, open amount, EUR only) that banking apps can scan.
+- E-mails to reserved example domains (`example.com/.org/.net`, `.test`, `.invalid`,
+  `.example`, `.localhost`) are never handed to SMTP: they are marked "not sent" (`SKIPPED`)
+  without retries or admin warnings. A buyer e-mail change re-creates such mails for the new address.
+- The shop order page now refreshes by itself while an order awaits payment (every 12 s while the
+  tab is visible), whichever way the payment is recorded – also when an admin records it manually.
+- `tix-update.sh` without arguments now also updates installations with an exact version in
+  `TIX_VERSION`: a pre-release follows the newest release of its major version, a final version the
+  newest final release of its major version, and the new version is written to `.env` (only that
+  line). Before, the script re-installed the pinned version and nothing changed. After a successful
+  update the script replaces itself with the checksum-verified `tix-update.sh` of the new release.
+
 ## [1.0.0-alpha.41] - 2026-11-25
 
 **Update notes:** two database migrations (0042, 0043) run automatically on start. **IMAP bank import now requires a sender allowlist** (Banking → connection; without it the connection imports nothing and shows an error), and IMAP transactions are only matched automatically when the mail passed DKIM/SPF for the allow-listed sender domain – otherwise they land in the reconciliation queue (Klärfälle). See docs/DATABASE.md. Redis gets a memory ceiling (`REDIS_MAXMEMORY`, default 1gb, see below).

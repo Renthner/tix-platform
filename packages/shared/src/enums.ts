@@ -398,7 +398,8 @@ export const EMAIL_TEMPLATE_KEYS = values(
 );
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 
-export const EMAIL_STATUSES = values('QUEUED', 'SENDING', 'SENT', 'FAILED');
+/** `SKIPPED`: deliberately not handed to SMTP (reserved example domain); reason in `last_error`. */
+export const EMAIL_STATUSES = values('QUEUED', 'SENDING', 'SENT', 'FAILED', 'SKIPPED');
 export type EmailStatus = (typeof EMAIL_STATUSES)[number];
 
 /** Discount codes (promo codes): FIXED = amount per order (cents), PERCENT = basis points. */

@@ -86,6 +86,9 @@ export const EMAIL_VARIABLES = {
     'reminderCount',
     'cancellationReason',
     'invoiceNumber',
+    // ORDER_CONFIRMATION_BANK_TRANSFER / PAYMENT_REMINDER: GiroCode of the open amount (inline
+    // PNG, generated in `renderEmail` only when the template uses it; empty when not possible).
+    'paymentQrCode',
   ],
   /**
    * Passed by the refund flow (REFUND_CONFIRMATION): `refundViaPaypal` / `refundManual` are "yes" or
