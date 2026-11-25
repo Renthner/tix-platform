@@ -262,5 +262,49 @@
     "VALIDATION_FAILED": "Bitte prüfe deine Eingaben.",
     "NO_RELEASE": "Es ist noch keine App-Version veröffentlicht. Lade zuerst eine APK hoch und veröffentliche sie.",
     "NO_REPOSITORY": "Es ist kein GitHub-Repository konfiguriert. Lege es zuerst in den Scanner-Einstellungen fest."
+  },
+  "door": {
+    "title": "Einlass",
+    "description": "Gästeliste für den Eingang: Gäste suchen und von Hand ein- oder auschecken. Es gelten dieselben Regeln und dasselbe Protokoll wie in der Scanner-App.",
+    "noEvents": "Es gibt keine veröffentlichte Veranstaltung für den Einlass.",
+    "event": "Veranstaltung",
+    "searchPlaceholder": "Name, Bestellnummer, Ticketcode oder Platz",
+    "searchLabel": "Gäste suchen",
+    "search": "Suchen",
+    "stats": {
+      "label": "Einlass-Fortschritt",
+      "inside": "{count} von {total} drin",
+      "notArrived": "{count} noch nicht da",
+      "out": "{count} ausgecheckt"
+    },
+    "stateFilter": "Nach Status filtern",
+    "state": {
+      "ALL": "Alle",
+      "NOT_ARRIVED": "Noch nicht da",
+      "INSIDE": "Drin",
+      "OUT": "Ausgecheckt",
+      "NONE": "Noch nicht da",
+      "CHECKED_IN": "Drin",
+      "CHECKED_OUT": "Ausgecheckt"
+    },
+    "ticketStatus": {
+      "VALID": "Gültig",
+      "CANCELLED": "Storniert",
+      "REFUNDED": "Erstattet",
+      "REPLACED": "Ersetzt"
+    },
+    "empty": "Keine Gäste gefunden.",
+    "total": "{count, plural, one {# Ticket} other {# Tickets}}",
+    "row": "Reihe",
+    "seat": "Platz",
+    "checkIn": "Einchecken",
+    "checkOut": "Auschecken",
+    "firstScan": "Erster Einlass: {time} bei {device}",
+    "firstEntry": "Erster Einlass bei {device}",
+    "errors": {
+      "INVALID": "Die Anfrage war ungültig.",
+      "EVENT_NOT_ASSIGNED": "Für diese Veranstaltung ist kein Einlass über das Web möglich.",
+      "INTERNAL_ERROR": "Unerwarteter Fehler. Bitte versuche es erneut."
+    }
   }
 }

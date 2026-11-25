@@ -6,6 +6,7 @@ import {
   verifyPasskeyAuthentication,
 } from '@tix/core';
 import type { getCore } from '@/server/core';
+import { logger } from '@/server/logger';
 import { clientIp } from '@/server/http';
 import { text } from './form';
 
@@ -49,7 +50,8 @@ export async function reauthenticate(
       let response: unknown;
       try {
         response = JSON.parse(passkeyResponse);
-      } catch {
+      } catch (err) {
+        logger.warn({ err }, '[admin] passkey response JSON invalid');
         return 'passkeyInvalid';
       }
       const ip = await clientIp();

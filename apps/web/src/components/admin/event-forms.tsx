@@ -421,7 +421,8 @@ export function EventStatusForm({
           value={next}
           onChange={(e) => setNext(e.target.value as EventStatus)}
         >
-          {EVENT_STATUSES.map((s) => (
+          {/* Cancelling an event is done with the cancellation assistant (event page). */}
+          {EVENT_STATUSES.filter((s) => s !== 'CANCELLED' || status === 'CANCELLED').map((s) => (
             <option key={s} value={s}>
               {ts(s)}
             </option>

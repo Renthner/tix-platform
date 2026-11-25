@@ -41,5 +41,11 @@
       "Changes",
       "Metadata"
     ]
+  },
+  "entityCard": {
+    "title": "Change history",
+    "empty": "No recorded changes yet.",
+    "system": "System",
+    "viewAll": "Full activity log ({count})"
   }
 }

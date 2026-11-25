@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ConnectionCounter, TokenBucket, installFloodGuard, setBounded } from '../src/realtime-limits';
+import {
+  ConnectionCounter,
+  TokenBucket,
+  installFloodGuard,
+  setBounded,
+} from '../src/realtime-limits';
 
 describe('TokenBucket', () => {
   it('allows a burst up to capacity, then refuses', () => {

@@ -73,6 +73,7 @@
     "ORDER_NOT_PAYABLE": "Order not payable",
     "TEST_ORDER": "Test order",
     "UNTRUSTED_SOURCE": "Unverified mail sender",
+    "EVENT_CANCELLED": "Event cancelled",
     "ALREADY_PAID": "Already paid",
     "CURRENCY": "Other currency",
     "ADJUSTMENT": "Additional payment (tariff change)"

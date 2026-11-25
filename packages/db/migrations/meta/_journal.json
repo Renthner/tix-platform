@@ -302,6 +302,13 @@
       "when": 1795560932937,
       "tag": "0042_access_redemption_unique_token_version",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795565683084,
+      "tag": "0043_event_cancellation_communication",
+      "breakpoints": true
     }
   ]
 }

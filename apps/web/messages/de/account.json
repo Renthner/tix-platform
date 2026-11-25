@@ -56,6 +56,21 @@
     "guestNote": "Schon einmal als Gast bestellt? Registriere dich mit derselben E-Mail-Adresse – sobald sie bestätigt ist, erscheinen deine früheren Bestellungen in deinem Konto.",
     "continueToLogin": "Jetzt anmelden und weiter"
   },
+  "orderLookup": {
+    "title": "Bestellung finden",
+    "description": "Gib deine Bestellnummer und die E-Mail-Adresse ein, mit der du bestellt hast. Wenn die Angaben zusammenpassen, schicken wir dir einen Link zu deiner Bestellung.",
+    "orderNumber": "Bestellnummer",
+    "email": "E-Mail-Adresse",
+    "submit": "Link an mich senden",
+    "submitting": "Wird gesendet …",
+    "sent": "Wenn die Angaben zu einer Bestellung passen, haben wir einen Link an die E-Mail-Adresse dieser Bestellung gesendet. Schau bitte auch im Spam-Ordner nach.",
+    "toLogin": "Stattdessen anmelden",
+    "link": "Bestellung finden",
+    "errors": {
+      "VALIDATION": "Bitte gib deine Bestellnummer und eine gültige E-Mail-Adresse ein.",
+      "RATE_LIMITED": "Zu viele Anfragen. Bitte versuche es später erneut."
+    }
+  },
   "forgot": {
     "title": "Passwort vergessen?",
     "description": "Gib deine E-Mail-Adresse ein. Wir schicken dir einen Link, mit dem du ein neues Passwort festlegen kannst.",
@@ -101,6 +116,11 @@
     "placedOn": "Bestellt am {date}",
     "tickets": "{count, plural, one {# Ticket} other {# Tickets}}",
     "view": "Bestellung ansehen",
+    "downloadTickets": "Tickets (PDF)",
+    "paginationLabel": "Bestellseiten",
+    "previousPage": "Zurück",
+    "nextPage": "Weiter",
+    "pageOf": "Seite {page} von {pages}",
     "status": {
       "PENDING": "Zahlung läuft",
       "AWAITING_PAYMENT": "Zahlung ausstehend",

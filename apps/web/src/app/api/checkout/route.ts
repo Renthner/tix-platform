@@ -58,6 +58,9 @@ export async function POST(request: Request) {
         if (err instanceof PayPalCredentialsError) {
           // Configuration problem, already logged by core.
           redirect = `${orderPath}&paypal=notavailable`;
+        } else if (err instanceof DomainError && err.code === 'ORDER_EVENT_CANCELLED') {
+          // The event was cancelled right after the order was placed: nothing to pay.
+          redirect = `${orderPath}&paypal=eventcancelled`;
         } else {
           requestLogger(request).error({ err }, '[checkout] PayPal payment could not be started');
           redirect = `${orderPath}&paypal=unavailable`;

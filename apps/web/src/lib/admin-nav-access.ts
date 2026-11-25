@@ -9,7 +9,9 @@ export const NAV_ACCESS: readonly (readonly [NavKey, readonly AdminRole[]])[] = 
   // Same order as the sidebar sections (NAV_GROUPS in admin-nav-links.tsx).
   ['dashboard', []],
   ['boxOffice', ['EVENT_MANAGER', 'FINANCE', 'DOOR_STAFF']],
+  ['door', ['EVENT_MANAGER', 'DOOR_STAFF']],
   ['orders', ['FINANCE', 'EVENT_MANAGER']],
+  ['cashUp', ['FINANCE', 'EVENT_MANAGER', 'DOOR_STAFF']],
   ['customers', ['FINANCE', 'EVENT_MANAGER']],
   ['discounts', ['FINANCE', 'EVENT_MANAGER']],
   ['refunds', ['FINANCE']],

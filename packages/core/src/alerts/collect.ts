@@ -1,5 +1,15 @@
 import { statfs } from 'node:fs/promises';
-import { bankConnections, bankTransactions, emailMessages, refunds, systemSettings } from '@tix/db';
+import {
+  bankConnections,
+  bankTransactions,
+  emailMessages,
+  eventCancellationRuns,
+  events,
+  orderItems,
+  orders,
+  refunds,
+  systemSettings,
+} from '@tix/db';
 import { QUEUE_NAMES, type QueueName } from '@tix/redis';
 import { APP_VERSION, type AdminAlertType } from '@tix/shared';
 import {
@@ -33,6 +43,7 @@ import {
   checkDiskLow,
   checkEmailDeliveryFailing,
   checkJobsFailing,
+  checkPaidCancelledEvent,
   checkPaymentProviderErrors,
   checkRefundsOpen,
   checkReviewCasesOpen,
@@ -373,6 +384,32 @@ export async function collectFindings(
         ),
       );
     return checkRefundsOpen({ count: row?.n ?? 0, oldestAt: row?.oldest ?? null });
+  });
+
+  await block('paid-cancelled-event', ['PAID_CANCELLED_EVENT'], async () => {
+    // Paid after the event was cancelled (the assistant's own pass handles orders paid before),
+    // still holding active items of it, and no cancellation run working on the event right now.
+    const rows = await ctx.db
+      .selectDistinct({ orderNumber: orders.orderNumber, paidAt: orders.paidAt })
+      .from(orders)
+      .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
+      .innerJoin(events, eq(events.id, orderItems.eventId))
+      .where(
+        and(
+          inArray(orders.status, ['PAID', 'PARTIALLY_REFUNDED']),
+          eq(orders.isTest, false),
+          inArray(orderItems.status, ['PENDING', 'CONFIRMED']),
+          eq(events.status, 'CANCELLED'),
+          sql`${orders.paidAt} > coalesce(${events.cancelledAt}, '-infinity'::timestamptz)`,
+          sql`NOT EXISTS (SELECT 1 FROM ${eventCancellationRuns} r WHERE r.event_id = ${events.id} AND r.status = 'RUNNING')`,
+        ),
+      )
+      .orderBy(orders.paidAt);
+    return checkPaidCancelledEvent({
+      count: rows.length,
+      orderNumbers: rows.slice(0, 5).map((r) => r.orderNumber),
+      oldestPaidAt: rows[0]?.paidAt ?? null,
+    });
   });
 
   await block('update', ['UPDATE_AVAILABLE'], async () => {

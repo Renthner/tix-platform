@@ -6,6 +6,7 @@ import {
   resendAdminInvite,
   resetAdminTwoFactor,
   setAdminUserActive,
+  signOutAdminUserEverywhere,
   unlockAdminUser,
   updateAdminUser,
 } from '@tix/core';
@@ -79,7 +80,13 @@ export async function updateUserAction(
 }
 
 export type UserOperation =
-  'activate' | 'deactivate' | 'unlock' | 'resetTwoFactor' | 'resendInvite' | 'deleteInvite';
+  | 'activate'
+  | 'deactivate'
+  | 'unlock'
+  | 'resetTwoFactor'
+  | 'resendInvite'
+  | 'deleteInvite'
+  | 'signOutAll';
 
 /** Single-button operations on a user. */
 export async function userOperationAction(
@@ -103,6 +110,9 @@ export async function userOperationAction(
       case 'resetTwoFactor':
         await resetAdminTwoFactor(core, actor, id);
         return ok({ message: 'twoFactorReset' });
+      case 'signOutAll':
+        await signOutAdminUserEverywhere(core, actor, id);
+        return ok({ message: 'signedOutEverywhere' });
       case 'resendInvite':
         await resendAdminInvite(core, actor, id, locale);
         return ok({ message: 'inviteResent' });

@@ -18,6 +18,7 @@ import {
   getAdjustmentPaymentOptions,
   type AdjustmentRow,
 } from '../orders/adjustments';
+import { orderHasCancelledEventItems } from '../orders/cancelled-events';
 import { recordPayment } from '../orders/fulfillment';
 import { markRefundSucceeded, recordRefundReview } from '../orders/refund-state';
 import { getSecretSetting, getSetting } from '../settings';
@@ -387,6 +388,14 @@ export async function startPayPalPayment(
   if (Date.now() - order.createdAt.getTime() > paypal.approvalTimeoutSeconds * 1000) {
     throw new DomainError('ORDER_NOT_PAYABLE', 'The payment window of this order has expired', 409);
   }
+  // An event of the order was cancelled: never take money for tickets that are not issued.
+  if (await orderHasCancelledEventItems(ctx.db, order.id)) {
+    throw new DomainError(
+      'ORDER_EVENT_CANCELLED',
+      'An event of this order was cancelled – the order can no longer be paid',
+      409,
+    );
+  }
 
   // Resume an open attempt instead of creating a second PayPal order.
   const attempts = await ctx.db
@@ -500,7 +509,9 @@ export type CompletePayPalResult =
   | { status: 'NOT_APPROVED' }
   | { status: 'FAILED'; reason: string }
   /** Order was cancelled/expired meanwhile; captured money has been refunded. */
-  | { status: 'NOT_PAYABLE' };
+  | { status: 'NOT_PAYABLE' }
+  /** An event of the order was cancelled: nothing was captured. */
+  | { status: 'EVENT_CANCELLED' };
 
 export async function completePayPalPayment(
   ctx: CoreContext,
@@ -530,6 +541,13 @@ export async function completePayPalPayment(
   if (order.status === 'PAID') return { status: 'PAID' };
   // Never take money for an order that no longer holds seats.
   if (order.status !== 'PENDING') return { status: 'NOT_PAYABLE' };
+  // An event of the order was cancelled: do not capture (the buyer's approval lapses at PayPal).
+  // A capture racing the cancellation still ends PAID – the PAID_CANCELLED_EVENT alert surfaces
+  // it and the cancellation assistant refunds those tickets.
+  if (await orderHasCancelledEventItems(ctx.db, order.id)) {
+    await markAttempt(ctx, attempt.id, 'CANCELLED', 'EVENT_CANCELLED', null);
+    return { status: 'EVENT_CANCELLED' };
+  }
 
   const captured = await capturePayPalOrder(ctx, config, attempt.id, paypalOrderId);
   if ('done' in captured) return captured.done;
@@ -777,6 +795,13 @@ export async function startAdjustmentPayPalPayment(
   if (!(await getAdjustmentPaymentOptions(ctx, adjustment)).paypal) {
     throw new DomainError('PAYMENT_METHOD_UNAVAILABLE', 'PayPal is not available', 409);
   }
+  if (await orderHasCancelledEventItems(ctx.db, order.id)) {
+    throw new DomainError(
+      'ORDER_EVENT_CANCELLED',
+      'An event of this order was cancelled – the order can no longer be paid',
+      409,
+    );
+  }
 
   const attempts = await ctx.db
     .select()
@@ -892,6 +917,10 @@ async function completeAdjustmentPayPal(
     return { status: 'NOT_PAYABLE' };
   }
   if (order.status !== 'PAID') return { status: 'NOT_PAYABLE' };
+  if (await orderHasCancelledEventItems(ctx.db, order.id)) {
+    await markAttempt(ctx, attempt.id, 'CANCELLED', 'EVENT_CANCELLED', null);
+    return { status: 'EVENT_CANCELLED' };
+  }
   const paypalOrderId = attempt.providerOrderId!;
   const captured = await capturePayPalOrder(ctx, config, attempt.id, paypalOrderId);
   if ('done' in captured) return captured.done;

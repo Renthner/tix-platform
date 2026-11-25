@@ -141,6 +141,16 @@ export const EMAIL_VARIABLES = {
   ],
   account: ['verificationUrl', 'resetUrl', 'loginUrl', 'inviteUrl', 'expiresAt'],
   smtpTest: ['sentAt'],
+  /** EVENT_CANCELLED / EVENT_POSTPONED: passed by the event flows (an order can span several events). */
+  event: [
+    'eventCancellationReason',
+    'eventNewDate',
+    'eventPostponementNote',
+    'cancelledTicketCount',
+    'orderWasUnpaid',
+  ],
+  /** ORDER_MESSAGE / EVENT_MESSAGE (free text, `messageBody` is built at render time) and the e-mail change notices. */
+  message: ['messageSubject', 'messageBody', 'previousEmail'],
   /** ADMIN_ALERT / ADMIN_ALERT_RESOLVED (warning e-mails to admins). */
   alert: ['firstName', 'alertTitle', 'alertSummary', 'alertSince', 'alertUrl'],
   /** ADMIN_PASSKEY_ADDED (security notice to the admin who registered a passkey). */
@@ -280,7 +290,8 @@ export async function orderVariables(
     eventVenue: first ? [first.venueName, first.venueCity].filter(Boolean).join(', ') : null,
     eventList: eventList(data, locale),
     itemsTable: itemsTable(data, items, locale, t),
-    ticketCount: items.length,
+    // Items of a cancelled event are listed (money) but never get a ticket.
+    ticketCount: items.filter((i) => !data.eventById.get(i.eventId)?.cancelled).length,
     reminderCount: order.reminderCount,
     cancellationReason: order.cancellationReason,
     invoiceNumber: invoiceNumbers.map((i) => i.number).join(', ') || null,

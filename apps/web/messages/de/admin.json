@@ -19,6 +19,8 @@
     "ticketTemplates": "Ticket-Designs",
     "refunds": "Offene Erstattungen",
     "boxOffice": "Abendkasse",
+    "cashUp": "Kassenabschluss",
+    "door": "Einlass",
     "users": "Benutzer & Rollen",
     "backups": "Sicherungen",
     "scanners": "Einlass-Scanner",
@@ -26,6 +28,7 @@
     "system": "Systemstatus",
     "audit": "Aktivitätsprotokoll",
     "menu": "Menü",
+    "label": "Admin-Navigation",
     "paypal": "PayPal",
     "discounts": "Rabattcodes",
     "groups": {
@@ -94,6 +97,7 @@
       "testOrdersPending": "Diese Veranstaltung hat Testbestellungen und kann nicht veröffentlicht werden. Ein Super-Admin muss sie zuerst löschen.",
       "testOrdersKept": "Einige Testbestellungen konnten nicht gelöscht werden (echtes Geld eingegangen oder offene Zahlung) – storniere und blende sie zuerst aus („Stornieren & ausblenden“ auf der Bestellseite). Solange sie aktiv sind, kann die Veranstaltung nicht veröffentlicht werden.",
       "testKeyRealTickets": "Diese Veranstaltung hatte Testkäufe und hat bereits echte Tickets, daher kann der Ticket-Schlüssel nicht erneuert werden – das Veröffentlichen wird abgelehnt.",
+      "cancellationRunning": "Die Absage dieser Veranstaltung läuft noch (Bestellungen werden storniert und erstattet). Warte, bis sie abgeschlossen ist, bevor du den Status änderst.",
       "testOrderPartialPayment": "Die Testbestellung hat eine Teilzahlung. Erstatte sie zuerst (Bankzuordnung rückgängig machen), bevor du stornierst.",
       "testOrderCancelFailed": "Die Testbestellung konnte nicht storniert werden.",
       "testOrderPaymentOpen": "Eine PayPal-Zahlung dieser Testbestellung ist noch offen. Versuche es in ein paar Minuten erneut oder storniere die Bestellung.",
@@ -143,6 +147,17 @@
     },
     "title": "Übersicht",
     "welcome": "Willkommen zurück, {name}.",
+    "todo": {
+      "title": "Zu erledigen",
+      "tiles": {
+        "bankReview": "Zahlungen zu klären (Klärfälle)",
+        "overdueTransfers": "Überfällige Vorkasse-Zahlungen",
+        "openRefunds": "Offene Erstattungen",
+        "openAdjustments": "Offene Nachzahlungen",
+        "waitlistPending": "Wartelisten-Einträge",
+        "expiringCodes": "Bald ablaufende Zugangscodes"
+      }
+    },
     "denied": "Du hast keine Berechtigung, diese Seite zu öffnen.",
     "upcoming": "Kommende Veranstaltungen",
     "noEvents": "Noch keine kommenden Veranstaltungen.",
@@ -419,6 +434,15 @@
     "new": "Neue Veranstaltung",
     "empty": "Keine Veranstaltungen gefunden.",
     "filterAll": "Alle",
+    "search": {
+      "placeholder": "Titel oder Spielstätte suchen",
+      "label": "Veranstaltungen suchen",
+      "time": "Zeitraum",
+      "timeAll": "Alle Termine",
+      "upcoming": "Kommend",
+      "past": "Vergangen",
+      "apply": "Suchen"
+    },
     "backToList": "Alle Veranstaltungen",
     "defaultTicketType": "Normalpreis",
     "columns": {
@@ -426,7 +450,8 @@
       "date": "Datum",
       "venue": "Spielstätte",
       "status": "Status",
-      "sale": "Verkauf"
+      "sale": "Verkauf",
+      "sold": "Verkauft / Kapazität"
     },
     "create": {
       "description": "Der gewählte Master-Plan wird für diese Veranstaltung kopiert und kann danach angepasst werden.",
@@ -469,7 +494,8 @@
       "fees": "Gebühren",
       "ticket": "Ticket",
       "wallet": "Wallet",
-      "checkIn": "Einlass"
+      "checkIn": "Einlass",
+      "communication": "Kommunikation"
     },
     "details": {
       "title": "Details der Veranstaltung"

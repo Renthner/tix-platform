@@ -7,7 +7,13 @@ import { renderOrderTicketsPdf } from '../tickets/render';
 import { loadInvoicePdf } from '../invoices';
 import { getSetting } from '../settings';
 import { EmailTemplateMissingError, renderEmail } from './render';
-import { EMAIL_VARIABLES_CONTEXT, parseStoredEmailRequest, type EmailAttachment } from './request';
+import {
+  EMAIL_VARIABLES_CONTEXT,
+  isOrderRecipientOutdated,
+  ORDER_EMAIL_OBSOLETE_ERROR,
+  parseStoredEmailRequest,
+  type EmailAttachment,
+} from './request';
 import { estimateMessageBytes, exceedsMaxMessageSize } from './size';
 import { TemplateSyntaxError } from './template';
 import { isPermanentSmtpError, smtpSender, type MailSender } from './transport';
@@ -44,7 +50,10 @@ export type DeliverResult =
   | { status: 'SENT'; providerMessageId: string | null }
   /** Sent before (job retried after the success was recorded). */
   | { status: 'ALREADY_SENT' }
-  /** The additional payment it refers to is no longer open: not sent, marked FAILED. */
+  /**
+   * Not sent, marked FAILED: the additional payment it refers to is no longer open, or the
+   * order's e-mail address was changed since the mail was queued.
+   */
   | { status: 'OBSOLETE' };
 
 /** A message stuck in SENDING longer than this is considered abandoned (crashed worker). */
@@ -122,6 +131,15 @@ export async function deliverEmailMessage(
         return { status: 'OBSOLETE' };
       }
     }
+    // The buyer e-mail of the order was changed since this mail was queued: the order link would
+    // carry the new access token to the old address.
+    if (await isOrderRecipientOutdated(ctx.db, message)) {
+      await ctx.db
+        .update(emailMessages)
+        .set({ status: 'FAILED', lastError: ORDER_EMAIL_OBSOLETE_ERROR, updatedAt: new Date() })
+        .where(eq(emailMessages.id, messageId));
+      return { status: 'OBSOLETE' };
+    }
     const invoiceIds = payload.attachments.flatMap((a) =>
       a.type === 'invoice' ? [a.invoiceId] : [],
     );
@@ -162,6 +180,15 @@ export async function deliverEmailMessage(
       }
     }
     subject = rendered.subject;
+    // Rendering (PDFs) takes a while: look again right before sending, so an e-mail change that
+    // committed meanwhile does not leak the new order link to the old address.
+    if (await isOrderRecipientOutdated(ctx.db, message)) {
+      await ctx.db
+        .update(emailMessages)
+        .set({ status: 'FAILED', lastError: ORDER_EMAIL_OBSOLETE_ERROR, updatedAt: new Date() })
+        .where(and(eq(emailMessages.id, messageId), eq(emailMessages.status, 'SENDING')));
+      return { status: 'OBSOLETE' };
+    }
     const sender = options.sender ?? (await smtpSender(ctx));
     const mail: SendMailOptions = {
       from: sender.from,

@@ -1,0 +1,151 @@
+{
+  "testSubjectPrefix": "[TEST] ",
+  "errors": {
+    "ORDER_NOT_FOUND": "Bestellung nicht gefunden.",
+    "EVENT_NOT_FOUND": "Veranstaltung nicht gefunden.",
+    "NOT_FOUND": "Nicht gefunden.",
+    "VALIDATION_FAILED": "Bitte prüfe deine Eingaben.",
+    "MESSAGE_REQUIRED": "Betreff und Text sind erforderlich.",
+    "ORDER_HAS_NO_EMAIL": "Die Bestellung hat keine E-Mail-Adresse.",
+    "INVALID_EMAIL": "Das ist keine gültige E-Mail-Adresse.",
+    "EMAIL_UNCHANGED": "Das ist bereits die E-Mail-Adresse der Bestellung.",
+    "CUSTOMER_ANONYMIZED": "Diese Adresse gehört zu einem gelöschten Kunden.",
+    "CUSTOMER_LIMIT": "Das Ticketlimit pro Kunde dieser Adresse würde überschritten. Setze das Häkchen, um es zu übergehen.",
+    "ORDER_CHANGED": "Die Bestellung wurde zwischenzeitlich geändert. Lade die Seite neu und versuche es erneut.",
+    "EMAIL_NOT_RETRYABLE": "Nur fehlgeschlagene E-Mails können erneut gesendet werden.",
+    "EMAIL_RECIPIENT_OUTDATED": "Diese E-Mail ging an eine Adresse, die die Bestellung nicht mehr hat. Sende sie stattdessen über die Bestellung erneut – dann geht sie an die aktuelle Adresse.",
+    "ORDER_ANONYMIZED": "Die Kontaktdaten dieser Bestellung wurden gelöscht. Die E-Mail-Adresse kann nicht geändert werden.",
+    "NO_RECIPIENTS": "Kein Käufer passt zu den gewählten Empfängern.",
+    "CATEGORY_REQUIRED": "Wähle eine Preiskategorie.",
+    "CONFIRMATION_REQUIRED": "Bitte bestätige, dass du die Folgen verstehst.",
+    "EVENT_ARCHIVED": "Eine archivierte Veranstaltung kann nicht abgesagt werden.",
+    "EVENT_NOT_LIVE": "Nur veröffentlichte oder verschobene Veranstaltungen können verschoben werden.",
+    "TEST_ORDERS_PRESENT": "Die Veranstaltung hat noch Testbestellungen.",
+    "INTERNAL_ERROR": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+  },
+  "feedback": {
+    "messageQueued": "Nachricht zum Versand eingereiht.",
+    "emailChanged": "E-Mail-Adresse geändert. Der Käufer hat den neuen Bestell-Link erhalten.",
+    "emailRetried": "E-Mail erneut eingereiht.",
+    "cancellationStarted": "Veranstaltung abgesagt. Die Bestellungen werden im Hintergrund storniert und erstattet.",
+    "cancellationAlreadyRunning": "Für diese Veranstaltung läuft bereits eine Absage.",
+    "postponed": "Veranstaltung verschoben. {recipients, plural, =0 {Es wurde kein Käufer benachrichtigt.} one {# Käufer wird benachrichtigt.} other {# Käufer werden benachrichtigt.}}",
+    "mailingQueued": "{recipients, plural, one {Nachricht für # Käufer eingereiht.} other {Nachricht für # Käufer eingereiht.}}",
+    "testQueued": "Testmail an {email} eingereiht."
+  },
+  "orderMessage": {
+    "title": "Nachricht an den Käufer",
+    "description": "Sendet eine Freitext-E-Mail im Shop-Design an den Käufer. Sie wird im Bestellverlauf protokolliert.",
+    "noEmail": "Die Bestellung hat keine E-Mail-Adresse.",
+    "subject": "Betreff",
+    "body": "Text",
+    "send": "Nachricht senden",
+    "sending": "Wird gesendet…"
+  },
+  "emailChange": {
+    "title": "Käufer-E-Mail ändern",
+    "description": "Nur die E-Mail-Adresse ändert sich; Name und Anschrift bleiben wie in der Rechnung.",
+    "current": "Aktuelle Adresse",
+    "newEmail": "Neue E-Mail-Adresse",
+    "overrideLimits": "Ticketlimit pro Kunde ignorieren",
+    "change": "E-Mail ändern…",
+    "confirmTitle": "E-Mail-Adresse ändern?",
+    "confirmText": "Die Bestellung wechselt zu {email}. Alle bisherigen Bestell-Links funktionieren nicht mehr, die neue Adresse bekommt einen frischen Link und die alte Adresse wird benachrichtigt.",
+    "confirm": "E-Mail ändern"
+  },
+  "orderEmails": {
+    "title": "E-Mails",
+    "description": "Alle zu dieser Bestellung versendeten E-Mails.",
+    "empty": "Noch keine E-Mails.",
+    "retry": "Erneut senden",
+    "retrying": "Wird gesendet…",
+    "status": {
+      "QUEUED": "Eingereiht",
+      "SENDING": "Wird gesendet",
+      "SENT": "Gesendet",
+      "FAILED": "Fehlgeschlagen"
+    }
+  },
+  "cancellation": {
+    "title": "Veranstaltung absagen",
+    "titleCancelled": "Veranstaltung abgesagt",
+    "description": "Storniert alle Bestellungen dieser Veranstaltung, erstattet bezahlte Tickets und informiert jeden Käufer.",
+    "descriptionCancelled": "Zeigt die Absage-Läufe. Starte den Assistenten erneut, um übrige Bestellungen zu erfassen.",
+    "open": "Veranstaltung absagen…",
+    "rerun": "Erneut ausführen",
+    "rerunTitle": "Absage erneut ausführen",
+    "wizardTitle": "Diese Veranstaltung absagen",
+    "wizardDescription": "Die Veranstaltung wird als abgesagt markiert und ihre Bestellungen werden im Hintergrund verarbeitet. Das lässt sich nicht rückgängig machen.",
+    "reason": "Grund (für die Käufer sichtbar)",
+    "reasonHint": "Optional, steht in der E-Mail.",
+    "refundFees": "Servicegebühren ebenfalls erstatten",
+    "notify": "Jedem betroffenen Käufer eine E-Mail senden",
+    "understood": "Ich verstehe, dass Bestellungen storniert und Geld erstattet wird.",
+    "back": "Zurück",
+    "start": "Veranstaltung und Bestellungen absagen",
+    "startRerun": "Erneut ausführen",
+    "starting": "Wird gestartet…",
+    "running": "Für diese Veranstaltung läuft gerade eine Absage.",
+    "manualNotice": "{count, plural, one {# unbezahlte Bestellung braucht} other {# unbezahlte Bestellungen brauchen}} eine manuelle Entscheidung (Tickets anderer Veranstaltungen enthalten oder teilweise bezahlt). Sie bleibt unverändert.",
+    "runs": "Läufe",
+    "runCounts": "{cancelled} storniert · {manual} manuell · {failed} fehlgeschlagen",
+    "runStatus": {
+      "RUNNING": "Läuft",
+      "COMPLETED": "Abgeschlossen",
+      "COMPLETED_WITH_ERRORS": "Mit Fehlern abgeschlossen"
+    },
+    "preview": {
+      "unpaid": "Unbezahlt: {orders} Bestellungen ({tickets} Tickets) werden storniert, Plätze freigegeben.",
+      "paid": "Bezahlt: {orders} Bestellungen ({tickets} Tickets, {amount}) werden storniert und erstattet.",
+      "fees": "Gebühren dieser Veranstaltung: {amount}.",
+      "method": "{method}: {orders} Bestellungen, {amount} – {how}",
+      "howAutomatic": "automatische Erstattung",
+      "howManual": "offene Erstattung für die Finanzen",
+      "multi": "{orders} davon enthalten auch Tickets anderer Veranstaltungen; diese bleiben gültig.",
+      "manual": "Manuell zu klären: {orders} unbezahlte Bestellungen."
+    }
+  },
+  "postpone": {
+    "title": "Veranstaltung verschieben",
+    "titlePostponed": "Veranstaltung verschoben",
+    "description": "Die Tickets bleiben gültig. Auf Wunsch erfahren alle Käufer den neuen Termin.",
+    "newDate": "Neuer Termin ({timeZone})",
+    "newDateHint": "Optional. Den echten Termin änderst du in den Veranstaltungsdetails.",
+    "note": "Hinweis für die Käufer",
+    "notify": "Allen Käufern eine E-Mail senden",
+    "postpone": "Verschieben",
+    "update": "Speichern und benachrichtigen",
+    "saving": "Wird gespeichert…"
+  },
+  "mailing": {
+    "title": "Nachricht an Käufer",
+    "description": "Sendet eine E-Mail an die Käufer dieser Veranstaltung. Jede Adresse erhält sie nur einmal.",
+    "audience": "Empfänger",
+    "audiences": {
+      "PAID": "Alle bezahlten Bestellungen",
+      "ACTIVE": "Alle aktiven Bestellungen (auch unbezahlt)",
+      "CATEGORY": "Käufer einer Preiskategorie"
+    },
+    "category": "Preiskategorie",
+    "counting": "Empfänger werden gezählt…",
+    "recipients": "{count, plural, one {# Empfänger} other {# Empfänger}}",
+    "subject": "Betreff",
+    "body": "Text",
+    "bodyHint": "Reiner Text; Leerzeilen beginnen einen neuen Absatz.",
+    "send": "Senden…",
+    "test": "Testmail an mich senden",
+    "previewTitle": "Vorschau",
+    "previewHint": "Der Text wird im E-Mail-Layout des Shops eingebettet.",
+    "previewSubject": "Betreff",
+    "previewBody": "Dein Text",
+    "history": "Gesendete Nachrichten",
+    "postponedMailing": "Verschiebungshinweis",
+    "status": {
+      "RUNNING": "Wird gesendet",
+      "COMPLETED": "Gesendet"
+    },
+    "confirmTitle": "Nachricht senden?",
+    "confirmText": "Die Nachricht geht an {count, plural, one {# Empfänger} other {# Empfänger}}.",
+    "confirm": "An {count} senden"
+  }
+}

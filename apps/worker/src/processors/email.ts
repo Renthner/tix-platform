@@ -1,4 +1,11 @@
-import { EmailDeliveryError, deliverEmailMessage, requeueStaleEmails } from '@tix/core';
+import {
+  EVENT_MAILING_JOB,
+  EmailDeliveryError,
+  deliverEmailMessage,
+  requeueStaleEmails,
+  resumeStaleEventMailings,
+  runEventMailing,
+} from '@tix/core';
 import { QUEUE_NAMES } from '@tix/redis';
 import { UnrecoverableError, type Job } from 'bullmq';
 import type { ProcessorRegistration, WorkerDeps } from './index';
@@ -36,10 +43,20 @@ export function createEmailProcessor(deps: WorkerDeps) {
           throw err;
         }
       }
+      case EVENT_MAILING_JOB: {
+        // `{ mailingId }` – queues the outbox rows of a bulk mailing in chunks; resumable.
+        const mailingId = (job.data as { mailingId?: unknown }).mailingId;
+        if (typeof mailingId !== 'string') throw new UnrecoverableError('Job without mailingId');
+        const queued = await runEventMailing(deps.core, mailingId);
+        deps.logger.info({ mailingId, queued }, 'event mailing queued');
+        return { queued };
+      }
       case EMAIL_JOBS.sweepOutbox: {
         const requeued = await requeueStaleEmails(deps.core);
         if (requeued > 0) deps.logger.info({ requeued }, 'stale e-mails re-queued');
-        return { requeued };
+        const mailings = await resumeStaleEventMailings(deps.core);
+        if (mailings > 0) deps.logger.info({ mailings }, 'stale event mailings resumed');
+        return { requeued, mailings };
       }
       default:
         deps.logger.warn({ job: job.name }, 'unknown e-mail job');

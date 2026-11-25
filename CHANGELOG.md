@@ -8,7 +8,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+### Added
+
+- **Event cancellation assistant.** Cancelling an event can cancel all its active orders automatically: PayPal payments are refunded automatically, bank transfers become open refund to-dos, buyers get a cancellation mail ("refund fees" is chosen per run, default yes). The run is resumable, shows its progress and ends "with errors" when orders are left over. Items of a cancelled event never get tickets; PayPal payments for them are refused, bank transfers go to the reconciliation queue and a paid order raises an admin alert. Requires migration 0043.
+- **Buyer communication.** Postponement notice, messages to all buyers of an event (paid / active / one category, with test mail) and to a single order; new e-mail templates for cancellation, postponement, messages and e-mail changes.
+- **Buyer e-mail can be corrected by an admin** (name and address stay unchanged). Old order links stop working, pending mails to the old address are retired and ticket / payment mails are re-created for the new address; the old address is informed without revealing the new one.
+- **Admin lists and box office tools.** Orders list with sorting, date range, filter chips, CSV export and bulk actions (resend, payment reminder); test orders are hidden by default. Events list with search, sorting and sold count. New cash-up report (`/admin/cash-up`, by seller, payment method and currency, CSV) and door desk (`/admin/door`) for guest list check-in in the browser. Dashboard to-do tiles, audit history on event, customer and order pages, "sign out everywhere" for admins.
+- **Shop.** Order lookup page (`/orders/lookup`, the order mail is sent again to the order's address), GiroCode (EPC QR) next to the bank details, reservation expiry warning, retry instead of endless spinners, price and subtotal in the seat selection, sticky mobile bar, touch-friendly seat plan, live connection notice, share button, event search and filters on the start page, upcoming orders first in the account with ticket download.
+- **Accessibility.** Skip links, ARIA labels for navigation, waiting room, remove buttons and the checkout form (error summary, field descriptions, reasons for a disabled submit button), larger small text.
+
 ### Changed
+
+- **Event managers may cancel paid orders and record payments.** Marking refunds as done, banking and accounting stay with the finance role (docs/ADMIN-SECURITY.md).
 
 - **Redis memory ceiling now applies to existing installations on update.** `REDIS_MAXMEMORY` (default **1gb**) with the `noeviction` policy is part of the compose file: when Redis is full it refuses writes (seat selection and checkout fail) instead of evicting locks or jobs. A normal installation uses a few dozen MB, a large sale some hundred MB; if you expect more, set e.g. `REDIS_MAXMEMORY=2gb` in `.env` before updating (see the install guide, Redis memory).
 - **PostgreSQL logs no bind parameters** (`log_parameter_max_length=0`, also on error), so slow-query and error logs contain no customer data.

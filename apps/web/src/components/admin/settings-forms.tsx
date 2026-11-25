@@ -1032,6 +1032,8 @@ export function StartPageSettingsForm({
             <Input
               id="buttonUrl"
               name="buttonUrl"
+              type="url"
+              inputMode="url"
               defaultValue={initial.buttonUrl ?? ''}
               placeholder="https://"
               maxLength={500}

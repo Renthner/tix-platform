@@ -267,8 +267,13 @@ export function LiveDashboard({ initial }: { initial: DashboardPayload }) {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    const onVisible = () => void refresh();
+    // No polling while the tab is hidden; coming back refreshes immediately.
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, POLL_INTERVAL_MS);
+    const onVisible = () => {
+      if (!document.hidden) void refresh();
+    };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.clearInterval(timer);

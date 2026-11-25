@@ -305,6 +305,8 @@ export const MATCH_CANDIDATE_REASONS = [
   'TEST_ORDER',
   /** The statement came from a mail whose sender authentication (DKIM/SPF) was not proven. */
   'UNTRUSTED_SOURCE',
+  /** The order holds tickets of a cancelled event: never booked automatically. */
+  'EVENT_CANCELLED',
 ] as const;
 export type MatchCandidateReason = (typeof MATCH_CANDIDATE_REASONS)[number];
 

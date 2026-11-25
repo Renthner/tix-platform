@@ -41,6 +41,11 @@ export default async function CustomerLoginPage({
             </Link>
           </p>
           <p>
+            <Link href="/orders/lookup" className="hover:underline">
+              {t('orderLookup.link')}
+            </Link>
+          </p>
+          <p>
             {t('login.noAccount')}{' '}
             <Link
               href={withNext('/account/register', next)}

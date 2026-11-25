@@ -24,6 +24,7 @@
     "description": "Wegen hoher Nachfrage lassen wir Besucher in Gruppen in den Shop. Du wirst automatisch eingelassen.",
     "position": "Deine Position",
     "minutes": "Minuten (geschätzt)",
+    "progress": "Fortschritt in der Warteschlange",
     "paused": "Der Einlass ist vom Veranstalter kurz pausiert. Du behältst deinen Platz.",
     "keepOpen": "Bitte lass diese Seite geöffnet – Neuladen kostet dich nicht deinen Platz."
   },

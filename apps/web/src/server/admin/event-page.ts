@@ -13,6 +13,7 @@ import { z } from 'zod';
 import type { ActionState } from '@/lib/action-state';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { logger } from '@/server/logger';
 import { richTextToPlain, sanitizeRichText } from '@/server/rich-text';
 import { audit } from './audit';
 import { refreshShop } from './shop-refresh';
@@ -50,7 +51,8 @@ export async function updateEventPageAction(
   try {
     layoutRaw = JSON.parse(text(fd, 'layout') ?? '[]');
     boxesRaw = JSON.parse(text(fd, 'boxes') ?? '[]');
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, '[admin] event page layout JSON invalid');
     return formError('generic');
   }
   const meta = boxMetaSchema.safeParse(boxesRaw);

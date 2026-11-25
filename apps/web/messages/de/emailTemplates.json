@@ -108,6 +108,30 @@
       "name": "Warteliste: entfernt",
       "description": "Wird gesendet, wenn ein Admin jemanden von der Warteliste entfernt."
     },
+    "EVENT_CANCELLED": {
+      "name": "Veranstaltung abgesagt",
+      "description": "Geht bei einer Absage an alle Käufer: Erstattungsinfo und Gutschrift. Vor der Absage bei Bedarf anpassen."
+    },
+    "EVENT_POSTPONED": {
+      "name": "Veranstaltung verschoben",
+      "description": "Geht bei einer Verschiebung an alle Käufer. Die Tickets bleiben gültig."
+    },
+    "ORDER_MESSAGE": {
+      "name": "Nachricht an den Käufer einer Bestellung",
+      "description": "Rahmen der Freitext-Nachrichten, die ein Admin aus einer Bestellung sendet. Der Text selbst wird pro Nachricht geschrieben."
+    },
+    "EVENT_MESSAGE": {
+      "name": "Nachricht an alle Käufer einer Veranstaltung",
+      "description": "Rahmen der Freitext-Rundmails aus dem Event-Tab „Kommunikation“."
+    },
+    "ORDER_EMAIL_CHANGED": {
+      "name": "Bestell-E-Mail geändert (neue Adresse)",
+      "description": "Geht an die neue Adresse, wenn ein Admin die E-Mail-Adresse einer Bestellung ändert. Enthält den neuen Bestell-Link."
+    },
+    "ORDER_EMAIL_CHANGED_OLD": {
+      "name": "Bestell-E-Mail geändert (alte Adresse)",
+      "description": "Hinweis an die bisherige Adresse. Enthält keinen Bestell-Link."
+    },
     "TICKET_TRANSFER_RECEIVED": {
       "name": "Ticket an dich weitergegeben",
       "description": "Geht an die Empfängerin / den Empfänger eines weitergegebenen Tickets: Ticketseite, PDF- und Wallet-Links, optionale Nachricht. Enthält keine Bestelldaten."
@@ -189,7 +213,9 @@
       "alert": "Admin-Warnung",
       "passkey": "Passkey",
       "waitlist": "Warteliste",
-      "transfer": "Ticket-Weitergabe"
+      "transfer": "Ticket-Weitergabe",
+      "event": "Veranstaltungshinweis",
+      "message": "Nachricht"
     }
   },
   "preview": {

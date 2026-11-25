@@ -78,9 +78,7 @@ async function promoteTrustedRows(
 }
 
 function heldReasonOf(raw: unknown): boolean {
-  return (
-    typeof raw === 'object' && raw !== null && !!(raw as { hold?: unknown }).hold
-  );
+  return typeof raw === 'object' && raw !== null && !!(raw as { hold?: unknown }).hold;
 }
 
 export interface StoredBatch {

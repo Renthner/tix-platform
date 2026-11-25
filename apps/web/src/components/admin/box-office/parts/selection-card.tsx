@@ -100,10 +100,10 @@ export function SelectionCard({
                   <Button
                     size="icon"
                     variant="ghost"
-                    aria-label={t('remove')}
+                    aria-label={t('removeItem', { item: seatText(seat) })}
                     onClick={() => removeSeat(seat.i)}
                   >
-                    <X className="size-4" />
+                    <X className="size-4" aria-hidden />
                   </Button>
                 </div>
                 <div className="flex items-center gap-2">

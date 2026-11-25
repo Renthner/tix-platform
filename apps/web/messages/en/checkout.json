@@ -16,6 +16,7 @@
     "phoneHint": "Please enter a valid phone number (digits, spaces and + ( ) / - .)."
   },
   "address": {
+    "title": "Billing address",
     "toggle": "Add a billing address (e.g. for an invoice to a company)",
     "company": "Company",
     "street": "Street and number",
@@ -84,7 +85,8 @@
       "failed": "The PayPal payment could not be completed. Please try again or choose another funding source at PayPal.",
       "expired": "The payment window of this order has expired and the seats were released. If money was taken, it is refunded automatically.",
       "unavailable": "PayPal is temporarily unavailable. Your seats are reserved – please try again in a moment.",
-      "notavailable": "PayPal payment is currently not available. Your seats stay reserved – please try again later."
+      "notavailable": "PayPal payment is currently not available. Your seats stay reserved – please try again later.",
+      "eventcancelled": "An event of this order was cancelled, so the order can no longer be paid. No money was taken."
     },
     "walletNotice": {
       "unavailable": "Adding to the wallet did not work just now. Please try again later or use the PDF ticket."
@@ -111,6 +113,9 @@
       "reference": "Payment reference",
       "holder": "Account holder",
       "bank": "Bank",
+      "epcTitle": "Pay with your banking app",
+      "epcQrLabel": "QR code for the bank transfer (GiroCode)",
+      "epcHint": "Scan this GiroCode with your banking app to fill in the transfer automatically. Please check the amount and the payment reference before you confirm.",
       "noAccount": "You will receive the bank details by e-mail.",
       "hint": "Only the exact payment reference lets us assign your transfer automatically. Unpaid orders are cancelled after the deadline and the seats are released.",
       "hintNoCancel": "Only the exact payment reference lets us assign your transfer automatically."
@@ -184,7 +189,8 @@
         "failed": "The PayPal payment could not be completed. Please try again.",
         "expired": "This additional payment is no longer open. If money was taken, it is refunded automatically.",
         "unavailable": "PayPal is temporarily unavailable. Please try again in a moment.",
-        "notavailable": "PayPal payment is currently not available. Please try again later."
+        "notavailable": "PayPal payment is currently not available. Please try again later.",
+        "eventcancelled": "The event of this additional payment was cancelled. No money was taken."
       },
       "difference": "Price difference",
       "alreadyPaid": "Already paid (overpayment)",
@@ -212,6 +218,8 @@
       "transferText": "The recipient gets this ticket by e-mail, with a new QR code. You can no longer use the ticket yourself.",
       "recipientName": "Name of the recipient",
       "recipientEmail": "E-mail of the recipient",
+      "recipientEmailRepeat": "Repeat the e-mail of the recipient",
+      "recipientEmailMismatch": "The two e-mail addresses do not match.",
       "message": "Message (optional)",
       "transferWarning": "The current QR code becomes invalid immediately and is rejected at the entrance. Your order and invoice stay unchanged.",
       "transferConfirm": "Pass on ticket",

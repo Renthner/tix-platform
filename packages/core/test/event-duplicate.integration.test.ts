@@ -258,7 +258,10 @@ describe.skipIf(!adminUrl || !redisUrl)('duplicateEvent (integration)', () => {
     const db = handle.db;
     const [before] = await db.select().from(events).where(eq(events.id, sourceId));
     // Same wall-clock time of day, 100 calendar days later (a different UTC offset: DST).
-    const newStart = wallToInstant(wallMs(sourceStarts, 'Europe/Berlin') + 100 * DAY, 'Europe/Berlin');
+    const newStart = wallToInstant(
+      wallMs(sourceStarts, 'Europe/Berlin') + 100 * DAY,
+      'Europe/Berlin',
+    );
     expect(newStart.getTime() - sourceStarts.getTime()).toBe(100 * DAY - 3_600_000);
     const { eventId, slug } = await duplicateEvent(ctx, {
       sourceEventId: sourceId,

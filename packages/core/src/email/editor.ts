@@ -13,6 +13,7 @@ import {
   trustedHtml,
   type TemplateVariables,
 } from './template';
+import { messageBodyVariable } from './message-body';
 import { shopVariables } from './variables';
 
 /** Admin-facing checks of a template before it is saved, and sample rendering for previews. */
@@ -299,6 +300,22 @@ export function sampleEmailVariables(
     googleWalletUrl: 'https://wallet.example.org/pass',
     newHolderEmail: 'robin.example@example.org',
     sentAt: locale === 'de' ? '01.03.2026, 12:00 Uhr' : '1 March 2026, 12:00 PM',
+    eventCancellationReason: locale === 'de' ? 'Krankheit im Ensemble' : 'Illness in the cast',
+    eventNewDate: locale === 'de' ? '15.09.2026, 20:00 Uhr' : '15 September 2026, 8:00 PM',
+    eventPostponementNote:
+      locale === 'de' ? 'Alle Tickets bleiben gültig.' : 'All tickets stay valid.',
+    cancelledTicketCount: 2,
+    orderWasUnpaid: null,
+    messageSubject:
+      locale === 'de'
+        ? 'Wichtige Information zu deinem Besuch'
+        : 'Important information about your visit',
+    messageBody: messageBodyVariable(
+      locale === 'de'
+        ? 'Der Einlass beginnt 30 Minuten früher.\n\nBitte bring einen Lichtbildausweis mit.'
+        : 'Doors open 30 minutes earlier.\n\nPlease bring photo ID.',
+    ),
+    previousEmail: 'old.address@example.org',
   };
   return variables;
 }

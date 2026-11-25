@@ -8,6 +8,7 @@ import {
   AnonymizeForm,
   CustomerProfileForm,
 } from '@/components/admin/customers/customer-forms';
+import { EntityAuditCard } from '@/components/admin/entity-audit-card';
 import { OrderStatusBadge } from '@/components/admin/order-badges';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Badge } from '@/components/ui/badge';
@@ -272,6 +273,11 @@ export default async function CustomerDetailPage({
               )}
             </CardContent>
           </Card>
+          <EntityAuditCard
+            entityType="customer"
+            entityId={id}
+            showFullLogLink={hasRole(session, ['SUPER_ADMIN'])}
+          />
         </div>
       </div>
     </>

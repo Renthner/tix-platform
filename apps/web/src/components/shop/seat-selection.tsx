@@ -16,6 +16,7 @@ import { List, Loader2, Map as MapIcon, Minus, Plus, Sparkles, X } from 'lucide-
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,12 +31,16 @@ import {
 import { useRouter } from '@/i18n/navigation';
 import { apiFetch, errorCode, errorMessage } from '@/lib/api';
 import { useMoney } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { publishWaitlistStates, useWaitlistWatched } from '@/lib/waitlist-live';
 import { startSocketPresence } from '@/lib/presence';
 import { MaintenanceNotice } from '@/components/shop/maintenance-notice';
+import { retryDelayMs } from '@/lib/retry';
 import {
   emitRealtime,
+  isRealtimeMaintenance,
   isRoomJoined,
+  onConnectionChange,
   onRealtime,
   onResync,
   onRoomJoinChange,
@@ -106,6 +111,8 @@ export function SeatSelection({
   const t = useTranslations('shop.selection');
   const tChart = useTranslations('shop.chart');
   const tErr = useTranslations('common.errors');
+  const tLoad = useTranslations('shop.loadState');
+  const tPrice = useTranslations('shop.selectionPrice');
   const money = useMoney();
   const router = useRouter();
   const { refresh: refreshCart } = useCart();
@@ -182,9 +189,44 @@ export function SeatSelection({
     applyAvailability(await apiFetch<EventAvailability>(`/api/events/${eventId}/availability`));
   }, [applyAvailability, eventId]);
 
+  // Initial load: on failure show an inline error and retry with backoff (or on button click).
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadNonce, setLoadNonce] = useState(0);
   useEffect(() => {
-    loadAll().catch(showError);
-  }, [loadAll, showError]);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+    const run = async () => {
+      try {
+        await loadAll();
+        if (!cancelled) setLoadFailed(false);
+      } catch {
+        if (cancelled) return;
+        setLoadFailed(true);
+        timer = setTimeout(() => void run(), retryDelayMs(attempt++));
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [loadAll, loadNonce]);
+
+  // Live connection lost for more than a few seconds (maintenance has its own notice).
+  const [connectionLost, setConnectionLost] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = onConnectionChange((connected) => {
+      clearTimeout(timer);
+      if (connected) setConnectionLost(false);
+      else timer = setTimeout(() => setConnectionLost(true), 5_000);
+    });
+    return () => {
+      off();
+      clearTimeout(timer);
+    };
+  }, []);
 
   // ── Live updates ─────────────────────────────────────────────────────────
   // True once the gateway confirmed the seat room; exposed as `data-realtime` (browser tests wait
@@ -428,6 +470,49 @@ export function SeatSelection({
   const gaTotal = Object.values(inv.gaMine).reduce((a, b) => a + b, 0);
   const selectionCount = selectedSeats.length + gaTotal;
 
+  /**
+   * Price of one seat / standing spot in the default tariff – the one the cart starts with (same
+   * choice as the cart: tariffs bound to wheelchair / companion seats first, then the default
+   * tariff). Reductions are picked in the cart.
+   */
+  const defaultPrice = useCallback(
+    (categoryId: string | null, flags: number | null): number | null => {
+      if (!map || !categoryId) return null;
+      const allowed = map.ticketTypes.filter((tt) => {
+        if (tt.prices[categoryId] === undefined) return false;
+        if (tt.requiredSeatFeature === 'WHEELCHAIR_SPACE')
+          return flags !== null && (flags & SEAT_FLAG.WHEELCHAIR) !== 0;
+        if (tt.requiredSeatFeature === 'COMPANION_SEAT')
+          return flags !== null && (flags & SEAT_FLAG.COMPANION) !== 0;
+        return true;
+      });
+      const type =
+        allowed.find((tt) => tt.requiredSeatFeature !== null) ??
+        allowed.find((tt) => tt.isDefault) ??
+        allowed[0];
+      return type ? (type.prices[categoryId] ?? null) : null;
+    },
+    [map],
+  );
+  const selectionTotal = useMemo(() => {
+    if (!map || !lookups) return 0;
+    let total = 0;
+    for (const seat of selectedSeats) total += defaultPrice(seat.c, seat.f) ?? 0;
+    for (const [sectionId, n] of Object.entries(inv.gaMine)) {
+      const categoryId = lookups.sections.get(sectionId)?.priceCategoryId ?? null;
+      total += (defaultPrice(categoryId, null) ?? 0) * n;
+    }
+    return total;
+  }, [defaultPrice, inv.gaMine, lookups, map, selectedSeats]);
+
+  // Touch has no hover: a tapped seat shows its details in a line above the plan for a few seconds.
+  const [seatInfo, setSeatInfo] = useState<{ id: string; n: number } | null>(null);
+  useEffect(() => {
+    if (!seatInfo) return;
+    const id = setTimeout(() => setSeatInfo(null), 8_000);
+    return () => clearTimeout(id);
+  }, [seatInfo]);
+
   // ── Actions ──────────────────────────────────────────────────────────────
   const toggleSeat = useCallback(
     async (seat: PublicSeat) => {
@@ -597,8 +682,21 @@ export function SeatSelection({
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (!map || !lookups) {
+    if (loadFailed) {
+      return (
+        <div className="mx-auto max-w-xl space-y-3 py-8">
+          <Alert variant="destructive" role="alert">
+            <AlertTitle>{tLoad('failed')}</AlertTitle>
+            <AlertDescription>{tLoad('retrying')}</AlertDescription>
+          </Alert>
+          <Button variant="outline" onClick={() => setLoadNonce((n) => n + 1)}>
+            {tLoad('retry')}
+          </Button>
+        </div>
+      );
+    }
     return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
+      <div role="status" className="flex h-64 items-center justify-center text-muted-foreground">
         <Loader2 className="mr-2 size-4 animate-spin" /> {t('loading')}
       </div>
     );
@@ -611,9 +709,25 @@ export function SeatSelection({
   const bestCategories = seatedCategories.filter((c) => c.bestAvailable);
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
+    <div
+      className={cn(
+        'grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]',
+        // Room for the sticky bar on phones.
+        selectionCount > 0 && 'max-lg:pb-20',
+      )}
+    >
       <div className="space-y-3" data-realtime={realtimeJoined ? 'connected' : 'connecting'}>
         <MaintenanceNotice />
+        {connectionLost && !isRealtimeMaintenance() && (
+          <Alert role="status">
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              {tLoad('liveLost')}
+              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                {tLoad('reload')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
           {announcement.text}
           {announcement.n % 2 === 0 ? '' : '\u00a0'}
@@ -661,9 +775,29 @@ export function SeatSelection({
             standingLabel={standingLabel}
             onUnavailableSeat={(seat) => void toggleSeat(seat)}
             onFocusSeat={handleFocusSeat}
+            onSeatInfo={(seat) => setSeatInfo((prev) => ({ id: seat.i, n: (prev?.n ?? 0) + 1 }))}
             onEscape={() => viewToggleRef.current?.focus()}
           />
         </div>
+        {seatInfo &&
+          (() => {
+            const seat = lookups.seats.get(seatInfo.id);
+            if (!seat) return null;
+            const availability: SeatAvailability = inv.mine.has(seat.i)
+              ? 'selected'
+              : isSeatUnavailable(seat)
+                ? 'unavailable'
+                : 'available';
+            return (
+              <p
+                role="status"
+                data-testid="seat-info"
+                className="rounded-md border bg-muted/50 px-3 py-2 text-sm lg:hidden"
+              >
+                {seatTitle(seat)} · {t(`state.${availability}`)}
+              </p>
+            );
+          })()}
         <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
           {map.categories.map((c) => {
             const seated = map.seats.some((seat) => seat.c === c.id);
@@ -803,34 +937,43 @@ export function SeatSelection({
                 const section = lookups.sections.get(seat.s);
                 const row = seat.r ? lookups.rows.get(seat.r) : undefined;
                 const category = seat.c ? lookups.categories.get(seat.c) : undefined;
+                const price = defaultPrice(seat.c, seat.f);
+                const seatLabel = [
+                  section?.showLabelOnTicket ? section.ticketLabel : null,
+                  row ? t('row', { label: row.label }) : null,
+                  t('seat', { label: seat.l }),
+                  (seat.f & (SEAT_FLAG.WHEELCHAIR | SEAT_FLAG.COMPANION)) !== 0
+                    ? (seat.f & SEAT_FLAG.WHEELCHAIR) !== 0
+                      ? t('seatType.wheelchair')
+                      : t('seatType.companion')
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ');
                 return (
                   <li key={seat.i} className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2">
+                    <span className="flex min-w-0 items-center gap-2">
                       <span
                         className="inline-block size-2.5 rounded-full"
                         style={{ background: category?.color }}
                       />
-                      {[
-                        section?.showLabelOnTicket ? section.ticketLabel : null,
-                        row ? t('row', { label: row.label }) : null,
-                        t('seat', { label: seat.l }),
-                        (seat.f & (SEAT_FLAG.WHEELCHAIR | SEAT_FLAG.COMPANION)) !== 0
-                          ? (seat.f & SEAT_FLAG.WHEELCHAIR) !== 0
-                            ? t('seatType.wheelchair')
-                            : t('seatType.companion')
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
+                      {seatLabel}
                     </span>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={t('remove')}
-                      onClick={() => void toggleSeat(seat)}
-                    >
-                      <X className="size-4" />
-                    </Button>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {price !== null && (
+                        <span className="tabular-nums text-muted-foreground">
+                          {money(price, map.currency)}
+                        </span>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label={t('removeItem', { item: seatLabel })}
+                        onClick={() => void toggleSeat(seat)}
+                      >
+                        <X className="size-4" aria-hidden />
+                      </Button>
+                    </span>
                   </li>
                 );
               })}
@@ -841,19 +984,42 @@ export function SeatSelection({
                     <span>
                       {lookups.sections.get(sectionId)?.name} × {n}
                     </span>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={t('remove')}
-                      onClick={() => void setGa(sectionId, 0)}
-                    >
-                      <X className="size-4" />
-                    </Button>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {(() => {
+                        const unit = defaultPrice(
+                          lookups.sections.get(sectionId)?.priceCategoryId ?? null,
+                          null,
+                        );
+                        return unit !== null ? (
+                          <span className="tabular-nums text-muted-foreground">
+                            {money(unit * n, map.currency)}
+                          </span>
+                        ) : null;
+                      })()}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label={t('removeItem', {
+                          item: `${lookups.sections.get(sectionId)?.name ?? ''} × ${n}`,
+                        })}
+                        onClick={() => void setGa(sectionId, 0)}
+                      >
+                        <X className="size-4" aria-hidden />
+                      </Button>
+                    </span>
                   </li>
                 ))}
             </ul>
             {config.orphanSeatRuleEnabled && selectedSeats.length > 0 && (
               <p className="text-xs text-muted-foreground">{t('orphanHint')}</p>
+            )}
+            {selectionCount > 0 && (
+              <div className="flex items-center justify-between border-t pt-3 text-sm font-medium">
+                <span>{tPrice('subtotal')}</span>
+                <span className="tabular-nums" data-testid="selection-subtotal">
+                  {money(selectionTotal, map.currency)}
+                </span>
+              </div>
             )}
             <Button
               className="w-full"
@@ -866,6 +1032,21 @@ export function SeatSelection({
           </CardContent>
         </Card>
       </aside>
+
+      {selectionCount > 0 && (
+        <div
+          data-testid="selection-bar"
+          className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-3 border-t bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-2px_8px_rgba(0,0,0,0.08)] backdrop-blur lg:hidden"
+        >
+          <p className="min-w-0 text-sm font-medium">
+            {tPrice('bar', { count: selectionCount })} ·{' '}
+            <span className="tabular-nums">{money(selectionTotal, map.currency)}</span>
+          </p>
+          <Button disabled={busy} onClick={continueToCart}>
+            {t('continue')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

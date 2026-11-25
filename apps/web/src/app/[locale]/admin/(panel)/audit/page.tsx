@@ -8,6 +8,7 @@ import { buildQuery, parsePage, parsePageSize } from '@tix/shared';
 import { Search } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { AdminPagination } from '@/components/admin/admin-pagination';
+import { FilterSelect } from '@/components/admin/filter-select';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,8 +35,6 @@ export async function generateMetadata() {
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 50;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-
-const selectClass = 'h-9 rounded-md border border-input bg-background px-2 text-sm shadow-xs';
 
 export default async function AuditPage({
   params,
@@ -85,45 +84,27 @@ export default async function AuditPage({
               className="pl-8"
             />
           </div>
-          <select
+          <FilterSelect
             name="action"
-            defaultValue={filter.actionPrefix ?? ''}
-            className={selectClass}
-            aria-label={t('filters.action')}
-          >
-            <option value="">{t('filters.anyAction')}</option>
-            {options.actionPrefixes.map((p) => (
-              <option key={p} value={`${p}.`}>
-                {p}.*
-              </option>
-            ))}
-          </select>
-          <select
+            value={filter.actionPrefix}
+            ariaLabel={t('filters.action')}
+            allLabel={t('filters.anyAction')}
+            options={options.actionPrefixes.map((p) => ({ value: `${p}.`, label: `${p}.*` }))}
+          />
+          <FilterSelect
             name="entityType"
-            defaultValue={filter.entityType ?? ''}
-            className={selectClass}
-            aria-label={t('filters.entityType')}
-          >
-            <option value="">{t('filters.anyEntity')}</option>
-            {options.entityTypes.map((e) => (
-              <option key={e} value={e}>
-                {e}
-              </option>
-            ))}
-          </select>
-          <select
+            value={filter.entityType}
+            ariaLabel={t('filters.entityType')}
+            allLabel={t('filters.anyEntity')}
+            options={options.entityTypes.map((e) => ({ value: e, label: e }))}
+          />
+          <FilterSelect
             name="actor"
-            defaultValue={filter.actorUserId ?? ''}
-            className={selectClass}
-            aria-label={t('filters.actor')}
-          >
-            <option value="">{t('filters.anyActor')}</option>
-            {actors.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.label}
-              </option>
-            ))}
-          </select>
+            value={filter.actorUserId}
+            ariaLabel={t('filters.actor')}
+            allLabel={t('filters.anyActor')}
+            options={actors.map((x) => ({ value: x.id, label: x.label }))}
+          />
           <label className="flex items-center gap-1 text-sm text-muted-foreground">
             {t('filters.from')}
             <Input type="date" name="from" defaultValue={queryParams.from ?? ''} className="w-40" />

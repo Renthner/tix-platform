@@ -16,6 +16,7 @@
     "phoneHint": "Bitte gib eine gültige Telefonnummer an (Ziffern, Leerzeichen und + ( ) / - .)."
   },
   "address": {
+    "title": "Rechnungsadresse",
     "toggle": "Rechnungsadresse angeben (z. B. für eine Rechnung an eine Firma)",
     "company": "Firma",
     "street": "Straße und Hausnummer",
@@ -84,7 +85,8 @@
       "failed": "Die PayPal-Zahlung konnte nicht abgeschlossen werden. Bitte versuche es erneut oder wähle bei PayPal eine andere Zahlungsquelle.",
       "expired": "Das Zahlungsfenster dieser Bestellung ist abgelaufen, die Plätze wurden freigegeben. Falls Geld abgebucht wurde, wird es automatisch erstattet.",
       "unavailable": "PayPal ist vorübergehend nicht erreichbar. Deine Plätze sind reserviert – bitte versuche es gleich noch einmal.",
-      "notavailable": "Die Zahlung mit PayPal ist gerade nicht möglich. Deine Plätze bleiben reserviert – versuche es später erneut."
+      "notavailable": "Die Zahlung mit PayPal ist gerade nicht möglich. Deine Plätze bleiben reserviert – versuche es später erneut.",
+      "eventcancelled": "Eine Veranstaltung dieser Bestellung wurde abgesagt, deshalb kann die Bestellung nicht mehr bezahlt werden. Es wurde kein Geld abgebucht."
     },
     "walletNotice": {
       "unavailable": "Das Hinzufügen zur Wallet hat gerade nicht geklappt. Bitte versuch es später noch einmal oder nutze das PDF-Ticket."
@@ -111,6 +113,9 @@
       "reference": "Verwendungszweck",
       "holder": "Kontoinhaber",
       "bank": "Bank",
+      "epcTitle": "Mit der Banking-App bezahlen",
+      "epcQrLabel": "QR-Code für die Überweisung (GiroCode)",
+      "epcHint": "Scanne diesen GiroCode mit deiner Banking-App, dann wird die Überweisung automatisch ausgefüllt. Prüfe bitte Betrag und Verwendungszweck, bevor du bestätigst.",
       "noAccount": "Die Bankverbindung erhältst du per E-Mail.",
       "hint": "Nur mit dem exakten Verwendungszweck können wir deine Überweisung automatisch zuordnen. Unbezahlte Bestellungen werden nach Fristablauf storniert und die Plätze freigegeben.",
       "hintNoCancel": "Nur mit dem exakten Verwendungszweck können wir deine Überweisung automatisch zuordnen."
@@ -184,7 +189,8 @@
         "failed": "Die PayPal-Zahlung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
         "expired": "Diese Nachzahlung ist nicht mehr offen. Wurde Geld abgebucht, wird es automatisch erstattet.",
         "unavailable": "PayPal ist vorübergehend nicht erreichbar. Bitte versuche es gleich noch einmal.",
-        "notavailable": "Die Zahlung mit PayPal ist gerade nicht möglich. Bitte versuche es später erneut."
+        "notavailable": "Die Zahlung mit PayPal ist gerade nicht möglich. Bitte versuche es später erneut.",
+        "eventcancelled": "Die Veranstaltung dieser Nachzahlung wurde abgesagt. Es wurde kein Geld abgebucht."
       },
       "difference": "Preisdifferenz",
       "alreadyPaid": "Bereits bezahlt (Überzahlung)",
@@ -212,6 +218,8 @@
       "transferText": "Die Empfängerin oder der Empfänger bekommt dieses Ticket per E-Mail, mit neuem QR-Code. Du kannst das Ticket danach selbst nicht mehr nutzen.",
       "recipientName": "Name der Empfängerin / des Empfängers",
       "recipientEmail": "E-Mail-Adresse der Empfängerin / des Empfängers",
+      "recipientEmailRepeat": "E-Mail-Adresse der Empfängerin / des Empfängers wiederholen",
+      "recipientEmailMismatch": "Die beiden E-Mail-Adressen stimmen nicht überein.",
       "message": "Nachricht (optional)",
       "transferWarning": "Der aktuelle QR-Code wird sofort ungültig und am Einlass abgewiesen. Deine Bestellung und deine Rechnung bleiben unverändert.",
       "transferConfirm": "Ticket weitergeben",

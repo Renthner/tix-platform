@@ -9,5 +9,6 @@ export * from './banking';
 export * from './templates';
 export * from './checkin';
 export * from './waitlist';
+export * from './communication';
 export * from './relations';
 export * from './retained';

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { localized, type Translations } from '@tix/shared';
 import { apiFetch, errorCode } from '@/lib/api';
 import { formatCountdown } from '@/lib/format';
+import { retryDelayMs } from '@/lib/retry';
 import { onRealtime, onResync, subscribeRoom } from '@/lib/realtime';
 import type { PublicDecision } from '@/server/shop';
 import type { SeatColors } from './seat-chart/seat-chart';
@@ -60,6 +61,7 @@ export function EventShop({
   const locale = useLocale();
   const t = useTranslations('queue');
   const tErr = useTranslations('common.errors');
+  const tLoad = useTranslations('shop.loadState');
   const [decision, setDecision] = useState<PublicDecision | null>(null);
   const [announcements, setAnnouncements] = useState(initialAnnouncements);
   const claiming = useRef(false);
@@ -72,15 +74,25 @@ export function EventShop({
     [tErr],
   );
 
+  // Failed (re-)entry: shown inline while there is no decision yet; retried with backoff.
+  const [enterFailure, setEnterFailure] = useState<{ n: number } | null>(null);
+
   const enter = useCallback(async () => {
     try {
       setDecision(
         await apiFetch<PublicDecision>(`/api/events/${eventId}/enter`, { method: 'POST' }),
       );
-    } catch (err) {
-      showError(err);
+      setEnterFailure(null);
+    } catch {
+      setEnterFailure((prev) => ({ n: (prev?.n ?? -1) + 1 }));
     }
-  }, [eventId, showError]);
+  }, [eventId]);
+
+  useEffect(() => {
+    if (!enterFailure) return;
+    const id = setTimeout(() => void enter(), retryDelayMs(enterFailure.n));
+    return () => clearTimeout(id);
+  }, [enter, enterFailure]);
 
   const claim = useCallback(async () => {
     if (claiming.current) return;
@@ -189,9 +201,23 @@ export function EventShop({
     </div>
   );
 
+  if (!decision && enterFailure) {
+    return (
+      <div className="mx-auto max-w-xl space-y-3">
+        <Alert variant="destructive" role="alert">
+          <AlertTitle>{tLoad('failed')}</AlertTitle>
+          <AlertDescription>{tLoad('retrying')}</AlertDescription>
+        </Alert>
+        <Button variant="outline" onClick={() => void enter()}>
+          {tLoad('retry')}
+        </Button>
+      </div>
+    );
+  }
+
   if (!decision) {
     return (
-      <div className="flex h-48 items-center justify-center text-muted-foreground">
+      <div role="status" className="flex h-48 items-center justify-center text-muted-foreground">
         <Loader2 className="mr-2 size-4 animate-spin" /> {t('checking')}
       </div>
     );
@@ -271,20 +297,20 @@ function QueueCard({
   const progress = initial.current > 1 ? 1 - (decision.position - 1) / initial.current : 0.98;
   const minutes = Math.max(1, Math.round(decision.estimatedWaitSeconds / 60));
   return (
-    <Card aria-live="polite">
+    <Card>
       <CardHeader>
         <CardTitle>{queue.title ?? t('waiting.title')}</CardTitle>
         <CardDescription>{queue.message ?? t('waiting.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid grid-cols-2 gap-4 text-center">
+        <div className="grid grid-cols-2 gap-4 text-center" aria-live="polite" aria-atomic="true">
           <div className="rounded-lg bg-muted p-4">
-            <Users className="mx-auto mb-1 size-5 text-muted-foreground" />
+            <Users className="mx-auto mb-1 size-5 text-muted-foreground" aria-hidden />
             <div className="text-3xl font-semibold tabular-nums">{decision.position}</div>
             <div className="text-xs text-muted-foreground">{t('waiting.position')}</div>
           </div>
           <div className="rounded-lg bg-muted p-4">
-            <Clock className="mx-auto mb-1 size-5 text-muted-foreground" />
+            <Clock className="mx-auto mb-1 size-5 text-muted-foreground" aria-hidden />
             <div className="text-3xl font-semibold tabular-nums">~{minutes}</div>
             <div className="text-xs text-muted-foreground">{t('waiting.minutes')}</div>
           </div>
@@ -292,6 +318,7 @@ function QueueCard({
         <div
           className="h-2 w-full overflow-hidden rounded-full bg-muted"
           role="progressbar"
+          aria-label={t('waiting.progress')}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(progress * 100)}
@@ -301,7 +328,9 @@ function QueueCard({
             style={{ width: `${Math.round(progress * 100)}%` }}
           />
         </div>
-        {decision.paused && <p className="text-sm text-warning">{t('waiting.paused')}</p>}
+        <div aria-live="polite" className="empty:hidden">
+          {decision.paused && <p className="text-sm text-warning">{t('waiting.paused')}</p>}
+        </div>
         <p className="text-xs text-muted-foreground">{t('waiting.keepOpen')}</p>
       </CardContent>
     </Card>

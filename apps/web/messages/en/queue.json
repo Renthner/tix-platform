@@ -24,6 +24,7 @@
     "description": "Due to high demand we let visitors into the shop in groups. You will get in automatically.",
     "position": "Your position",
     "minutes": "minutes (estimated)",
+    "progress": "Progress in the queue",
     "paused": "Admission is paused briefly by the organiser. You keep your place.",
     "keepOpen": "Please keep this page open – refreshing does not lose your place."
   },

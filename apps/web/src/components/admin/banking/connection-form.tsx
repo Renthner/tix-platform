@@ -445,7 +445,16 @@ function ImapFields({
       <Section title={t('sections.mailbox')}>
         <div className="grid gap-4 md:grid-cols-2">
           <BankField label={t('fields.host')} htmlFor="host" error={err('host')}>
-            <Input id="host" name="host" defaultValue={config.host} required maxLength={255} />
+            <Input
+              id="host"
+              name="host"
+              inputMode="url"
+              autoCapitalize="none"
+              spellCheck={false}
+              defaultValue={config.host}
+              required
+              maxLength={255}
+            />
           </BankField>
           <BankField label={t('fields.port')} htmlFor="port" error={err('port')}>
             <Input

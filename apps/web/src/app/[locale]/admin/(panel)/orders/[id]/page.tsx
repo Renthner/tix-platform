@@ -10,7 +10,13 @@ import {
   listOrderRefundBatches,
   orderUrl,
   resendableEmail,
+  listOrderEmails,
 } from '@tix/core';
+import {
+  OrderEmailChangeCard,
+  OrderEmailsCard,
+  OrderMessageCard,
+} from '@/components/admin/communication/order-communication';
 import { formatTicketCode } from '@tix/shared';
 import { ArrowLeft, Ban, Download, ExternalLink, Trash2 } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
@@ -27,6 +33,7 @@ import { OrderStatusBadge } from '@/components/admin/order-badges';
 import { OrderInvoiceList } from '@/components/orders/order-invoice-list';
 import { OrderItemsCard } from '@/components/orders/order-items-card';
 import { OrderTimeline } from '@/components/admin/order-timeline';
+import { EntityAuditCard } from '@/components/admin/entity-audit-card';
 import { OverpaymentCard, RefundBatchList } from '@/components/admin/refund-batches';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Badge } from '@/components/ui/badge';
@@ -95,6 +102,16 @@ export default async function OrderDetailPage({
   const open = order.status === 'PENDING' || order.status === 'AWAITING_PAYMENT';
   const address = order.billingAddress;
   const canRefund = hasRole(session, ['FINANCE']);
+  // Cancelling paid orders and recording payments: finance and event managers (docs/ADMIN-SECURITY.md).
+  const canCancelPaid = hasRole(session, ['FINANCE', 'EVENT_MANAGER']);
+  const orderEmails = await listOrderEmails(core, id);
+  const tEmailKeys = await getTranslations('emailTemplates.keys');
+  const emailLabels = Object.fromEntries(
+    [...new Set(orderEmails.flatMap((m) => (m.templateKey ? [m.templateKey] : [])))].map((key) => [
+      key,
+      tEmailKeys.has(`${key}.name` as never) ? tEmailKeys(`${key}.name` as never) : key,
+    ]),
+  );
   const placeLabel = (item: (typeof view.events)[number]['items'][number]) =>
     `${item.sectionLabel}${
       item.kind === 'SEAT'
@@ -112,7 +129,7 @@ export default async function OrderDetailPage({
       ? new Map((await getTariffChangeOptions(core, id)).map((o) => [o.orderItemId, o.options]))
       : new Map<string, { id: string; name: string; priceGross: number }[]>();
   const paidCancel =
-    canRefund && (order.status === 'PAID' || order.status === 'PARTIALLY_REFUNDED')
+    canCancelPaid && (order.status === 'PAID' || order.status === 'PARTIALLY_REFUNDED')
       ? {
           version: order.version,
           currency: order.currency,
@@ -613,6 +630,16 @@ export default async function OrderDetailPage({
             )}
           />
 
+          <OrderEmailsCard
+            items={orderEmails.map((m) => ({
+              ...m,
+              createdAt: m.createdAt.toISOString(),
+              sentAt: m.sentAt?.toISOString() ?? null,
+            }))}
+            templateLabels={emailLabels}
+            canRetry={hasRole(session, ['FINANCE', 'EVENT_MANAGER'])}
+          />
+
           <Card>
             <CardHeader>
               <CardTitle>{t('history.title')}</CardTitle>
@@ -621,6 +648,12 @@ export default async function OrderDetailPage({
               <OrderTimeline view={view} />
             </CardContent>
           </Card>
+
+          <EntityAuditCard
+            entityType="order"
+            entityId={order.id}
+            showFullLogLink={hasRole(session, ['SUPER_ADMIN'])}
+          />
         </div>
 
         <aside className="space-y-6">
@@ -630,7 +663,7 @@ export default async function OrderDetailPage({
             currency={order.currency}
             hasEmail={Boolean(order.email)}
             canManage={hasRole(session, ['FINANCE', 'EVENT_MANAGER'])}
-            canRecordPayment={hasRole(session, ['FINANCE'])}
+            canRecordPayment={canCancelPaid}
             proposable={order.status === 'PAID' && order.paymentMethod !== 'COMPLIMENTARY'}
             credit={orderCredit.credit}
             canUseCredit={hasRole(session, ['FINANCE'])}
@@ -675,11 +708,17 @@ export default async function OrderDetailPage({
             outstanding={open || order.status === 'PAID' ? Math.max(view.outstanding, 0) : 0}
             currency={order.currency}
             internalNote={order.internalNote}
-            canRecordPayment={hasRole(session, ['FINANCE'])}
+            canRecordPayment={canCancelPaid}
             canResend={
               Boolean(order.email) && resendableEmail(order.status, order.paymentMethod) !== null
             }
             paidCancel={paidCancel}
+          />
+          <OrderMessageCard orderId={order.id} hasEmail={Boolean(order.email)} />
+          <OrderEmailChangeCard
+            orderId={order.id}
+            version={order.version}
+            currentEmail={order.email}
           />
         </aside>
       </div>

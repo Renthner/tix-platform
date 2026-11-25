@@ -1,0 +1,151 @@
+{
+  "testSubjectPrefix": "[TEST] ",
+  "errors": {
+    "ORDER_NOT_FOUND": "Order not found.",
+    "EVENT_NOT_FOUND": "Event not found.",
+    "NOT_FOUND": "Not found.",
+    "VALIDATION_FAILED": "Please check your input.",
+    "MESSAGE_REQUIRED": "Subject and text are required.",
+    "ORDER_HAS_NO_EMAIL": "The order has no e-mail address.",
+    "INVALID_EMAIL": "This is not a valid e-mail address.",
+    "EMAIL_UNCHANGED": "This is already the e-mail address of the order.",
+    "CUSTOMER_ANONYMIZED": "This address belongs to an erased customer.",
+    "CUSTOMER_LIMIT": "The ticket limit per customer of this address would be exceeded. Tick the box to override it.",
+    "ORDER_CHANGED": "The order was changed in the meantime. Reload the page and try again.",
+    "EMAIL_NOT_RETRYABLE": "Only failed e-mails can be sent again.",
+    "EMAIL_RECIPIENT_OUTDATED": "This e-mail went to an address the order no longer has. Resend it from the order instead – it then goes to the current address.",
+    "ORDER_ANONYMIZED": "The contact data of this order have been erased. The e-mail address cannot be changed.",
+    "NO_RECIPIENTS": "No buyer matches the selected recipients.",
+    "CATEGORY_REQUIRED": "Choose a price category.",
+    "CONFIRMATION_REQUIRED": "Please confirm that you understand the consequences.",
+    "EVENT_ARCHIVED": "An archived event cannot be cancelled.",
+    "EVENT_NOT_LIVE": "Only published or postponed events can be postponed.",
+    "TEST_ORDERS_PRESENT": "The event still has test orders.",
+    "INTERNAL_ERROR": "Something went wrong. Please try again."
+  },
+  "feedback": {
+    "messageQueued": "Message queued for delivery.",
+    "emailChanged": "E-mail address changed. The buyer got the new order link.",
+    "emailRetried": "E-mail queued again.",
+    "cancellationStarted": "Event cancelled. The orders are being cancelled and refunded in the background.",
+    "cancellationAlreadyRunning": "A cancellation run is already working on this event.",
+    "postponed": "Event postponed. {recipients, plural, =0 {No buyers were notified.} one {# buyer is being notified.} other {# buyers are being notified.}}",
+    "mailingQueued": "{recipients, plural, one {Message queued for # buyer.} other {Message queued for # buyers.}}",
+    "testQueued": "Test mail queued to {email}."
+  },
+  "orderMessage": {
+    "title": "Message to the buyer",
+    "description": "Sends a free-text e-mail with the shop branding to the buyer. It is logged in the order history.",
+    "noEmail": "The order has no e-mail address.",
+    "subject": "Subject",
+    "body": "Text",
+    "send": "Send message",
+    "sending": "Sending…"
+  },
+  "emailChange": {
+    "title": "Change buyer e-mail",
+    "description": "Only the e-mail address changes; name and address stay as invoiced.",
+    "current": "Current address",
+    "newEmail": "New e-mail address",
+    "overrideLimits": "Ignore the ticket limit per customer",
+    "change": "Change e-mail…",
+    "confirmTitle": "Change the e-mail address?",
+    "confirmText": "The order moves to {email}. All earlier order links stop working, the new address gets a fresh link, and the old address is notified.",
+    "confirm": "Change e-mail"
+  },
+  "orderEmails": {
+    "title": "E-mails",
+    "description": "All e-mails sent for this order.",
+    "empty": "No e-mails yet.",
+    "retry": "Send again",
+    "retrying": "Sending…",
+    "status": {
+      "QUEUED": "Queued",
+      "SENDING": "Sending",
+      "SENT": "Sent",
+      "FAILED": "Failed"
+    }
+  },
+  "cancellation": {
+    "title": "Cancel event",
+    "titleCancelled": "Event cancelled",
+    "description": "Cancels all orders of this event, refunds paid tickets and informs every buyer.",
+    "descriptionCancelled": "Shows the cancellation runs. Run the assistant again to pick up orders that are left.",
+    "open": "Cancel event…",
+    "rerun": "Run again",
+    "rerunTitle": "Run the cancellation again",
+    "wizardTitle": "Cancel this event",
+    "wizardDescription": "The event is marked as cancelled and its orders are processed in the background. This cannot be undone.",
+    "reason": "Reason (shown to buyers)",
+    "reasonHint": "Optional, included in the e-mail.",
+    "refundFees": "Refund service fees as well",
+    "notify": "Send an e-mail to every affected buyer",
+    "understood": "I understand that orders are cancelled and money is refunded.",
+    "back": "Back",
+    "start": "Cancel event and orders",
+    "startRerun": "Run again",
+    "starting": "Starting…",
+    "running": "A cancellation run is working on this event.",
+    "manualNotice": "{count, plural, one {# unpaid order needs} other {# unpaid orders need}} a manual decision (it contains tickets of other events or is partly paid). It stays untouched.",
+    "runs": "Runs",
+    "runCounts": "{cancelled} cancelled · {manual} manual · {failed} failed",
+    "runStatus": {
+      "RUNNING": "Running",
+      "COMPLETED": "Completed",
+      "COMPLETED_WITH_ERRORS": "Completed with errors"
+    },
+    "preview": {
+      "unpaid": "Unpaid: {orders} orders ({tickets} tickets) are cancelled, seats are released.",
+      "paid": "Paid: {orders} orders ({tickets} tickets, {amount}) are cancelled and refunded.",
+      "fees": "Fees of this event: {amount}.",
+      "method": "{method}: {orders} orders, {amount} – {how}",
+      "howAutomatic": "refunded automatically",
+      "howManual": "open refund to-do for finance",
+      "multi": "{orders} of them also contain tickets of other events; those stay valid.",
+      "manual": "Needs manual handling: {orders} unpaid orders."
+    }
+  },
+  "postpone": {
+    "title": "Postpone event",
+    "titlePostponed": "Event postponed",
+    "description": "Tickets stay valid. Optionally tell all buyers the new date.",
+    "newDate": "New date ({timeZone})",
+    "newDateHint": "Optional. Change the real date in the event details.",
+    "note": "Note for buyers",
+    "notify": "Send an e-mail to all buyers",
+    "postpone": "Postpone",
+    "update": "Save and notify",
+    "saving": "Saving…"
+  },
+  "mailing": {
+    "title": "Message to buyers",
+    "description": "Sends an e-mail to the buyers of this event. Every address receives it once.",
+    "audience": "Recipients",
+    "audiences": {
+      "PAID": "All paid orders",
+      "ACTIVE": "All active orders (incl. unpaid)",
+      "CATEGORY": "Buyers of a price category"
+    },
+    "category": "Price category",
+    "counting": "Counting recipients…",
+    "recipients": "{count, plural, one {# recipient} other {# recipients}}",
+    "subject": "Subject",
+    "body": "Text",
+    "bodyHint": "Plain text; empty lines start a new paragraph.",
+    "send": "Send…",
+    "test": "Send test mail to me",
+    "previewTitle": "Preview",
+    "previewHint": "The text is placed in the shop e-mail layout.",
+    "previewSubject": "Subject",
+    "previewBody": "Your text",
+    "history": "Sent messages",
+    "postponedMailing": "Postponement notice",
+    "status": {
+      "RUNNING": "Sending",
+      "COMPLETED": "Sent"
+    },
+    "confirmTitle": "Send message?",
+    "confirmText": "The message goes to {count, plural, one {# recipient} other {# recipients}}.",
+    "confirm": "Send to {count}"
+  }
+}

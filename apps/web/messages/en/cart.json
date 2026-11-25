@@ -1,5 +1,16 @@
 {
   "title": "Cart",
+  "loading": "Loading your cart…",
+  "expiry": {
+    "expiredTitle": "Your reservation expired",
+    "expiredText": "Your reservation expired, the seats were released. You can pick new seats at any time.",
+    "backToEvent": "Back to the event",
+    "browseEvents": "Browse events",
+    "warningTitle": "Your reservation ends soon",
+    "warningText": "Your seats will be released in about 2 minutes. Continue to the checkout to keep them.",
+    "toCart": "To the cart",
+    "dismiss": "Dismiss"
+  },
   "empty": "Your cart is empty.",
   "browseEvents": "Browse events",
   "summary": {
@@ -19,5 +30,6 @@
   "standing": "Standing",
   "tariff": "Tariff",
   "proofBadge": "Proof at entry",
-  "remove": "Remove"
+  "remove": "Remove",
+  "removeItem": "Remove {item}"
 }

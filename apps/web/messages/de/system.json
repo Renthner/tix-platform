@@ -209,6 +209,10 @@
         "name": "Offene manuelle Erstattungen (Tagesübersicht)",
         "description": "Manuelle Erstattungen warten seit mehreren Tagen auf eine Überweisung."
       },
+      "PAID_CANCELLED_EVENT": {
+        "name": "Zahlung für abgesagte Veranstaltung",
+        "description": "Eine Bestellung wurde bezahlt, nachdem eine ihrer Veranstaltungen abgesagt wurde (z. B. späte PayPal-Zahlung oder Überweisung)."
+      },
       "UPDATE_AVAILABLE": {
         "name": "Update verfügbar",
         "description": "Für deinen Update-Kanal ist eine neuere Version verfügbar."

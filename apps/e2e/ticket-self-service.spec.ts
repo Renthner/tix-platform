@@ -153,7 +153,12 @@ test('the buyer passes the ticket on: recipient page works, old ticket is marked
   await page.locator('[data-slot="ticket-transfer"]').first().click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Name of the recipient').fill('Robin Recipient');
-  await dialog.getByLabel('E-mail of the recipient').fill('robin.recipient@example.org');
+  await dialog
+    .getByLabel('E-mail of the recipient', { exact: true })
+    .fill('robin.recipient@example.org');
+  await dialog
+    .getByLabel('Repeat the e-mail of the recipient', { exact: true })
+    .fill('robin.recipient@example.org');
   await dialog.getByRole('button', { name: 'Pass on ticket' }).click();
   await expect(page.locator('[data-slot="ticket-transferred"]').first()).toContainText(
     'robin.recipient@example.org',
@@ -191,7 +196,12 @@ test('the buyer passes the ticket on: recipient page works, old ticket is marked
     await anon.locator('[data-slot="ticket-transfer"]').click();
     const holderDialog = anon.getByRole('dialog');
     await holderDialog.getByLabel('Name of the recipient').fill('Nina Next');
-    await holderDialog.getByLabel('E-mail of the recipient').fill('nina.next@example.org');
+    await holderDialog
+      .getByLabel('E-mail of the recipient', { exact: true })
+      .fill('nina.next@example.org');
+    await holderDialog
+      .getByLabel('Repeat the e-mail of the recipient', { exact: true })
+      .fill('nina.next@example.org');
     await holderDialog.getByRole('button', { name: 'Pass on ticket' }).click();
     await expect(anon.locator('[data-slot="holder-ticket-void"]')).toBeVisible({
       timeout: 15_000,

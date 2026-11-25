@@ -108,6 +108,30 @@
       "name": "Waiting list: removed",
       "description": "Sent when an admin removes somebody from the waiting list."
     },
+    "EVENT_CANCELLED": {
+      "name": "Event cancelled",
+      "description": "Sent to every buyer (and the order e-mail) when an event is cancelled: refund information and credit note. Edit it before cancelling an event."
+    },
+    "EVENT_POSTPONED": {
+      "name": "Event postponed",
+      "description": "Sent to all buyers when an event is postponed. Tickets stay valid."
+    },
+    "ORDER_MESSAGE": {
+      "name": "Message to the buyer of an order",
+      "description": "Frame of the free-text messages an admin sends from an order. The text itself is written per message."
+    },
+    "EVENT_MESSAGE": {
+      "name": "Message to all buyers of an event",
+      "description": "Frame of the free-text bulk messages sent from the event tab \"Communication\"."
+    },
+    "ORDER_EMAIL_CHANGED": {
+      "name": "Order e-mail changed (new address)",
+      "description": "Sent to the new address when an admin changes the e-mail address of an order. Contains the new order link."
+    },
+    "ORDER_EMAIL_CHANGED_OLD": {
+      "name": "Order e-mail changed (old address)",
+      "description": "Notice to the previous address. Contains no order link."
+    },
     "TICKET_TRANSFER_RECEIVED": {
       "name": "Ticket passed on to you",
       "description": "Sent to the recipient of a transferred ticket: ticket page, PDF and wallet links, optional message of the sender. Contains no order data."
@@ -189,7 +213,9 @@
       "alert": "Admin alert",
       "passkey": "Passkey",
       "waitlist": "Waiting list",
-      "transfer": "Ticket transfer"
+      "transfer": "Ticket transfer",
+      "event": "Event notice",
+      "message": "Message"
     }
   },
   "preview": {

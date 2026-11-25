@@ -23,6 +23,7 @@ import {
   type InfoBoxSize,
   type PageBlockRef,
 } from '@tix/shared';
+import { ShareButton } from '@/components/shop/share-button';
 import { CalendarDays, CalendarPlus, DoorOpen, ExternalLink, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { headers } from 'next/headers';
@@ -237,6 +238,7 @@ export default async function EventPage({ params }: Params) {
             <CalendarPlus className="size-4" />
             {t('addToCalendar')}
           </a>
+          {!isDraft && <ShareButton title={event.title} />}
         </div>
       </div>
 

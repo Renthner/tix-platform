@@ -21,7 +21,7 @@ import {
   type CheckoutInput,
   type OrderStatus,
 } from '@tix/shared';
-import { and, count, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import { withMutex } from '../banking/runs';
 import {
   assertQuotedItemLimits,
@@ -457,6 +457,71 @@ async function createOrderRows(
 ): Promise<CreatedOrder> {
   const { input } = c.params;
   const now = new Date();
+  /** Events in PRESALE: their access code must survive the code check further below. */
+  const presaleEvents: string[] = [];
+  // Event rows first, before any child rows. A test order may only exist on events that are
+  // still drafts. The UPDATE row-locks the event and so serialises against publishing (which
+  // locks it FOR UPDATE and refuses while test orders exist): a test order created concurrently
+  // with the publish either commits first (publish then refuses / cleans up) or sees the event no
+  // longer in DRAFT and aborts.
+  if (c.isTest) {
+    const flagged = await tx
+      .update(events)
+      .set({ hadTestOrders: true })
+      .where(and(inArray(events.id, [...c.eventRows.keys()]), eq(events.status, 'DRAFT')))
+      .returning({ id: events.id });
+    if (flagged.length !== c.eventRows.size) {
+      throw new DomainError(
+        'EVENT_NOT_DRAFT',
+        'The event was published in the meantime – test purchases are no longer possible',
+        409,
+      );
+    }
+  } else {
+    // The sale state was checked before the transaction. Re-check it on the event rows, locked
+    // FOR KEY SHARE (stable id order). KEY SHARE conflicts only with FOR UPDATE – i.e. with the
+    // only writer of `events.status`, `changeEventStatus` (cancel / un-publish) – and not with
+    // the plain UPDATEs on events during a presale (price-generation triggers, pricing/fee
+    // locks), so it never queues behind them. A cancellation either waits for this order or is
+    // seen here, so no order is created on an event that was cancelled in the meantime (the
+    // cancellation assistant would otherwise miss it). The sale window fields are read fresh in
+    // the same statement (pause, sale end, presale dates edited after the pre-check).
+    const locked = await tx
+      .select({
+        id: events.id,
+        status: events.status,
+        startsAt: events.startsAt,
+        saleEndsAt: events.saleEndsAt,
+        salesPaused: events.salesPaused,
+        presaleStartsAt: events.presaleStartsAt,
+        publicSaleStartsAt: events.publicSaleStartsAt,
+      })
+      .from(events)
+      .where(inArray(events.id, [...c.eventRows.keys()]))
+      .orderBy(asc(events.id))
+      .for('key share');
+    if (locked.length !== c.eventRows.size) {
+      throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
+    }
+    for (const row of locked) {
+      const event = c.eventRows.get(row.id)!;
+      const state = shopSaleState({ ...event, ...row }, c.params.actor);
+      // A real order never lands on a draft (test orders take the branch above); presale needs
+      // the access code, like the pre-check.
+      const allowed =
+        row.status !== 'DRAFT' &&
+        (state === 'ON_SALE' || (state === 'PRESALE' && c.codeIds.has(row.id)));
+      if (allowed) {
+        if (state === 'PRESALE') presaleEvents.push(row.id);
+        continue;
+      }
+      throw new DomainError('EVENT_NOT_ON_SALE', 'Tickets for this event are not on sale', 409, {
+        event: event.title,
+        state,
+      });
+    }
+  }
+
   const customerId = await upsertCustomer(tx, input);
 
   // Companion seat bought alone: its wheelchair space must be sold to the same e-mail.
@@ -545,27 +610,18 @@ async function createOrderRows(
     }
   }
 
+  // A presale code deleted in the meantime no longer opens the presale.
+  for (const eventId of presaleEvents) {
+    if (c.codeIds.has(eventId)) continue;
+    const event = c.eventRows.get(eventId)!;
+    throw new DomainError('EVENT_NOT_ON_SALE', 'Tickets for this event are not on sale', 409, {
+      event: event.title,
+      state: 'PRESALE',
+    });
+  }
+
   // Standing areas: claim capacity in the DB (authoritative counter).
   const gaByEvent = await claimStandingCapacity(tx, c.quote);
-
-  // A test order may only exist on events that are still drafts. The UPDATE row-locks the event
-  // and so serialises against publishing (which locks it FOR UPDATE and refuses while test orders
-  // exist): a test order created concurrently with the publish either commits first (publish then
-  // refuses / cleans up) or sees the event no longer in DRAFT and aborts.
-  if (c.isTest) {
-    const flagged = await tx
-      .update(events)
-      .set({ hadTestOrders: true })
-      .where(and(inArray(events.id, [...c.eventRows.keys()]), eq(events.status, 'DRAFT')))
-      .returning({ id: events.id });
-    if (flagged.length !== c.eventRows.size) {
-      throw new DomainError(
-        'EVENT_NOT_DRAFT',
-        'The event was published in the meantime – test purchases are no longer possible',
-        409,
-      );
-    }
-  }
 
   // Payment terms.
   const { general, invoicing, bank } = c.settings;

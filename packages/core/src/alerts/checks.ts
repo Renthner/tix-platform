@@ -343,6 +343,29 @@ export function checkRefundsOpen(s: OpenRefundsSnapshot): AlertFinding[] {
   return [finding('REFUNDS_OPEN', 'REFUNDS_OPEN', 'default', s.oldestAt, { count: s.count })];
 }
 
+export interface PaidCancelledEventSnapshot {
+  /** Orders paid AFTER one of their events was cancelled that still hold active items of it. */
+  count: number;
+  /** A few order numbers for the mail. */
+  orderNumbers: string[];
+  oldestPaidAt: Date | null;
+}
+
+/**
+ * Money arrived for tickets of a cancelled event (PayPal capture racing the cancellation, bank
+ * transfer assigned by hand, …): those tickets are never issued, the assistant must cancel and
+ * refund them. Orders of an event whose cancellation run is still running are not counted.
+ */
+export function checkPaidCancelledEvent(s: PaidCancelledEventSnapshot): AlertFinding[] {
+  if (s.count <= 0) return [];
+  return [
+    finding('PAID_CANCELLED_EVENT', 'PAID_CANCELLED_EVENT', 'default', s.oldestPaidAt, {
+      count: s.count,
+      orders: s.orderNumbers.join(', '),
+    }),
+  ];
+}
+
 // ─── Updates ────────────────────────────────────────────────────────────────
 
 export function checkUpdateAvailable(s: {

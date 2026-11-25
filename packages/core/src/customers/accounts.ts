@@ -6,6 +6,7 @@ import {
   events,
   orderItems,
   orders,
+  tickets,
   withTransaction,
   type Executor,
 } from '@tix/db';
@@ -155,6 +156,8 @@ export interface CustomerOrderSummary {
   currency: string;
   /** Order items (admitted persons) of all events. */
   ticketCount: number;
+  /** Issued tickets that are still valid (the order page offers the PDF download). */
+  validTicketCount: number;
   /** Events of the (multi-event) order, earliest first. */
   events: CustomerOrderEvent[];
 }
@@ -1252,6 +1255,21 @@ export async function listCustomerOrders(
     .groupBy(orderItems.orderId, events.id)
     .orderBy(asc(events.startsAt), asc(events.title));
 
+  const validTickets = await ctx.db
+    .select({ orderId: tickets.orderId, n: sql<number>`count(*)::int` })
+    .from(tickets)
+    .where(
+      and(
+        inArray(
+          tickets.orderId,
+          rows.map((r) => r.id),
+        ),
+        eq(tickets.status, 'VALID'),
+      ),
+    )
+    .groupBy(tickets.orderId);
+  const validByOrder = new Map(validTickets.map((r) => [r.orderId, r.n]));
+
   const defaultLocale = normalizeLocale((await getSetting(ctx, 'general')).defaultLocale);
   const byOrder = new Map<string, { events: CustomerOrderEvent[]; ticketCount: number }>();
   for (const row of perEvent) {
@@ -1271,5 +1289,6 @@ export async function listCustomerOrders(
     ...order,
     events: byOrder.get(order.id)?.events ?? [],
     ticketCount: byOrder.get(order.id)?.ticketCount ?? 0,
+    validTicketCount: validByOrder.get(order.id) ?? 0,
   }));
 }

@@ -13,7 +13,7 @@ import {
 import { QUEUE_NAMES } from '@tix/redis';
 import { buildTicketPayload, ticketSeatInfo } from '@tix/shared';
 import { generateHumanCode } from '@tix/shared/server';
-import { and, asc, desc, eq, inArray, isNull, notExists, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, notExists, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email';
 import { currentPaidCycle, hasPaymentMailForCycle, orderPaidJobId } from '../orders/paid-cycle';
@@ -133,11 +133,23 @@ export async function listOrderTickets(ctx: CoreContext, orderId: string): Promi
  * All VALID tickets of an order, including the ones handed over to someone else (what exists, as
  * opposed to `listOrderTickets`, which is what the buyer holds).
  */
-export async function countValidOrderTickets(db: Executor, orderId: string): Promise<number> {
+export async function countValidOrderTickets(
+  db: Executor,
+  orderId: string,
+  /** Leave out tickets of CANCELLED events (still VALID until the cancellation assistant voids them). */
+  options: { excludeCancelledEvents?: boolean } = {},
+): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(tickets)
-    .where(and(eq(tickets.orderId, orderId), eq(tickets.status, 'VALID')));
+    .innerJoin(events, eq(events.id, tickets.eventId))
+    .where(
+      and(
+        eq(tickets.orderId, orderId),
+        eq(tickets.status, 'VALID'),
+        options.excludeCancelledEvents ? ne(events.status, 'CANCELLED') : undefined,
+      ),
+    );
   return row?.n ?? 0;
 }
 
@@ -184,14 +196,20 @@ export async function ensureOrderTickets(ctx: CoreContext, orderId: string): Pro
     // are REFUNDED and never selected below).
     if (order.status !== 'PAID' && order.status !== 'PARTIALLY_REFUNDED') return [];
 
+    // Items of a CANCELLED event never get tickets: an order that was left for a manual decision
+    // by the cancellation assistant (unpaid multi-event / partly paid) can still be paid later by
+    // bank matching. Its items stay CONFIRMED (money held) until the assistant is run again – it
+    // then classifies the order as paid and cancels + refunds those items.
     const missing = await tx
       .select(itemColumns)
       .from(orderItems)
       .innerJoin(seatMapSections, eq(seatMapSections.id, orderItems.sectionId))
+      .innerJoin(events, eq(events.id, orderItems.eventId))
       .where(
         and(
           eq(orderItems.orderId, orderId),
           eq(orderItems.status, 'CONFIRMED'),
+          ne(events.status, 'CANCELLED'),
           notExists(
             tx
               .select({ one: sql`1` })
@@ -466,10 +484,13 @@ export async function backfillMissingTickets(
     .selectDistinct({ orderId: orderItems.orderId, paidAt: orders.paidAt, channel: orders.channel })
     .from(orderItems)
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
+    .innerJoin(events, eq(events.id, orderItems.eventId))
     .where(
       and(
         inArray(orders.status, ['PAID', 'PARTIALLY_REFUNDED']),
         eq(orderItems.status, 'CONFIRMED'),
+        // Cancelled events never get tickets (see ensureOrderTickets) – no endless re-selection.
+        ne(events.status, 'CANCELLED'),
         notExists(
           ctx.db
             .select({ one: sql`1` })

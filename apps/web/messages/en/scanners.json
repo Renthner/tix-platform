@@ -262,5 +262,49 @@
     "VALIDATION_FAILED": "Please check your input.",
     "NO_RELEASE": "No app version has been published yet. Upload an APK and publish it first.",
     "NO_REPOSITORY": "No GitHub repository is configured. Set it in the scanner settings first."
+  },
+  "door": {
+    "title": "Door check-in",
+    "description": "Guest list for the entrance: search guests and check them in or out by hand. Uses the same rules and journal as the scanner app.",
+    "noEvents": "There is no published event to check in.",
+    "event": "Event",
+    "searchPlaceholder": "Name, order number, ticket code or seat",
+    "searchLabel": "Search guests",
+    "search": "Search",
+    "stats": {
+      "label": "Check-in progress",
+      "inside": "{count} of {total} inside",
+      "notArrived": "{count} not arrived yet",
+      "out": "{count} checked out"
+    },
+    "stateFilter": "Filter by status",
+    "state": {
+      "ALL": "All",
+      "NOT_ARRIVED": "Not arrived",
+      "INSIDE": "Inside",
+      "OUT": "Checked out",
+      "NONE": "Not arrived",
+      "CHECKED_IN": "Inside",
+      "CHECKED_OUT": "Checked out"
+    },
+    "ticketStatus": {
+      "VALID": "Valid",
+      "CANCELLED": "Cancelled",
+      "REFUNDED": "Refunded",
+      "REPLACED": "Replaced"
+    },
+    "empty": "No guests found.",
+    "total": "{count, plural, one {# ticket} other {# tickets}}",
+    "row": "Row",
+    "seat": "Seat",
+    "checkIn": "Check in",
+    "checkOut": "Check out",
+    "firstScan": "First entry: {time} at {device}",
+    "firstEntry": "First entry at {device}",
+    "errors": {
+      "INVALID": "The request was invalid.",
+      "EVENT_NOT_ASSIGNED": "This event cannot be checked in from the web.",
+      "INTERNAL_ERROR": "Unexpected error. Please try again."
+    }
   }
 }

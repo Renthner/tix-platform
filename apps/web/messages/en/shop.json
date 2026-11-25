@@ -7,6 +7,7 @@
     "privacy": "Privacy",
     "terms": "Terms",
     "cookies": "Cookies",
+    "findOrder": "Find my order",
     "draftBanner": "Draft – visible to super admins only. Orders are test orders.",
     "sponsors": "Sponsors",
     "sponsorPrevious": "Previous sponsor",
@@ -80,7 +81,20 @@
     "title": "Upcoming events",
     "empty": "There are no events on sale at the moment.",
     "fromPrice": "from {price}",
-    "tickets": "Tickets"
+    "saleStarts": "Sale starts {date}",
+    "publicSaleStarts": "Public sale starts {date}",
+    "filter": {
+      "label": "Filter events",
+      "search": "Search",
+      "searchPlaceholder": "Title, venue or city",
+      "month": "Month",
+      "allMonths": "All months",
+      "city": "City",
+      "allCities": "All cities",
+      "noMatch": "No event matches your search."
+    },
+    "tickets": "Tickets",
+    "ticketsFor": "Tickets: {event}"
   },
   "saleState": {
     "NOT_PUBLISHED": "Not available",
@@ -104,6 +118,22 @@
     "ariaLabel": "Seating plan",
     "remaining": "{count, plural, =0 {sold out} one {# spot left} other {# spots left}}",
     "keyboardHelp": "Seating plan. Use the arrow keys to move between seats; at the edge of a block they continue into the neighbouring block in that direction. Home and End jump to the ends of a row, Control plus Home or End to the first or last seat of the plan, Page Up and Page Down change the block. Enter or Space selects or releases a seat (or opens a standing area), Escape leaves the plan. Alternatively choose the list instead of the plan."
+  },
+  "share": {
+    "button": "Share",
+    "copied": "Link copied to the clipboard.",
+    "failed": "The link could not be copied."
+  },
+  "loadState": {
+    "failed": "The page could not be loaded.",
+    "retrying": "We are trying again automatically. You can also try again right away.",
+    "retry": "Try again",
+    "liveLost": "Live updates interrupted – reconnecting…",
+    "reload": "Reload page"
+  },
+  "selectionPrice": {
+    "subtotal": "Subtotal",
+    "bar": "{count, plural, one {# ticket} other {# tickets}}"
   },
   "selection": {
     "maintenanceTitle": "Maintenance in progress",
@@ -143,6 +173,7 @@
     "emptyManual": "Click on available seats or a standing area in the plan.",
     "emptyBest": "Choose a category and the number of tickets above.",
     "remove": "Remove",
+    "removeItem": "Remove {item}",
     "orphanHint": "Please don't leave single empty seats next to your selection.",
     "orphanRule": "Your selection would leave a single empty seat (marked red). Please adjust your selection.",
     "continue": "Continue to cart",

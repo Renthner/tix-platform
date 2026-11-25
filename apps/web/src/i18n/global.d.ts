@@ -8,6 +8,7 @@ import type customers from '../../messages/en/customers.json';
 import type cart from '../../messages/en/cart.json';
 import type checkout from '../../messages/en/checkout.json';
 import type common from '../../messages/en/common.json';
+import type communication from '../../messages/en/communication.json';
 import type discount from '../../messages/en/discount.json';
 import type discounts from '../../messages/en/discounts.json';
 import type editor from '../../messages/en/editor.json';
@@ -54,6 +55,7 @@ declare module 'next-intl' {
       discount: typeof discount;
       discounts: typeof discounts;
       audit: typeof audit;
+      communication: typeof communication;
     };
   }
 }

@@ -367,7 +367,10 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
         .set({ maxTicketsPerOrder: null })
         .where(eq(priceCategories.eventId, event.id));
 
-      await handle.db.update(ticketTypes).set({ maxPerOrder: 1 }).where(eq(ticketTypes.id, reducedId));
+      await handle.db
+        .update(ticketTypes)
+        .set({ maxPerOrder: 1 })
+        .where(eq(ticketTypes.id, reducedId));
       await expect(order()).rejects.toMatchObject({
         code: 'TARIFF_LIMIT',
         details: { tariff: 'Reduced', max: 1 },
@@ -997,6 +1000,56 @@ describe.skipIf(!adminUrl || !redisUrl)('checkout, payments & dunning (integrati
   });
 
   // Keep last: it consumes a standing spot the earlier tests do not expect to be taken.
+  it('re-checks the sale state on the event row inside the order transaction (paused, draft)', async () => {
+    const changes: Partial<typeof events.$inferInsert>[] = [
+      { salesPaused: true },
+      { status: 'DRAFT' },
+    ];
+    for (const change of changes) {
+      // One more standing spot (DB counter + Redis mirror); earlier tests used the capacity up.
+      await handle.db
+        .update(seatMapSections)
+        .set({ capacity: sql`${seatMapSections.capacity} + 1` })
+        .where(eq(seatMapSections.id, standingId));
+      await redis.hincrby(ctx.keys.generalAdmissionAvailable(event.id), standingId, 1);
+      const [before] = await handle.db
+        .select({ n: seatMapSections.allocatedCount })
+        .from(seatMapSections)
+        .where(eq(seatMapSections.id, standingId));
+      const ordersBefore = (await handle.db.select({ id: orders.id }).from(orders)).length;
+      const session = sid();
+      await enterShop(ctx, event, session);
+      await setGeneralAdmission(ctx, session, event, standingId, 1);
+      const total = (await getCheckoutOptions(ctx, session)).quotes.BANK_TRANSFER.totalGross;
+      // The admin changes the event after the pre-check (sale state + cart check) but before the
+      // order transaction locks the row.
+      const original = ctx.seats.sessionSeatIds.bind(ctx.seats);
+      const spy = vi.spyOn(ctx.seats, 'sessionSeatIds').mockImplementationOnce(async (...args) => {
+        await handle.db.update(events).set(change).where(eq(events.id, event.id));
+        return original(...args);
+      });
+      try {
+        await expect(
+          placeOrder(ctx, { sessionId: session, input: buyer('BANK_TRANSFER', total) }),
+        ).rejects.toMatchObject({ code: 'EVENT_NOT_ON_SALE' });
+      } finally {
+        spy.mockRestore();
+        await handle.db
+          .update(events)
+          .set({ salesPaused: false, status: 'PUBLISHED' })
+          .where(eq(events.id, event.id));
+      }
+      // Nothing was written: no order, no standing capacity claimed.
+      expect((await handle.db.select({ id: orders.id }).from(orders)).length).toBe(ordersBefore);
+      const [after] = await handle.db
+        .select({ n: seatMapSections.allocatedCount })
+        .from(seatMapSections)
+        .where(eq(seatMapSections.id, standingId));
+      expect(after!.n).toBe(before!.n);
+      await setGeneralAdmission(ctx, session, event, standingId, 0);
+    }
+  });
+
   it('creates only one order when the same cart is submitted twice at the same moment', async () => {
     const session = sid();
     await enterShop(ctx, event, session);

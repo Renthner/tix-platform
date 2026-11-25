@@ -15,6 +15,7 @@ export const ADMIN_ALERT_TYPES = [
   'BANK_SYNC_FAILING',
   'PAYMENT_PROVIDER_ERRORS',
   'REFUNDS_OPEN',
+  'PAID_CANCELLED_EVENT',
   'UPDATE_AVAILABLE',
 ] as const;
 export type AdminAlertType = (typeof ADMIN_ALERT_TYPES)[number];
@@ -34,6 +35,7 @@ export const ALERT_TYPE_GROUP: Record<AdminAlertType, AdminAlertGroup> = {
   BANK_SYNC_FAILING: 'FINANCE',
   PAYMENT_PROVIDER_ERRORS: 'FINANCE',
   REFUNDS_OPEN: 'FINANCE',
+  PAID_CANCELLED_EVENT: 'FINANCE',
 };
 
 /** Digest alerts are sent once a day (at the digest time) while the condition holds; they have no "resolved" mail. */

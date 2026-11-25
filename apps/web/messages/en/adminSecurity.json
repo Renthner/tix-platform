@@ -90,7 +90,8 @@
     "alertsReset": "Back to the defaults of your role.",
     "passkeyAdded": "Passkey added.",
     "passkeyRenamed": "Passkey renamed.",
-    "passkeyRemoved": "Passkey removed."
+    "passkeyRemoved": "Passkey removed.",
+    "signedOutEverywhere": "All sessions of this user ended."
   },
   "account": {
     "title": "My account",
@@ -177,8 +178,8 @@
     },
     "roleHint": {
       "SUPER_ADMIN": "Everything, including settings and users.",
-      "EVENT_MANAGER": "Events, seating plans, pricing, orders.",
-      "FINANCE": "Orders, banking, refunds, fees.",
+      "EVENT_MANAGER": "Events, seating plans, pricing, orders: cancel (paid ones too, with refund), record payments, change buyer e-mail, message buyers.",
+      "FINANCE": "Orders (like event managers), plus banking, marking refunds as done, accounting, fees.",
       "DOOR_STAFF": "Box office and check-in."
     },
     "status": {
@@ -214,7 +215,15 @@
       "confirmDeactivate": "Deactivate this user? All their sessions end.",
       "confirmResetTwoFactor": "Reset two-factor authentication of this user? They are signed out and must set it up again.",
       "confirmDeleteInvite": "Delete this invitation?",
-      "unlock": "Unlock"
+      "unlock": "Unlock",
+      "signOutAll": "Sign out everywhere",
+      "confirmSignOutAll": "End all sessions of this user? They have to sign in again on every device."
+    },
+    "activity": {
+      "title": "Sign-in activity",
+      "lastSignIn": "Last sign-in",
+      "lastIp": "IP address of the last sign-in",
+      "activeSessions": "Active sessions"
     }
   },
   "settings": {

@@ -121,11 +121,7 @@ export async function loadOrderCalendarEvents(
 }
 
 /** Relative download path of an order's calendar file (all events, or one with `eventId`). */
-export function orderCalendarPath(
-  token: string,
-  orderId: string,
-  eventId?: string,
-): string {
+export function orderCalendarPath(token: string, orderId: string, eventId?: string): string {
   const query = new URLSearchParams({ t: token });
   if (eventId) query.set('event', eventId);
   return `/api/orders/${orderId}/calendar.ics?${query.toString()}`;

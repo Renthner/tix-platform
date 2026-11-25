@@ -4,6 +4,8 @@ import {
   Building2,
   ChevronRight,
   Calculator,
+  ClipboardCheck,
+  Coins,
   DatabaseBackup,
   CalendarDays,
   Hourglass,
@@ -54,6 +56,8 @@ const PayPalIcon = (({ className }: { className?: string }) => (
 export const NAV_ITEMS = {
   dashboard: { href: '/admin', icon: LayoutDashboard, exact: true },
   boxOffice: { href: '/admin/box-office', icon: Store, exact: false },
+  cashUp: { href: '/admin/cash-up', icon: Coins, exact: false },
+  door: { href: '/admin/door', icon: ClipboardCheck, exact: false },
   events: { href: '/admin/events', icon: CalendarDays, exact: false },
   orders: { href: '/admin/orders', icon: ReceiptText, exact: false },
   statistics: { href: '/admin/statistics', icon: ChartLine, exact: false },
@@ -88,8 +92,11 @@ export const NAV_GROUPS: readonly {
   heading: 'sales' | 'events' | 'design' | 'finance' | 'administration' | null;
   keys: readonly NavKey[];
 }[] = [
-  { heading: null, keys: ['dashboard', 'boxOffice'] },
-  { heading: 'sales', keys: ['orders', 'customers', 'discounts', 'refunds', 'statistics'] },
+  { heading: null, keys: ['dashboard', 'boxOffice', 'door'] },
+  {
+    heading: 'sales',
+    keys: ['orders', 'cashUp', 'customers', 'discounts', 'refunds', 'statistics'],
+  },
   { heading: 'events', keys: ['events', 'venues', 'waitingRoom', 'scanners'] },
   { heading: 'design', keys: ['ticketTemplates', 'emailTemplates', 'media', 'symbols'] },
   { heading: 'finance', keys: ['banking', 'paypal', 'accounting', 'fees'] },
@@ -135,17 +142,19 @@ export function AdminNavLinks({ keys, badges = {} }: { keys: NavKey[]; badges?: 
 
   const link = (key: NavKey, indent = false) => {
     const { href, icon: Icon } = NAV_ITEMS[key];
+    const active = isActive(key);
     return (
       <Link
         key={key}
         href={href}
+        aria-current={active ? 'page' : undefined}
         className={cn(
           'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent',
           indent && 'ml-3',
-          isActive(key) && 'bg-accent font-medium',
+          active && 'bg-accent font-medium',
         )}
       >
-        <Icon className="size-4" />
+        <Icon className="size-4" aria-hidden />
         {t(key)}
         <Badge count={badges[key] ?? 0} />
       </Link>
@@ -153,7 +162,7 @@ export function AdminNavLinks({ keys, badges = {} }: { keys: NavKey[]; badges?: 
   };
 
   return (
-    <nav className="flex flex-col gap-1">
+    <nav aria-label={t('label')} className="flex flex-col gap-1">
       {groupKeys(keys).map((group) => {
         if (!group.heading) return group.keys.map((key) => link(key));
         const id = group.heading;
@@ -202,7 +211,11 @@ export function AdminMobileMenu({
           : pathname.startsWith(href);
     return (
       <DropdownMenuItem key={key} asChild>
-        <Link href={href} className={cn(active && 'font-medium')}>
+        <Link
+          href={href}
+          aria-current={active ? 'page' : undefined}
+          className={cn(active && 'font-medium')}
+        >
           <Icon className="size-4" />
           {t(key)}
           <Badge count={badges[key] ?? 0} />

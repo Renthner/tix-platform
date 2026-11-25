@@ -474,13 +474,9 @@ const escapeLike = (text: string) => text.replace(/[\\%_]/g, '\\$&');
  * ("Block A Reihe 3 Platz 5", "A 3 5": every word must occur as a whole word in block + row +
  * seat labels). VALID tickets first; at most `limit` results.
  */
-export async function lookupTickets(
-  ctx: CoreContext,
-  device: ScannerDeviceAuth,
-  query: LookupQuery,
-): Promise<LookupResponse> {
-  await requireDeviceEvent(ctx.db, device.id, query.eventId);
-  const q = query.q.trim();
+/** Search conditions (any may match) for a ticket search text; shared with the web guest list. */
+export function ticketSearchConditions(rawQuery: string): SQL[] {
+  const q = rawQuery.trim();
   const like = `%${escapeLike(q)}%`;
   const conditions: SQL[] = [
     sql`${tickets.attendeeName} ILIKE ${like}`,
@@ -503,6 +499,16 @@ export async function lookupTickets(
       )!,
     );
   }
+  return conditions;
+}
+
+export async function lookupTickets(
+  ctx: CoreContext,
+  device: ScannerDeviceAuth,
+  query: LookupQuery,
+): Promise<LookupResponse> {
+  await requireDeviceEvent(ctx.db, device.id, query.eventId);
+  const conditions = ticketSearchConditions(query.q);
   const where = and(eq(tickets.eventId, query.eventId), sql`(${sql.join(conditions, sql` OR `)})`)!;
   const raw = await ctx.db
     .select({ id: tickets.id })

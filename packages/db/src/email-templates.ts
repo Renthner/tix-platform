@@ -1777,6 +1777,352 @@ Wenn du das warst, ist nichts weiter nötig. Wenn nicht, melde dich an, entferne
 ${COMMON.de.regardsText}`,
     }),
   },
+
+  EVENT_CANCELLED: {
+    en: () => ({
+      subject: '{{eventTitle}} has been cancelled',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'unfortunately <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) has been cancelled.',
+        ),
+        '{{#if eventCancellationReason}}' +
+          paragraph('Reason: {{eventCancellationReason}}') +
+          '{{/if}}',
+        '{{#if orderWasUnpaid}}' +
+          paragraph(
+            'Your order {{orderNumber}} had not been paid yet. It has been cancelled and you do not have to pay anything.',
+          ) +
+          '{{else}}' +
+          paragraph(
+            'Your {{cancelledTicketCount}} ticket(s) of order {{orderNumber}} for this event are no longer valid.',
+          ) +
+          '{{#if refundAmount}}' +
+          paragraph(
+            'We refund <strong>{{refundAmount}}</strong>.{{#if refundViaPaypal}} The amount is paid back to your PayPal account automatically.{{/if}}{{#if refundManual}} We will transfer the amount to your bank account – please allow a few days.{{/if}}',
+          ) +
+          '{{/if}}' +
+          '{{#if creditNoteNumber}}' +
+          paragraph(
+            `<span style="${MUTED}">The credit note {{creditNoteNumber}} is attached to this e-mail.</span>`,
+          ) +
+          '{{/if}}' +
+          '{{/if}}',
+        button('en', 'orderUrl', COMMON.en.viewOrder),
+        paragraph('We are very sorry for the inconvenience.'),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+unfortunately {{eventTitle}} ({{eventDate}}, {{eventVenue}}) has been cancelled.
+{{#if eventCancellationReason}}
+Reason: {{eventCancellationReason}}
+{{/if}}
+{{#if orderWasUnpaid}}Your order {{orderNumber}} had not been paid yet. It has been cancelled and you do not have to pay anything.{{else}}Your {{cancelledTicketCount}} ticket(s) of order {{orderNumber}} for this event are no longer valid.
+{{#if refundAmount}}
+We refund {{refundAmount}}.{{#if refundViaPaypal}} The amount is paid back to your PayPal account automatically.{{/if}}{{#if refundManual}} We will transfer the amount to your bank account – please allow a few days.{{/if}}
+{{/if}}{{#if creditNoteNumber}}
+The credit note {{creditNoteNumber}} is attached to this e-mail.
+{{/if}}{{/if}}
+
+{{orderUrl}}
+
+We are very sorry for the inconvenience.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: '{{eventTitle}} wurde abgesagt',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'leider wurde <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) abgesagt.',
+        ),
+        '{{#if eventCancellationReason}}' +
+          paragraph('Grund: {{eventCancellationReason}}') +
+          '{{/if}}',
+        '{{#if orderWasUnpaid}}' +
+          paragraph(
+            'Deine Bestellung {{orderNumber}} war noch nicht bezahlt. Sie wurde storniert und du musst nichts mehr zahlen.',
+          ) +
+          '{{else}}' +
+          paragraph(
+            'Deine {{cancelledTicketCount}} Ticket(s) der Bestellung {{orderNumber}} für diese Veranstaltung sind nicht mehr gültig.',
+          ) +
+          '{{#if refundAmount}}' +
+          paragraph(
+            'Wir erstatten dir <strong>{{refundAmount}}</strong>.{{#if refundViaPaypal}} Der Betrag wird automatisch auf dein PayPal-Konto zurückgezahlt.{{/if}}{{#if refundManual}} Wir überweisen den Betrag auf dein Bankkonto – bitte rechne mit einigen Tagen.{{/if}}',
+          ) +
+          '{{/if}}' +
+          '{{#if creditNoteNumber}}' +
+          paragraph(
+            `<span style="${MUTED}">Die Gutschrift {{creditNoteNumber}} hängt dieser E-Mail an.</span>`,
+          ) +
+          '{{/if}}' +
+          '{{/if}}',
+        button('de', 'orderUrl', COMMON.de.viewOrder),
+        paragraph('Es tut uns sehr leid für die Umstände.'),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+leider wurde {{eventTitle}} ({{eventDate}}, {{eventVenue}}) abgesagt.
+{{#if eventCancellationReason}}
+Grund: {{eventCancellationReason}}
+{{/if}}
+{{#if orderWasUnpaid}}Deine Bestellung {{orderNumber}} war noch nicht bezahlt. Sie wurde storniert und du musst nichts mehr zahlen.{{else}}Deine {{cancelledTicketCount}} Ticket(s) der Bestellung {{orderNumber}} für diese Veranstaltung sind nicht mehr gültig.
+{{#if refundAmount}}
+Wir erstatten dir {{refundAmount}}.{{#if refundViaPaypal}} Der Betrag wird automatisch auf dein PayPal-Konto zurückgezahlt.{{/if}}{{#if refundManual}} Wir überweisen den Betrag auf dein Bankkonto – bitte rechne mit einigen Tagen.{{/if}}
+{{/if}}{{#if creditNoteNumber}}
+Die Gutschrift {{creditNoteNumber}} hängt dieser E-Mail an.
+{{/if}}{{/if}}
+
+{{orderUrl}}
+
+Es tut uns sehr leid für die Umstände.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  EVENT_POSTPONED: {
+    en: () => ({
+      subject: '{{eventTitle}} has been postponed',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          '<strong>{{eventTitle}}</strong> (originally {{eventDate}}, {{eventVenue}}) has been postponed.',
+        ),
+        '{{#if eventNewDate}}' +
+          paragraph('New date: <strong>{{eventNewDate}}</strong>') +
+          '{{/if}}',
+        '{{#if eventPostponementNote}}' + paragraph('{{eventPostponementNote}}') + '{{/if}}',
+        paragraph('Your tickets stay valid – you do not have to do anything.'),
+        button('en', 'orderUrl', COMMON.en.viewOrder),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+{{eventTitle}} (originally {{eventDate}}, {{eventVenue}}) has been postponed.
+{{#if eventNewDate}}
+New date: {{eventNewDate}}
+{{/if}}{{#if eventPostponementNote}}
+{{eventPostponementNote}}
+{{/if}}
+Your tickets stay valid – you do not have to do anything.
+
+{{orderUrl}}
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: '{{eventTitle}} wurde verschoben',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          '<strong>{{eventTitle}}</strong> (ursprünglich {{eventDate}}, {{eventVenue}}) wurde verschoben.',
+        ),
+        '{{#if eventNewDate}}' +
+          paragraph('Neuer Termin: <strong>{{eventNewDate}}</strong>') +
+          '{{/if}}',
+        '{{#if eventPostponementNote}}' + paragraph('{{eventPostponementNote}}') + '{{/if}}',
+        paragraph('Deine Tickets bleiben gültig – du musst nichts weiter tun.'),
+        button('de', 'orderUrl', COMMON.de.viewOrder),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+{{eventTitle}} (ursprünglich {{eventDate}}, {{eventVenue}}) wurde verschoben.
+{{#if eventNewDate}}
+Neuer Termin: {{eventNewDate}}
+{{/if}}{{#if eventPostponementNote}}
+{{eventPostponementNote}}
+{{/if}}
+Deine Tickets bleiben gültig – du musst nichts weiter tun.
+
+{{orderUrl}}
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ORDER_MESSAGE: {
+    en: () => ({
+      subject: '{{messageSubject}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        '{{messageBody}}',
+        paragraph(
+          `<span style="${MUTED}">This message is about your order {{orderNumber}}.</span>`,
+        ),
+        button('en', 'orderUrl', COMMON.en.viewOrder),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+{{messageBody}}
+
+This message is about your order {{orderNumber}}.
+{{orderUrl}}
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: '{{messageSubject}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        '{{messageBody}}',
+        paragraph(
+          `<span style="${MUTED}">Diese Nachricht betrifft deine Bestellung {{orderNumber}}.</span>`,
+        ),
+        button('de', 'orderUrl', COMMON.de.viewOrder),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+{{messageBody}}
+
+Diese Nachricht betrifft deine Bestellung {{orderNumber}}.
+{{orderUrl}}
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  EVENT_MESSAGE: {
+    en: () => ({
+      subject: '{{messageSubject}}',
+      html: [
+        paragraph(COMMON.en.hello),
+        '{{messageBody}}',
+        paragraph(
+          `<span style="${MUTED}">You receive this message because you bought tickets for {{eventTitle}}.</span>`,
+        ),
+        button('en', 'orderUrl', COMMON.en.viewOrder),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+{{messageBody}}
+
+You receive this message because you bought tickets for {{eventTitle}}.
+{{orderUrl}}
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: '{{messageSubject}}',
+      html: [
+        paragraph(COMMON.de.hello),
+        '{{messageBody}}',
+        paragraph(
+          `<span style="${MUTED}">Du erhältst diese Nachricht, weil du Tickets für {{eventTitle}} gekauft hast.</span>`,
+        ),
+        button('de', 'orderUrl', COMMON.de.viewOrder),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+{{messageBody}}
+
+Du erhältst diese Nachricht, weil du Tickets für {{eventTitle}} gekauft hast.
+{{orderUrl}}
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ORDER_EMAIL_CHANGED: {
+    en: () => ({
+      subject: 'Your e-mail address for order {{orderNumber}} was changed',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'the e-mail address of your order <strong>{{orderNumber}}</strong> was changed from {{previousEmail}} to <strong>{{email}}</strong>. From now on all messages about this order, including tickets, are sent here.',
+        ),
+        button('en', 'orderUrl', COMMON.en.viewOrder),
+        paragraph(
+          `<span style="${MUTED}">Earlier links to this order no longer work – please use the link above.</span>`,
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+the e-mail address of your order {{orderNumber}} was changed from {{previousEmail}} to {{email}}. From now on all messages about this order, including tickets, are sent here.
+
+{{orderUrl}}
+
+Earlier links to this order no longer work – please use the link above.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Die E-Mail-Adresse deiner Bestellung {{orderNumber}} wurde geändert',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'die E-Mail-Adresse deiner Bestellung <strong>{{orderNumber}}</strong> wurde von {{previousEmail}} auf <strong>{{email}}</strong> geändert. Ab jetzt gehen alle Nachrichten zu dieser Bestellung, auch die Tickets, an diese Adresse.',
+        ),
+        button('de', 'orderUrl', COMMON.de.viewOrder),
+        paragraph(
+          `<span style="${MUTED}">Frühere Links zu dieser Bestellung funktionieren nicht mehr – bitte nutze den Link oben.</span>`,
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+die E-Mail-Adresse deiner Bestellung {{orderNumber}} wurde von {{previousEmail}} auf {{email}} geändert. Ab jetzt gehen alle Nachrichten zu dieser Bestellung, auch die Tickets, an diese Adresse.
+
+{{orderUrl}}
+
+Frühere Links zu dieser Bestellung funktionieren nicht mehr – bitte nutze den Link oben.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  ORDER_EMAIL_CHANGED_OLD: {
+    en: () => ({
+      subject: 'The e-mail address of order {{orderNumber}} was changed',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'the e-mail address of order <strong>{{orderNumber}}</strong> was changed from this address to a different one. You will not receive messages about this order here any more, and earlier links to it no longer work.',
+        ),
+        paragraph(
+          'If you did not expect this, please reply to this e-mail or contact us right away.',
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+the e-mail address of order {{orderNumber}} was changed from this address to a different one. You will not receive messages about this order here any more, and earlier links to it no longer work.
+
+If you did not expect this, please reply to this e-mail or contact us right away.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Die E-Mail-Adresse der Bestellung {{orderNumber}} wurde geändert',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'die E-Mail-Adresse der Bestellung <strong>{{orderNumber}}</strong> wurde von dieser Adresse auf eine andere geändert. Du erhältst hier keine Nachrichten zu dieser Bestellung mehr, und frühere Links dazu funktionieren nicht mehr.',
+        ),
+        paragraph(
+          'Falls du damit nicht gerechnet hast, antworte bitte auf diese E-Mail oder melde dich sofort bei uns.',
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+die E-Mail-Adresse der Bestellung {{orderNumber}} wurde von dieser Adresse auf eine andere geändert. Du erhältst hier keine Nachrichten zu dieser Bestellung mehr, und frühere Links dazu funktionieren nicht mehr.
+
+Falls du damit nicht gerechnet hast, antworte bitte auf diese E-Mail oder melde dich sofort bei uns.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
 };
 
 const LOCALES: readonly Locale[] = ['en', 'de'];

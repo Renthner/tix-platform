@@ -33,6 +33,8 @@ export interface DocumentEvent {
   venueName: string;
   venueCity: string | null;
   venueAddress: string | null;
+  /** The event was cancelled: its items get no tickets (still listed for invoices). */
+  cancelled?: boolean;
 }
 
 export interface OrderDocumentData {
@@ -73,6 +75,7 @@ export async function loadOrderDocumentData(
           .select({
             id: events.id,
             title: events.title,
+            status: events.status,
             translations: events.translations,
             subtitle: events.subtitle,
             startsAt: events.startsAt,
@@ -112,6 +115,7 @@ export async function loadOrderDocumentData(
     venueAddress:
       [e.street, [e.postalCode, e.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') ||
       null,
+    cancelled: e.status === 'CANCELLED',
   }));
   // Items in the chronological order of their events, then block / row / seat (numeric-aware).
   const rank = new Map(documentEvents.map((e, index) => [e.id, index]));

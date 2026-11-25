@@ -4,7 +4,8 @@ import { Ticket, UserRound } from 'lucide-react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import { cookies } from 'next/headers';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
+import { ReservationNotices } from '@/components/shop/reservation-notices';
 import { CookieNotice } from '@/components/shop/cookie-notice';
 import { COOKIE_NOTICE_COOKIE } from '@/lib/cookie-inventory';
 import { LocaleSwitcher } from '@/components/locale-switcher';
@@ -30,6 +31,7 @@ import { MediaThumb } from '@/components/media-image';
 import { cn } from '@/lib/utils';
 import { PresenceBeacon } from '@/components/shop/presence-beacon';
 import { HeaderSponsors, type SponsorView } from '@/components/shop/header-sponsors';
+import { SkipLink } from '@/components/skip-link';
 
 export default async function ShopLayout({
   children,
@@ -54,6 +56,7 @@ export default async function ShopLayout({
     tCookies,
     cookieJar,
     sponsors,
+    tCommon,
   ] = await Promise.all([
     getSetting(core, 'general'),
     getSetting(core, 'branding'),
@@ -68,6 +71,7 @@ export default async function ShopLayout({
     getTranslations('shop.cookies'),
     cookies(),
     getSetting(core, 'sponsors'),
+    getTranslations('common.a11y'),
   ]);
   const showCookieNotice =
     cookieNotice.enabled && cookieJar.get(COOKIE_NOTICE_COOKIE)?.value !== '1';
@@ -120,6 +124,7 @@ export default async function ShopLayout({
       <CartProvider>
         {!adminSession && <PresenceBeacon />}
         <div className="flex min-h-dvh flex-col">
+          <SkipLink label={tCommon('skipToContent')} />
           <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
             <div className="mx-auto flex min-h-14 max-w-7xl flex-nowrap items-center gap-x-2 gap-y-1.5 px-3 py-2.5 sm:gap-x-4 sm:px-4">
               {/* Brand group: logo (or shop name) and the sponsors. Takes what the controls leave. */}
@@ -224,7 +229,16 @@ export default async function ShopLayout({
               </div>
             </div>
           </header>
-          <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+          <Suspense fallback={null}>
+            <ReservationNotices />
+          </Suspense>
+          <main
+            id="main"
+            tabIndex={-1}
+            className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 focus:outline-none"
+          >
+            {children}
+          </main>
           {showCookieNotice && (
             <CookieNotice
               text={cookieNotice.texts[locale] || tCookies('notice')}
@@ -271,6 +285,14 @@ export default async function ShopLayout({
                   <li>
                     <Link href="/cookies" className="py-1 hover:text-foreground hover:underline">
                       {t('cookies')}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/orders/lookup"
+                      className="py-1 hover:text-foreground hover:underline"
+                    >
+                      {t('findOrder')}
                     </Link>
                   </li>
                 </ul>

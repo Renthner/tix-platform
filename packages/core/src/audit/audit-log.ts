@@ -18,6 +18,8 @@ export interface AuditLogFilter {
   /** Action prefix, e.g. `order.` matches `order.refund`. */
   actionPrefix?: string;
   entityType?: string;
+  /** Exact entity id (with `entityType`: the history of one entity). */
+  entityId?: string;
   actorUserId?: string;
   actorType?: ActorType;
   /** Inclusive lower bound (UTC instant). */
@@ -60,6 +62,7 @@ function buildWhere(filter: AuditLogFilter): SQL | undefined {
   const prefix = filter.actionPrefix?.trim().slice(0, 100);
   if (prefix) conds.push(sql`starts_with(${auditLogs.action}, ${prefix})`);
   if (filter.entityType?.trim()) conds.push(eq(auditLogs.entityType, filter.entityType.trim()));
+  if (filter.entityId) conds.push(eq(auditLogs.entityId, filter.entityId));
   if (filter.actorUserId) conds.push(eq(auditLogs.actorUserId, filter.actorUserId));
   if (filter.actorType && (ACTOR_TYPES as readonly string[]).includes(filter.actorType)) {
     conds.push(eq(auditLogs.actorType, filter.actorType));

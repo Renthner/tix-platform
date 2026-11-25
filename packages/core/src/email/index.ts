@@ -10,6 +10,7 @@ export * from './outbox';
 export * from './error-kind';
 export * from './sanitize';
 export * from './editor';
+export * from './message-body';
 export * from './template-admin';
 export * from './header';
 export { EMAIL_VARIABLES } from './variables';

@@ -1347,3 +1347,72 @@ export async function adminNeedsTwoFactorSetup(
     security,
   );
 }
+
+// ─── Sign-in activity & session control (SUPER_ADMIN) ──────────────────────────────────
+
+export interface AdminUserActivity {
+  lastLoginAt: Date | null;
+  /** IP address and method of the last recorded sign-in (audit trail), if any. */
+  lastLoginIp: string | null;
+  lastLoginMethod: string | null;
+  /** Sessions that are still valid (not expired). */
+  activeSessions: number;
+}
+
+export async function getAdminUserActivity(
+  ctx: Pick<CoreContext, 'db'>,
+  userId: string,
+): Promise<AdminUserActivity> {
+  const [[user], [last], [sessions]] = await Promise.all([
+    ctx.db
+      .select({ lastLoginAt: adminUsers.lastLoginAt })
+      .from(adminUsers)
+      .where(eq(adminUsers.id, userId)),
+    ctx.db
+      .select({
+        ip: sql<string | null>`host(${auditLogs.ipAddress})`,
+        changes: auditLogs.changes,
+      })
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.entityType, 'admin_user'),
+          eq(auditLogs.entityId, userId),
+          sql`${auditLogs.action} IN ('admin_user.login', 'admin_user.passkey_login')`,
+        ),
+      )
+      .orderBy(sql`${auditLogs.createdAt} DESC`, sql`${auditLogs.id} DESC`)
+      .limit(1),
+    ctx.db
+      .select({ n: count() })
+      .from(adminSessions)
+      .where(and(eq(adminSessions.userId, userId), gt(adminSessions.expiresAt, new Date()))),
+  ]);
+  const method = (last?.changes as { method?: unknown } | null)?.method;
+  return {
+    lastLoginAt: user?.lastLoginAt ?? null,
+    lastLoginIp: last?.ip ?? null,
+    lastLoginMethod: typeof method === 'string' ? method : null,
+    activeSessions: sessions?.n ?? 0,
+  };
+}
+
+/** Ends every session of the user (stolen device, left the team); audited. Returns the number ended. */
+export async function signOutAdminUserEverywhere(
+  ctx: CoreContext,
+  actor: AdminActor,
+  userId: string,
+): Promise<number> {
+  return withTransaction(ctx.db, async (tx) => {
+    await loadUser(tx, userId, true);
+    const [row] = await tx
+      .select({ n: count() })
+      .from(adminSessions)
+      .where(eq(adminSessions.userId, userId));
+    await revokeAdminSessions(tx, userId);
+    await writeAdminAudit(tx, actor, 'admin_user.sessions_revoked', userId, {
+      sessions: row?.n ?? 0,
+    });
+    return row?.n ?? 0;
+  });
+}

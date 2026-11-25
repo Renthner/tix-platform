@@ -7,6 +7,7 @@ import { eq, inArray, isNotNull, notInArray } from 'drizzle-orm';
 import type { ActionState } from '@/lib/action-state';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { logger } from '@/server/logger';
 import { audit } from './audit';
 import { refreshShop } from './shop-refresh';
 import { formError, success, text } from './form';
@@ -17,7 +18,8 @@ export async function saveShopOrderAction(_prev: ActionState, fd: FormData): Pro
   let raw: unknown;
   try {
     raw = JSON.parse(text(fd, 'order') ?? '[]');
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, '[admin] shop order JSON invalid');
     return formError('generic');
   }
   const parsed = shopOrderInputSchema.safeParse(raw);

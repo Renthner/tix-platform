@@ -24,7 +24,22 @@ import type {
   SalesChannel,
   TicketStatus,
 } from '@tix/shared';
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import { instantRange, parseLocalDate } from '../accounting/dates';
 import { parseStoredEmailRequest } from '../email/request';
 import { placeOrderBy } from '../tickets/order';
 import type { CoreContext } from '../context';
@@ -355,11 +370,32 @@ export interface OrderSearch {
   channel?: SalesChannel;
   /** Unpaid Vorkasse orders past their auto-cancel date (kept reserved / partially paid). */
   overdueOnly?: boolean;
+  /** Unpaid orders (awaiting payment or pending at the provider). */
+  openOnly?: boolean;
   /** Test orders (super-admin purchases on draft events): shown by default; `only` / `hide` filter them. */
   tests?: 'only' | 'hide';
+  /** Inclusive local dates (`YYYY-MM-DD`, shop time zone) of the order date. */
+  from?: string;
+  to?: string;
+  /** Time zone for `from` / `to` (default UTC). */
+  timeZone?: string;
+  /** Sort column (default: newest first). */
+  sort?: OrderSortKey;
+  dir?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }
+
+export const ORDER_SORT_KEYS = [
+  'date',
+  'number',
+  'customer',
+  'method',
+  'tickets',
+  'total',
+  'status',
+] as const;
+export type OrderSortKey = (typeof ORDER_SORT_KEYS)[number];
 
 export interface OrderListRow {
   id: string;
@@ -384,12 +420,8 @@ export interface OrderListRow {
   ticketCount: number;
 }
 
-export async function searchOrders(
-  ctx: CoreContext,
-  search: OrderSearch,
-): Promise<{ rows: OrderListRow[]; total: number; page: number; pageSize: number }> {
-  const pageSize = Math.min(Math.max(search.pageSize ?? 50, 1), 200);
-  const page = Math.max(search.page ?? 1, 1);
+/** WHERE clause of an order search (shared by the list and the CSV export). */
+export function buildOrderConditions(ctx: CoreContext, search: OrderSearch): SQL | undefined {
   const conditions: SQL[] = [];
   const q = search.q?.trim();
   if (q) {
@@ -426,12 +458,54 @@ export async function searchOrders(
   // Cancelled test orders that held real money are hidden from the plain list; the test filter
   // and any search (by number, e-mail, name, reference) still find them.
   if (search.tests !== 'only' && !q) conditions.push(isNull(orders.testHiddenAt));
+  if (search.openOnly) conditions.push(inArray(orders.status, ['AWAITING_PAYMENT', 'PENDING']));
   if (search.overdueOnly) {
     conditions.push(eq(orders.status, 'AWAITING_PAYMENT'), sql`${orders.paymentDueAt} < now()`);
   }
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  if (search.from && parseLocalDate(search.from)) {
+    conditions.push(
+      gte(orders.createdAt, instantRange(search.from, search.from, search.timeZone ?? 'UTC').gte),
+    );
+  }
+  if (search.to && parseLocalDate(search.to)) {
+    conditions.push(
+      lt(orders.createdAt, instantRange(search.to, search.to, search.timeZone ?? 'UTC').lt),
+    );
+  }
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+/** Drizzle renders columns unqualified in a single-table select, so the outer column is spelled out. */
+export const ORDER_TICKET_COUNT = sql<number>`(SELECT count(*)::int FROM ${orderItems} WHERE ${orderItems.orderId} = "orders"."id")`;
+
+const SORT_COLUMNS: Record<Exclude<OrderSortKey, 'tickets'>, SQL> = {
+  date: sql`${orders.createdAt}`,
+  number: sql`${orders.orderNumber}`,
+  customer: sql`lower(${orders.lastName} || ' ' || ${orders.firstName})`,
+  method: sql`${orders.paymentMethod}`,
+  total: sql`${orders.totalGross}`,
+  status: sql`${orders.status}`,
+};
+
+/** Stable ORDER BY: the chosen column, then newest first and id as tie-breakers. */
+export function orderListOrderBy(search: Pick<OrderSearch, 'sort' | 'dir'>): SQL[] {
+  const key = search.sort ?? 'date';
+  const col = key === 'tickets' ? ORDER_TICKET_COUNT : SORT_COLUMNS[key];
+  const primary = search.dir === 'asc' ? sql`${col} ASC` : sql`${col} DESC`;
+  return key === 'date'
+    ? [primary, sql`${orders.id} DESC`]
+    : [primary, sql`${orders.createdAt} DESC`, sql`${orders.id} DESC`];
+}
+
+export async function searchOrders(
+  ctx: CoreContext,
+  search: OrderSearch,
+): Promise<{ rows: OrderListRow[]; total: number; page: number; pageSize: number }> {
+  const pageSize = Math.min(Math.max(search.pageSize ?? 50, 1), 200);
+  const page = Math.max(search.page ?? 1, 1);
+  const where = buildOrderConditions(ctx, search);
   // Drizzle renders columns unqualified in a single-table select, so the outer column is spelled out.
-  const ticketCount = sql<number>`(SELECT count(*)::int FROM ${orderItems} WHERE ${orderItems.orderId} = "orders"."id")`;
+  const ticketCount = ORDER_TICKET_COUNT;
   const [rows, [totalRow]] = await Promise.all([
     ctx.db
       .select({
@@ -457,12 +531,70 @@ export async function searchOrders(
       })
       .from(orders)
       .where(where)
-      .orderBy(desc(orders.createdAt))
+      .orderBy(...orderListOrderBy(search))
       .limit(pageSize)
       .offset((page - 1) * pageSize),
     ctx.db.select({ n: count() }).from(orders).where(where),
   ]);
   return { rows, total: totalRow?.n ?? 0, page, pageSize };
+}
+
+/** Keyset position of the order export (`created_at` as exact text: microseconds, not a JS Date). */
+export interface OrderExportCursor {
+  createdAt: string;
+  id: string;
+}
+
+/**
+ * One page of the CSV export: the search's filters, always newest first (`created_at DESC, id
+ * DESC`), keyset-paged so orders created while the export runs never shift a page (no duplicated /
+ * skipped rows as with OFFSET). Pass the returned `next` to get the following page.
+ */
+export async function searchOrdersForExport(
+  ctx: CoreContext,
+  search: OrderSearch,
+  options: { after?: OrderExportCursor | null; limit?: number } = {},
+): Promise<{ rows: OrderListRow[]; next: OrderExportCursor | null }> {
+  const limit = Math.min(Math.max(options.limit ?? 200, 1), 1000);
+  const after = options.after;
+  const where = and(
+    buildOrderConditions(ctx, search),
+    after
+      ? sql`(${orders.createdAt}, ${orders.id}) < (${after.createdAt}::timestamptz, ${after.id}::uuid)`
+      : undefined,
+  );
+  const rows = await ctx.db
+    .select({
+      id: orders.id,
+      orderNumber: orders.orderNumber,
+      status: orders.status,
+      paymentMethod: orders.paymentMethod,
+      channel: orders.channel,
+      email: orders.email,
+      firstName: orders.firstName,
+      lastName: orders.lastName,
+      totalGross: orders.totalGross,
+      amountPaid: orders.amountPaid,
+      currency: orders.currency,
+      paymentReference: orders.paymentReference,
+      paymentDueAt: orders.paymentDueAt,
+      autoCancelAt: orders.autoCancelAt,
+      keepReserved: orders.keepReserved,
+      isTest: orders.isTest,
+      testHidden: sql<boolean>`${orders.testHiddenAt} IS NOT NULL`,
+      createdAt: orders.createdAt,
+      ticketCount: ORDER_TICKET_COUNT,
+      cursorCreatedAt: sql<string>`${orders.createdAt}::text`,
+    })
+    .from(orders)
+    .where(where)
+    .orderBy(desc(orders.createdAt), desc(orders.id))
+    .limit(limit);
+  const last = rows.at(-1);
+  return {
+    rows: rows.map(({ cursorCreatedAt: _cursor, ...row }) => row),
+    next: last && rows.length === limit ? { createdAt: last.cursorCreatedAt, id: last.id } : null,
+  };
 }
 
 /** One e-mail of the order (outbox row) for the admin timeline. */

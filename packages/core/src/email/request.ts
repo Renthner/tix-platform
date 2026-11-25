@@ -108,7 +108,7 @@ export async function createEmailMessage(
       .from(orders)
       .where(eq(orders.id, request.orderId));
     if (!order) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
-    to = order.email ?? undefined;
+    to = order.email?.trim() || undefined;
   }
   if (!to && request.customerId) {
     const [customer] = await db
@@ -170,6 +170,29 @@ export async function createEmailMessage(
     })
     .returning({ id: emailMessages.id });
   return row!.id;
+}
+
+/** `last_error` of order mails retired because the order's e-mail address was changed. */
+export const ORDER_EMAIL_OBSOLETE_ERROR = 'obsolete: the e-mail address of the order was changed';
+
+/**
+ * True when an order-bound message is addressed to a different address than the order's current
+ * e-mail (changed by an admin since it was queued). Such a mail would render the order link of the
+ * NEW token version to the OLD recipient. The notice to the old address (`ORDER_EMAIL_CHANGED_OLD`)
+ * deliberately goes there and is never outdated; messages without an order or whose order is gone
+ * are not affected.
+ */
+export async function isOrderRecipientOutdated(
+  db: Executor,
+  message: { orderId: string | null; templateKey: string | null; toEmail: string },
+): Promise<boolean> {
+  if (!message.orderId || message.templateKey === 'ORDER_EMAIL_CHANGED_OLD') return false;
+  const [order] = await db
+    .select({ email: orders.email })
+    .from(orders)
+    .where(eq(orders.id, message.orderId));
+  if (!order) return false;
+  return (order.email ?? '').trim().toLowerCase() !== message.toEmail.trim().toLowerCase();
 }
 
 /**

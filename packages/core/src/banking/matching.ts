@@ -24,6 +24,10 @@ import { DomainError, type CoreContext } from '../context';
 import { coreLog } from '../log';
 import { completeAdjustment, findOpenAdjustment } from '../orders/adjustments';
 import {
+  orderHasCancelledEventItems,
+  ordersWithCancelledEventItems,
+} from '../orders/cancelled-events';
+import {
   ensureBankAllocation,
   recordPayment,
   type RecordPaymentResult,
@@ -454,6 +458,10 @@ async function matchLocked(
           : [direct(order, 90, 'ALREADY_PAID')]),
       ]);
     }
+    // Tickets of a cancelled event are never issued: a human decides (pay back / reassign).
+    if (await orderHasCancelledEventItems(ctx.db, order.id)) {
+      return review('ORDER_NOT_PAYABLE', [direct(order, 90, 'EVENT_CANCELLED')]);
+    }
     const outstanding = order.totalGross - order.amountPaid;
     const diff = tx.amount - outstanding;
     if (diff > tolerance) return review('OVERPAYMENT', [direct(order, 95)]);
@@ -472,6 +480,18 @@ async function matchLocked(
   const candidates = referenced.map((o) => direct(o, 85));
   if (referenced.some((o) => o.currency !== tx.currency || !OPEN_STATUSES.includes(o.status))) {
     return review('AMBIGUOUS', candidates);
+  }
+  const withCancelledEvent = await ordersWithCancelledEventItems(
+    ctx.db,
+    referenced.map((o) => o.id),
+  );
+  if (withCancelledEvent.size > 0) {
+    return review(
+      'ORDER_NOT_PAYABLE',
+      referenced.map((o) =>
+        withCancelledEvent.has(o.id) ? direct(o, 85, 'EVENT_CANCELLED') : direct(o, 85),
+      ),
+    );
   }
   const sorted = [...referenced].sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
   const outstanding = sorted.map((o) => o.totalGross - o.amountPaid);
@@ -511,6 +531,11 @@ async function matchAdjustment(
       { ...candidate, reasons: [...candidate.reasons, 'ORDER_NOT_PAYABLE'] },
     ]);
   if (adjustment.status === 'CANCELLED' || adjustment.status === 'PAID') return notPayable();
+  if (await orderHasCancelledEventItems(ctx.db, adjustment.orderId)) {
+    return review('ORDER_NOT_PAYABLE', [
+      { ...candidate, reasons: [...candidate.reasons, 'EVENT_CANCELLED'] },
+    ]);
+  }
   const diff = tx.amount - adjustment.amount;
   if (diff > 0) return review('OVERPAYMENT', [candidate]);
   if (diff < 0) return review('UNDERPAYMENT', [candidate]);

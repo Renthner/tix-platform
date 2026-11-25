@@ -25,6 +25,7 @@ import { PageHeader } from '@/components/admin/form-controls';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { LiveDashboard } from '@/components/admin/live-dashboard';
 import { SetupChecklistCard } from '@/components/admin/setup-checklist-card';
+import { TodoTiles } from '@/components/admin/todo-tiles';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -104,6 +105,10 @@ export default async function AdminDashboardPage({
     <>
       <PageHeader title={t('title')} description={t('welcome', { name: session.displayName })} />
       <div className="space-y-6 p-6">
+        <TodoTiles
+          finance={hasRole(session, ['FINANCE'])}
+          eventManager={hasRole(session, ['EVENT_MANAGER'])}
+        />
         {(hasRole(session, ['EVENT_MANAGER', 'FINANCE']) || hasRole(session, ['SUPER_ADMIN'])) && (
           <div className="flex flex-wrap gap-2">
             {hasRole(session, ['EVENT_MANAGER', 'FINANCE']) && (

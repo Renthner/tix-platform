@@ -38,7 +38,11 @@ describe('IMAP policy', () => {
       'mx.example.org; dkim=pass (good signature) header.d=Bank.Example header.s=sel; spf=fail smtp.mailfrom=x@y.example',
     );
     expect(r).toHaveLength(2);
-    expect(r[0]).toMatchObject({ method: 'dkim', result: 'pass', props: { 'header.d': 'bank.example' } });
+    expect(r[0]).toMatchObject({
+      method: 'dkim',
+      result: 'pass',
+      props: { 'header.d': 'bank.example' },
+    });
     expect(r[1]).toMatchObject({ method: 'spf', result: 'fail' });
     expect(parseAuthenticationResults('mx.example.org; none')).toEqual([]);
   });
@@ -51,8 +55,12 @@ describe('IMAP policy', () => {
     expect(p.results).toHaveLength(2);
     expect(p.results[0]).toMatchObject({ method: 'dkim', props: { 'header.d': 'bank.example' } });
     // unterminated comment / quote: the segment is dropped
-    expect(parseAuthenticationResultsHeader('mx; dkim=pass header.d=bank.example (oops').results).toEqual([]);
-    expect(parseAuthenticationResultsHeader('mx; dkim=pass header.d="bank.example').results).toEqual([]);
+    expect(
+      parseAuthenticationResultsHeader('mx; dkim=pass header.d=bank.example (oops').results,
+    ).toEqual([]);
+    expect(
+      parseAuthenticationResultsHeader('mx; dkim=pass header.d="bank.example').results,
+    ).toEqual([]);
     expect(
       parseAuthenticationResultsHeader('mx; dkim=pass header.d="bank.example; spf=pass').results,
     ).toEqual([]);
@@ -64,7 +72,13 @@ describe('IMAP policy', () => {
       from = 'noreply@bank.example',
       trustedAuthservId: string | null | undefined = 'mx',
       list: string[] = allow,
-    ) => isTrustedMailAuth({ authenticationResults: header, from, allowlist: list, trustedAuthservId });
+    ) =>
+      isTrustedMailAuth({
+        authenticationResults: header,
+        from,
+        allowlist: list,
+        trustedAuthservId,
+      });
 
     it('is fail closed without trustedAuthservId', () => {
       expect(
@@ -83,7 +97,9 @@ describe('IMAP policy', () => {
       expect(t('MX; dmarc=pass header.from=bank.example')).toBe(true);
       expect(t('mx; dmarc=pass header.from=attacker.example')).toBe(false);
       expect(t('mx; dkim=pass header.d=attacker.example')).toBe(false);
-      expect(t('mx; dkim=fail header.d=bank.example; dmarc=fail header.from=bank.example')).toBe(false);
+      expect(t('mx; dkim=fail header.d=bank.example; dmarc=fail header.from=bank.example')).toBe(
+        false,
+      );
       expect(t('mx; dkim=none')).toBe(false);
       expect(t(undefined)).toBe(false);
       expect(t('mx; dkim=pass header.d=bank.example', 'x@other.example')).toBe(false);
@@ -95,9 +111,15 @@ describe('IMAP policy', () => {
 
     it('only the topmost header of the trusted authserv-id counts', () => {
       expect(t(['evil; dkim=pass header.d=bank.example'])).toBe(false);
-      expect(t(['other; dkim=pass header.d=bank.example', 'mx; dkim=fail header.d=bank.example'])).toBe(false);
-      expect(t(['other; dkim=fail header.d=bank.example', 'mx; dkim=pass header.d=bank.example'])).toBe(true);
-      expect(t(['mx; dkim=fail header.d=bank.example', 'mx; dkim=pass header.d=bank.example'])).toBe(false);
+      expect(
+        t(['other; dkim=pass header.d=bank.example', 'mx; dkim=fail header.d=bank.example']),
+      ).toBe(false);
+      expect(
+        t(['other; dkim=fail header.d=bank.example', 'mx; dkim=pass header.d=bank.example']),
+      ).toBe(true);
+      expect(
+        t(['mx; dkim=fail header.d=bank.example', 'mx; dkim=pass header.d=bank.example']),
+      ).toBe(false);
       // look-alike ids do not match
       expect(t('mx.evil; dkim=pass header.d=bank.example')).toBe(false);
       expect(t('evil.mx; dkim=pass header.d=bank.example')).toBe(false);

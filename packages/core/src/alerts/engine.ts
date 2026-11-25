@@ -92,6 +92,7 @@ const ADMIN_PAGE: Record<AdminAlertType, string> = {
   BANK_SYNC_FAILING: 'banking/connections',
   PAYMENT_PROVIDER_ERRORS: 'refunds',
   REFUNDS_OPEN: 'refunds',
+  PAID_CANCELLED_EVENT: 'orders',
 };
 
 function adminLink(ctx: CoreContext, locale: string, type: AdminAlertType, variant: string) {

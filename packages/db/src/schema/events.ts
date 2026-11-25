@@ -174,6 +174,9 @@ export const events = pgTable(
     publishedAt: tstz('published_at'),
     cancelledAt: tstz('cancelled_at'),
     cancellationReason: text('cancellation_reason'),
+    /** POSTPONED: the announced new date (informational; the real date is changed in the event details) and a note for the buyer mail. */
+    postponedNewStartsAt: tstz('postponed_new_starts_at'),
+    postponementNote: text('postponement_note'),
     clonedFromId: uuid('cloned_from_id').references((): AnyPgColumn => events.id, {
       onDelete: 'set null',
     }),

@@ -82,7 +82,10 @@
       "tests": "Testbestellungen",
       "testsAll": "Mit Testbestellungen",
       "testsOnly": "Nur Testbestellungen",
-      "testsHide": "Ohne Testbestellungen"
+      "testsHide": "Ohne Testbestellungen",
+      "from": "Von",
+      "to": "Bis",
+      "searchEvents": "Veranstaltung suchen"
     },
     "empty": "Keine Bestellungen gefunden.",
     "columns": {
@@ -611,6 +614,70 @@
       "byAdmin": "durch einen Admin",
       "byCustomer": "durch den Kunden",
       "recipientPage": "Ticketseite des Empfängers"
+    },
+    "export": "CSV exportieren",
+    "chips": {
+      "label": "Schnellfilter",
+      "open": "Offen",
+      "overdue": "Überfällig",
+      "today": "Heute"
+    },
+    "csv": {
+      "number": "Bestellung",
+      "date": "Datum",
+      "customer": "Kunde",
+      "email": "E-Mail",
+      "method": "Zahlung",
+      "channel": "Kanal",
+      "status": "Status",
+      "tickets": "Tickets",
+      "total": "Summe",
+      "paid": "Bezahlt",
+      "currency": "Währung",
+      "reference": "Verwendungszweck",
+      "test": "Testbestellung",
+      "yes": "ja",
+      "truncated": "Export unvollständig: Nur die ersten {max} Bestellungen sind enthalten. Schränke die Filter ein, um den Rest zu exportieren."
+    },
+    "bulk": {
+      "selected": "{count, plural, one {# Bestellung ausgewählt} other {# Bestellungen ausgewählt}}",
+      "clear": "Auswahl aufheben",
+      "selectAll": "Alle Bestellungen dieser Seite auswählen",
+      "selectOrder": "Bestellung {number} auswählen",
+      "failed": "Die Aktion konnte nicht ausgeführt werden. Bitte versuche es erneut.",
+      "summary": "{action}: {done} erledigt, {other} nicht erledigt.",
+      "actions": {
+        "remind": "Zahlungserinnerung senden",
+        "keepReservedOn": "Reserviert halten",
+        "keepReservedOff": "Reservierungssperre aufheben",
+        "resendTickets": "Tickets erneut senden",
+        "cancelUnpaid": "Unbezahlte stornieren"
+      },
+      "confirm": {
+        "remind": {
+          "title": "Zahlungserinnerung an {count, plural, one {# Bestellung} other {# Bestellungen}} senden?",
+          "description": "Nur unbezahlte Vorkasse-Bestellungen werden erinnert, alle anderen werden übersprungen."
+        },
+        "resendTickets": {
+          "title": "Tickets von {count, plural, one {# Bestellung} other {# Bestellungen}} erneut senden?",
+          "description": "Nur bezahlte Bestellungen mit gültigen Tickets werden erneut versendet, alle anderen werden übersprungen."
+        },
+        "cancelUnpaid": {
+          "title": "{count, plural, one {# Bestellung} other {# Bestellungen}} stornieren?",
+          "description": "Unbezahlte Bestellungen werden storniert, die Plätze freigegeben und die Kunden benachrichtigt. Bezahlte Bestellungen werden übersprungen (sie brauchen eine Erstattung). Das kann nicht rückgängig gemacht werden."
+        }
+      },
+      "codes": {
+        "UNCHANGED": "Nichts zu tun (bereits in diesem Zustand)",
+        "RECENTLY_REMINDED": "Vor weniger als einer Stunde erinnert",
+        "REMINDER_NOT_APPLICABLE": "Nur unbezahlte Vorkasse-Bestellungen werden erinnert",
+        "ORDER_NOT_OPEN": "Nur unbezahlte Bestellungen können reserviert gehalten werden",
+        "ORDER_NOT_PAID": "Bestellung ist nicht bezahlt",
+        "NO_TICKETS": "Bestellung hat keine gültigen Tickets",
+        "ORDER_NOT_CANCELLABLE": "Nur unbezahlte Bestellungen können hier storniert werden",
+        "ORDER_NOT_FOUND": "Bestellung nicht gefunden",
+        "INTERNAL_ERROR": "Unerwarteter Fehler"
+      }
     }
   },
   "eventPayments": {
@@ -639,6 +706,7 @@
     "selection": "Auswahl",
     "empty": "Plätze im Plan anklicken oder Stehplätze wählen.",
     "remove": "Entfernen",
+    "removeItem": "{item} entfernen",
     "tariff": "Ticketart",
     "seatLabel": "{section} · Reihe {row} · Platz {seat}",
     "seatLabelNoRow": "{section} · Platz {seat}",

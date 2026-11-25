@@ -15,7 +15,7 @@ import type { TakenCode } from '@tix/redis';
 import type { ActorType, AllocationMethod, OrderStatus, PaymentMethod } from '@tix/shared';
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { DomainError, type CoreContext } from '../context';
-import { createEmailMessage, dispatchEmailMessage } from '../email';
+import { createEmailMessage, dispatchEmailMessage, type EmailRequest } from '../email';
 import { QUEUE_NAMES } from '../job-queues';
 import { publishSeatDelta } from '../realtime';
 import { dispatchMessages, queueHolderCancelledMails } from '../tickets/holder-mail';
@@ -353,11 +353,18 @@ export interface CancelOrderParams {
   actor: OrderActor;
   /** Send the ORDER_CANCELLED e-mail (dunning / admin cancellation of a bank transfer). */
   notifyCustomer?: boolean;
+  /** Replaces the standard ORDER_CANCELLED e-mail (e.g. EVENT_CANCELLED of the cancellation assistant). */
+  notification?: Omit<EmailRequest, 'orderId' | 'to'>;
   /**
    * Dunning guard, evaluated on the locked row: only cancel if the order is still unprotected
    * (no keep-reserved lock, nothing paid) and its auto-cancel deadline has passed.
    */
   onlyIfUnpaidAndDue?: { now: Date };
+  /**
+   * Event cancellation guard, evaluated on the locked row: only cancel if nothing was paid and
+   * the order holds no active items of events other than `eventId` (those need a manual decision).
+   */
+  onlyIfNothingPaid?: { eventId: string };
 }
 
 /**
@@ -389,6 +396,22 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
         order.autoCancelAt.getTime() > guard.now.getTime())
     )
       return null;
+    const nothingPaid = params.onlyIfNothingPaid;
+    if (nothingPaid) {
+      if (order.amountPaid !== 0) return null;
+      const [other] = await tx
+        .select({ id: orderItems.id })
+        .from(orderItems)
+        .where(
+          and(
+            eq(orderItems.orderId, order.id),
+            inArray(orderItems.status, ['PENDING', 'CONFIRMED']),
+            ne(orderItems.eventId, nothingPaid.eventId),
+          ),
+        )
+        .limit(1);
+      if (other) return null;
+    }
     const now = new Date();
     await tx
       .update(orders)
@@ -446,7 +469,10 @@ export async function cancelOrder(ctx: CoreContext, params: CancelOrderParams): 
       },
     });
     const messageId = params.notifyCustomer
-      ? await createEmailMessage(ctx, tx, { key: 'ORDER_CANCELLED', orderId: order.id })
+      ? await createEmailMessage(ctx, tx, {
+          ...(params.notification ?? { key: 'ORDER_CANCELLED' }),
+          orderId: order.id,
+        })
       : null;
     return { items, messageId, holderMessageIds };
   });

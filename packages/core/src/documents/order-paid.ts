@@ -71,7 +71,11 @@ export async function processPaidOrder(
   // The buyer's PDF holds the tickets the buyer still has; tickets handed over to someone else
   // (re-issued for their holder after a payment reversal) count as issued but are not attached.
   const buyerTickets = (await ensureOrderTickets(ctx, orderId)).length;
-  const ticketCount = Math.max(buyerTickets, await countValidOrderTickets(ctx.db, orderId));
+  // Tickets of a cancelled event are never counted (they are not issued / about to be voided).
+  const ticketCount = Math.max(
+    buyerTickets,
+    await countValidOrderTickets(ctx.db, orderId, { excludeCancelledEvents: true }),
+  );
 
   // The ticket PDF is rendered by the e-mail job when it sends (a failure retries with the
   // job's back-off instead of blocking fulfilment; the admin can resend after a final failure).

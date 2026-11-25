@@ -56,6 +56,21 @@
     "guestNote": "Bought tickets as a guest before? Register with the same e-mail address – once it is confirmed, your earlier orders appear in your account.",
     "continueToLogin": "Sign in and continue"
   },
+  "orderLookup": {
+    "title": "Find my order",
+    "description": "Enter your order number and the e-mail address you ordered with. If the data matches, we send you a link to your order.",
+    "orderNumber": "Order number",
+    "email": "E-mail address",
+    "submit": "Send me the link",
+    "submitting": "Sending …",
+    "sent": "If the data matches an order, we sent a link to the e-mail address of that order. Please also check your spam folder.",
+    "toLogin": "Sign in instead",
+    "link": "Find my order",
+    "errors": {
+      "VALIDATION": "Please enter your order number and a valid e-mail address.",
+      "RATE_LIMITED": "Too many requests. Please try again later."
+    }
+  },
   "forgot": {
     "title": "Forgot your password?",
     "description": "Enter your e-mail address and we will send you a link to set a new password.",
@@ -101,6 +116,11 @@
     "placedOn": "Placed on {date}",
     "tickets": "{count, plural, one {# ticket} other {# tickets}}",
     "view": "View order",
+    "downloadTickets": "Tickets (PDF)",
+    "paginationLabel": "Order pages",
+    "previousPage": "Previous",
+    "nextPage": "Next",
+    "pageOf": "Page {page} of {pages}",
     "status": {
       "PENDING": "Payment in progress",
       "AWAITING_PAYMENT": "Awaiting payment",

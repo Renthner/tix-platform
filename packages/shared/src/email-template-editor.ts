@@ -17,7 +17,9 @@ export type EmailVariableGroup =
   | 'smtpTest'
   | 'alert'
   | 'passkey'
-  | 'waitlist';
+  | 'waitlist'
+  | 'event'
+  | 'message';
 
 export interface EmailVariableInfo {
   name: string;
@@ -171,6 +173,22 @@ const WAITLIST = [
   ]),
 ];
 
+/** EVENT_CANCELLED / EVENT_POSTPONED: the event concerned (an order can span several events). */
+const EVENT_NOTICE = names('event', [
+  'eventCancellationReason',
+  'eventNewDate',
+  'eventPostponementNote',
+  'cancelledTicketCount',
+  'orderWasUnpaid',
+]);
+/** ORDER_MESSAGE / EVENT_MESSAGE: free text of the organiser (`messageBody` is generated HTML). */
+const MESSAGE = [
+  ...names('message', ['messageSubject']),
+  ...names('message', ['messageBody'], 'html'),
+];
+/** The new address is deliberately not a variable: the notice to the OLD address must not reveal it. */
+const EMAIL_CHANGE = names('message', ['previousEmail']);
+
 const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
   ORDER_CONFIRMATION_BANK_TRANSFER: [...SHOP, ...ORDER],
   PAYMENT_RECEIVED_TICKETS: [...SHOP, ...ORDER, ...WALLET],
@@ -203,6 +221,22 @@ const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
   WAITLIST_CONFIRM: [...SHOP, ...WAITLIST],
   WAITLIST_AVAILABLE: [...SHOP, ...WAITLIST],
   WAITLIST_REMOVED: [...SHOP, ...WAITLIST],
+  EVENT_CANCELLED: [
+    ...SHOP,
+    ...ORDER,
+    ...names('order', ['refundAmount', 'creditNoteNumber', 'refundViaPaypal', 'refundManual']),
+    ...EVENT_NOTICE,
+  ],
+  EVENT_POSTPONED: [...SHOP, ...ORDER, ...EVENT_NOTICE],
+  ORDER_MESSAGE: [...SHOP, ...ORDER, ...MESSAGE],
+  EVENT_MESSAGE: [...SHOP, ...ORDER, ...MESSAGE],
+  ORDER_EMAIL_CHANGED: [...SHOP, ...ORDER, ...EMAIL_CHANGE],
+  ORDER_EMAIL_CHANGED_OLD: [
+    ...SHOP,
+    ...names('customer', ['firstName']),
+    ...names('order', ['orderNumber']),
+    ...EMAIL_CHANGE,
+  ],
 };
 
 /** Variables a template of this key can use (de-duplicated, in display order). */

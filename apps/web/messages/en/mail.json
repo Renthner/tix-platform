@@ -196,6 +196,12 @@
         "summary": "{count} manual refunds have been open for several days. Transfer the money and mark them as done."
       }
     },
+    "PAID_CANCELLED_EVENT": {
+      "default": {
+        "title": "Payments received for a cancelled event",
+        "summary": "{count} orders were paid after one of their events was cancelled ({orders}). Their tickets are not issued. Start the event cancellation again to cancel and refund them."
+      }
+    },
     "UPDATE_AVAILABLE": {
       "default": {
         "title": "Update available: {latest}",

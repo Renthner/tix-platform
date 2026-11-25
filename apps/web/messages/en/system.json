@@ -209,6 +209,10 @@
         "name": "Manual refunds open (daily digest)",
         "description": "Manual refunds waiting for a transfer for several days."
       },
+      "PAID_CANCELLED_EVENT": {
+        "name": "Payment for a cancelled event",
+        "description": "An order was paid after one of its events was cancelled (e.g. a late PayPal capture or bank transfer)."
+      },
       "UPDATE_AVAILABLE": {
         "name": "Update available",
         "description": "A newer version is available for your update channel."

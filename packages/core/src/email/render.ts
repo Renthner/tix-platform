@@ -5,6 +5,7 @@ import { DomainError, type CoreContext } from '../context';
 import { loadOrderDocumentData } from '../documents/order-data';
 import { mailTranslator } from '../i18n/mail-messages';
 import { getSetting } from '../settings';
+import { messageBodyVariable } from './message-body';
 import { htmlToText, renderTemplate, type TemplateVariables } from './template';
 import { adjustmentVariables, customerVariables, orderVariables, shopVariables } from './variables';
 
@@ -124,6 +125,10 @@ export async function renderEmail(
       : {}),
     ...(params.variables ?? {}),
   };
+  // Admin free text (order / event messages): plain string in the outbox, HTML built here.
+  if (typeof variables.messageBody === 'string') {
+    variables.messageBody = messageBodyVariable(variables.messageBody);
+  }
 
   const subject = renderTemplate(template.subject, variables, 'text');
   const html = renderTemplate(template.bodyHtml, variables, 'html');

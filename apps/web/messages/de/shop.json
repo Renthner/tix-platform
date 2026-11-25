@@ -7,6 +7,7 @@
     "privacy": "Datenschutz",
     "terms": "AGB",
     "cookies": "Cookies",
+    "findOrder": "Bestellung finden",
     "draftBanner": "Entwurf – nur für Super-Admins sichtbar. Bestellungen sind Testbestellungen.",
     "sponsors": "Sponsoren",
     "sponsorPrevious": "Vorheriger Sponsor",
@@ -80,7 +81,20 @@
     "title": "Kommende Veranstaltungen",
     "empty": "Aktuell sind keine Veranstaltungen im Verkauf.",
     "fromPrice": "ab {price}",
-    "tickets": "Tickets"
+    "saleStarts": "Verkauf startet am {date}",
+    "publicSaleStarts": "Freier Verkauf startet am {date}",
+    "filter": {
+      "label": "Veranstaltungen filtern",
+      "search": "Suche",
+      "searchPlaceholder": "Titel, Ort oder Stadt",
+      "month": "Monat",
+      "allMonths": "Alle Monate",
+      "city": "Stadt",
+      "allCities": "Alle Städte",
+      "noMatch": "Keine Veranstaltung passt zu deiner Suche."
+    },
+    "tickets": "Tickets",
+    "ticketsFor": "Tickets: {event}"
   },
   "saleState": {
     "NOT_PUBLISHED": "Nicht verfügbar",
@@ -104,6 +118,22 @@
     "ariaLabel": "Saalplan",
     "remaining": "{count, plural, =0 {ausverkauft} one {# Platz frei} other {# Plätze frei}}",
     "keyboardHelp": "Saalplan. Mit den Pfeiltasten wechselst du zwischen den Plätzen; am Rand eines Blocks geht es in den benachbarten Block in dieser Richtung weiter. Pos1 und Ende springen an den Anfang oder das Ende einer Reihe, Strg plus Pos1 oder Ende zum ersten oder letzten Platz des Plans, Bild auf und Bild ab wechseln den Block. Enter oder die Leertaste wählt einen Platz aus oder gibt ihn frei (bei einem Stehplatzbereich öffnet sie ihn), Escape verlässt den Plan. Alternativ wählst du die Liste statt des Plans."
+  },
+  "share": {
+    "button": "Teilen",
+    "copied": "Link in die Zwischenablage kopiert.",
+    "failed": "Der Link konnte nicht kopiert werden."
+  },
+  "loadState": {
+    "failed": "Die Seite konnte nicht geladen werden.",
+    "retrying": "Wir versuchen es automatisch erneut. Du kannst auch gleich selbst erneut versuchen.",
+    "retry": "Erneut versuchen",
+    "liveLost": "Live-Aktualisierung unterbrochen – Verbindung wird neu aufgebaut …",
+    "reload": "Seite neu laden"
+  },
+  "selectionPrice": {
+    "subtotal": "Zwischensumme",
+    "bar": "{count, plural, one {# Ticket} other {# Tickets}}"
   },
   "selection": {
     "maintenanceTitle": "Wartungsarbeiten",
@@ -143,6 +173,7 @@
     "emptyManual": "Klicke im Saalplan auf freie Plätze oder einen Stehplatzbereich.",
     "emptyBest": "Wähle oben eine Kategorie und die Anzahl der Tickets.",
     "remove": "Entfernen",
+    "removeItem": "{item} entfernen",
     "orphanHint": "Bitte lass keine einzelnen freien Plätze neben deiner Auswahl übrig.",
     "orphanRule": "Deine Auswahl würde einen einzelnen freien Platz übrig lassen (rot markiert). Bitte passe deine Auswahl an.",
     "continue": "Weiter zum Warenkorb",

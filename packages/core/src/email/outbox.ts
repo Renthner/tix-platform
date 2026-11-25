@@ -6,7 +6,7 @@ import { QUEUE_NAMES } from '../job-queues';
 import { formatDateTime } from '../format';
 import { getSetting } from '../settings';
 import { deliverEmailMessage, EmailDeliveryError } from './deliver';
-import { createEmailMessage, dispatchEmailMessage } from './request';
+import { createEmailMessage, dispatchEmailMessage, isOrderRecipientOutdated } from './request';
 import { classifyMailError, type MailErrorKind } from './error-kind';
 
 /** BullMQ job states in which a message's job will still run. */
@@ -53,8 +53,27 @@ export async function requeueStaleEmails(
   return requeued;
 }
 
-/** Sends a FAILED message again (admin action). */
+/**
+ * Sends a FAILED message again (admin action). Refused for order mails addressed to an e-mail the
+ * order no longer has (address changed by an admin): they would carry the new order link to the
+ * old recipient – resend the mail from the order instead.
+ */
 export async function retryEmailMessage(ctx: CoreContext, messageId: string): Promise<void> {
+  const [current] = await ctx.db
+    .select({
+      orderId: emailMessages.orderId,
+      templateKey: emailMessages.templateKey,
+      toEmail: emailMessages.toEmail,
+    })
+    .from(emailMessages)
+    .where(eq(emailMessages.id, messageId));
+  if (current && (await isOrderRecipientOutdated(ctx.db, current))) {
+    throw new DomainError(
+      'EMAIL_RECIPIENT_OUTDATED',
+      'The e-mail address of the order was changed since this e-mail was created',
+      409,
+    );
+  }
   const [row] = await ctx.db
     .update(emailMessages)
     .set({ status: 'QUEUED', lastError: null, updatedAt: new Date() })

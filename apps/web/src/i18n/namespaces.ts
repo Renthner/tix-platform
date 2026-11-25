@@ -25,5 +25,6 @@ export const MESSAGE_NAMESPACES = [
   'discount',
   'discounts',
   'audit',
+  'communication',
 ] as const;
 export type MessageNamespace = (typeof MESSAGE_NAMESPACES)[number];

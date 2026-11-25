@@ -136,6 +136,10 @@ describe('completePayPalPayment with rejected credentials', () => {
       keys: { providerToken: () => 'k' },
       db: {
         select: () => ({ from: () => ({ where: async () => rows.shift() }) }),
+        // Cancelled-event guard before the capture: no such items.
+        selectDistinct: () => ({
+          from: () => ({ innerJoin: () => ({ where: async () => [] }) }),
+        }),
         update,
       },
     };

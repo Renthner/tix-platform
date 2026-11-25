@@ -196,6 +196,12 @@
         "summary": "{count} manuelle Erstattungen sind seit mehreren Tagen offen. Überweise das Geld und markiere sie als erledigt."
       }
     },
+    "PAID_CANCELLED_EVENT": {
+      "default": {
+        "title": "Zahlungen für eine abgesagte Veranstaltung eingegangen",
+        "summary": "{count} Bestellungen wurden bezahlt, nachdem eine ihrer Veranstaltungen abgesagt wurde ({orders}). Ihre Tickets werden nicht ausgestellt. Starte die Absage der Veranstaltung erneut, um sie zu stornieren und zu erstatten."
+      }
+    },
     "UPDATE_AVAILABLE": {
       "default": {
         "title": "Update verfügbar: {latest}",

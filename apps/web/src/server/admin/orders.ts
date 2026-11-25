@@ -115,7 +115,7 @@ export async function cancelPaidOrderAction(
   _prev: OrderActionState,
   fd: FormData,
 ): Promise<OrderActionState> {
-  const session = await requireAdmin(['FINANCE']);
+  const session = await requireAdmin(['FINANCE', 'EVENT_MANAGER']);
   return run(orderId, async () => {
     const input = parseCancelPaidForm(fd);
     if (!input) return fail('VALIDATION_FAILED');
@@ -168,7 +168,7 @@ export async function recordPaymentAction(
   _prev: OrderActionState,
   fd: FormData,
 ): Promise<OrderActionState> {
-  const session = await requireAdmin(['FINANCE']);
+  const session = await requireAdmin(['FINANCE', 'EVENT_MANAGER']);
   return run(orderId, async () => {
     const amount = parseMoneyToCents(text(fd, 'amount'));
     if (amount === null || amount <= 0) return fail('INVALID_AMOUNT');

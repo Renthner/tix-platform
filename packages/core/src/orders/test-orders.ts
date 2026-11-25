@@ -4,6 +4,7 @@ import {
   auditLogs,
   bankTransactionAllocations,
   emailMessages,
+  eventCancellationRuns,
   events,
   invoices,
   orderAdjustments,
@@ -507,6 +508,28 @@ export async function changeEventStatus(
       .for('update');
     if (!event) throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
     const live = (s: EventStatus) => s === 'PUBLISHED' || s === 'POSTPONED';
+    // Taking a cancellation back while the assistant is still cancelling its orders would leave
+    // the event half-cancelled (and the run could never finish): wait until the run ended.
+    if (event.status === 'CANCELLED' && params.status !== 'CANCELLED') {
+      const [running] = await tx
+        .select({ id: eventCancellationRuns.id })
+        .from(eventCancellationRuns)
+        .where(
+          and(
+            eq(eventCancellationRuns.eventId, event.id),
+            eq(eventCancellationRuns.status, 'RUNNING'),
+          ),
+        )
+        .limit(1);
+      if (running) {
+        throw new DomainError(
+          'EVENT_CANCELLATION_RUNNING',
+          'The cancellation of this event is still running – wait until it finished',
+          409,
+          { runId: running.id },
+        );
+      }
+    }
     let rotatedKeys = 0;
     if (live(params.status) && !live(event.status)) {
       const [tests] = await tx

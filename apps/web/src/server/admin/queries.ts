@@ -15,7 +15,21 @@ import {
   venues,
   waitlistEntries,
 } from '@tix/db';
-import { and, asc, count, desc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { getCore } from '@/server/core';
 import { shopOrderBy, shopVisibleCondition } from '@/server/shop-events';
 
@@ -82,6 +96,100 @@ export async function listAllTemplates() {
     .from(seatMaps)
     .where(eq(seatMaps.kind, 'TEMPLATE'))
     .orderBy(asc(seatMaps.name));
+}
+
+export const EVENT_LIST_SORTS = ['date', 'title', 'venue', 'status'] as const;
+export type EventListSort = (typeof EVENT_LIST_SORTS)[number];
+
+/** Filters of the admin event list (search in title / venue, upcoming or past). */
+export interface EventListFilter {
+  status?: EventRow['status'];
+  q?: string;
+  /** `upcoming` = started less than a day ago or later; `past` = everything older. */
+  time?: 'upcoming' | 'past';
+}
+
+function eventListConditions(filter: EventListFilter): SQL | undefined {
+  const conditions: SQL[] = [];
+  if (filter.status) conditions.push(eq(events.status, filter.status));
+  const q = filter.q?.trim();
+  if (q) {
+    const like = `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+    conditions.push(or(ilike(events.title, like), ilike(venues.name, like))!);
+  }
+  if (filter.time === 'upcoming') {
+    conditions.push(gte(events.startsAt, sql`now() - interval '1 day'`));
+  } else if (filter.time === 'past') {
+    conditions.push(lt(events.startsAt, sql`now() - interval '1 day'`));
+  }
+  return conditions.length ? and(...conditions) : undefined;
+}
+
+/** Paged event list with search, sort and time filter (default: newest first). */
+export async function listEventsPage(
+  filter: EventListFilter & {
+    sort?: EventListSort;
+    dir?: 'asc' | 'desc';
+    page: number;
+    pageSize: number;
+  },
+) {
+  const { db } = getCore();
+  const column = {
+    date: events.startsAt,
+    title: sql`lower(${events.title})`,
+    venue: sql`lower(${venues.name})`,
+    status: events.status,
+  }[filter.sort ?? 'date'];
+  const dir = filter.dir ?? 'desc';
+  const where = eventListConditions(filter);
+  const [rows, [totalRow]] = await Promise.all([
+    db
+      .select({ event: events, venueName: venues.name })
+      .from(events)
+      .innerJoin(venues, eq(venues.id, events.venueId))
+      .where(where)
+      .orderBy(dir === 'asc' ? asc(column) : desc(column), asc(events.id))
+      .limit(filter.pageSize)
+      .offset((filter.page - 1) * filter.pageSize),
+    db
+      .select({ n: count() })
+      .from(events)
+      .innerJoin(venues, eq(venues.id, events.venueId))
+      .where(where),
+  ]);
+  return { rows, total: totalRow?.n ?? 0 };
+}
+
+/**
+ * Confirmed (sold) tickets and total capacity (seats + standing places of the event's plan) per
+ * event, for the list columns. Pure SQL, no live holds.
+ */
+export async function eventSoldCapacity(
+  eventIds: string[],
+): Promise<Map<string, { sold: number; capacity: number }>> {
+  if (eventIds.length === 0) return new Map();
+  const { db } = getCore();
+  const scope = sql.join(
+    eventIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  const rows = (
+    await db.execute<{ event_id: string; sold: number; capacity: number }>(sql`
+      SELECT e.id AS event_id,
+        (SELECT COUNT(*)::int FROM order_items i
+          WHERE i.event_id = e.id AND i.status = 'CONFIRMED') AS sold,
+        ((SELECT COUNT(*)::int FROM seats s
+            WHERE s.seat_map_id = e.seat_map_id AND s.removed_at IS NULL)
+         + (SELECT COALESCE(SUM(m.capacity), 0)::int FROM seat_map_sections m
+            WHERE m.seat_map_id = e.seat_map_id AND m.type = 'STANDING'
+              AND m.is_active AND m.removed_at IS NULL)) AS capacity
+      FROM events e WHERE e.id IN (${scope})
+    `)
+  ).rows;
+  return new Map(
+    rows.map((r) => [r.event_id, { sold: Number(r.sold), capacity: Number(r.capacity) }]),
+  );
 }
 
 export async function listEvents(

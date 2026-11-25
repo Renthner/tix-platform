@@ -69,6 +69,7 @@ function TextField({
   placeholder,
   className,
   autoComplete,
+  inputMode,
 }: {
   name: string;
   label: string;
@@ -80,6 +81,7 @@ function TextField({
   placeholder?: string;
   className?: string;
   autoComplete?: string;
+  inputMode?: 'text' | 'url' | 'email' | 'numeric';
 }) {
   return (
     <Field label={label} htmlFor={name} error={error} hint={hint} className={className}>
@@ -91,6 +93,9 @@ function TextField({
         maxLength={maxLength}
         placeholder={placeholder}
         autoComplete={autoComplete ?? 'off'}
+        inputMode={inputMode}
+        autoCapitalize="none"
+        spellCheck={false}
       />
     </Field>
   );
@@ -617,6 +622,7 @@ export function SmtpSettingsForm({
           error={err('host')}
           maxLength={255}
           placeholder="smtp.example.org"
+          inputMode="url"
         />
         <div className="grid grid-cols-[7rem_1fr] gap-3">
           <NumberField

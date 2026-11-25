@@ -130,7 +130,7 @@ export async function recordAdjustmentPaymentAction(
   _prev: OrderActionState,
   fd: FormData,
 ): Promise<OrderActionState> {
-  const session = await requireAdmin(['FINANCE']);
+  const session = await requireAdmin(['FINANCE', 'EVENT_MANAGER']);
   return run(async () => {
     if (!z.uuid().safeParse(adjustmentId).success) return fail('ADJUSTMENT_NOT_FOUND');
     const method = z.enum(PAYMENT_METHODS).safeParse(text(fd, 'method'));

@@ -14,7 +14,17 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { createContext, useContext, useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  cloneElement,
+  createContext,
+  isValidElement,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -120,12 +130,34 @@ export function CheckoutForm(props: Props) {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
+  // Error summary: focused after a failed submit unless a field error already took the focus.
+  const errorRef = useRef<HTMLDivElement>(null);
+  const [errorFocus, setErrorFocus] = useState(0);
   const quote = method ? props.quotes[method] : props.quotes.BANK_TRANSFER;
+  const fieldLabels: Record<string, string> = {
+    'co-first': t('contact.firstName'),
+    'co-last': t('contact.lastName'),
+    'co-email': t('contact.email'),
+    'co-phone': t('contact.phone'),
+    'co-company': t('address.company'),
+    'co-street': t('address.street'),
+    'co-line2': t('address.line2'),
+    'co-zip': t('address.postalCode'),
+    'co-city': t('address.city'),
+    'co-country': t('address.country'),
+    'co-note': t('contact.note'),
+  };
+  const invalidFields = Object.keys(fe.errors).filter((id) => id in fieldLabels);
+  const termsMissing = props.requireTerms && !acceptTerms && !pending;
 
   // Entering the checkout extended the reservation – let the header countdown pick it up.
   useEffect(() => {
     void refreshCart().catch(() => undefined);
   }, [refreshCart]);
+
+  useEffect(() => {
+    if (errorFocus > 0) errorRef.current?.focus();
+  }, [errorFocus]);
 
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -156,8 +188,9 @@ export function CheckoutForm(props: Props) {
     } catch (err) {
       const code = errorCode(err);
       const message = errorMessage(tErr, err);
-      fe.apply(err);
+      const fieldFocused = fe.apply(err);
       setError({ code, message });
+      if (!fieldFocused) setErrorFocus((n) => n + 1);
       toast.error(message);
       // New prices / availability: re-render the server part, the form keeps its input.
       if (code === 'PRICE_CHANGED' || code === 'PAYMENT_METHOD_UNAVAILABLE') router.refresh();
@@ -175,10 +208,27 @@ export function CheckoutForm(props: Props) {
       >
         <div className="space-y-6">
           {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="size-4" />
+            <Alert
+              variant="destructive"
+              ref={errorRef}
+              tabIndex={-1}
+              data-testid="checkout-error-summary"
+              className="focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+            >
+              <AlertCircle className="size-4" aria-hidden />
               <AlertDescription className="flex flex-wrap items-center gap-2">
                 {error.message}
+                {invalidFields.length > 0 && (
+                  <ul className="w-full list-disc pl-5">
+                    {invalidFields.map((id) => (
+                      <li key={id}>
+                        <a href={`#${id}`} className="underline">
+                          {fieldLabels[id]}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {CART_ERRORS.has(error.code) && (
                   <Link href="/cart" className="font-medium underline">
                     {t('backToCart')}
@@ -213,182 +263,192 @@ export function CheckoutForm(props: Props) {
             </div>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('contact.title')}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <FieldBox id="co-first" label={t('contact.firstName')}>
-                <Input
-                  id="co-first"
-                  aria-invalid={fe.invalid('co-first')}
-                  autoComplete="given-name"
-                  required
-                  maxLength={100}
-                  value={form.firstName}
-                  onChange={set('firstName')}
-                />
-              </FieldBox>
-              <FieldBox id="co-last" label={t('contact.lastName')}>
-                <Input
-                  id="co-last"
-                  aria-invalid={fe.invalid('co-last')}
-                  autoComplete="family-name"
-                  required
-                  maxLength={100}
-                  value={form.lastName}
-                  onChange={set('lastName')}
-                />
-              </FieldBox>
-              <FieldBox id="co-email" label={t('contact.email')} hint={t('contact.emailHint')}>
-                <Input
-                  id="co-email"
-                  aria-invalid={fe.invalid('co-email')}
-                  type="email"
-                  autoComplete="email"
-                  required
-                  maxLength={254}
-                  readOnly={Boolean(props.customer)}
-                  value={form.email}
-                  onChange={set('email')}
-                />
-              </FieldBox>
-              <FieldBox
-                id="co-phone"
-                label={t('contact.phone')}
-                optional={props.requirePhone ? undefined : t('optional')}
-                error={error?.code === 'PHONE_REQUIRED' ? error.message : undefined}
-              >
-                <Input
-                  id="co-phone"
-                  type="tel"
-                  autoComplete="tel"
-                  required={props.requirePhone}
-                  aria-invalid={error?.code === 'PHONE_REQUIRED' || fe.invalid('co-phone')}
-                  maxLength={50}
-                  // Mirrors PHONE_PATTERN (escaped for the browser's `v`-flag pattern syntax).
-                  pattern="[0-9+\(\)\/.\- ]{5,50}"
-                  title={t('contact.phoneHint')}
-                  value={form.phone}
-                  onChange={set('phone')}
-                />
-              </FieldBox>
-              {!props.requireAddress && (
-                <div className="flex items-center gap-2 sm:col-span-2">
-                  <Checkbox
-                    id="co-address"
-                    checked={withAddress}
-                    onCheckedChange={(v) => setWithAddress(v === true)}
-                  />
-                  <Label htmlFor="co-address" className="font-normal">
-                    {t('address.toggle')}
-                  </Label>
-                </div>
-              )}
-              {(withAddress || props.requireAddress) && (
-                <>
-                  <FieldBox id="co-company" label={t('address.company')} optional={t('optional')}>
-                    <Input
-                      id="co-company"
-                      aria-invalid={fe.invalid('co-company')}
-                      autoComplete="organization"
-                      maxLength={200}
-                      value={form.company}
-                      onChange={set('company')}
-                    />
-                  </FieldBox>
-                  <FieldBox
-                    id="co-street"
-                    aria-invalid={fe.invalid('co-street')}
-                    label={t('address.street')}
-                    error={error?.code === 'ADDRESS_REQUIRED' ? error.message : undefined}
-                  >
-                    <Input
-                      id="co-street"
-                      required
-                      autoComplete="address-line1"
-                      maxLength={200}
-                      value={address.street}
-                      onChange={(e) => setAddress((a) => ({ ...a, street: e.target.value }))}
-                    />
-                  </FieldBox>
-                  <FieldBox id="co-line2" label={t('address.line2')} optional={t('optional')}>
-                    <Input
-                      id="co-line2"
-                      aria-invalid={fe.invalid('co-line2')}
-                      autoComplete="address-line2"
-                      maxLength={200}
-                      value={address.addressLine2 ?? ''}
-                      onChange={(e) => setAddress((a) => ({ ...a, addressLine2: e.target.value }))}
-                    />
-                  </FieldBox>
-                  <div className="grid grid-cols-[120px_1fr] gap-4">
-                    <FieldBox id="co-zip" label={t('address.postalCode')}>
-                      <Input
-                        id="co-zip"
-                        aria-invalid={fe.invalid('co-zip')}
-                        required
-                        autoComplete="postal-code"
-                        maxLength={20}
-                        value={address.postalCode}
-                        onChange={(e) => setAddress((a) => ({ ...a, postalCode: e.target.value }))}
-                      />
-                    </FieldBox>
-                    <FieldBox id="co-city" label={t('address.city')}>
-                      <Input
-                        id="co-city"
-                        aria-invalid={fe.invalid('co-city')}
-                        required
-                        autoComplete="address-level2"
-                        maxLength={120}
-                        value={address.city}
-                        onChange={(e) => setAddress((a) => ({ ...a, city: e.target.value }))}
-                      />
-                    </FieldBox>
-                  </div>
-                  <FieldBox id="co-country" label={t('address.country')}>
-                    <CountrySelect
-                      locale={props.locale}
-                      value={address.country}
-                      onChange={(country) => setAddress((a) => ({ ...a, country }))}
-                    />
-                  </FieldBox>
-                </>
-              )}
-              <div className="sm:col-span-2">
-                <FieldBox id="co-note" label={t('contact.note')} optional={t('optional')}>
-                  <Textarea
-                    id="co-note"
-                    aria-invalid={fe.invalid('co-note')}
-                    rows={2}
-                    maxLength={1000}
-                    value={form.customerNote}
-                    onChange={set('customerNote')}
+          <fieldset aria-labelledby="co-contact-title" className="m-0 min-w-0 border-0 p-0">
+            <Card>
+              <CardHeader>
+                <CardTitle id="co-contact-title">{t('contact.title')}</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <FieldBox id="co-first" label={t('contact.firstName')}>
+                  <Input
+                    id="co-first"
+                    aria-invalid={fe.invalid('co-first')}
+                    autoComplete="given-name"
+                    required
+                    maxLength={100}
+                    value={form.firstName}
+                    onChange={set('firstName')}
                   />
                 </FieldBox>
-              </div>
-            </CardContent>
-          </Card>
+                <FieldBox id="co-last" label={t('contact.lastName')}>
+                  <Input
+                    id="co-last"
+                    aria-invalid={fe.invalid('co-last')}
+                    autoComplete="family-name"
+                    required
+                    maxLength={100}
+                    value={form.lastName}
+                    onChange={set('lastName')}
+                  />
+                </FieldBox>
+                <FieldBox id="co-email" label={t('contact.email')} hint={t('contact.emailHint')}>
+                  <Input
+                    id="co-email"
+                    aria-invalid={fe.invalid('co-email')}
+                    type="email"
+                    autoComplete="email"
+                    required
+                    maxLength={254}
+                    readOnly={Boolean(props.customer)}
+                    value={form.email}
+                    onChange={set('email')}
+                  />
+                </FieldBox>
+                <FieldBox
+                  id="co-phone"
+                  label={t('contact.phone')}
+                  optional={props.requirePhone ? undefined : t('optional')}
+                  error={error?.code === 'PHONE_REQUIRED' ? error.message : undefined}
+                >
+                  <Input
+                    id="co-phone"
+                    type="tel"
+                    autoComplete="tel"
+                    required={props.requirePhone}
+                    aria-invalid={error?.code === 'PHONE_REQUIRED' || fe.invalid('co-phone')}
+                    maxLength={50}
+                    // Mirrors PHONE_PATTERN (escaped for the browser's `v`-flag pattern syntax).
+                    pattern="[0-9+\(\)\/.\- ]{5,50}"
+                    title={t('contact.phoneHint')}
+                    value={form.phone}
+                    onChange={set('phone')}
+                  />
+                </FieldBox>
+                {!props.requireAddress && (
+                  <div className="flex items-center gap-2 sm:col-span-2">
+                    <Checkbox
+                      id="co-address"
+                      checked={withAddress}
+                      onCheckedChange={(v) => setWithAddress(v === true)}
+                    />
+                    <Label htmlFor="co-address" className="font-normal">
+                      {t('address.toggle')}
+                    </Label>
+                  </div>
+                )}
+                {(withAddress || props.requireAddress) && (
+                  <fieldset className="m-0 grid min-w-0 gap-4 border-0 p-0 sm:col-span-2 sm:grid-cols-2">
+                    <legend className="sr-only">{t('address.title')}</legend>
+                    <FieldBox id="co-company" label={t('address.company')} optional={t('optional')}>
+                      <Input
+                        id="co-company"
+                        aria-invalid={fe.invalid('co-company')}
+                        autoComplete="organization"
+                        maxLength={200}
+                        value={form.company}
+                        onChange={set('company')}
+                      />
+                    </FieldBox>
+                    <FieldBox
+                      id="co-street"
+                      label={t('address.street')}
+                      error={error?.code === 'ADDRESS_REQUIRED' ? error.message : undefined}
+                    >
+                      <Input
+                        id="co-street"
+                        aria-invalid={error?.code === 'ADDRESS_REQUIRED' || fe.invalid('co-street')}
+                        required
+                        autoComplete="address-line1"
+                        maxLength={200}
+                        value={address.street}
+                        onChange={(e) => setAddress((a) => ({ ...a, street: e.target.value }))}
+                      />
+                    </FieldBox>
+                    <FieldBox id="co-line2" label={t('address.line2')} optional={t('optional')}>
+                      <Input
+                        id="co-line2"
+                        aria-invalid={fe.invalid('co-line2')}
+                        autoComplete="address-line2"
+                        maxLength={200}
+                        value={address.addressLine2 ?? ''}
+                        onChange={(e) =>
+                          setAddress((a) => ({ ...a, addressLine2: e.target.value }))
+                        }
+                      />
+                    </FieldBox>
+                    <div className="grid grid-cols-[120px_1fr] gap-4">
+                      <FieldBox id="co-zip" label={t('address.postalCode')}>
+                        <Input
+                          id="co-zip"
+                          aria-invalid={fe.invalid('co-zip')}
+                          required
+                          autoComplete="postal-code"
+                          maxLength={20}
+                          value={address.postalCode}
+                          onChange={(e) =>
+                            setAddress((a) => ({ ...a, postalCode: e.target.value }))
+                          }
+                        />
+                      </FieldBox>
+                      <FieldBox id="co-city" label={t('address.city')}>
+                        <Input
+                          id="co-city"
+                          aria-invalid={fe.invalid('co-city')}
+                          required
+                          autoComplete="address-level2"
+                          maxLength={120}
+                          value={address.city}
+                          onChange={(e) => setAddress((a) => ({ ...a, city: e.target.value }))}
+                        />
+                      </FieldBox>
+                    </div>
+                    <FieldBox id="co-country" label={t('address.country')}>
+                      <CountrySelect
+                        locale={props.locale}
+                        value={address.country}
+                        onChange={(country) => setAddress((a) => ({ ...a, country }))}
+                      />
+                    </FieldBox>
+                  </fieldset>
+                )}
+                <div className="sm:col-span-2">
+                  <FieldBox id="co-note" label={t('contact.note')} optional={t('optional')}>
+                    <Textarea
+                      id="co-note"
+                      aria-invalid={fe.invalid('co-note')}
+                      rows={2}
+                      maxLength={1000}
+                      value={form.customerNote}
+                      onChange={set('customerNote')}
+                    />
+                  </FieldBox>
+                </div>
+              </CardContent>
+            </Card>
+          </fieldset>
 
           <Card>
             <CardHeader>
               <CardTitle>{t('payment.title')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {available.length === 0 && (
-                <Alert variant="destructive">
-                  <AlertDescription>{t('payment.noneAvailable')}</AlertDescription>
-                </Alert>
-              )}
-              {props.methods.map((option) => (
-                <MethodCard
-                  key={option.method}
-                  option={option}
-                  quote={props.quotes[option.method]}
-                  selected={method === option.method}
-                  onSelect={() => setMethod(option.method)}
-                />
-              ))}
+            <CardContent>
+              <fieldset className="m-0 min-w-0 space-y-3 border-0 p-0">
+                <legend className="sr-only">{t('payment.title')}</legend>
+                {available.length === 0 && (
+                  <Alert variant="destructive" id="co-no-method">
+                    <AlertDescription>{t('payment.noneAvailable')}</AlertDescription>
+                  </Alert>
+                )}
+                {props.methods.map((option) => (
+                  <MethodCard
+                    key={option.method}
+                    option={option}
+                    quote={props.quotes[option.method]}
+                    selected={method === option.method}
+                    onSelect={() => setMethod(option.method)}
+                  />
+                ))}
+              </fieldset>
             </CardContent>
           </Card>
         </div>
@@ -459,10 +519,20 @@ export function CheckoutForm(props: Props) {
                 size="lg"
                 className="h-auto min-h-10 w-full whitespace-normal py-2 text-center"
                 disabled={pending || !method || (props.requireTerms && !acceptTerms)}
+                aria-describedby={
+                  [termsMissing ? 'co-submit-terms' : null, !method ? 'co-no-method' : null]
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                }
               >
-                {pending && <Loader2 className="size-4 animate-spin" />}
+                {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
                 {method === 'PAYPAL' ? t('submitPayPal') : t('submit')}
               </Button>
+              {termsMissing && (
+                <p id="co-submit-terms" className="text-xs text-muted-foreground">
+                  {tErr('TERMS_NOT_ACCEPTED')}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 {method === 'PAYPAL' ? t('submitHintPayPal') : t('submitHintBankTransfer')}
               </p>
@@ -538,17 +608,28 @@ function FieldBox({
 }) {
   const fe = useContext(FieldErrorsContext);
   const fieldMessage = fe?.message(id);
+  const errorText = error ?? fieldMessage;
+  const describedBy =
+    [hint ? `${id}-hint` : null, errorText ? `${id}-error` : null].filter(Boolean).join(' ') ||
+    undefined;
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>
         {label}
         {optional && <span className="font-normal text-muted-foreground"> ({optional})</span>}
       </Label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      {(error ?? fieldMessage) && (
-        <p className="text-xs text-destructive" role="alert">
-          {error ?? fieldMessage}
+      {/* Hint and error text are linked to the control (the summary at the top announces). */}
+      {isValidElement<{ 'aria-describedby'?: string }>(children)
+        ? cloneElement(children, { 'aria-describedby': describedBy })
+        : children}
+      {hint && (
+        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
+      )}
+      {errorText && (
+        <p id={`${id}-error`} className="text-xs text-destructive">
+          {errorText}
         </p>
       )}
     </div>
@@ -559,10 +640,12 @@ function CountrySelect({
   locale,
   value,
   onChange,
+  'aria-describedby': describedBy,
 }: {
   locale: string;
   value: string;
   onChange: (country: string) => void;
+  'aria-describedby'?: string;
 }) {
   const names = useMemo(() => new Intl.DisplayNames([locale], { type: 'region' }), [locale]);
   const options = COUNTRIES.includes(value) ? COUNTRIES : [value, ...COUNTRIES];
@@ -571,6 +654,7 @@ function CountrySelect({
       id="co-country"
       autoComplete="country"
       aria-invalid={useContext(FieldErrorsContext)?.invalid('co-country')}
+      aria-describedby={describedBy}
       className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20"
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -686,7 +770,7 @@ export function QuoteSummary({ quote }: { quote: CheckoutQuote }) {
                   <div className="text-xs text-muted-foreground">
                     {item.categoryName} · {item.ticketTypeName}
                     {item.requiresProofAtEntry && (
-                      <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
+                      <Badge variant="outline" className="ml-1 px-1 py-0 text-xs">
                         {t('item.proof')}
                       </Badge>
                     )}

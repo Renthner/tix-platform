@@ -1,6 +1,7 @@
 import { coreLog } from '../log';
 import { randomUUID } from 'node:crypto';
 import {
+  events,
   isUniqueViolation,
   orderFees,
   orderHistory,
@@ -10,6 +11,7 @@ import {
   withTransaction,
   type Transaction,
 } from '@tix/db';
+import { asc, inArray } from 'drizzle-orm';
 import {
   SEAT_FLAG,
   normalizeLocale,
@@ -194,7 +196,7 @@ function lockError(reason: string, seatId?: string): DomainError {
 }
 
 /** Box-office sales need a published (or postponed) event; drafts, cancelled and archived ones are refused. */
-export function assertSellable(event: EventRow): void {
+export function assertSellable(event: Pick<EventRow, 'status' | 'title'>): void {
   if (event.status !== 'PUBLISHED' && event.status !== 'POSTPONED') {
     throw new DomainError('EVENT_NOT_SELLABLE', 'This event is not on the box-office list', 409, {
       event: event.title,
@@ -727,6 +729,22 @@ async function createRows(
   const now = new Date();
   const { general, invoicing } = c.settings;
   const locale = normalizeBuyerLocale(params.locale ?? general.defaultLocale) ?? 'en';
+
+  // Sellability was checked on the cached rows before the transaction. Re-check it on the event
+  // rows, locked FOR KEY SHARE (stable id order) before any child row: only `changeEventStatus`
+  // (the single writer of `events.status`, FOR UPDATE) conflicts, so a concurrent cancellation
+  // either waits for this sale or is seen here – no box-office order on a cancelled event.
+  const eventIds = [...new Set(c.resolved.map((l) => l.eventId))];
+  const locked = await tx
+    .select({ id: events.id, status: events.status, title: events.title })
+    .from(events)
+    .where(inArray(events.id, eventIds))
+    .orderBy(asc(events.id))
+    .for('key share');
+  if (locked.length !== eventIds.length) {
+    throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
+  }
+  for (const row of locked) assertSellable(row);
 
   const customerId = buyer.email
     ? await upsertCustomer(

@@ -1,4 +1,10 @@
-import { computeSaleState, getSetting, getShopEventList, getShopMediaAsset } from '@tix/core';
+import {
+  computeSaleState,
+  getSetting,
+  getShopEventList,
+  getShopMediaAsset,
+  saleOpensAt,
+} from '@tix/core';
 import { applyTitleTemplate, localized, SHOP_EVENTS_PER_ROW_MAX } from '@tix/shared';
 import { CalendarDays, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
@@ -11,7 +17,12 @@ import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
 import { loadContentLocale, loadSeoContext, pageSeo, publicBaseUrl } from '@/server/seo';
 import { MediaImage } from '@/components/media-image';
+import { EventFilter } from '@/components/shop/event-filter';
 import { StartPage, hasStartPageContent } from '@/components/shop/start-page';
+
+/** More events than this: search, month and city filters appear above the cards. */
+const FILTER_MIN_EVENTS = 6;
+const GRID_ID = 'event-grid';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,11 +116,38 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     '100vw',
   ].join(', ');
 
+  // Filter options (month in the event's time zone, venue city).
+  const monthKey = (startsAt: Date, timeZone: string) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit' }).format(
+      startsAt,
+    );
+  const monthOptions = [
+    ...new Map(
+      rows.map(({ event }) => [
+        monthKey(event.startsAt, event.timeZone),
+        format.dateTime(event.startsAt, {
+          month: 'long',
+          year: 'numeric',
+          timeZone: event.timeZone,
+        }),
+      ]),
+    ),
+  ]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([value, label]) => ({ value, label }));
+  const cityOptions = [
+    ...new Set(rows.map(({ venue }) => venue.city).filter((c): c is string => !!c)),
+  ].sort((a, b) => a.localeCompare(b, locale));
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t('home.title')}</h1>
       {rows.length === 0 && <p className="text-muted-foreground">{t('home.empty')}</p>}
+      {rows.length > FILTER_MIN_EVENTS && (
+        <EventFilter gridId={GRID_ID} months={monthOptions} cities={cityOptions} />
+      )}
       <div
+        id={GRID_ID}
         style={gridVars}
         data-testid="event-grid"
         className={cn(
@@ -129,6 +167,17 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
             <Card
               key={event.id}
               data-testid="event-card"
+              data-event-card=""
+              data-search={[
+                L(event, 'title', event.title),
+                event.subtitle ? L(event, 'subtitle', event.subtitle) : '',
+                L(venue, 'name', venue.name),
+                venue.city ?? '',
+              ]
+                .join(' ')
+                .toLowerCase()}
+              data-month={monthKey(event.startsAt, event.timeZone)}
+              data-city={venue.city ?? ''}
               className="@container/event gap-0 overflow-hidden py-0"
             >
               <div className="flex flex-col @3xl/event:flex-row">
@@ -175,16 +224,27 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                   </CardHeader>
                   <CardContent className="flex-1 space-y-1 px-4 text-xs text-muted-foreground @xs/event:px-6 @xs/event:text-sm @3xl/event:flex-none @3xl/event:px-8 @3xl/event:text-base">
                     <p className="flex items-start gap-2">
-                      <CalendarDays className="mt-0.5 size-4 shrink-0" />
+                      <CalendarDays className="mt-0.5 size-4 shrink-0" aria-hidden />
                       <span className="hidden @xs/event:inline">{when('full')}</span>
                       <span className="@xs/event:hidden">{when('medium')}</span>
                     </p>
                     <p className="flex items-start gap-2">
-                      <MapPin className="mt-0.5 size-4 shrink-0" />
+                      <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
                       <span className="min-w-0 break-words">
                         {[L(venue, 'name', venue.name), venue.city].filter(Boolean).join(', ')}
                       </span>
                     </p>
+                    {(state === 'NOT_STARTED' || state === 'PRESALE') && saleOpensAt(event) && (
+                      <p className="font-medium text-foreground">
+                        {t(state === 'PRESALE' ? 'home.publicSaleStarts' : 'home.saleStarts', {
+                          date: format.dateTime(saleOpensAt(event)!, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                            timeZone: event.timeZone,
+                          }),
+                        })}
+                      </p>
+                    )}
                     {price !== undefined && price !== null && (
                       <p>
                         {t('home.fromPrice', {
@@ -202,7 +262,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                       className="w-full @3xl/event:w-auto @3xl/event:min-w-48"
                       variant={state === 'ON_SALE' || state === 'PRESALE' ? 'default' : 'outline'}
                     >
-                      <Link href={`/events/${event.slug}`}>{t('home.tickets')}</Link>
+                      <Link
+                        href={`/events/${event.slug}`}
+                        aria-label={t('home.ticketsFor', { event: L(event, 'title', event.title) })}
+                      >
+                        {t('home.tickets')}
+                      </Link>
                     </Button>
                   </CardFooter>
                 </div>

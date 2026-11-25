@@ -1,5 +1,16 @@
 {
   "title": "Warenkorb",
+  "loading": "Dein Warenkorb wird geladen …",
+  "expiry": {
+    "expiredTitle": "Deine Reservierung ist abgelaufen",
+    "expiredText": "Deine Reservierung ist abgelaufen, die Plätze wurden wieder freigegeben. Du kannst jederzeit neue Plätze wählen.",
+    "backToEvent": "Zurück zur Veranstaltung",
+    "browseEvents": "Veranstaltungen ansehen",
+    "warningTitle": "Deine Reservierung läuft bald ab",
+    "warningText": "Deine Plätze werden in etwa 2 Minuten freigegeben. Gehe zur Kasse, um sie zu behalten.",
+    "toCart": "Zum Warenkorb",
+    "dismiss": "Schließen"
+  },
   "empty": "Dein Warenkorb ist leer.",
   "browseEvents": "Veranstaltungen ansehen",
   "summary": {
@@ -19,5 +30,6 @@
   "standing": "Stehplatz",
   "tariff": "Tarif",
   "proofBadge": "Nachweis beim Einlass",
-  "remove": "Entfernen"
+  "remove": "Entfernen",
+  "removeItem": "{item} entfernen"
 }

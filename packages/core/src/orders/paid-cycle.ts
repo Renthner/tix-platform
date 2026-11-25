@@ -26,7 +26,11 @@ export async function orderPaidJobId(db: Executor, orderId: string): Promise<str
   return cycle > 0 ? `order-paid-${orderId}-c${cycle}` : `order-paid-${orderId}`;
 }
 
-/** The payment confirmation (PAYMENT_RECEIVED_TICKETS) of this paid cycle exists already. */
+/**
+ * The payment confirmation (PAYMENT_RECEIVED_TICKETS) of this paid cycle exists already. Rows
+ * retired as obsolete (buyer e-mail changed) do not count: the e-mail change re-creates the mail
+ * for the new address with the same cycle, so that one is found instead.
+ */
 export async function hasPaymentMailForCycle(
   db: Executor,
   orderId: string,
@@ -41,6 +45,7 @@ export async function hasPaymentMailForCycle(
         eq(emailMessages.orderId, orderId),
         eq(emailMessages.templateKey, 'PAYMENT_RECEIVED_TICKETS'),
         sql`COALESCE(${emailMessages.paidCycle}, 0) = ${current}`,
+        sql`coalesce(${emailMessages.lastError}, '') NOT LIKE 'obsolete:%'`,
       ),
     )
     .limit(1);

@@ -20,6 +20,7 @@ import { z } from 'zod';
 import type { ActionState, FieldErrorCode } from '@/lib/action-state';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { logger } from '@/server/logger';
 import { audit } from './audit';
 import { fieldError, flag, success, text, zodFieldErrors } from './form';
 
@@ -158,7 +159,8 @@ export async function saveGoogleWalletAction(
   if (json) {
     try {
       parseServiceAccountJson(json);
-    } catch {
+    } catch (err) {
+      logger.warn({ err }, '[admin] google wallet service account JSON invalid');
       errors.serviceAccountJson = 'invalid';
     }
   }

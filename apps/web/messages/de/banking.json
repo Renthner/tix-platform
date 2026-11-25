@@ -73,6 +73,7 @@
     "ORDER_NOT_PAYABLE": "Bestellung nicht bezahlbar",
     "TEST_ORDER": "Testbestellung",
     "UNTRUSTED_SOURCE": "Nicht verifizierter E-Mail-Absender",
+    "EVENT_CANCELLED": "Veranstaltung abgesagt",
     "ALREADY_PAID": "Bereits bezahlt",
     "CURRENCY": "Andere Währung",
     "ADJUSTMENT": "Nachzahlung (Tarifwechsel)"

@@ -111,6 +111,7 @@ export function UserOperations({
   hasTwoFactor,
   locked,
   self,
+  activeSessions = 0,
   run,
 }: {
   userId: string;
@@ -120,6 +121,8 @@ export function UserOperations({
   hasTwoFactor: boolean;
   locked: boolean;
   self: boolean;
+  /** Sessions still valid; the sign-out action is offered when there are any (never for yourself). */
+  activeSessions?: number;
   run: (id: string, op: UserOperation) => Promise<SecurityState>;
 }) {
   const t = useTranslations('adminSecurity.users.operations');
@@ -178,6 +181,17 @@ export function UserOperations({
             onClick={op('resetTwoFactor', 'confirmResetTwoFactor')}
           >
             {t('resetTwoFactor')}
+          </Button>
+        )}
+        {!self && activeSessions > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={op('signOutAll', 'confirmSignOutAll')}
+            data-testid="user-sign-out-all"
+          >
+            {t('signOutAll')}
           </Button>
         )}
         {canDeleteInvite && (

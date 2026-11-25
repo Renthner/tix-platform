@@ -82,7 +82,10 @@
       "tests": "Test orders",
       "testsAll": "With test orders",
       "testsOnly": "Test orders only",
-      "testsHide": "Without test orders"
+      "testsHide": "Without test orders",
+      "from": "From",
+      "to": "To",
+      "searchEvents": "Search events"
     },
     "empty": "No orders found.",
     "columns": {
@@ -611,6 +614,70 @@
       "byAdmin": "by an admin",
       "byCustomer": "by the customer",
       "recipientPage": "Recipient ticket page"
+    },
+    "export": "Export CSV",
+    "chips": {
+      "label": "Quick filters",
+      "open": "Open",
+      "overdue": "Overdue",
+      "today": "Today"
+    },
+    "csv": {
+      "number": "Order",
+      "date": "Date",
+      "customer": "Customer",
+      "email": "E-mail",
+      "method": "Payment",
+      "channel": "Channel",
+      "status": "Status",
+      "tickets": "Tickets",
+      "total": "Total",
+      "paid": "Paid",
+      "currency": "Currency",
+      "reference": "Payment reference",
+      "test": "Test order",
+      "yes": "yes",
+      "truncated": "Export incomplete: only the first {max} orders are included. Narrow the filters to export the rest."
+    },
+    "bulk": {
+      "selected": "{count, plural, one {# order selected} other {# orders selected}}",
+      "clear": "Clear selection",
+      "selectAll": "Select all orders on this page",
+      "selectOrder": "Select order {number}",
+      "failed": "The action could not be completed. Please try again.",
+      "summary": "{action}: {done} done, {other} not done.",
+      "actions": {
+        "remind": "Send payment reminder",
+        "keepReservedOn": "Keep reserved",
+        "keepReservedOff": "Release reservation hold",
+        "resendTickets": "Resend tickets",
+        "cancelUnpaid": "Cancel unpaid orders"
+      },
+      "confirm": {
+        "remind": {
+          "title": "Send a payment reminder to {count, plural, one {# order} other {# orders}}?",
+          "description": "Only unpaid bank transfer orders are reminded; everyone else is skipped."
+        },
+        "resendTickets": {
+          "title": "Resend the tickets of {count, plural, one {# order} other {# orders}}?",
+          "description": "Only paid orders with valid tickets are sent again; everyone else is skipped."
+        },
+        "cancelUnpaid": {
+          "title": "Cancel {count, plural, one {# order} other {# orders}}?",
+          "description": "Unpaid orders are cancelled, their seats are released and the customers are notified. Paid orders are skipped (they need a refund). This cannot be undone."
+        }
+      },
+      "codes": {
+        "UNCHANGED": "Nothing to do (already in this state)",
+        "RECENTLY_REMINDED": "Reminded less than an hour ago",
+        "REMINDER_NOT_APPLICABLE": "Only unpaid bank transfer orders get reminders",
+        "ORDER_NOT_OPEN": "Only unpaid orders can be kept reserved",
+        "ORDER_NOT_PAID": "Order is not paid",
+        "NO_TICKETS": "Order has no valid tickets",
+        "ORDER_NOT_CANCELLABLE": "Only unpaid orders can be cancelled here",
+        "ORDER_NOT_FOUND": "Order not found",
+        "INTERNAL_ERROR": "Unexpected error"
+      }
     }
   },
   "eventPayments": {
@@ -639,6 +706,7 @@
     "selection": "Selection",
     "empty": "Click seats on the plan or choose standing spots.",
     "remove": "Remove",
+    "removeItem": "Remove {item}",
     "tariff": "Ticket type",
     "seatLabel": "{section} · Row {row} · Seat {seat}",
     "seatLabelNoRow": "{section} · Seat {seat}",

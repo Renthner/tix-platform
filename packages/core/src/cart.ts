@@ -760,7 +760,10 @@ export function assertQuotedItemLimits(
     perTariff.set(item.ticketTypeId, (perTariff.get(item.ticketTypeId) ?? 0) + 1);
   }
   for (const category of map.categories) {
-    if (category.maxPerOrder !== null && (perCategory.get(category.id) ?? 0) > category.maxPerOrder) {
+    if (
+      category.maxPerOrder !== null &&
+      (perCategory.get(category.id) ?? 0) > category.maxPerOrder
+    ) {
       throw new DomainError('CATEGORY_LIMIT', 'Category limit per order reached', 422, {
         category: category.name,
         max: category.maxPerOrder,
@@ -790,12 +793,9 @@ export async function assertQuotedTicketLimit(
 ): Promise<void> {
   const limit = await sessionTicketLimit(ctx, sessionId, event, eventLimit);
   if (limit !== null && limit > 0 && ticketCount > limit) {
-    throw new DomainError(
-      'TICKET_LIMIT',
-      'Maximum number of tickets for this event reached',
-      422,
-      { max: limit },
-    );
+    throw new DomainError('TICKET_LIMIT', 'Maximum number of tickets for this event reached', 422, {
+      max: limit,
+    });
   }
 }
 

@@ -3,19 +3,22 @@ import {
   DEFAULT_PAGE_SIZE,
   DEFAULT_PAGE_SIZES,
   EVENT_STATUSES,
+  buildQuery,
   parsePage,
   parsePageSize,
   type EventStatus,
 } from '@tix/shared';
-import { ArrowUpDown, Download, ImageIcon, Plus } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Download, ImageIcon, Plus, Search } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { AdminPagination } from '@/components/admin/admin-pagination';
 import { EventDuplicateDialog } from '@/components/admin/event-duplicate-dialog';
+import { FilterSelect } from '@/components/admin/filter-select';
 import { EventImportDialog } from '@/components/admin/event-import-dialog';
 import { PageHeader } from '@/components/admin/form-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -32,7 +35,13 @@ import { cn } from '@/lib/utils';
 import { MediaThumb } from '@/components/media-image';
 import { requireAdmin } from '@/server/auth';
 import { duplicateEventAction } from '@/server/admin/events';
-import { countEvents, listEvents, listVenuesWithPlanCount } from '@/server/admin/queries';
+import {
+  EVENT_LIST_SORTS,
+  eventSoldCapacity,
+  listEventsPage,
+  listVenuesWithPlanCount,
+  type EventListSort,
+} from '@/server/admin/queries';
 
 export async function generateMetadata() {
   const t = await getTranslations('admin.events');
@@ -44,23 +53,52 @@ export default async function EventsPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ status?: string; deleted?: string; page?: string; pageSize?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const locale = await resolveLocale(params);
   await requireAdmin(['EVENT_MANAGER']);
-  const { status, deleted, page: rawPage, pageSize: rawSize } = await searchParams;
+  const sp = await searchParams;
+  const { status, deleted, page: rawPage, pageSize: rawSize } = sp;
   const page = parsePage(rawPage);
   const pageSize = parsePageSize(rawSize);
   const filter = (EVENT_STATUSES as readonly string[]).includes(status ?? '')
     ? (status as EventStatus)
     : undefined;
-  const [t, ts, rows, total, venues] = await Promise.all([
+  const q = sp.q?.trim().slice(0, 100) || undefined;
+  const time = sp.time === 'upcoming' || sp.time === 'past' ? sp.time : undefined;
+  const sort = (EVENT_LIST_SORTS as readonly string[]).includes(sp.sort ?? '')
+    ? (sp.sort as EventListSort)
+    : undefined;
+  const dir = sort ? (sp.dir === 'asc' ? 'asc' : 'desc') : undefined;
+  const [t, ts, list, venues] = await Promise.all([
     getTranslations('admin.events'),
     getTranslations('admin.eventStatus'),
-    listEvents({ status: filter, page, pageSize }),
-    countEvents(filter),
+    listEventsPage({ status: filter, q, time, sort, dir, page, pageSize }),
     listVenuesWithPlanCount(),
   ]);
+  const rows = list.rows;
+  const total = list.total;
+  const stock = await eventSoldCapacity(rows.map((r) => r.event.id));
+  const listParams = { status: filter, q, time, sort, dir };
+  const sortHead = (key: EventListSort, label: string) => {
+    const active = (sort ?? 'date') === key ? (sort ? (dir ?? 'desc') : 'desc') : null;
+    const next =
+      active === 'asc' ? 'desc' : active === 'desc' ? 'asc' : key === 'date' ? 'desc' : 'asc';
+    const Icon = active === 'asc' ? ArrowUp : active === 'desc' ? ArrowDown : ArrowUpDown;
+    return (
+      <TableHead
+        aria-sort={active === 'asc' ? 'ascending' : active === 'desc' ? 'descending' : undefined}
+      >
+        <Link
+          href={buildQuery('/admin/events', listParams, { sort: key, dir: next })}
+          className="inline-flex items-center gap-1 hover:underline"
+        >
+          {label}
+          <Icon className="size-3.5 opacity-70" aria-hidden />
+        </Link>
+      </TableHead>
+    );
+  };
 
   return (
     <>
@@ -95,7 +133,7 @@ export default async function EventsPage({
           {[undefined, ...EVENT_STATUSES].map((s) => (
             <Link
               key={s ?? 'all'}
-              href={s ? `/admin/events?status=${s}` : '/admin/events'}
+              href={buildQuery('/admin/events', listParams, { status: s })}
               className={cn(
                 'rounded-full border px-3 py-1',
                 filter === s
@@ -107,6 +145,35 @@ export default async function EventsPage({
             </Link>
           ))}
         </div>
+        <form className="flex flex-wrap items-end gap-2" action="" method="get">
+          <div className="relative min-w-56 flex-1">
+            <Search className="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+            <Input
+              name="q"
+              type="search"
+              defaultValue={q ?? ''}
+              placeholder={t('search.placeholder')}
+              aria-label={t('search.label')}
+              className="pl-8"
+            />
+          </div>
+          <FilterSelect
+            name="time"
+            value={time}
+            ariaLabel={t('search.time')}
+            allLabel={t('search.timeAll')}
+            options={[
+              { value: 'upcoming', label: t('search.upcoming') },
+              { value: 'past', label: t('search.past') },
+            ]}
+          />
+          {filter && <input type="hidden" name="status" value={filter} />}
+          {sort && <input type="hidden" name="sort" value={sort} />}
+          {sort && dir && <input type="hidden" name="dir" value={dir} />}
+          <Button type="submit" variant="secondary">
+            {t('search.apply')}
+          </Button>
+        </form>
         <Card>
           <CardContent>
             {rows.length === 0 ? (
@@ -115,11 +182,12 @@ export default async function EventsPage({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t('columns.title')}</TableHead>
-                    <TableHead>{t('columns.date')}</TableHead>
-                    <TableHead>{t('columns.venue')}</TableHead>
-                    <TableHead>{t('columns.status')}</TableHead>
+                    {sortHead('title', t('columns.title'))}
+                    {sortHead('date', t('columns.date'))}
+                    {sortHead('venue', t('columns.venue'))}
+                    {sortHead('status', t('columns.status'))}
                     <TableHead>{t('columns.sale')}</TableHead>
+                    <TableHead className="text-right">{t('columns.sold')}</TableHead>
                     <TableHead className="w-0" />
                   </TableRow>
                 </TableHeader>
@@ -168,6 +236,9 @@ export default async function EventsPage({
                       <TableCell>
                         <SaleStateBadge state={computeSaleState(event)} />
                       </TableCell>
+                      <TableCell className="text-right whitespace-nowrap tabular-nums">
+                        {stock.get(event.id)?.sold ?? 0} / {stock.get(event.id)?.capacity ?? 0}
+                      </TableCell>
                       <TableCell>
                         <div className="relative z-10 flex gap-2">
                           <Button asChild variant="outline" size="sm">
@@ -196,7 +267,7 @@ export default async function EventsPage({
         </Card>
         <AdminPagination
           pathname="/admin/events"
-          params={{ status: filter }}
+          params={listParams}
           page={page}
           pageSize={pageSize}
           defaultPageSize={DEFAULT_PAGE_SIZE}

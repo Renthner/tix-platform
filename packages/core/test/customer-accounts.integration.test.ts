@@ -399,7 +399,9 @@ describe.skipIf(!adminUrl || !redisUrl)('customer accounts (integration)', () =>
         );
       }
       // The legitimate owner still gets in (the lock is not triggered by a few dozen guesses).
-      expect(await authenticateCustomer(ctx, { email, password: PASSWORD })).toEqual({ customerId });
+      expect(await authenticateCustomer(ctx, { email, password: PASSWORD })).toEqual({
+        customerId,
+      });
       await handle.db
         .update(customers)
         .set({ failedLoginCount: ACCOUNT_LOCK_THRESHOLD - 1 })

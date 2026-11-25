@@ -1,10 +1,21 @@
-import { eventHasOrders, getMediaAsset, summarizeTestOrders } from '@tix/core';
+import {
+  eventHasOrders,
+  getMediaAsset,
+  listEventCancellationRuns,
+  previewEventCancellation,
+  summarizeTestOrders,
+} from '@tix/core';
 import { EventTranslationPane } from '@/components/admin/event-translation-pane';
 import { getEditLocale } from '@/server/admin/edit-locale';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { EventDangerZone } from '@/components/admin/event-danger-zone';
+import { EntityAuditCard } from '@/components/admin/entity-audit-card';
 import { EventTestOrdersCard } from '@/components/admin/event-test-orders-card';
+import {
+  EventCancellationCard,
+  EventPostponeCard,
+} from '@/components/admin/communication/event-cancellation';
 import { EventDetailsForm, EventStatusForm } from '@/components/admin/event-forms';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,6 +64,14 @@ export default async function EventDetailsPage({
     summarizeTestOrders(getCore(), event.id),
   ]);
   const isSuperAdmin = hasRole(session, ['SUPER_ADMIN']);
+  const cancellable =
+    event.status === 'PUBLISHED' || event.status === 'POSTPONED' || event.status === 'CANCELLED';
+  const [cancellationPreview, cancellationRuns] = cancellable
+    ? await Promise.all([
+        previewEventCancellation(getCore(), event.id),
+        listEventCancellationRuns(getCore().db, event.id),
+      ])
+    : [null, []];
   const tz = event.timeZone;
 
   return (
@@ -124,6 +143,32 @@ export default async function EventDetailsPage({
               withMoney={testOrders.withMoney}
             />
           )}
+          <EntityAuditCard entityType="event" entityId={event.id} showFullLogLink={isSuperAdmin} />
+          {(event.status === 'PUBLISHED' || event.status === 'POSTPONED') && (
+            <EventPostponeCard
+              eventId={event.id}
+              status={event.status}
+              timeZone={event.timeZone}
+              newStartsAt={utcToZonedWallTime(event.postponedNewStartsAt, event.timeZone)}
+              note={event.postponementNote ?? ''}
+            />
+          )}
+          {cancellationPreview &&
+            (event.status === 'PUBLISHED' ||
+              event.status === 'POSTPONED' ||
+              event.status === 'CANCELLED') && (
+              <EventCancellationCard
+                eventId={event.id}
+                status={event.status}
+                currency={event.currency}
+                preview={cancellationPreview}
+                runs={cancellationRuns.map((r) => ({
+                  ...r,
+                  createdAt: r.createdAt.toISOString(),
+                  finishedAt: r.finishedAt?.toISOString() ?? null,
+                }))}
+              />
+            )}
           <EventDangerZone
             action={deleteEventAction.bind(null, event.id)}
             title={event.title}

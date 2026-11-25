@@ -9,6 +9,7 @@ import { AdminNav } from '@/components/admin/admin-nav';
 import { UnsavedChangesProvider } from '@/components/admin/unsaved-changes';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ThemeSwitcher } from '@/components/theme-switcher';
+import { SkipLink } from '@/components/skip-link';
 import { AccountContent } from '@/components/admin/account/account-content';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -33,13 +34,14 @@ export default async function AdminPanelLayout({
     allowTwoFactorSetup: true,
     allowIncompleteRestore: true,
   });
-  const [t, tSystem, format, general, loadTest] = await Promise.all([
+  const [t, tSystem, format, general, loadTest, tA11y] = await Promise.all([
     getTranslations('admin'),
     getTranslations('system.loadTest'),
     getFormatter(),
     getSetting(getCore(), 'general'),
     // Banner while the load test mode is on (one Redis read; never blocks the panel).
     getLoadTestStatus(getCore()).catch(() => ({ active: false as const })),
+    getTranslations('common.a11y'),
   ]);
   return (
     <NextIntlClientProvider
@@ -65,17 +67,17 @@ export default async function AdminPanelLayout({
         'scanners',
         'statistics',
         'system',
+        'communication',
       ])}
     >
       <UnsavedChangesProvider>
+        <SkipLink label={tA11y('skipToContent')} />
         <div className="flex min-h-dvh">
           <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r bg-muted/30 p-4 md:flex">
             <div className="mb-6 shrink-0 px-3">
               <div className="text-sm font-semibold">{general.shopName}</div>
               <div className="text-xs text-muted-foreground">{t('panelTitle')}</div>
-              <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                v{APP_VERSION}
-              </div>
+              <div className="mt-0.5 font-mono text-xs text-muted-foreground">v{APP_VERSION}</div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <AdminNav />
@@ -151,7 +153,7 @@ export default async function AdminPanelLayout({
                 </Link>
               </div>
             )}
-            <main>
+            <main id="main" tabIndex={-1} className="focus:outline-none">
               {session.twoFactorSetupRequired ? (
                 <AccountContent userId={session.userId} setupRequired />
               ) : (

@@ -26,6 +26,7 @@ import {
   type PointerEvent,
 } from 'react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   ElementLayer,
   EntranceLayer,
@@ -95,9 +96,14 @@ export interface SeatChartProps {
   onUnavailableSeat?: (seat: PublicSeat) => void;
   /** The focused seat changed (null = focus left the chart). */
   onFocusSeat?: (seatId: string | null) => void;
+  /** A seat (of any state) was tapped with a finger: the shop shows its details (no hover on touch). */
+  onSeatInfo?: (seat: PublicSeat) => void;
   /** Escape pressed inside the chart. */
   onEscape?: () => void;
 }
+
+/** 44 px touch targets on phones. */
+const ZOOM_BUTTON_CLASS = 'max-sm:size-11';
 
 /** What a screen reader user needs to know about a seat. */
 export type SeatAvailability = 'available' | 'selected' | 'unavailable';
@@ -409,6 +415,11 @@ export function SeatChart(props: SeatChartProps) {
     if (!props.interactive || pan.wasDrag()) return;
     // Use the element pressed at pointerdown – robust against pointer capture.
     const pressed = pan.pressedTarget() ?? (e.target as Element);
+    if (e.pointerType === 'touch' && props.onSeatInfo) {
+      const infoId = pressed.closest?.('[data-seat-nav]')?.getAttribute('data-seat-nav');
+      const infoSeat = infoId ? seatById.get(infoId) : undefined;
+      if (infoSeat) props.onSeatInfo(infoSeat);
+    }
     const target = pressed.closest?.('[data-seat],[data-section]') ?? null;
     const seatId = target?.getAttribute('data-seat');
     if (seatId) {
@@ -570,13 +581,31 @@ export function SeatChart(props: SeatChartProps) {
         </p>
       )}
       <div className="absolute right-3 top-3 z-10 flex flex-col gap-1">
-        <Button size="icon" variant="secondary" aria-label={t('zoomIn')} onClick={pan.zoomIn}>
+        <Button
+          size="icon"
+          variant="secondary"
+          className={ZOOM_BUTTON_CLASS}
+          aria-label={t('zoomIn')}
+          onClick={pan.zoomIn}
+        >
           <Plus />
         </Button>
-        <Button size="icon" variant="secondary" aria-label={t('zoomOut')} onClick={pan.zoomOut}>
+        <Button
+          size="icon"
+          variant="secondary"
+          className={ZOOM_BUTTON_CLASS}
+          aria-label={t('zoomOut')}
+          onClick={pan.zoomOut}
+        >
           <Minus />
         </Button>
-        <Button size="icon" variant="secondary" aria-label={t('reset')} onClick={pan.reset}>
+        <Button
+          size="icon"
+          variant="secondary"
+          className={ZOOM_BUTTON_CLASS}
+          aria-label={t('reset')}
+          onClick={pan.reset}
+        >
           <Maximize2 />
         </Button>
       </div>
@@ -584,7 +613,11 @@ export function SeatChart(props: SeatChartProps) {
         ref={svgRef}
         viewBox={pan.viewBox}
         preserveAspectRatio="xMidYMid meet"
-        className="h-full w-full cursor-grab touch-none select-none text-paper-foreground active:cursor-grabbing"
+        className={cn(
+          'h-full w-full cursor-grab select-none text-paper-foreground active:cursor-grabbing',
+          // Fitted plan: one finger scrolls the page; zoomed in: one finger pans the plan.
+          pan.zoom > 1.02 ? 'touch-none' : 'touch-pan-y',
+        )}
         role={accessible ? 'group' : 'img'}
         aria-label={t('ariaLabel')}
         aria-describedby={accessible && props.keyboardHelp ? helpId : undefined}

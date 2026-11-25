@@ -90,7 +90,8 @@
     "alertsReset": "Zurück auf die Standardwerte deiner Rolle.",
     "passkeyAdded": "Passkey hinzugefügt.",
     "passkeyRenamed": "Passkey umbenannt.",
-    "passkeyRemoved": "Passkey entfernt."
+    "passkeyRemoved": "Passkey entfernt.",
+    "signedOutEverywhere": "Alle Sitzungen dieses Benutzers wurden beendet."
   },
   "account": {
     "title": "Mein Konto",
@@ -177,8 +178,8 @@
     },
     "roleHint": {
       "SUPER_ADMIN": "Alles, auch Einstellungen und Benutzer.",
-      "EVENT_MANAGER": "Veranstaltungen, Saalpläne, Preise, Bestellungen.",
-      "FINANCE": "Bestellungen, Bank, Erstattungen, Gebühren.",
+      "EVENT_MANAGER": "Veranstaltungen, Saalpläne, Preise, Bestellungen: stornieren (auch bezahlte, mit Erstattung), Zahlungen erfassen, Käufer-E-Mail ändern, Käufer anschreiben.",
+      "FINANCE": "Bestellungen (wie Veranstaltungsleitung), dazu Bank, Erstattungen als erledigt markieren, Buchhaltung, Gebühren.",
       "DOOR_STAFF": "Abendkasse und Einlass."
     },
     "status": {
@@ -214,7 +215,15 @@
       "confirmDeactivate": "Diesen Benutzer deaktivieren? Alle Sitzungen werden beendet.",
       "confirmResetTwoFactor": "Zwei-Faktor-Authentifizierung dieses Benutzers zurücksetzen? Er wird abgemeldet und muss sie neu einrichten.",
       "confirmDeleteInvite": "Diese Einladung löschen?",
-      "unlock": "Entsperren"
+      "unlock": "Entsperren",
+      "signOutAll": "Überall abmelden",
+      "confirmSignOutAll": "Alle Sitzungen dieses Benutzers beenden? Er oder sie muss sich auf jedem Gerät neu anmelden."
+    },
+    "activity": {
+      "title": "Anmeldeaktivität",
+      "lastSignIn": "Letzte Anmeldung",
+      "lastIp": "IP-Adresse der letzten Anmeldung",
+      "activeSessions": "Aktive Sitzungen"
     }
   },
   "settings": {

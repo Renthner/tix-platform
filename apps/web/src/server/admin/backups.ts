@@ -338,7 +338,8 @@ async function needsSourceKey(directory: string): Promise<boolean> {
         archiveKeyRing(),
       )) !== 'MATCH'
     );
-  } catch {
+  } catch (err) {
+    log().warn({ err }, '[admin] backup key check failed');
     return false;
   }
 }
@@ -347,7 +348,8 @@ async function needsSourceKey(directory: string): Promise<boolean> {
 function additionalKeyCount(): number {
   try {
     return loadExtraKeys().length;
-  } catch {
+  } catch (err) {
+    log().warn({ err }, '[admin] loading additional backup keys failed');
     return 0;
   }
 }

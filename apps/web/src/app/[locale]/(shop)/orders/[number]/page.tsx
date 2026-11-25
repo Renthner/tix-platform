@@ -60,6 +60,7 @@ const PAYPAL_NOTICES = [
   'expired',
   'unavailable',
   'notavailable',
+  'eventcancelled',
 ] as const;
 type PayPalNotice = (typeof PAYPAL_NOTICES)[number];
 
@@ -192,12 +193,19 @@ export default async function OrderPage({
           adjustment={view.adjustment}
           placeByItem={placeByItem}
           money={money}
+          currency={order.currency}
           token={token ?? null}
           t={t}
         />
       )}
 
-      {preparing && <OrderAutoRefresh />}
+      {preparing && (
+        <OrderAutoRefresh
+          orderId={order.id}
+          token={token ?? null}
+          initial={{ validTickets: issuedTickets.length, invoices: view.invoices.length }}
+        />
+      )}
 
       <OrderItemsCard
         audience="shop"
@@ -449,6 +457,7 @@ function StatusCard({
               bank={bank}
               amountText={money(view.outstanding)}
               amountCents={view.outstanding}
+              currency={order.currency}
               reference={order.paymentReference ?? ''}
               labels={bankLabels(t)}
             />
@@ -489,6 +498,7 @@ function AdjustmentCard({
   adjustment,
   placeByItem,
   money,
+  currency,
   token,
   t,
 }: {
@@ -496,6 +506,7 @@ function AdjustmentCard({
   adjustment: NonNullable<OrderView['adjustment']>;
   placeByItem: Map<string, string>;
   money: (cents: number) => string;
+  currency: string;
   token: string | null;
   t: Awaited<ReturnType<typeof getTranslations<'checkout.order'>>>;
 }) {
@@ -576,6 +587,7 @@ function AdjustmentCard({
                   bank={bank}
                   amountText={money(adjustment.amount)}
                   amountCents={adjustment.amount}
+                  currency={currency}
                   reference={adjustment.paymentReference}
                   labels={bankLabels(t)}
                 />
@@ -595,4 +607,7 @@ const bankLabels = (t: Awaited<ReturnType<typeof getTranslations<'checkout.order
   reference: t('bankTransfer.reference'),
   holder: t('bankTransfer.holder'),
   bank: t('bankTransfer.bank'),
+  epcQrLabel: t('bankTransfer.epcQrLabel'),
+  epcTitle: t('bankTransfer.epcTitle'),
+  epcHint: t('bankTransfer.epcHint'),
 });

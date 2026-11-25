@@ -23,7 +23,11 @@ export function rateLimitIpSubject(ip: string): string {
       .slice(dbl + 2)
       .split(':')
       .filter(Boolean);
-    groups = [...head, ...Array<string>(Math.max(0, 8 - head.length - tail.length)).fill('0'), ...tail];
+    groups = [
+      ...head,
+      ...Array<string>(Math.max(0, 8 - head.length - tail.length)).fill('0'),
+      ...tail,
+    ];
   } else {
     groups = lower.split(':');
   }

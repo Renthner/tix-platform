@@ -1,35 +1,33 @@
-import { searchOrders } from '@tix/core';
+import { getSetting, searchOrders } from '@tix/core';
 import { events } from '@tix/db';
 import {
   ORDER_STATUSES,
   PAYMENT_METHODS,
   SALES_CHANNELS,
-  type OrderStatus,
-  type PaymentMethod,
-  type SalesChannel,
+  buildQuery,
   parsePage,
   parsePageSize,
 } from '@tix/shared';
 import { desc } from 'drizzle-orm';
-import { Search } from 'lucide-react';
-import { getFormatter, getTranslations } from 'next-intl/server';
+import { Download, Search } from 'lucide-react';
+import { getFormatter, getLocale, getTranslations } from 'next-intl/server';
+import { cookies } from 'next/headers';
 import { AdminPagination } from '@/components/admin/admin-pagination';
-import { OrderStatusBadge } from '@/components/admin/order-badges';
+import { FilterSelect } from '@/components/admin/filter-select';
 import { PageHeader } from '@/components/admin/form-controls';
-import { Badge } from '@/components/ui/badge';
+import { OrdersTable, type SortHeader } from '@/components/admin/orders-table';
+import { RememberTestsFilter } from '@/components/admin/orders-tests-cookie';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
+import { cn } from '@/lib/utils';
+import {
+  ORDERS_TESTS_COOKIE,
+  parseOrderFilters,
+  toOrderSearch,
+} from '@/server/admin/order-filters';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 
@@ -40,6 +38,7 @@ export async function generateMetadata() {
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 50;
+const SORTABLE = ['number', 'date', 'customer', 'method', 'tickets', 'total', 'status'] as const;
 
 export default async function OrdersPage({
   params,
@@ -49,137 +48,195 @@ export default async function OrdersPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   await resolveLocale(params);
-  await requireAdmin(['FINANCE', 'EVENT_MANAGER']);
+  const session = await requireAdmin(['FINANCE', 'EVENT_MANAGER']);
   const sp = await searchParams;
-  const status = (ORDER_STATUSES as readonly string[]).includes(sp.status ?? '')
-    ? (sp.status as OrderStatus)
-    : undefined;
-  const method = (PAYMENT_METHODS as readonly string[]).includes(sp.method ?? '')
-    ? (sp.method as PaymentMethod)
-    : undefined;
-  const channel = (SALES_CHANNELS as readonly string[]).includes(sp.channel ?? '')
-    ? (sp.channel as SalesChannel)
-    : undefined;
-  const eventId = /^[0-9a-f-]{36}$/i.test(sp.event ?? '') ? sp.event : undefined;
-  const overdueOnly = sp.overdue === '1';
-  const tests = sp.tests === 'only' || sp.tests === 'hide' ? sp.tests : undefined;
+  const isSuperAdmin = session.roles.includes('SUPER_ADMIN');
+  const cookieStore = await cookies();
+  const filters = parseOrderFilters(sp, {
+    isSuperAdmin,
+    cookieTests: cookieStore.get(ORDERS_TESTS_COOKIE)?.value,
+  });
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.pageSize, PAGE_SIZES, DEFAULT_PAGE_SIZE);
-  const q = sp.q?.slice(0, 100);
   const core = getCore();
-  const [t, tChannel, tStatus, tMethod, format, result, eventRows] = await Promise.all([
+  const general = await getSetting(core, 'general');
+  const [t, tChannel, tStatus, tMethod, format, locale, result, eventRows] = await Promise.all([
     getTranslations('orders.admin'),
     getTranslations('orders.channel'),
     getTranslations('orders.status'),
     getTranslations('orders.method'),
     getFormatter(),
+    getLocale(),
     searchOrders(core, {
-      q,
-      status,
-      method,
-      channel,
-      eventId,
-      overdueOnly,
-      tests,
+      ...toOrderSearch(filters, general.defaultTimeZone),
       page,
       pageSize,
     }),
+    // All events (no cap): the select narrows the options with its search box.
     core.db
       .select({ id: events.id, title: events.title, startsAt: events.startsAt })
       .from(events)
-      .orderBy(desc(events.startsAt))
-      .limit(200),
+      .orderBy(desc(events.startsAt)),
   ]);
-  const filterParams = {
-    q,
-    status,
-    method,
-    channel,
-    event: eventId,
-    overdue: overdueOnly ? '1' : undefined,
-    tests,
+
+  const base = '/admin/orders';
+  const listParams = {
+    q: filters.q,
+    status: filters.status,
+    method: filters.method,
+    channel: filters.channel,
+    event: filters.event,
+    overdue: filters.overdue,
+    open: filters.open,
+    today: filters.today,
+    from: filters.from,
+    to: filters.to,
+    // Default ("hide") stays out of the URL.
+    tests: sp.tests ? filters.tests : undefined,
+    sort: filters.sort,
+    dir: filters.dir,
   };
+
+  // Sorting: first click = natural direction, then toggles; the date column defaults to "desc".
+  const sortHeaders: Record<string, SortHeader> = {};
+  for (const key of SORTABLE) {
+    const current = filters.sort ?? 'date';
+    const currentDir = filters.sort ? (filters.dir ?? 'desc') : 'desc';
+    const active = current === key ? currentDir : null;
+    const nextDir =
+      active === 'asc' ? 'desc' : active === 'desc' ? 'asc' : key === 'date' ? 'desc' : 'asc';
+    sortHeaders[key] = {
+      active,
+      href: buildQuery(base, listParams, {
+        sort: key,
+        dir: nextDir,
+        pageSize: pageSize !== DEFAULT_PAGE_SIZE ? pageSize : undefined,
+      }),
+    };
+  }
+
+  const chip = (key: 'open' | 'overdue' | 'today', label: string) => {
+    const on = filters[key] === '1';
+    return (
+      <Link
+        key={key}
+        href={buildQuery(base, listParams, { [key]: on ? undefined : '1' })}
+        aria-pressed={on}
+        data-testid={`chip-${key}`}
+        className={cn(
+          'rounded-full border px-3 py-1 text-sm',
+          on ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent',
+        )}
+      >
+        {label}
+      </Link>
+    );
+  };
+
+  const exportHref = buildQuery('/api/admin/orders/export', { ...listParams, locale });
+  const selectClass = 'h-9 rounded-md border border-input bg-transparent px-3 text-sm';
 
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
+      <PageHeader
+        title={t('title')}
+        description={t('description')}
+        actions={
+          <Button asChild variant="outline">
+            <a href={exportHref} download data-testid="orders-export">
+              <Download /> {t('export')}
+            </a>
+          </Button>
+        }
+      />
       <div className="space-y-4 p-6">
+        <RememberTestsFilter
+          name={ORDERS_TESTS_COOKIE}
+          value={isSuperAdmin && sp.tests ? filters.tests : null}
+        />
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t('chips.label')}>
+          {chip('open', t('chips.open'))}
+          {chip('overdue', t('chips.overdue'))}
+          {chip('today', t('chips.today'))}
+        </div>
         <form className="flex flex-wrap items-end gap-2" action="" method="get">
           <div className="relative min-w-64 flex-1">
             <Search className="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
             <Input
               name="q"
-              defaultValue={q ?? ''}
+              defaultValue={filters.q ?? ''}
               placeholder={t('searchPlaceholder')}
               className="pl-8"
             />
           </div>
-          <select
+          <FilterSelect
             name="status"
-            defaultValue={status ?? ''}
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-            aria-label={t('filters.status')}
-          >
-            <option value="">{t('filters.allStatuses')}</option>
-            {ORDER_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {tStatus(s)}
-              </option>
-            ))}
-          </select>
-          <select
+            value={filters.status}
+            ariaLabel={t('filters.status')}
+            allLabel={t('filters.allStatuses')}
+            options={ORDER_STATUSES.map((s) => ({ value: s, label: tStatus(s) }))}
+          />
+          <FilterSelect
             name="method"
-            defaultValue={method ?? ''}
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-            aria-label={t('filters.method')}
-          >
-            <option value="">{t('filters.allMethods')}</option>
-            {PAYMENT_METHODS.map((m) => (
-              <option key={m} value={m}>
-                {tMethod(m)}
-              </option>
-            ))}
-          </select>
-          <select
+            value={filters.method}
+            ariaLabel={t('filters.method')}
+            allLabel={t('filters.allMethods')}
+            options={PAYMENT_METHODS.map((m) => ({ value: m, label: tMethod(m) }))}
+          />
+          <FilterSelect
             name="channel"
-            defaultValue={channel ?? ''}
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-            aria-label={t('filters.channel')}
-          >
-            <option value="">{t('filters.allChannels')}</option>
-            {SALES_CHANNELS.map((c) => (
-              <option key={c} value={c}>
-                {tChannel(c)}
-              </option>
-            ))}
-          </select>
-          <select
+            value={filters.channel}
+            ariaLabel={t('filters.channel')}
+            allLabel={t('filters.allChannels')}
+            options={SALES_CHANNELS.map((c) => ({ value: c, label: tChannel(c) }))}
+          />
+          <FilterSelect
             name="event"
-            defaultValue={eventId ?? ''}
-            className="h-9 max-w-64 rounded-md border border-input bg-transparent px-3 text-sm"
-            aria-label={t('filters.event')}
-          >
-            <option value="">{t('filters.allEvents')}</option>
-            {eventRows.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.title} · {format.dateTime(e.startsAt, { dateStyle: 'short' })}
-              </option>
-            ))}
-          </select>
-          <select
+            value={filters.event}
+            ariaLabel={t('filters.event')}
+            allLabel={t('filters.allEvents')}
+            searchable
+            options={eventRows.map((e) => ({
+              value: e.id,
+              label: `${e.title} · ${format.dateTime(e.startsAt, { dateStyle: 'short' })}`,
+            }))}
+          />
+          <FilterSelect
             name="tests"
-            defaultValue={tests ?? ''}
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-            aria-label={t('filters.tests')}
-          >
-            <option value="">{t('filters.testsAll')}</option>
-            <option value="only">{t('filters.testsOnly')}</option>
-            <option value="hide">{t('filters.testsHide')}</option>
-          </select>
+            value={filters.tests}
+            ariaLabel={t('filters.tests')}
+            options={[
+              { value: 'hide', label: t('filters.testsHide') },
+              { value: 'all', label: t('filters.testsAll') },
+              { value: 'only', label: t('filters.testsOnly') },
+            ]}
+          />
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {t('filters.from')}
+            <input
+              type="date"
+              name="from"
+              defaultValue={filters.from ?? ''}
+              className={selectClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {t('filters.to')}
+            <input type="date" name="to" defaultValue={filters.to ?? ''} className={selectClass} />
+          </label>
           <label className="flex h-9 items-center gap-2 text-sm">
-            <input type="checkbox" name="overdue" value="1" defaultChecked={overdueOnly} />
+            <input
+              type="checkbox"
+              name="overdue"
+              value="1"
+              defaultChecked={filters.overdue === '1'}
+            />
             {t('filters.overdue')}
           </label>
+          {filters.open && <input type="hidden" name="open" value="1" />}
+          {filters.today && <input type="hidden" name="today" value="1" />}
+          {filters.sort && <input type="hidden" name="sort" value={filters.sort} />}
+          {filters.sort && filters.dir && <input type="hidden" name="dir" value={filters.dir} />}
           {pageSize !== DEFAULT_PAGE_SIZE && (
             <input type="hidden" name="pageSize" value={pageSize} />
           )}
@@ -193,87 +250,13 @@ export default async function OrdersPage({
             {result.rows.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">{t('empty')}</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('columns.number')}</TableHead>
-                    <TableHead>{t('columns.date')}</TableHead>
-                    <TableHead>{t('columns.customer')}</TableHead>
-                    <TableHead>{t('columns.method')}</TableHead>
-                    <TableHead className="text-right">{t('columns.tickets')}</TableHead>
-                    <TableHead className="text-right">{t('columns.total')}</TableHead>
-                    <TableHead>{t('columns.status')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {result.rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium whitespace-nowrap">
-                        <Link href={`/admin/orders/${row.id}`} className="hover:underline">
-                          {row.orderNumber}
-                        </Link>
-                        {row.paymentReference && (
-                          <div className="font-mono text-xs text-muted-foreground">
-                            {row.paymentReference}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {format.dateTime(row.createdAt, { dateStyle: 'short', timeStyle: 'short' })}
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          {row.firstName} {row.lastName}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{row.email}</div>
-                        {row.isTest && (
-                          <Badge
-                            variant="outline"
-                            className="mt-1 mr-1 border-warning-border text-warning"
-                          >
-                            {t('testBadge')}
-                          </Badge>
-                        )}
-                        {row.testHidden && (
-                          <Badge variant="outline" className="mt-1 mr-1">
-                            {t('testHidden')}
-                          </Badge>
-                        )}
-                        {row.channel !== 'ONLINE' && (
-                          <Badge variant="outline" className="mt-1">
-                            {tChannel(row.channel)}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>{tMethod(row.paymentMethod)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{row.ticketCount}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {format.number(row.totalGross / 100, {
-                          style: 'currency',
-                          currency: row.currency,
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        <OrderStatusBadge status={row.status} />
-                        {row.keepReserved && (
-                          <div className="text-xs text-muted-foreground">{t('keptReserved')}</div>
-                        )}
-                        {row.status === 'AWAITING_PAYMENT' &&
-                          row.paymentDueAt &&
-                          row.paymentDueAt.getTime() < Date.now() && (
-                            <div className="text-xs text-destructive">{t('overdue')}</div>
-                          )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <OrdersTable rows={result.rows} sortHeaders={sortHeaders} now={Date.now()} />
             )}
           </CardContent>
         </Card>
         <AdminPagination
-          pathname="/admin/orders"
-          params={filterParams}
+          pathname={base}
+          params={listParams}
           page={page}
           pageSize={pageSize}
           defaultPageSize={DEFAULT_PAGE_SIZE}

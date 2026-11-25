@@ -118,5 +118,59 @@
       "EXCLUDE": "Weglassen"
     },
     "save": "Buchhaltungseinstellungen speichern"
+  },
+  "cashUp": {
+    "title": "Kassenabschluss",
+    "description": "Abendkassen-Verkäufe je Zahlungsart und Verkäufer für einen Tag oder Zeitraum.",
+    "ownSales": "Deine eigenen Abendkassen-Verkäufe.",
+    "export": "CSV exportieren",
+    "print": "Drucken",
+    "filters": {
+      "from": "Von",
+      "to": "Bis",
+      "event": "Veranstaltung",
+      "allEvents": "Alle Veranstaltungen",
+      "seller": "Verkäufer",
+      "allSellers": "Alle Verkäufer",
+      "apply": "Anzeigen"
+    },
+    "range": "Zeitraum: {from} bis {to}",
+    "empty": "Keine Abendkassen-Verkäufe in diesem Zeitraum.",
+    "byMethod": "Je Zahlungsart",
+    "bySeller": "Je Verkäufer",
+    "detail": "Verkäufer und Zahlungsart",
+    "total": "Gesamt",
+    "unknownSeller": "Unbekannter Verkäufer",
+    "refundsOpen": "{amount} noch zurückzuzahlen",
+    "note": "Gezählt werden Abendkassen-Bestellungen aus dem Zeitraum (Kanal Abendkasse / Admin, keine Online- oder Testbestellungen). Verkäufe = Wert der bezahlten Bestellungen; Eingenommen = tatsächlich erhaltenes Geld. Erstattet = im Zeitraum ausgezahlte Erstattungen (nach ihrem eigenen Datum). Netto = Eingenommen abzüglich Erstattet. Stornierte und vollständig erstattete Bestellungen werden getrennt ausgewiesen.",
+    "columns": {
+      "method": "Zahlungsart",
+      "seller": "Verkäufer",
+      "sellerMethod": "Verkäufer · Zahlungsart",
+      "orders": "Bestellungen",
+      "tickets": "Tickets",
+      "gross": "Verkäufe",
+      "received": "Eingenommen",
+      "refunded": "Erstattet",
+      "net": "Netto",
+      "refundedOrders": "Erstattete Bestellungen",
+      "cancelledOrders": "Storniert"
+    },
+    "csv": {
+      "seller": "Verkäufer",
+      "method": "Zahlungsart",
+      "currency": "Währung",
+      "orders": "Bestellungen",
+      "tickets": "Tickets",
+      "gross": "Verkäufe",
+      "received": "Eingenommen",
+      "refunded": "Erstattet",
+      "net": "Netto",
+      "refundedOrders": "Erstattete Bestellungen",
+      "refundsOpen": "Noch zurückzuzahlen",
+      "cancelledOrders": "Stornierte Bestellungen",
+      "total": "Gesamt",
+      "unknownSeller": "Unbekannter Verkäufer"
+    }
   }
 }

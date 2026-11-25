@@ -118,5 +118,59 @@
       "EXCLUDE": "Leave out"
     },
     "save": "Save accounting settings"
+  },
+  "cashUp": {
+    "title": "Cash-up",
+    "description": "Counter sales (box office) per payment method and seller for a day or period.",
+    "ownSales": "Your own counter sales.",
+    "export": "Export CSV",
+    "print": "Print",
+    "filters": {
+      "from": "From",
+      "to": "To",
+      "event": "Event",
+      "allEvents": "All events",
+      "seller": "Seller",
+      "allSellers": "All sellers",
+      "apply": "Show"
+    },
+    "range": "Period: {from} to {to}",
+    "empty": "No counter sales in this period.",
+    "byMethod": "Per payment method",
+    "bySeller": "Per seller",
+    "detail": "Seller and payment method",
+    "total": "Total",
+    "unknownSeller": "Unknown seller",
+    "refundsOpen": "{amount} still to pay back",
+    "note": "Counts counter orders created in the period (box office / admin channel, no online or test orders). Sales = value of the paid orders; Received = money actually taken. Refunded = refunds paid back in the period (by their own date). Net = received minus refunded. Cancelled and fully refunded orders are listed separately.",
+    "columns": {
+      "method": "Payment method",
+      "seller": "Seller",
+      "sellerMethod": "Seller · method",
+      "orders": "Orders",
+      "tickets": "Tickets",
+      "gross": "Sales",
+      "received": "Received",
+      "refunded": "Refunded",
+      "net": "Net",
+      "refundedOrders": "Refunded orders",
+      "cancelledOrders": "Cancelled"
+    },
+    "csv": {
+      "seller": "Seller",
+      "method": "Payment method",
+      "currency": "Currency",
+      "orders": "Orders",
+      "tickets": "Tickets",
+      "gross": "Sales",
+      "received": "Received",
+      "refunded": "Refunded",
+      "net": "Net",
+      "refundedOrders": "Refunded orders",
+      "refundsOpen": "Still to pay back",
+      "cancelledOrders": "Cancelled orders",
+      "total": "Total",
+      "unknownSeller": "Unknown seller"
+    }
   }
 }

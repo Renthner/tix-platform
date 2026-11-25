@@ -329,3 +329,11 @@ html.dark[data-area='shop'] {
   stroke: #111827;
   stroke-width: 2.5px;
 }
+
+/* Report pages (cash-up): print only the report, not the admin chrome. */
+@media print {
+  body:has([data-print-view]) aside,
+  body:has([data-print-view]) [data-print-hide] {
+    display: none !important;
+  }
+}

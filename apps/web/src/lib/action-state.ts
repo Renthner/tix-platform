@@ -53,6 +53,7 @@ export const FORM_ERROR_CODES = [
   'testOrdersPending',
   'testOrdersKept',
   'testKeyRealTickets',
+  'cancellationRunning',
   'testOrderPartialPayment',
   'testOrderCancelFailed',
   'testOrderPaymentOpen',

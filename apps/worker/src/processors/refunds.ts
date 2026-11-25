@@ -1,8 +1,11 @@
 import {
   DomainError,
+  EVENT_CANCELLATION_JOB,
   processPaypalRefund,
   reconcileRefundsAfterRestore,
   requeueStaleRefunds,
+  resumeStaleEventCancellationRuns,
+  runEventCancellation,
 } from '@tix/core';
 import { QUEUE_NAMES } from '@tix/redis';
 import { UnrecoverableError, type Job } from 'bullmq';
@@ -41,6 +44,14 @@ export function createRefundsProcessor(deps: WorkerDeps) {
           throw err;
         }
       }
+      case EVENT_CANCELLATION_JOB: {
+        // `{ runId }` – cancels the orders of a cancelled event; idempotent and resumable.
+        const runId = (job.data as { runId?: unknown }).runId;
+        if (typeof runId !== 'string') throw new UnrecoverableError('Job without runId');
+        const result = await runEventCancellation(deps.core, runId);
+        deps.logger.info({ runId, ...result }, 'event cancellation run finished');
+        return result;
+      }
       case REFUND_JOBS.reconcile: {
         const result = await reconcileRefundsAfterRestore(deps.core, { force: true });
         deps.logger.info(result, 'refunds reconciled after restore');
@@ -57,7 +68,9 @@ export function createRefundsProcessor(deps: WorkerDeps) {
           deps.logger.info(reconciled, 'refunds reconciled after restore');
         const requeued = await requeueStaleRefunds(deps.core);
         if (requeued > 0) deps.logger.info({ requeued }, 'stale refunds re-queued');
-        return { requeued };
+        const runs = await resumeStaleEventCancellationRuns(deps.core);
+        if (runs > 0) deps.logger.info({ runs }, 'stale event cancellation runs resumed');
+        return { requeued, runs };
       }
       default:
         deps.logger.warn({ job: job.name }, 'unknown refunds job');

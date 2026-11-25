@@ -41,5 +41,11 @@
       "Änderungen",
       "Metadaten"
     ]
+  },
+  "entityCard": {
+    "title": "Änderungsverlauf",
+    "empty": "Noch keine Änderungen protokolliert.",
+    "system": "System",
+    "viewAll": "Gesamtes Aktivitätsprotokoll ({count})"
   }
 }

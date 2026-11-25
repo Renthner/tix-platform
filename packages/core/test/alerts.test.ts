@@ -215,9 +215,10 @@ describe('alert cooldown / digest', () => {
 describe('alert recipients and texts', () => {
   it('role defaults', () => {
     expect(defaultAlertTypes(['SUPER_ADMIN'])).not.toContain('UPDATE_AVAILABLE');
-    expect(defaultAlertTypes(['SUPER_ADMIN'])).toHaveLength(9);
+    expect(defaultAlertTypes(['SUPER_ADMIN'])).toHaveLength(10);
     expect([...defaultAlertTypes(['FINANCE'])].sort()).toEqual([
       'BANK_SYNC_FAILING',
+      'PAID_CANCELLED_EVENT',
       'PAYMENT_PROVIDER_ERRORS',
       'REFUNDS_OPEN',
       'REVIEW_CASES_OPEN',

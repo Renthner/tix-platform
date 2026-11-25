@@ -386,6 +386,13 @@ export const EMAIL_TEMPLATE_KEYS = values(
   'WAITLIST_AVAILABLE',
   'WAITLIST_REMOVED',
   'ADMIN_PASSKEY_ADDED',
+  // Event cancellation / postponement, buyer communication, buyer e-mail change (round 6).
+  'EVENT_CANCELLED',
+  'EVENT_POSTPONED',
+  'ORDER_MESSAGE',
+  'EVENT_MESSAGE',
+  'ORDER_EMAIL_CHANGED',
+  'ORDER_EMAIL_CHANGED_OLD',
 );
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 

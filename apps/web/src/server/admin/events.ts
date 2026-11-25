@@ -277,6 +277,10 @@ export async function setEventStatusAction(
   const row = await getEventWithVenue(eventId);
   if (!row) return formError('notFound');
   const { event } = row;
+  // Cancelling goes through the cancellation assistant (it also handles all orders of the event).
+  if (status.data === 'CANCELLED') {
+    return event.status === 'CANCELLED' ? success('saved') : fieldError({ status: 'invalid' });
+  }
   if (status.data === 'PUBLISHED' || status.data === 'POSTPONED') {
     if (!checklistComplete(await publishChecklist(event))) return formError('publishIncomplete');
     // Test orders of super-admin test purchases (also cancelled / hidden ones) block going live:
@@ -304,6 +308,7 @@ export async function setEventStatusAction(
     if (err instanceof DomainError) {
       if (err.code === 'TEST_ORDERS_PRESENT') return formError('testOrdersKept');
       if (err.code === 'TEST_KEY_ROTATION_REAL_TICKETS') return formError('testKeyRealTickets');
+      if (err.code === 'EVENT_CANCELLATION_RUNNING') return formError('cancellationRunning');
     }
     throw err;
   }

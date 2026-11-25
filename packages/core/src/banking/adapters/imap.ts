@@ -154,7 +154,9 @@ export async function syncImap(
         // Size first: oversize mails are never downloaded.
         const head = await client.fetchOne(String(uid), { size: true }, { uid: true });
         if (!head) continue;
-        if (classifyMail({ ...skipInput, size: head.size, from: null, subject: null }) === 'OVERSIZE') {
+        if (
+          classifyMail({ ...skipInput, size: head.size, from: null, subject: null }) === 'OVERSIZE'
+        ) {
           await skip();
           continue;
         }
@@ -162,17 +164,13 @@ export async function syncImap(
         if (!message || !message.source) continue;
         const mail = await simpleParser(message.source);
         const from = fromAddress(mail.from);
-        if (
-          classifyMail({ ...skipInput, size: head.size, from, subject: mail.subject }) !== null
-        ) {
+        if (classifyMail({ ...skipInput, size: head.size, from, subject: mail.subject }) !== null) {
           await skip();
           continue;
         }
         const trusted = isTrustedMailAuth({
           authenticationResults: mail.headers.get('authentication-results') as
-            | string
-            | string[]
-            | undefined,
+            string | string[] | undefined,
           from,
           allowlist: config.senderAllowlist,
           trustedAuthservId: config.trustedAuthservId,

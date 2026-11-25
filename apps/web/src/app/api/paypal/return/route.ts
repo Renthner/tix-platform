@@ -23,6 +23,7 @@ const OUTCOME: Record<CompletePayPalResult['status'], string> = {
   NOT_APPROVED: 'cancelled',
   FAILED: 'failed',
   NOT_PAYABLE: 'expired',
+  EVENT_CANCELLED: 'eventcancelled',
 };
 
 /**

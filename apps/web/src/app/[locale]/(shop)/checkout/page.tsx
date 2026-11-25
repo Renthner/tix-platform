@@ -33,7 +33,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ local
   const locale = await resolveLocale(params);
   const core = getCore();
   const sid = await readSessionId();
-  if (!sid) return redirect({ href: '/cart', locale });
+  if (!sid) return redirect({ href: '/cart?expired=1', locale });
 
   // Entering the checkout extends the reservation once by the payment grace period.
   const expiresAt = await extendCartForCheckout(core, sid);
@@ -44,7 +44,11 @@ export default async function CheckoutPage({ params }: { params: Promise<{ local
   try {
     options = await getCheckoutOptions(core, sid, locale);
   } catch (err) {
-    if (err instanceof DomainError && err.status < 500) return redirect({ href: '/cart', locale });
+    if (err instanceof DomainError && err.status < 500)
+      return redirect({
+        href: err.code === 'CART_EMPTY' ? '/cart?expired=1' : '/cart',
+        locale,
+      });
     throw err;
   }
 

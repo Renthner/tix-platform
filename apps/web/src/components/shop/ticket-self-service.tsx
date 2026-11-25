@@ -59,6 +59,9 @@ export function TicketSelfServiceActions({
   const [transferOpen, setTransferOpen] = useState(false);
   const [recipientName, setRecipientName] = useState('');
   const [recipientEmail, setRecipientEmail] = useState('');
+  const [recipientEmailRepeat, setRecipientEmailRepeat] = useState('');
+  const emailsMatch =
+    recipientEmail.trim().toLowerCase() === recipientEmailRepeat.trim().toLowerCase();
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState<'name' | 'transfer' | null>(null);
 
@@ -92,6 +95,7 @@ export function TicketSelfServiceActions({
       setTransferOpen(false);
       setRecipientName('');
       setRecipientEmail('');
+      setRecipientEmailRepeat('');
       setMessage('');
       router.refresh();
     } catch (err) {
@@ -196,6 +200,30 @@ export function TicketSelfServiceActions({
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor={`rr-${ticketId}`}>{t('recipientEmailRepeat')}</Label>
+                <Input
+                  id={`rr-${ticketId}`}
+                  name="recipientEmailRepeat"
+                  type="email"
+                  value={recipientEmailRepeat}
+                  maxLength={254}
+                  required
+                  autoComplete="off"
+                  aria-invalid={recipientEmailRepeat !== '' && !emailsMatch ? true : undefined}
+                  aria-describedby={`rrn-${ticketId}`}
+                  // Typing the address again is the point: no pasting it over.
+                  onPaste={(e) => e.preventDefault()}
+                  onChange={(e) => setRecipientEmailRepeat(e.target.value)}
+                />
+                <p
+                  id={`rrn-${ticketId}`}
+                  className="text-xs text-destructive"
+                  role={recipientEmailRepeat !== '' && !emailsMatch ? 'alert' : undefined}
+                >
+                  {recipientEmailRepeat !== '' && !emailsMatch ? t('recipientEmailMismatch') : ''}
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor={`rm-${ticketId}`}>{t('message')}</Label>
                 <Textarea
                   id={`rm-${ticketId}`}
@@ -217,7 +245,10 @@ export function TicketSelfServiceActions({
                 <Button
                   type="submit"
                   disabled={
-                    pending !== null || recipientName.trim() === '' || recipientEmail.trim() === ''
+                    pending !== null ||
+                    recipientName.trim() === '' ||
+                    recipientEmail.trim() === '' ||
+                    !emailsMatch
                   }
                 >
                   {pending === 'transfer' && <Loader2 className="size-4 animate-spin" />}

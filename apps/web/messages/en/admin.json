@@ -19,6 +19,8 @@
     "ticketTemplates": "Ticket designs",
     "refunds": "Open refunds",
     "boxOffice": "Box office",
+    "cashUp": "Cash-up",
+    "door": "Door check-in",
     "users": "Users & roles",
     "backups": "Backups",
     "scanners": "Check-in scanners",
@@ -26,6 +28,7 @@
     "system": "System status",
     "audit": "Activity log",
     "menu": "Menu",
+    "label": "Admin navigation",
     "paypal": "PayPal",
     "discounts": "Discount codes",
     "groups": {
@@ -94,6 +97,7 @@
       "testOrdersPending": "This event has test orders and cannot be published. A super-admin must delete them first.",
       "testOrdersKept": "Some test orders could not be deleted (real money received or an open payment) – cancel and hide them first (Cancel & hide on the order page). The event cannot be published while they stay active.",
       "testKeyRealTickets": "This event had test purchases and already has real tickets, so its ticket key cannot be renewed – publishing is refused.",
+      "cancellationRunning": "The cancellation of this event is still running (orders are being cancelled and refunded). Wait until it has finished before changing the status.",
       "testOrderPartialPayment": "The test order holds a partial payment. Pay it back (reverse the bank allocation) before cancelling.",
       "testOrderCancelFailed": "The test order could not be cancelled.",
       "testOrderPaymentOpen": "A PayPal payment of this test order is still open. Try again in a few minutes or cancel the order.",
@@ -143,6 +147,17 @@
     },
     "title": "Dashboard",
     "welcome": "Welcome back, {name}.",
+    "todo": {
+      "title": "To do",
+      "tiles": {
+        "bankReview": "Bank payments to clarify",
+        "overdueTransfers": "Overdue bank transfers",
+        "openRefunds": "Open refunds",
+        "openAdjustments": "Open additional payments",
+        "waitlistPending": "Waiting-list entries",
+        "expiringCodes": "Access codes expiring soon"
+      }
+    },
     "denied": "You do not have permission to open that page.",
     "upcoming": "Upcoming events",
     "noEvents": "No upcoming events yet.",
@@ -419,6 +434,15 @@
     "new": "New event",
     "empty": "No events found.",
     "filterAll": "All",
+    "search": {
+      "placeholder": "Search title or venue",
+      "label": "Search events",
+      "time": "Time",
+      "timeAll": "All dates",
+      "upcoming": "Upcoming",
+      "past": "Past",
+      "apply": "Search"
+    },
     "backToList": "All events",
     "defaultTicketType": "Regular",
     "columns": {
@@ -426,7 +450,8 @@
       "date": "Date",
       "venue": "Venue",
       "status": "Status",
-      "sale": "Sale"
+      "sale": "Sale",
+      "sold": "Sold / capacity"
     },
     "create": {
       "description": "The selected master plan is copied for this event and can be adjusted afterwards.",
@@ -469,7 +494,8 @@
       "fees": "Fees",
       "ticket": "Ticket",
       "wallet": "Wallet",
-      "checkIn": "Check-in"
+      "checkIn": "Check-in",
+      "communication": "Communication"
     },
     "details": {
       "title": "Event details"

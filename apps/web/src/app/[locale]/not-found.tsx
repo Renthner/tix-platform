@@ -14,6 +14,12 @@ export default async function LocaleNotFound() {
       <Button asChild>
         <Link href="/">{t('home')}</Link>
       </Button>
+      <Link
+        href="/orders/lookup"
+        className="text-sm text-muted-foreground underline-offset-2 hover:underline"
+      >
+        {t('findOrder')}
+      </Link>
     </main>
   );
 }

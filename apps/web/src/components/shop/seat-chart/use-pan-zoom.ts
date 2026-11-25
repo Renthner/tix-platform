@@ -179,6 +179,8 @@ export function usePanZoom(
       }
 
       const g = gesture.current;
+      // Fitted plan: a single finger scrolls the page instead of panning (see touch-action).
+      if (e.pointerType === 'touch' && bounds.w / viewRef.current.w <= 1.02) return;
       if (!g.moved && Math.hypot(next.x - g.startX, next.y - g.startY) > CLICK_TOLERANCE_PX) {
         g.moved = true;
         // Panning: capture so the drag continues outside the chart.
@@ -190,7 +192,7 @@ export function usePanZoom(
       const dy = (next.y - prev.y) * k;
       setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy }));
     },
-    [toSvg, unitsPerPixel, zoomAt],
+    [bounds.w, toSvg, unitsPerPixel, zoomAt],
   );
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {

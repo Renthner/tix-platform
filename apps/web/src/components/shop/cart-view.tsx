@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Link } from '@/i18n/navigation';
-import { apiFetch, errorCode, errorMessage } from '@/lib/api';
+import { apiFetch, errorMessage } from '@/lib/api';
 import { useEventDate, useMoney } from '@/lib/format';
 import { useCart } from './cart-context';
 import { DiscountCodeBox } from './discount-code-box';
@@ -31,8 +31,8 @@ export function CartView() {
 
   if (!cart) {
     return (
-      <div className="flex h-40 items-center justify-center text-muted-foreground">
-        <Loader2 className="mr-2 size-4 animate-spin" />
+      <div role="status" className="flex h-40 items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 size-4 animate-spin" aria-hidden /> {t('loading')}
       </div>
     );
   }
@@ -176,7 +176,6 @@ function CartItemRow({
       await fn();
       await onChange();
     } catch (err) {
-      const code = errorCode(err);
       toast.error(errorMessage(tErr, err));
     } finally {
       setPending(false);
@@ -234,7 +233,7 @@ function CartItemRow({
       <Button
         size="icon"
         variant="ghost"
-        aria-label={t('remove')}
+        aria-label={t('removeItem', { item: place })}
         disabled={pending}
         onClick={() =>
           run(() =>
@@ -245,7 +244,7 @@ function CartItemRow({
           )
         }
       >
-        <Trash2 className="size-4" />
+        <Trash2 className="size-4" aria-hidden />
       </Button>
     </li>
   );
