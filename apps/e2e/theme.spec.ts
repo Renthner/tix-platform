@@ -133,16 +133,16 @@ test.describe('theme switch (admin)', () => {
     test.skip(testInfo.project.name !== 'admin', 'admin project only');
   });
 
-  test('switch is available in the admin sidebar and applies', async ({ page }) => {
+  test('switch is available in the admin user menu and applies', async ({ page }) => {
     await page.goto('/admin');
-    const toggle = page.getByTestId('theme-switcher').first();
+    const toggle = page.getByTestId('admin-user-menu');
     await expect(toggle).toBeVisible();
     await toggle.click();
     await page.getByRole('menuitemradio', { name: 'Dark' }).click();
     expect(await isDark(page)).toBe(true);
     await page.reload();
     expect(await isDark(page)).toBe(true);
-    await page.getByTestId('theme-switcher').first().click();
+    await page.getByTestId('admin-user-menu').click();
     await page.getByRole('menuitemradio', { name: 'System' }).click();
   });
 });
@@ -255,11 +255,15 @@ test.describe('colour contrast (admin)', () => {
       const collapsed = page.locator(`${scope} button[aria-expanded="false"]`);
       while ((await collapsed.count()) > 0) await collapsed.first().click();
     };
-    await expandAll('aside nav');
     await collect('aside a[href^="/admin"]');
+    // Pages behind the hubs (design, system) and the settings menu incl. its "More" group.
+    for (const hub of ['/admin/design', '/admin/administration']) {
+      await page.goto(hub);
+      await collect('main a[href^="/admin"]');
+    }
     await page.goto('/admin/settings/general');
     await expandAll('nav[aria-label]');
-    await collect('nav[aria-label] a[href^="/admin/settings"]');
+    await collect('nav[aria-label] a[href^="/admin"]');
     await page.goto('/admin/events');
     // The first real event (not "shop-order" and the like): its id is a UUID.
     const eventHref = await page
@@ -276,6 +280,8 @@ test.describe('colour contrast (admin)', () => {
       await collect('a[href^="/admin/events/"]');
       // Every event tab, also those that the tab bar only shows conditionally.
       for (const tab of [
+        'details',
+        'status',
         'seating',
         'pricing',
         'shop-page',

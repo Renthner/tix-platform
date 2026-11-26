@@ -7,11 +7,12 @@ import {
   imapStateSchema,
   type SupportedBankAdapter,
 } from '@tix/shared';
-import { ArrowLeft } from 'lucide-react';
+import { History, Upload } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { BankingConfirm } from '@/components/admin/banking/account-form';
+import { BankingActionsMenu } from '@/components/admin/banking/banking-actions-menu';
+import { BankingPage } from '@/components/admin/banking/banking-page';
 import { AutoRefresh, SyncStatusBadge } from '@/components/admin/banking/banking-ui';
 import {
   BankingActionButton,
@@ -19,10 +20,12 @@ import {
 } from '@/components/admin/banking/connection-actions';
 import { ConnectionForm } from '@/components/admin/banking/connection-form';
 import { TanChallenges } from '@/components/admin/banking/tan-challenges';
+import { DetailLayout, DetailSection } from '@/components/admin/detail-layout';
+import { EmptyState } from '@/components/admin/empty-state';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -106,75 +109,178 @@ export default async function ConnectionPage({
   if (imap?.lastCheckedAt)
     statusRows.push([t('connection.imap.lastChecked'), dateTime(new Date(imap.lastCheckedAt))]);
 
-  return (
-    <>
-      <AutoRefresh active={running || challenges.length > 0} />
-      <Button asChild variant="ghost" size="sm">
-        <Link href={`/admin/banking/accounts/${account.id}`}>
-          <ArrowLeft /> {t('connection.backToAccount')}
-        </Link>
-      </Button>
-      <TanChallenges challenges={challenges} />
+  const allowlistMissing = config.adapter === 'IMAP' && (config.senderAllowlist ?? []).length === 0;
+  const lastErrorShown = polling && c.lastSyncStatus === 'FAILED' && c.lastError;
+  const fintsInfo =
+    fints && (fints.bankName || fints.accounts.length > 0 || fints.bankMessages.length > 0);
 
-      <Card className="max-w-4xl">
-        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
-          <div>
-            <CardTitle className="flex flex-wrap items-center gap-2">
-              {c.name}
-              {c.isActive ? null : <Badge variant="outline">{t('accounts.inactive')}</Badge>}
-            </CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t(`adapter.${adapter}`)} · {account.name}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-start gap-2">
+  return (
+    <BankingPage
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          {c.name}
+          {c.isActive ? null : <Badge variant="outline">{t('accounts.inactive')}</Badge>}
+        </span>
+      }
+      description={`${t(`adapter.${adapter}`)} · ${account.name}`}
+      trail={[
+        { label: t('accounts.title'), href: '/admin/banking/accounts' },
+        { label: account.name, href: `/admin/banking/accounts/${account.id}` },
+      ]}
+      actions={
+        <div className="flex flex-wrap items-start gap-2">
+          {adapter === 'IMAP' ? (
+            <BankingActionButton
+              action={testImapAction.bind(null, c.id)}
+              label={t('connection.actions.testImap')}
+            />
+          ) : null}
+          <BankingActionsMenu
+            links={
+              polling
+                ? [
+                    {
+                      key: 'upload',
+                      label: t('connection.actions.uploadFiles'),
+                      href: `/admin/banking/imports?account=${account.id}`,
+                    },
+                  ]
+                : []
+            }
+            dialogs={[
+              {
+                key: 'delete',
+                label: t('connection.actions.delete'),
+                action: deleteBankConnectionAction.bind(null, c.id, account.id),
+                title: t('connection.actions.deleteTitle'),
+                description: t('connection.actions.deleteDescription'),
+                confirmLabel: tc('delete'),
+                destructive: true,
+              },
+            ]}
+          />
+          {polling ? (
+            <BankingActionButton
+              action={syncBankConnectionAction.bind(null, c.id)}
+              label={t('connection.actions.sync')}
+              variant="default"
+              icon="refresh"
+              disabled={running || !c.isActive}
+            />
+          ) : (
+            <Button asChild size="sm">
+              <Link href={`/admin/banking/imports?account=${account.id}`}>
+                <Upload /> {t('connection.actions.uploadFiles')}
+              </Link>
+            </Button>
+          )}
+        </div>
+      }
+    >
+      <AutoRefresh active={running || challenges.length > 0} />
+      <TanChallenges challenges={challenges} />
+      <DetailLayout
+        className="p-0"
+        aside={
+          <>
             {polling ? (
-              <BankingActionButton
-                action={syncBankConnectionAction.bind(null, c.id)}
-                label={t('connection.actions.sync')}
-                variant="default"
-                icon="refresh"
-                disabled={running || !c.isActive}
-              />
-            ) : (
-              <Button asChild size="sm">
-                <Link href={`/admin/banking/imports?account=${account.id}`}>
-                  {t('connection.actions.uploadFiles')}
-                </Link>
-              </Button>
-            )}
-            {adapter === 'IMAP' ? (
-              <BankingActionButton
-                action={testImapAction.bind(null, c.id)}
-                label={t('connection.actions.testImap')}
-              />
+              <DetailSection title={t('connection.status.title')}>
+                <dl className="space-y-2 text-sm">
+                  {statusRows.map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-xs text-muted-foreground">{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </DetailSection>
             ) : null}
-            <BankingConfirm
-              action={deleteBankConnectionAction.bind(null, c.id, account.id)}
-              title={t('connection.actions.deleteTitle')}
-              description={t('connection.actions.deleteDescription')}
-              confirmLabel={tc('delete')}
-            >
-              {t('connection.actions.delete')}
-            </BankingConfirm>
-          </div>
-        </CardHeader>
-        {polling ? (
-          <CardContent className="space-y-3">
-            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[14rem_1fr]">
-              {statusRows.map(([label, value]) => (
-                <div key={label} className="contents">
-                  <dt className="text-muted-foreground">{label}</dt>
-                  <dd>{value}</dd>
+            {fintsInfo ? (
+              <DetailSection title={t('adapter.FINTS')}>
+                <div className="space-y-3 text-sm">
+                  {fints.bankName ? (
+                    <div>
+                      <div className="text-xs text-muted-foreground">
+                        {t('connection.fints.bank')}
+                      </div>
+                      {fints.bankName}
+                    </div>
+                  ) : null}
+                  {fints.accounts.length > 0 ? (
+                    <div>
+                      <div className="text-xs text-muted-foreground">
+                        {t('connection.fints.accounts')}
+                      </div>
+                      <ul className="mt-1 space-y-0.5 font-mono text-xs break-all">
+                        {fints.accounts.map((a) => (
+                          <li key={`${a.iban}-${a.accountNumber}`}>
+                            {a.iban ?? a.accountNumber} {a.product ? `· ${a.product}` : ''}{' '}
+                            {a.currency ? `· ${a.currency}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {fints.bankMessages.length > 0 ? (
+                    <div>
+                      <div className="text-xs text-muted-foreground">
+                        {t('connection.fints.bankMessages')}
+                      </div>
+                      {fints.bankMessages.map((m, i) => (
+                        <p key={i} className="mt-1">
+                          <span className="font-medium">{m.subject}</span> {m.text}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              ))}
-            </dl>
-            {config.adapter === 'IMAP' && (config.senderAllowlist ?? []).length === 0 ? (
+              </DetailSection>
+            ) : null}
+            <DetailSection title={t('imports.history')}>
+              {imports.length === 0 ? (
+                <EmptyState size="sm" icon={History} title={t('imports.empty')} />
+              ) : (
+                <ul className="divide-y text-sm">
+                  {imports.map((file) => (
+                    <li key={file.id} className="space-y-0.5 py-2">
+                      <a
+                        href={`/api/admin/banking/imports/${file.id}`}
+                        className="break-all hover:underline"
+                        title={t('imports.download')}
+                      >
+                        {file.fileName}
+                      </a>
+                      <div className="text-xs text-muted-foreground">
+                        {t(`importStatus.${file.status}`)} · {file.importedCount}/
+                        {file.transactionCount} ·{' '}
+                        {format.dateTime(file.createdAt, {
+                          dateStyle: 'short',
+                          timeStyle: 'short',
+                        })}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </DetailSection>
+          </>
+        }
+      >
+        {allowlistMissing || lastErrorShown || fints?.setupIssue ? (
+          <div className="space-y-3">
+            {fints?.setupIssue ? (
+              <Alert>
+                <AlertDescription>
+                  {t(`connection.fints.setupIssue.${fints.setupIssue}`)}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {allowlistMissing ? (
               <Alert variant="destructive">
                 <AlertDescription>{t('connection.imap.allowlistMissing')}</AlertDescription>
               </Alert>
             ) : null}
-            {c.lastSyncStatus === 'FAILED' && c.lastError ? (
+            {lastErrorShown ? (
               <Alert variant="destructive">
                 <AlertDescription>
                   {t('connection.status.lastError')}:{' '}
@@ -182,152 +288,101 @@ export default async function ConnectionPage({
                 </AlertDescription>
               </Alert>
             ) : null}
-          </CardContent>
+          </div>
         ) : null}
-      </Card>
 
-      {fints ? (
-        <Card className="max-w-4xl">
-          <CardContent className="space-y-3 text-sm">
-            {fints.setupIssue ? (
-              <Alert>
-                <AlertDescription>
-                  {t(`connection.fints.setupIssue.${fints.setupIssue}`)}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {fints.bankName ? (
-              <div>
-                <span className="text-muted-foreground">{t('connection.fints.bank')}:</span>{' '}
-                {fints.bankName}
-              </div>
-            ) : null}
-            {fints.accounts.length > 0 ? (
-              <div>
-                <div className="text-muted-foreground">{t('connection.fints.accounts')}</div>
-                <ul className="mt-1 space-y-0.5 font-mono text-xs">
-                  {fints.accounts.map((a) => (
-                    <li key={`${a.iban}-${a.accountNumber}`}>
-                      {a.iban ?? a.accountNumber} {a.product ? `· ${a.product}` : ''}{' '}
-                      {a.currency ? `· ${a.currency}` : ''}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            {fints.bankMessages.length > 0 ? (
-              <div>
-                <div className="text-muted-foreground">{t('connection.fints.bankMessages')}</div>
-                {fints.bankMessages.map((m, i) => (
-                  <p key={i} className="mt-1">
-                    <span className="font-medium">{m.subject}</span> {m.text}
-                  </p>
-                ))}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {finapi ? (
-        <Card className="max-w-4xl">
-          <CardHeader>
-            <CardTitle>{t('connection.finapi.title')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {finapi.bankConnectionId ? (
-              <div className="space-y-1">
-                <div>
-                  <Badge>{t('connection.finapi.connected')}</Badge>{' '}
-                  {finapi.bankName ? <span className="ml-1">{finapi.bankName}</span> : null}
+        {finapi ? (
+          <DetailSection title={t('connection.finapi.title')}>
+            <div className="space-y-3 text-sm">
+              {finapi.bankConnectionId ? (
+                <div className="space-y-1">
+                  <div>
+                    <Badge>{t('connection.finapi.connected')}</Badge>{' '}
+                    {finapi.bankName ? <span className="ml-1">{finapi.bankName}</span> : null}
+                  </div>
+                  <div className="text-muted-foreground">
+                    {t('connection.finapi.bankConnection')} #{finapi.bankConnectionId}
+                    {finapi.accountId
+                      ? ` · ${t('connection.finapi.account')} #${finapi.accountId}`
+                      : ''}
+                  </div>
+                  {!finapi.accountId && finapi.accounts.length > 0 ? (
+                    <p className="text-destructive">
+                      {t('connection.finapi.accountNotFound', {
+                        ibans: finapi.accounts.map((a) => a.iban ?? `#${a.id}`).join(', '),
+                      })}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="text-muted-foreground">
-                  {t('connection.finapi.bankConnection')} #{finapi.bankConnectionId}
-                  {finapi.accountId
-                    ? ` · ${t('connection.finapi.account')} #${finapi.accountId}`
-                    : ''}
-                </div>
-                {!finapi.accountId && finapi.accounts.length > 0 ? (
-                  <p className="text-destructive">
-                    {t('connection.finapi.accountNotFound', {
-                      ibans: finapi.accounts.map((a) => a.iban ?? `#${a.id}`).join(', '),
-                    })}
-                  </p>
+              ) : (
+                <p className="text-muted-foreground">{t('connection.finapi.notConnected')}</p>
+              )}
+              {finapi.userActionRequired ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{t('connection.finapi.userActionRequired')}</AlertDescription>
+                </Alert>
+              ) : null}
+              {finapi.webForm ? (
+                <p className="text-xs text-muted-foreground">
+                  {t('connection.finapi.webFormStatus', { status: finapi.webForm.status })}
+                </p>
+              ) : null}
+              {finapi.lastErrorCode ? (
+                <p className="text-xs text-destructive">
+                  {t('connection.finapi.lastError', { code: finapi.lastErrorCode })}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap items-start gap-2">
+                <FinApiConnectButton
+                  action={finApiConnectAction.bind(null, c.id)}
+                  label={
+                    finapi.bankConnectionId
+                      ? t('connection.finapi.renew')
+                      : t('connection.finapi.connect')
+                  }
+                  pendingUrl={webFormOpen}
+                />
+                {finapi.userId ? (
+                  <BankingActionButton
+                    action={finApiRefreshAction.bind(null, c.id)}
+                    label={t('connection.finapi.refresh')}
+                    icon="refresh"
+                  />
                 ) : null}
               </div>
-            ) : (
-              <p className="text-muted-foreground">{t('connection.finapi.notConnected')}</p>
-            )}
-            {finapi.userActionRequired ? (
-              <Alert variant="destructive">
-                <AlertDescription>{t('connection.finapi.userActionRequired')}</AlertDescription>
-              </Alert>
-            ) : null}
-            {finapi.webForm ? (
-              <p className="text-xs text-muted-foreground">
-                {t('connection.finapi.webFormStatus', { status: finapi.webForm.status })}
-              </p>
-            ) : null}
-            {finapi.lastErrorCode ? (
-              <p className="text-xs text-destructive">
-                {t('connection.finapi.lastError', { code: finapi.lastErrorCode })}
-              </p>
-            ) : null}
-            <div className="flex flex-wrap items-start gap-2">
-              <FinApiConnectButton
-                action={finApiConnectAction.bind(null, c.id)}
-                label={
-                  finapi.bankConnectionId
-                    ? t('connection.finapi.renew')
-                    : t('connection.finapi.connect')
-                }
-                pendingUrl={webFormOpen}
-              />
-              {finapi.userId ? (
-                <BankingActionButton
-                  action={finApiRefreshAction.bind(null, c.id)}
-                  label={t('connection.finapi.refresh')}
-                  icon="refresh"
-                />
-              ) : null}
             </div>
+          </DetailSection>
+        ) : null}
+
+        <Card>
+          <CardContent>
+            <ConnectionForm
+              adapter={adapter}
+              action={saveBankConnectionAction.bind(null, account.id, c.id, adapter)}
+              minPollMinutes={Math.ceil(
+                (adapter === 'PSD2_FINAPI' &&
+                config.adapter === 'PSD2_FINAPI' &&
+                !config.backgroundUpdate
+                  ? 3600
+                  : MIN_POLL_INTERVAL[adapter]) / 60,
+              )}
+              tanMethods={fints?.tanMethods ?? []}
+              submitLabel={tc('save')}
+              initial={{
+                name: c.name,
+                isActive: c.isActive,
+                pollIntervalSeconds: c.pollIntervalSeconds,
+                config,
+                hasSecrets: Boolean(c.credentialsEncrypted),
+              }}
+            />
           </CardContent>
         </Card>
-      ) : null}
 
-      <Card className="max-w-4xl">
-        <CardContent>
-          <ConnectionForm
-            adapter={adapter}
-            action={saveBankConnectionAction.bind(null, account.id, c.id, adapter)}
-            minPollMinutes={Math.ceil(
-              (adapter === 'PSD2_FINAPI' &&
-              config.adapter === 'PSD2_FINAPI' &&
-              !config.backgroundUpdate
-                ? 3600
-                : MIN_POLL_INTERVAL[adapter]) / 60,
-            )}
-            tanMethods={fints?.tanMethods ?? []}
-            submitLabel={tc('save')}
-            initial={{
-              name: c.name,
-              isActive: c.isActive,
-              pollIntervalSeconds: c.pollIntervalSeconds,
-              config,
-              hasSecrets: Boolean(c.credentialsEncrypted),
-            }}
-          />
-        </CardContent>
-      </Card>
-
-      {polling ? (
-        <Card className="max-w-4xl">
-          <CardHeader>
-            <CardTitle>{t('connection.runs.title')}</CardTitle>
-          </CardHeader>
-          <CardContent>
+        {polling ? (
+          <DetailSection title={t('connection.runs.title')}>
             {runs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t('connection.runs.empty')}</p>
+              <EmptyState size="sm" icon={History} title={t('connection.runs.empty')} />
             ) : (
               <Table>
                 <TableHeader>
@@ -367,36 +422,9 @@ export default async function ConnectionPage({
                 </TableBody>
               </Table>
             )}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {imports.length > 0 ? (
-        <Card className="max-w-4xl">
-          <CardHeader>
-            <CardTitle>{t('imports.history')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-1 text-sm">
-              {imports.map((file) => (
-                <li key={file.id} className="flex flex-wrap justify-between gap-2">
-                  <a
-                    href={`/api/admin/banking/imports/${file.id}`}
-                    className="break-all hover:underline"
-                  >
-                    {file.fileName}
-                  </a>
-                  <span className="text-muted-foreground">
-                    {t(`importStatus.${file.status}`)} · {file.importedCount}/
-                    {file.transactionCount} ·{' '}
-                    {format.dateTime(file.createdAt, { dateStyle: 'short', timeStyle: 'short' })}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
-    </>
+          </DetailSection>
+        ) : null}
+      </DetailLayout>
+    </BankingPage>
   );
 }

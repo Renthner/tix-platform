@@ -1,17 +1,18 @@
 'use client';
 
-import { Copy, Download, PencilRuler, Trash2 } from 'lucide-react';
+import { Copy, Download, LayoutTemplate, Pencil, PencilRuler, Trash2 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -23,8 +24,9 @@ import {
 } from '@/components/ui/table';
 import { Link } from '@/i18n/navigation';
 import { IDLE, type ActionState } from '@/lib/action-state';
-import { ConfirmAction } from './confirm-action';
+import { EmptyState } from './empty-state';
 import { ActionForm, ActionFeedback, Field, SubmitButton, errorOf } from './form-controls';
+import { RowActions } from './row-actions';
 
 type Action = (state: ActionState, fd: FormData) => Promise<ActionState>;
 
@@ -50,7 +52,7 @@ export function TemplateManager({
   return (
     <div className="space-y-4">
       {templates.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('empty')}</p>
+        <EmptyState size="sm" icon={LayoutTemplate} title={t('empty')} />
       ) : (
         <Table>
           <TableHeader>
@@ -66,42 +68,20 @@ export function TemplateManager({
               <TableRow key={tpl.id}>
                 <TableCell className="font-medium">{tpl.name}</TableCell>
                 <TableCell className="text-right tabular-nums">{tpl.seats}</TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="whitespace-nowrap text-muted-foreground">
                   {format.dateTime(new Date(tpl.updatedAt), {
                     dateStyle: 'medium',
                     timeStyle: 'short',
                   })}
                 </TableCell>
                 <TableCell>
-                  <div className="flex flex-wrap justify-end gap-2">
+                  <div className="flex items-center justify-end gap-1">
                     <Button asChild size="sm">
                       <Link href={`/admin/seat-maps/${tpl.id}`}>
                         <PencilRuler /> {t('openEditor')}
                       </Link>
                     </Button>
-                    <RenameDialog name={tpl.name} action={tpl.rename} />
-                    <Button asChild size="sm" variant="outline">
-                      <a href={`/api/admin/seat-maps/${tpl.id}/export`} download>
-                        <Download /> {t('export')}
-                      </a>
-                    </Button>
-                    <ConfirmAction
-                      action={tpl.duplicate}
-                      variant="secondary"
-                      title={t('duplicateTitle')}
-                      description={t('duplicateDescription', { name: tpl.name })}
-                      confirmLabel={t('duplicate')}
-                    >
-                      <Copy /> {t('duplicate')}
-                    </ConfirmAction>
-                    <ConfirmAction
-                      action={tpl.remove}
-                      title={t('deleteTitle')}
-                      description={t('deleteDescription', { name: tpl.name })}
-                      confirmLabel={t('delete')}
-                    >
-                      <Trash2 /> {t('delete')}
-                    </ConfirmAction>
+                    <TemplateRowMenu template={tpl} />
                   </div>
                 </TableCell>
               </TableRow>
@@ -114,22 +94,174 @@ export function TemplateManager({
   );
 }
 
-function RenameDialog({ name, action }: { name: string; action: Action }) {
+type RowDialog = 'rename' | 'duplicate' | 'delete';
+
+/**
+ * "⋯" menu of a master plan: rename, export, duplicate, delete. The dialogs live outside the menu
+ * (controlled), so they stay mounted when the menu closes.
+ */
+function TemplateRowMenu({ template }: { template: TemplateRow }) {
   const t = useTranslations('admin.venues.plans');
-  const tc = useTranslations('common.actions');
-  const [open, setOpen] = useState(false);
-  const [state, formAction] = useActionState(action, IDLE);
+  const tl = useTranslations('admin.list');
+  const [dialog, setDialog] = useState<RowDialog | null>(null);
+  // Set when the menu closes because a dialog opens: the focus then goes to the dialog.
+  const openingDialog = useRef(false);
+  const show = (next: RowDialog) => {
+    openingDialog.current = true;
+    setDialog(next);
+  };
+  const toggle = (which: RowDialog) => (open: boolean) => setDialog(open ? which : null);
+  return (
+    <>
+      <RowActions
+        label={tl('rowActions', { name: template.name })}
+        data-testid="seat-plan-row-actions"
+        onCloseAutoFocus={(e) => {
+          if (openingDialog.current) e.preventDefault();
+          openingDialog.current = false;
+        }}
+      >
+        <DropdownMenuItem onSelect={() => show('rename')}>
+          <Pencil /> {t('rename')}
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href={`/api/admin/seat-maps/${template.id}/export`} download>
+            <Download /> {t('export')}
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => show('duplicate')}>
+          <Copy /> {t('duplicate')}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onSelect={() => show('delete')}>
+          <Trash2 /> {t('delete')}
+        </DropdownMenuItem>
+      </RowActions>
+      <RenameDialog
+        name={template.name}
+        action={template.rename}
+        open={dialog === 'rename'}
+        onOpenChange={toggle('rename')}
+      />
+      <ConfirmActionDialog
+        action={template.duplicate}
+        open={dialog === 'duplicate'}
+        onOpenChange={toggle('duplicate')}
+        variant="secondary"
+        title={t('duplicateTitle')}
+        description={t('duplicateDescription', { name: template.name })}
+        confirmLabel={t('duplicate')}
+      />
+      <ConfirmActionDialog
+        action={template.remove}
+        open={dialog === 'delete'}
+        onOpenChange={toggle('delete')}
+        variant="destructive"
+        title={t('deleteTitle')}
+        description={t('deleteDescription', { name: template.name })}
+        confirmLabel={t('delete')}
+      />
+    </>
+  );
+}
+
+/** Runs a bound server action from a controlled dialog; a successful result closes it. */
+function useDialogAction(action: Action, onOpenChange: (open: boolean) => void) {
+  const [state, formAction, pending] = useActionState(action, IDLE);
+  const close = useRef(onOpenChange);
   useEffect(() => {
-    if (state.status === 'success') setOpen(false);
+    close.current = onOpenChange;
+  });
+  useEffect(() => {
+    if (state.status === 'success') close.current(false);
   }, [state]);
+  /** Dialog `onOpenChange` that ignores close requests while the action is pending. */
+  const setOpen = (next: boolean) => {
+    if (!next && pending) return;
+    onOpenChange(next);
+  };
+  return [state, formAction, pending, setOpen] as const;
+}
+
+/** Controlled confirmation dialog for a bound server action (the menu-friendly `ConfirmAction`). */
+function ConfirmActionDialog({
+  action,
+  open,
+  onOpenChange,
+  variant,
+  title,
+  description,
+  confirmLabel,
+}: {
+  action: Action;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  variant: 'secondary' | 'destructive';
+  title: string;
+  description: string;
+  confirmLabel: string;
+}) {
+  const tc = useTranslations('common.actions');
+  const [state, formAction, pending, setOpen] = useDialogAction(action, onOpenChange);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button type="button" size="sm" variant="outline">
-          {t('rename')}
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
+      <DialogContent
+        showCloseButton={!pending}
+        onEscapeKeyDown={(e) => {
+          if (pending) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (pending) e.preventDefault();
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <ActionForm action={formAction} className="space-y-4">
+          <ActionFeedback state={state} />
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setOpen(false)}
+            >
+              {tc('cancel')}
+            </Button>
+            <SubmitButton variant={variant}>{confirmLabel}</SubmitButton>
+          </DialogFooter>
+        </ActionForm>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RenameDialog({
+  name,
+  action,
+  open,
+  onOpenChange,
+}: {
+  name: string;
+  action: Action;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const t = useTranslations('admin.venues.plans');
+  const tc = useTranslations('common.actions');
+  const [state, formAction, pending, setOpen] = useDialogAction(action, onOpenChange);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent
+        showCloseButton={!pending}
+        onEscapeKeyDown={(e) => {
+          if (pending) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (pending) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{t('rename')}</DialogTitle>
         </DialogHeader>

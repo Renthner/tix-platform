@@ -75,7 +75,8 @@
   "gdpr": {
     "title": "Datenschutz (DSGVO)",
     "description": "Auskunftsrecht (Art. 15) und Recht auf Löschung (Art. 17).",
-    "export": "Daten exportieren (DSGVO Art. 15)"
+    "export": "Daten exportieren (DSGVO Art. 15)",
+    "financeOnly": "Datenexport und Anonymisierung stehen der Rolle Finanzen zur Verfügung."
   },
   "anonymize": {
     "title": "Kunde anonymisieren (Art. 17)",
@@ -101,7 +102,8 @@
     "invoiceRetentionYearsHint": "Rechnungsdaten anonymisierter Kunden bleiben bei Bestellungen mit Rechnung bis zu dieser Zahl von Jahren nach Ende des Rechnungsjahres erhalten.",
     "webhookRetentionDays": "Aufbewahrung Zahlungs-Webhooks (Tage)",
     "webhookRetentionDaysHint": "Zahlername, E-Mail und Adresse in gespeicherten PayPal-Webhooks werden nach dieser Zeit gelöscht (IDs, Typ, Betrag und Status bleiben). 0 = behalten.",
-    "save": "Speichern"
+    "save": "Speichern",
+    "movedHint": "Aufbewahrungsfristen: <link>Einstellungen › Datenschutz & Aufbewahrung</link>"
   },
   "messages": {
     "saved": "Profil gespeichert.",
@@ -125,5 +127,6 @@
     "ACCOUNT_REQUIRED": "Dieser Kunde hat kein Konto.",
     "ACCOUNTS_DISABLED": "Kundenkonten sind in den Einstellungen ausgeschaltet.",
     "INTERNAL_ERROR": "Etwas ist schiefgelaufen."
-  }
+  },
+  "actionsMenu": "Aktionen"
 }

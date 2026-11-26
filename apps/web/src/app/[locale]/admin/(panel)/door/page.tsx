@@ -6,17 +6,21 @@ import {
   type DoorState,
 } from '@tix/core';
 import { parsePage, parsePageSize } from '@tix/shared';
-import { Search } from 'lucide-react';
+import { CalendarX2, Search, UserSearch } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { AdminPagination } from '@/components/admin/admin-pagination';
 import { DoorGuestList } from '@/components/admin/door-guest-list';
+import { EmptyState } from '@/components/admin/empty-state';
 import { FilterSelect } from '@/components/admin/filter-select';
-import { PageHeader } from '@/components/admin/form-controls';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Link } from '@/i18n/navigation';
+import { AdminPageHeader } from '@/components/admin/page-header';
+import { StatusTabs } from '@/components/admin/status-tabs';
+import {
+  AutoSubmitFallbackButton,
+  AutoSubmitForm,
+  AutoSubmitPending,
+  FilterSearchInput,
+} from '@/components/admin/auto-submit-form';
 import { resolveLocale } from '@/i18n/locale';
-import { cn } from '@/lib/utils';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { buildQuery } from '@tix/shared';
@@ -67,19 +71,21 @@ export default async function DoorPage({
         listDoorGuests(core, { eventId: selected.id, q, state, page, pageSize }),
       ])
     : [null, null];
+  const insidePercent =
+    stats && stats.valid > 0 ? Math.min(100, Math.round((stats.checkedIn / stats.valid) * 100)) : 0;
   const listParams = { event: selected?.id, q, state: state === 'ALL' ? undefined : state };
   const eventLabel = (e: (typeof usable)[number]) =>
     `${e.title} · ${format.dateTime(e.startsAt, { dateStyle: 'short' })}`;
 
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
-      <div className="space-y-4 p-6">
+      <AdminPageHeader title={t('title')} description={t('description')} />
+      <div className="space-y-4 p-4 sm:p-6">
         {!selected || !stats || !list ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">{t('noEvents')}</p>
+          <EmptyState icon={CalendarX2} title={t('noEvents')} />
         ) : (
           <>
-            <form className="flex flex-wrap items-end gap-2" action="" method="get">
+            <AutoSubmitForm className="flex flex-wrap items-center gap-2">
               <FilterSelect
                 name="event"
                 value={selected.id}
@@ -89,59 +95,76 @@ export default async function DoorPage({
               />
               <div className="relative min-w-56 flex-1">
                 <Search className="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-                <Input
+                <FilterSearchInput
                   name="q"
-                  type="search"
                   inputMode="search"
                   autoComplete="off"
-                  defaultValue={q ?? ''}
+                  value={q ?? ''}
                   placeholder={t('searchPlaceholder')}
                   className="h-9 pl-8"
                   aria-label={t('searchLabel')}
                 />
               </div>
               {state !== 'ALL' && <input type="hidden" name="state" value={state} />}
-              <Button type="submit" variant="secondary">
-                {t('search')}
-              </Button>
-            </form>
+              <AutoSubmitPending />
+              <AutoSubmitFallbackButton>{t('search')}</AutoSubmitFallbackButton>
+            </AutoSubmitForm>
 
-            <div
-              className="flex flex-wrap gap-x-6 gap-y-1 text-sm"
+            <section
+              className="grid gap-3 rounded-xl border bg-card p-4 text-card-foreground shadow-sm sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]"
               data-testid="door-stats"
               aria-label={t('stats.label')}
             >
-              <span>{t('stats.inside', { count: stats.checkedIn, total: stats.valid })}</span>
-              <span className="text-muted-foreground">
-                {t('stats.notArrived', { count: stats.notArrived })}
-              </span>
-              <span className="text-muted-foreground">
-                {t('stats.out', { count: stats.checkedOut })}
-              </span>
-            </div>
-
-            <div className="flex flex-wrap gap-2" role="group" aria-label={t('stateFilter')}>
-              {DOOR_STATES.map((s) => (
-                <Link
-                  key={s}
-                  href={buildQuery('/admin/door', listParams, {
-                    state: s === 'ALL' ? undefined : s,
+              <div className="min-w-0 space-y-2">
+                <div className="text-sm text-muted-foreground">{tState('INSIDE')}</div>
+                <div className="text-3xl font-semibold tabular-nums">
+                  {stats.checkedIn}
+                  <span className="text-xl text-muted-foreground"> / {stats.valid}</span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-label={t('stats.label')}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={insidePercent}
+                  aria-valuetext={t('stats.inside', {
+                    count: stats.checkedIn,
+                    total: stats.valid,
                   })}
-                  aria-pressed={state === s}
-                  className={cn(
-                    'rounded-full border px-3 py-1 text-sm',
-                    state === s
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'hover:bg-accent',
-                  )}
+                  className="h-2 overflow-hidden rounded-full bg-muted"
                 >
-                  {tState(s)}
-                </Link>
-              ))}
-            </div>
+                  <div className="h-full bg-success" style={{ width: `${insidePercent}%` }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:contents">
+                <div className="min-w-0">
+                  <div className="text-sm text-muted-foreground">{tState('NOT_ARRIVED')}</div>
+                  <div className="text-2xl font-semibold tabular-nums">{stats.notArrived}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm text-muted-foreground">{tState('OUT')}</div>
+                  <div className="text-2xl font-semibold text-warning tabular-nums">
+                    {stats.checkedOut}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <StatusTabs
+              label={t('stateFilter')}
+              tabs={DOOR_STATES.map((s) => ({
+                key: s,
+                label: tState(s),
+                href: buildQuery('/admin/door', listParams, {
+                  state: s === 'ALL' ? undefined : s,
+                }),
+                active: state === s,
+                'data-testid': `door-state-${s}`,
+              }))}
+            />
 
             {list.guests.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">{t('empty')}</p>
+              <EmptyState icon={UserSearch} title={t('empty')} />
             ) : (
               <DoorGuestList guests={list.guests} eventId={selected.id} />
             )}

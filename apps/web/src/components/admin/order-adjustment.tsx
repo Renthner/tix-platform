@@ -1,8 +1,7 @@
 'use client';
 
 import { useFormatter, useTranslations } from 'next-intl';
-import { useActionState, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
+import { useState } from 'react';
 import { ActionForm, SubmitButton } from '@/components/admin/form-controls';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,25 +14,7 @@ import {
   proposeTariffChangeAction,
   recordAdjustmentPaymentAction,
 } from '@/server/admin/adjustments';
-import type { OrderActionState } from '@/server/admin/orders';
-
-const IDLE: OrderActionState = { status: 'idle' };
-
-/** Toast for an action result (success message or translated error code). */
-function useFeedback(state: OrderActionState) {
-  const t = useTranslations('orders.admin.feedback');
-  const tErr = useTranslations('common.errors');
-  const tOrderErr = useTranslations('orders.errors');
-  const last = useRef<number | null>(null);
-  useEffect(() => {
-    if (state.status === 'idle' || state.at === last.current) return;
-    last.current = state.at;
-    if (state.status === 'success') toast.success(t(state.message as never));
-    else if (tOrderErr.has(state.code as never)) toast.error(tOrderErr(state.code as never));
-    else if (tErr.has(state.code as never)) toast.error(tErr(state.code as never));
-    else toast.error(tErr('INTERNAL_ERROR'));
-  }, [state, t, tErr, tOrderErr]);
-}
+import { useClosingOrderAction } from './order-action-state';
 
 export interface AdjustmentCardItem {
   id: string;
@@ -60,30 +41,24 @@ export interface OpenAdjustmentProps {
   items: { from: string; to: string; fromPrice: number; toPrice: number }[];
 }
 
-export function OrderAdjustmentCard(props: {
+/** Props of the tariff change form (proposing an additional payment). */
+export interface TariffChangeProps {
   orderId: string;
   version: number;
   currency: string;
   hasEmail: boolean;
-  /** FINANCE / EVENT_MANAGER may propose and cancel. */
-  canManage: boolean;
-  /** FINANCE may record the payment. */
-  canRecordPayment: boolean;
-  /** The order is PAID (the only state a tariff change is possible in). */
-  proposable: boolean;
   /** Overpayment of the order (net money above the total) that can be credited / refunded. */
   credit: number;
   /** FINANCE may credit customer money (the overpayment) against a tariff change. */
   canUseCredit: boolean;
   items: AdjustmentCardItem[];
-  open: OpenAdjustmentProps | null;
-}) {
-  if (props.open) return <OpenAdjustment {...props} open={props.open} />;
-  if (!props.proposable || !props.canManage) return null;
-  return <ProposeForm {...props} />;
 }
 
-function ProposeForm({
+/**
+ * Tariff change form (reduced → normal price): shown in a dialog of the order page. Only offered
+ * for PAID orders without an open additional payment to FINANCE / EVENT_MANAGER.
+ */
+export function TariffChangeForm({
   orderId,
   version,
   currency,
@@ -91,19 +66,14 @@ function ProposeForm({
   credit,
   canUseCredit,
   items,
-}: {
-  orderId: string;
-  version: number;
-  currency: string;
-  hasEmail: boolean;
-  credit: number;
-  canUseCredit: boolean;
-  items: AdjustmentCardItem[];
-}) {
+  onSuccess,
+}: TariffChangeProps & { onSuccess?: () => void }) {
   const t = useTranslations('orders.admin.adjustment');
   const format = useFormatter();
-  const [state, action] = useActionState(proposeTariffChangeAction.bind(null, orderId), IDLE);
-  useFeedback(state);
+  const [, action] = useClosingOrderAction(
+    proposeTariffChangeAction.bind(null, orderId),
+    onSuccess,
+  );
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [confirmed, setConfirmed] = useState(false);
   const money = (cents: number) => format.number(cents / 100, { style: 'currency', currency });
@@ -121,99 +91,97 @@ function ProposeForm({
   const anyPicked = Object.values(picked).some(Boolean);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{t('title')}</CardTitle>
-        <CardDescription>{t('description')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {selectable.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('noOptions')}</p>
-        ) : (
-          <ActionForm action={action} className="space-y-3">
-            <input type="hidden" name="version" value={version} />
-            {selectable.map((item) => (
-              <div key={item.id} className="space-y-1.5">
-                <Label htmlFor={`adj-${item.id}`} className="block leading-snug">
-                  {item.label}
-                  <span className="block text-xs font-normal text-muted-foreground">
-                    {item.detail}
-                  </span>
-                </Label>
-                <select
-                  id={`adj-${item.id}`}
-                  name={`change:${item.id}`}
-                  value={picked[item.id] ?? ''}
-                  onChange={(e) => setPicked((p) => ({ ...p, [item.id]: e.target.value }))}
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                >
-                  <option value="">{t('keep')}</option>
-                  {item.options.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name} · {money(o.priceGross)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-            <div className="space-y-1.5">
-              <Label htmlFor="adj-reason">{t('reason')}</Label>
-              <Input id="adj-reason" name="reason" maxLength={500} placeholder={t('reasonHint')} />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="adj-notify"
-                name="notify"
-                defaultChecked={hasEmail}
-                checked={mailForced && hasEmail ? true : undefined}
-                disabled={!hasEmail || mailForced}
-              />
-              <Label htmlFor="adj-notify">
-                {hasEmail ? (mailForced ? t('notifyForced') : t('notify')) : t('noEmail')}
+    <div>
+      {selectable.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('noOptions')}</p>
+      ) : (
+        <ActionForm action={action} className="space-y-3">
+          <input type="hidden" name="version" value={version} />
+          {selectable.map((item) => (
+            <div key={item.id} className="space-y-1.5">
+              <Label htmlFor={`adj-${item.id}`} className="block leading-snug">
+                {item.label}
+                <span className="block text-xs font-normal text-muted-foreground">
+                  {item.detail}
+                </span>
               </Label>
+              <select
+                id={`adj-${item.id}`}
+                name={`change:${item.id}`}
+                value={picked[item.id] ?? ''}
+                onChange={(e) => setPicked((p) => ({ ...p, [item.id]: e.target.value }))}
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              >
+                <option value="">{t('keep')}</option>
+                {item.options.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name} · {money(o.priceGross)}
+                  </option>
+                ))}
+              </select>
             </div>
-            {anyPicked && (
-              <div className="space-y-0.5 rounded-md bg-muted px-3 py-2 text-sm">
-                <p>{t('summary', { amount: money(additional) })}</p>
-                {credit > 0 && (
-                  <>
-                    <p>{t('summaryCredit', { credit: money(creditUsed) })}</p>
-                    <p className="font-medium">
-                      {rest === 0
-                        ? t('summaryNothingToPay')
-                        : t('summaryRest', { amount: money(rest) })}
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="adj-confirmed"
-                name="confirmed"
-                checked={confirmed}
-                onCheckedChange={(v) => setConfirmed(v === true)}
-              />
-              <Label htmlFor="adj-confirmed" className="text-sm font-normal leading-snug">
-                {t('confirm')}
-              </Label>
+          ))}
+          <div className="space-y-1.5">
+            <Label htmlFor="adj-reason">{t('reason')}</Label>
+            <Input id="adj-reason" name="reason" maxLength={500} placeholder={t('reasonHint')} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="adj-notify"
+              name="notify"
+              defaultChecked={hasEmail}
+              checked={mailForced && hasEmail ? true : undefined}
+              disabled={!hasEmail || mailForced}
+            />
+            <Label htmlFor="adj-notify">
+              {hasEmail ? (mailForced ? t('notifyForced') : t('notify')) : t('noEmail')}
+            </Label>
+          </div>
+          {anyPicked && (
+            <div className="space-y-0.5 rounded-md bg-muted px-3 py-2 text-sm">
+              <p>{t('summary', { amount: money(additional) })}</p>
+              {credit > 0 && (
+                <>
+                  <p>{t('summaryCredit', { credit: money(creditUsed) })}</p>
+                  <p className="font-medium">
+                    {rest === 0
+                      ? t('summaryNothingToPay')
+                      : t('summaryRest', { amount: money(rest) })}
+                  </p>
+                </>
+              )}
             </div>
-            {blockedCredit && (
-              <p className="rounded-md bg-warning-soft px-3 py-2 text-xs text-warning">
-                {t('creditFinanceOnly', { credit: money(credit) })}
-              </p>
-            )}
-            <SubmitButton size="sm" disabled={!anyPicked || !confirmed || blockedCredit}>
-              {t('submit')}
-            </SubmitButton>
-          </ActionForm>
-        )}
-      </CardContent>
-    </Card>
+          )}
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="adj-confirmed"
+              name="confirmed"
+              checked={confirmed}
+              onCheckedChange={(v) => setConfirmed(v === true)}
+            />
+            <Label htmlFor="adj-confirmed" className="text-sm font-normal leading-snug">
+              {t('confirm')}
+            </Label>
+          </div>
+          {blockedCredit && (
+            <p className="rounded-md bg-warning-soft px-3 py-2 text-xs text-warning">
+              {t('creditFinanceOnly', { credit: money(credit) })}
+            </p>
+          )}
+          <SubmitButton size="sm" disabled={!anyPicked || !confirmed || blockedCredit}>
+            {t('submit')}
+          </SubmitButton>
+        </ActionForm>
+      )}
+    </div>
   );
 }
 
-function OpenAdjustment({
+/**
+ * The open additional payment of an order (a state, shown in the main column): figures, record
+ * the payment (FINANCE), cancel the request (FINANCE / EVENT_MANAGER).
+ */
+export function OpenAdjustmentCard({
   currency,
   canManage,
   canRecordPayment,
@@ -231,16 +199,9 @@ function OpenAdjustment({
   // Overpayment beyond what this open request already uses.
   const credit = Math.max(0, totalCredit - open.creditApplied);
   const format = useFormatter();
-  const [cancelState, cancelAction] = useActionState(
-    cancelAdjustmentAction.bind(null, open.id),
-    IDLE,
-  );
-  const [payState, payAction] = useActionState(
-    recordAdjustmentPaymentAction.bind(null, open.id),
-    IDLE,
-  );
-  useFeedback(cancelState);
-  useFeedback(payState);
+  // Toasted in the action callback: a successful action resolves the request and the card unmounts.
+  const [, cancelAction] = useClosingOrderAction(cancelAdjustmentAction.bind(null, open.id));
+  const [, payAction] = useClosingOrderAction(recordAdjustmentPaymentAction.bind(null, open.id));
   const money = (cents: number) => format.number(cents / 100, { style: 'currency', currency });
   const date = (iso: string) =>
     format.dateTime(new Date(iso), { dateStyle: 'medium', timeStyle: 'short' });

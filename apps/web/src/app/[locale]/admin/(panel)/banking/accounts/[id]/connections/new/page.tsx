@@ -5,16 +5,14 @@ import {
   germanAccountFromIban,
   type SupportedBankAdapter,
 } from '@tix/shared';
-import { ArrowLeft } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import {
   ConnectionForm,
   type ConnectionFormValues,
 } from '@/components/admin/banking/connection-form';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Link } from '@/i18n/navigation';
+import { BankingPage } from '@/components/admin/banking/banking-page';
+import { Card, CardContent } from '@/components/ui/card';
 import { resolveLocale } from '@/i18n/locale';
 import { requireAdmin } from '@/server/auth';
 import { saveBankConnectionAction } from '@/server/admin/banking-actions';
@@ -92,17 +90,15 @@ export default async function NewConnectionPage({
   if (!data) notFound();
   const adapterName = t(`adapter.${adapter}`);
   return (
-    <>
-      <Button asChild variant="ghost" size="sm">
-        <Link href={`/admin/banking/accounts/${id}`}>
-          <ArrowLeft /> {t('connection.backToAccount')}
-        </Link>
-      </Button>
+    <BankingPage
+      title={t('connection.newTitle', { adapter: adapterName })}
+      description={t(`adapterHint.${adapter}`)}
+      trail={[
+        { label: t('accounts.title'), href: '/admin/banking/accounts' },
+        { label: data.account.name, href: `/admin/banking/accounts/${id}` },
+      ]}
+    >
       <Card className="max-w-4xl">
-        <CardHeader>
-          <CardTitle>{t('connection.newTitle', { adapter: adapterName })}</CardTitle>
-          <p className="text-sm text-muted-foreground">{t(`adapterHint.${adapter}`)}</p>
-        </CardHeader>
         <CardContent>
           <ConnectionForm
             adapter={adapter}
@@ -119,6 +115,6 @@ export default async function NewConnectionPage({
           />
         </CardContent>
       </Card>
-    </>
+    </BankingPage>
   );
 }

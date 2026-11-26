@@ -20,7 +20,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * Shop header entry for signed-in admin users: "To dashboard" plus a menu of the admin pages
- * this user may open (labels are translated on the server; the role filter is `allowedNavKeys`).
+ * this user may open: the admin sidebar's top-level entries (labels are translated on the server;
+ * the role filter is `allowedSidebarItems`).
  * `entries` is empty while the forced two-factor setup is open: the button then leads to the
  * account page where the setup happens.
  */
@@ -33,7 +34,7 @@ export function AdminMenu({
   showTheme = false,
 }: {
   label: string;
-  entries: { key: NavKey; label: string }[];
+  entries: { key: NavKey; label: string; href: string }[];
   setupRequired: boolean;
   signOutLabel: string;
   /** Super-admins only: switch to experience the waiting room like a customer. */
@@ -84,8 +85,8 @@ export function AdminMenu({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-52">
-            {entries.map(({ key, label: entryLabel }) => {
-              const { href, icon: Icon } = NAV_ITEMS[key];
+            {entries.map(({ key, label: entryLabel, href }) => {
+              const { icon: Icon } = NAV_ITEMS[key];
               return (
                 <DropdownMenuItem key={key} asChild>
                   <Link href={href}>

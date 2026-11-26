@@ -241,7 +241,6 @@
       "confirmDelete": "Dieses Design löschen? Veranstaltungen und Kategorien, die es nutzen, fallen auf die nächste Ebene zurück."
     },
     "usageCount": "{count, plural, =0 {nicht verwendet} one {# Veranstaltung / Kategorie} other {# Veranstaltungen / Kategorien}}",
-    "back": "Alle Designs",
     "editorTitle": "Design: {name}",
     "editorDescription": "Felder auf der Seite verschieben, rechts die Eigenschaften bearbeiten und unten die PDF-Vorschau prüfen."
   },

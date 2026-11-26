@@ -1,6 +1,7 @@
 import { listEmailTemplates, EMAIL_TEMPLATE_LOCALES } from '@tix/core';
 import { getTranslations } from 'next-intl/server';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader } from '@/components/admin/page-header';
+import { hubBreadcrumbs } from '@/server/admin/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,7 +37,11 @@ export default async function EmailTemplatesPage({
 
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
+      <AdminPageHeader
+        breadcrumbs={await hubBreadcrumbs('design')}
+        title={t('title')}
+        description={t('description')}
+      />
       <div className="p-6">
         <Card>
           <CardContent className="pt-6">

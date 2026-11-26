@@ -6,13 +6,14 @@ import {
   resolveScannerServerUrl,
 } from '@tix/core';
 import { APP_VERSION } from '@tix/shared';
-import { TriangleAlert } from 'lucide-react';
+import { CalendarX2, ChevronRight, TriangleAlert } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
-import { PageHeader } from '@/components/admin/form-controls';
+import { DetailLayout, DetailSection } from '@/components/admin/detail-layout';
+import { EmptyState } from '@/components/admin/empty-state';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { ApkSection } from '@/components/admin/scanners/apk-section';
 import { PairDeviceDialog } from '@/components/admin/scanners/pair-device-dialog';
 import { ScannerDevices } from '@/components/admin/scanners/scanner-devices';
-import { SettingsSection } from '@/components/admin/settings-forms';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { resolveLocale } from '@/i18n/locale';
@@ -56,12 +57,47 @@ export default async function ScannersPage({ params }: { params: Promise<{ local
 
   return (
     <>
-      <PageHeader
+      <AdminPageHeader
         title={t('title')}
         description={t('description')}
         actions={canManage ? <PairDeviceDialog events={events} /> : undefined}
       />
-      <div className="space-y-6 p-6">
+      <DetailLayout
+        asideFirstOnMobile
+        aside={
+          <DetailSection
+            title={t('events.title')}
+            data-testid="scanner-events"
+            contentClassName="px-0"
+          >
+            {eventOptions.length === 0 ? (
+              <EmptyState size="sm" icon={CalendarX2} title={t('events.empty')} />
+            ) : (
+              <ul className="divide-y border-t">
+                {eventOptions.map((event) => (
+                  <li key={event.id}>
+                    <Link
+                      href={`/admin/scanners/events/${event.id}`}
+                      className="flex items-center gap-3 px-6 py-2.5 text-sm outline-none hover:bg-accent focus-visible:bg-accent"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{event.title}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {format.dateTime(event.startsAt, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          })}
+                        </span>
+                      </span>
+                      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DetailSection>
+        }
+      >
         {!server.reachableFromPhone ? (
           <Alert>
             <TriangleAlert />
@@ -91,7 +127,7 @@ export default async function ScannersPage({ params }: { params: Promise<{ local
           </Alert>
         ) : null}
 
-        <SettingsSection id="devices" title={t('devices.title')}>
+        <DetailSection title={t('devices.title')} data-testid="scanner-devices">
           <ScannerDevices
             serverVersion={APP_VERSION}
             canManage={canManage}
@@ -107,9 +143,9 @@ export default async function ScannersPage({ params }: { params: Promise<{ local
               assignments: d.assignments,
             }))}
           />
-        </SettingsSection>
+        </DetailSection>
 
-        <SettingsSection id="app" title={t('apk.title')}>
+        <DetailSection title={t('apk.title')} data-testid="scanner-app">
           <ApkSection
             canUpload={canUploadApk}
             source={scannerSettings.appUpdateSource}
@@ -127,30 +163,8 @@ export default async function ScannersPage({ params }: { params: Promise<{ local
               createdAt: r.createdAt.toISOString(),
             }))}
           />
-        </SettingsSection>
-
-        <SettingsSection id="events" title={t('events.title')}>
-          {eventOptions.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">{t('events.empty')}</p>
-          ) : (
-            <ul className="divide-y">
-              {eventOptions.map((event) => (
-                <li key={event.id} className="flex items-center justify-between gap-3 p-3 text-sm">
-                  <span>
-                    <span className="font-medium">{event.title}</span>
-                    <span className="ml-2 text-muted-foreground">
-                      {format.dateTime(event.startsAt, { dateStyle: 'medium', timeStyle: 'short' })}
-                    </span>
-                  </span>
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/admin/scanners/events/${event.id}`}>{t('events.open')}</Link>
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SettingsSection>
-      </div>
+        </DetailSection>
+      </DetailLayout>
     </>
   );
 }

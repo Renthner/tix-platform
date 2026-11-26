@@ -2,10 +2,16 @@ import { getCashUpReport, getSetting, listCashUpSellers, type CashUpTotals } fro
 import { events } from '@tix/db';
 import { buildQuery } from '@tix/shared';
 import { desc } from 'drizzle-orm';
-import { Download } from 'lucide-react';
+import { Download, Receipt } from 'lucide-react';
 import { getFormatter, getLocale, getTranslations } from 'next-intl/server';
+import {
+  AutoSubmitFallbackButton,
+  AutoSubmitForm,
+  AutoSubmitPending,
+} from '@/components/admin/auto-submit-form';
+import { EmptyState } from '@/components/admin/empty-state';
 import { FilterSelect } from '@/components/admin/filter-select';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { PrintButton } from '@/components/admin/print-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -112,7 +118,7 @@ export default async function CashUpPage({
 
   return (
     <div data-print-view>
-      <PageHeader
+      <AdminPageHeader
         title={t('title')}
         description={ownOnly ? t('ownSales') : t('description')}
         actions={
@@ -127,7 +133,7 @@ export default async function CashUpPage({
         }
       />
       <div className="space-y-4 p-6">
-        <form className="flex flex-wrap items-end gap-2" action="" method="get" data-print-hide>
+        <AutoSubmitForm className="flex flex-wrap items-end gap-2" data-print-hide>
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
             {t('filters.from')}
             <input
@@ -166,10 +172,9 @@ export default async function CashUpPage({
               options={sellers.map((s) => ({ value: s.id, label: s.name }))}
             />
           )}
-          <Button type="submit" variant="secondary">
-            {t('filters.apply')}
-          </Button>
-        </form>
+          <AutoSubmitFallbackButton>{t('filters.apply')}</AutoSubmitFallbackButton>
+          <AutoSubmitPending className="mb-2.5" />
+        </AutoSubmitForm>
 
         <p className="text-sm text-muted-foreground">
           {t('range', { from: filter.from, to: filter.to })}
@@ -178,7 +183,7 @@ export default async function CashUpPage({
         {report.lines.length === 0 ? (
           <Card>
             <CardContent>
-              <p className="py-6 text-center text-sm text-muted-foreground">{t('empty')}</p>
+              <EmptyState icon={Receipt} title={t('empty')} />
             </CardContent>
           </Card>
         ) : (

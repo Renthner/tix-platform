@@ -44,7 +44,7 @@ async function eventAdminUrl(page: Page): Promise<string> {
   const href = await link.getAttribute('href');
   const id = /\/admin\/events\/([0-9a-f-]{36})/.exec(href ?? '')?.[1];
   expect(id, 'demo event id').toBeTruthy();
-  return `/admin/events/${id}`;
+  return `/admin/events/${id}/details`;
 }
 
 test('uploaded images are served as AVIF / WebP variants and used as <picture>', async ({

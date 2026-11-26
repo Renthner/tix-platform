@@ -1,5 +1,5 @@
 import { getMessages } from 'next-intl/server';
-import { SETTINGS_TABS, type SettingsTab } from '@/lib/settings-tabs';
+import type { SettingsTab } from '@/lib/settings-tabs';
 
 /** Message paths whose texts (field labels, titles) make a settings page findable. */
 const SOURCES: Record<SettingsTab, readonly (readonly string[])[]> = {
@@ -13,6 +13,17 @@ const SOURCES: Record<SettingsTab, readonly (readonly string[])[]> = {
   sponsors: [['admin', 'settings', 'sponsors']],
   seatDisplay: [['admin', 'settings', 'seatDisplay']],
   checkout: [['admin', 'settings', 'checkout']],
+  fees: [
+    ['fees', 'title'],
+    ['fees', 'taxRates'],
+    ['fees', 'global'],
+    ['fees', 'form'],
+  ],
+  waitingRoom: [
+    ['admin', 'queue', 'globalTitle'],
+    ['admin', 'queue', 'modes'],
+    ['admin', 'queue', 'fields'],
+  ],
   waitlist: [['admin', 'settings', 'waitlist']],
   accounts: [['admin', 'settings', 'customerAccounts']],
   selfService: [['admin', 'settings', 'ticketSelfService']],
@@ -30,6 +41,7 @@ const SOURCES: Record<SettingsTab, readonly (readonly string[])[]> = {
   walletGoogle: [['admin', 'wallet', 'google']],
   scanner: [['adminSecurity', 'settings', 'scanner']],
   security: [['adminSecurity', 'settings', 'security']],
+  privacy: [['customers', 'settings']],
   monitoring: [['system', 'security']],
 };
 
@@ -55,11 +67,16 @@ function at(messages: unknown, path: readonly string[]): unknown {
   );
 }
 
-/** Searchable texts per settings page for the current locale (labels of the fields on that page). */
-export async function buildSettingsSearchIndex(): Promise<Record<string, string[]>> {
+/**
+ * Searchable texts per settings page for the current locale (labels of the fields on that page).
+ * Only for `tabs` (the pages the user may open): the index only covers pages the user may open.
+ */
+export async function buildSettingsSearchIndex(
+  tabs: readonly SettingsTab[],
+): Promise<Record<string, string[]>> {
   const messages = await getMessages();
   const index: Record<string, string[]> = {};
-  for (const tab of SETTINGS_TABS) {
+  for (const tab of tabs) {
     const texts: string[] = [];
     for (const path of SOURCES[tab]) collect(at(messages, path), texts);
     index[tab] = [...new Set(texts)];

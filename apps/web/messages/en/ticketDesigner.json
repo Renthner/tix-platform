@@ -241,7 +241,6 @@
       "confirmDelete": "Delete this design? Events and categories using it fall back to the next level."
     },
     "usageCount": "{count, plural, =0 {unused} one {# event / category} other {# events / categories}}",
-    "back": "All designs",
     "editorTitle": "Design: {name}",
     "editorDescription": "Drag fields on the page, edit their properties on the right and check the PDF preview below."
   },

@@ -13,7 +13,7 @@ const ADMIN_PAGES = [
   '/admin/banking',
   '/admin/settings',
   '/admin/scanners',
-  '/admin/waiting-room',
+  '/admin/settings/waitingRoom',
   '/admin/box-office',
   '/de/admin',
 ];

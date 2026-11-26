@@ -103,7 +103,6 @@
     "detailTitle": "Bestellung",
     "detailHeading": "Bestellung {number}",
     "customerView": "Kundenansicht",
-    "backToList": "Alle Bestellungen",
     "buyer": {
       "title": "Käufer",
       "note": "Nachricht des Käufers"
@@ -476,7 +475,8 @@
         "manualText": "Prüft jede offene PayPal-Erstattung und jede noch erstattbare PayPal-Zahlung gegen PayPal und bucht, was PayPal bereits getan hat. Abweichungen erscheinen unten in der Prüfliste.",
         "run": "Mit PayPal abgleichen",
         "runHint": "Automatische Erstattungen pausieren, bis der Abgleich abgeschlossen ist."
-      }
+      },
+      "listTitle": "Zu bearbeitende Erstattungen"
     },
     "seatChange": {
       "title": "Plätze ändern",
@@ -679,6 +679,17 @@
         "ORDER_NOT_FOUND": "Bestellung nicht gefunden",
         "INTERNAL_ERROR": "Unerwarteter Fehler"
       }
+    },
+    "actionsMenu": "Aktionen",
+    "activity": {
+      "title": "Aktivität"
+    },
+    "aside": {
+      "customer": "Kunde",
+      "customerOrders": "{count, plural, one {# Bestellung} other {# Bestellungen}} insgesamt",
+      "openCustomer": "Kunden öffnen",
+      "noCustomer": "Kein Kundendatensatz (Abendkasse oder nur Gastdaten).",
+      "events": "Veranstaltungen"
     }
   },
   "eventPayments": {

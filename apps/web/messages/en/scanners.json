@@ -124,13 +124,11 @@
   },
   "events": {
     "title": "Check-in progress per event",
-    "empty": "There are no events yet.",
-    "open": "Open"
+    "empty": "There are no events yet."
   },
   "checkIn": {
     "title": "Check-in",
     "description": "Live progress and the scan journal of this event.",
-    "backToDevices": "Check-in devices",
     "reports": {
       "title": "Reports for the door",
       "description": "Printable lists for the entrance. Test orders and cancelled orders are not included.",
@@ -301,6 +299,7 @@
     "checkOut": "Check out",
     "firstScan": "First entry: {time} at {device}",
     "firstEntry": "First entry at {device}",
+    "dismiss": "Dismiss result",
     "errors": {
       "INVALID": "The request was invalid.",
       "EVENT_NOT_ASSIGNED": "This event cannot be checked in from the web.",

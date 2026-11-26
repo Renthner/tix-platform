@@ -8,13 +8,12 @@ import {
 import { events } from '@tix/db';
 import { emailTemplateVariables } from '@tix/shared';
 import { asc, eq } from 'drizzle-orm';
-import { ChevronLeft } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { ConfirmAction } from '@/components/admin/confirm-action';
 import { EmailTemplateEditor } from '@/components/admin/email-template-editor';
 import { EmailTemplateOverrideForm } from '@/components/admin/email-template-override-form';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { resolveLocale } from '@/i18n/locale';
@@ -28,6 +27,7 @@ import {
   saveEmailTemplateAction,
   sendEmailTemplateTestAction,
 } from '@/server/admin/email-templates';
+import { NAV_HREFS } from '@/lib/admin-nav-model';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 
@@ -53,9 +53,10 @@ export default async function EditEmailTemplatePage({
   const eventId = eventParam && UUID.test(eventParam) ? eventParam : null;
 
   const core = getCore();
-  const [t, tl] = await Promise.all([
+  const [t, tl, tNav] = await Promise.all([
     getTranslations('emailTemplates'),
     getTranslations('common.locale'),
+    getTranslations('admin.nav'),
   ]);
   const [eventRow] = eventId
     ? await core.db.select({ title: events.title }).from(events).where(eq(events.id, eventId))
@@ -89,19 +90,16 @@ export default async function EditEmailTemplatePage({
 
   return (
     <>
-      <PageHeader
+      <AdminPageHeader
+        breadcrumbs={[
+          { label: tNav('design'), href: NAV_HREFS.design },
+          { label: tNav('emailTemplates'), href: NAV_HREFS.emailTemplates },
+        ]}
         title={name}
         description={
           eventRow
             ? `${t('page.overrideFor', { event: eventRow.title })} · ${localeLabel(lang)}`
             : `${t('page.global')} · ${localeLabel(lang)}`
-        }
-        actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/admin/email-templates">
-              <ChevronLeft /> {t('page.back')}
-            </Link>
-          </Button>
         }
       />
       <div className="space-y-6 p-6">

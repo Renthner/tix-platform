@@ -6,6 +6,7 @@ import { resolveLocale } from '@/i18n/locale';
 import { notFound } from 'next/navigation';
 import { translationCompleteness, translationLocales } from '@tix/shared';
 import { SeatMapEditorLoader } from '@/components/seatmap-editor/loader';
+import { NAV_HREFS } from '@/lib/admin-nav-model';
 import { requireAdmin } from '@/server/auth';
 import { getBaseContentLocale, getEditLocale } from '@/server/admin/edit-locale';
 import { getCore } from '@/server/core';
@@ -35,6 +36,8 @@ export default async function SeatMapEditorPage({
     .where(eq(venues.id, meta.venueId));
   let title = venue?.name ?? '';
   let backHref = `/admin/venues/${meta.venueId}`;
+  const tNav = await getTranslations('admin.nav');
+  let parent: { label: string; href: string } = { label: tNav('venues'), href: NAV_HREFS.venues };
   let categories: { id: string; name: string; color: string }[] = [];
   if (meta.eventId) {
     const [event] = await db
@@ -42,7 +45,8 @@ export default async function SeatMapEditorPage({
       .from(events)
       .where(eq(events.id, meta.eventId));
     title = event?.title ?? title;
-    backHref = `/admin/events/${meta.eventId}`;
+    backHref = `/admin/events/${meta.eventId}/seating`;
+    parent = { label: tNav('events'), href: NAV_HREFS.events };
     categories = await db
       .select({ id: priceCategories.id, name: priceCategories.name, color: priceCategories.color })
       .from(priceCategories)
@@ -95,6 +99,7 @@ export default async function SeatMapEditorPage({
       categories={categories}
       title={title}
       backHref={backHref}
+      parent={parent}
     />
   );
 }

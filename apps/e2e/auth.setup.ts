@@ -11,7 +11,7 @@ setup('sign in as admin', async ({ page }) => {
   await page.locator('input[type=password]').fill(ADMIN_PASSWORD);
   await page.locator('button[type=submit]').click();
   await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 30_000 });
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
   mkdirSync(path.dirname(AUTH_FILE), { recursive: true });
   await page.context().storageState({ path: AUTH_FILE });
 });

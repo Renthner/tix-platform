@@ -19,31 +19,43 @@ import { ActionFeedback, ActionForm, Field, SubmitButton, errorOf } from './form
 
 type Action = (state: ActionState, fd: FormData) => Promise<ActionState>;
 
-/** "Duplicate event" dialog: title, start (event time zone) and optional slug. */
+/**
+ * "Duplicate event" dialog: title, start (event time zone) and optional slug. With `open` and
+ * `onOpenChange` it is controlled and renders no trigger button (opened from a menu item).
+ */
 export function EventDuplicateDialog({
   action,
   title,
   startsAt,
   size = 'default',
+  open: controlledOpen,
+  onOpenChange,
 }: {
   action: Action;
   title: string;
   /** Source start as datetime-local value in the event's time zone. */
   startsAt: string;
   size?: 'default' | 'sm';
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const t = useTranslations('admin.events.duplicate');
   const tc = useTranslations('common.actions');
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : ownOpen;
+  const setOpen = (next: boolean) => (controlled ? onOpenChange?.(next) : setOwnOpen(next));
   const [state, formAction] = useActionState(action, IDLE);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button type="button" variant="outline" size={size}>
-          <Copy /> {t('button')}
-        </Button>
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          <Button type="button" variant="outline" size={size}>
+            <Copy /> {t('button')}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('title')}</DialogTitle>

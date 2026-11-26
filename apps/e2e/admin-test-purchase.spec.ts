@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clickableSeatIds, clickSeat, EVENT_SLUG } from './helpers';
+import { clickableSeatIds, clickSeat, EVENT_SLUG, openEventDuplicateDialog } from './helpers';
 
 /**
  * A super-admin test-buys on a DRAFT event: the draft is invisible (404) for everybody else, the
@@ -26,13 +26,25 @@ async function demoEventId(page: Page): Promise<string> {
 test('a draft event is created and offers "Test in shop" to the super-admin', async ({ page }) => {
   const id = await demoEventId(page);
   await page.goto(`/admin/events/${id}`);
-  await page.getByRole('button', { name: 'Duplicate' }).click();
+  await openEventDuplicateDialog(page);
   const dialog = page.getByRole('dialog');
   await dialog.locator('#dupTitle').fill(TITLE);
   await dialog.locator('#dupSlug').fill(SLUG);
   await dialog.getByRole('button', { name: 'Duplicate', exact: true }).click();
   await page.waitForURL(/\/admin\/events\/[0-9a-f-]{36}\?duplicated/, { timeout: 30_000 });
-  await expect(page.getByRole('link', { name: 'Test in shop' })).toBeVisible();
+  // Quick link on the overview and an entry of the header's actions menu.
+  await expect(
+    page.getByTestId('event-overview').getByRole('link', { name: 'Test in shop' }),
+  ).toBeVisible();
+  await expect(async () => {
+    // Only open it when closed: a retry must not close the menu an earlier attempt opened.
+    if (!(await page.getByRole('menu').isVisible()))
+      await page.getByTestId('event-actions').click();
+    await expect(page.getByRole('menuitem', { name: 'Test in shop' })).toBeVisible({
+      timeout: 2_000,
+    });
+  }).toPass({ timeout: 20_000 });
+  await page.keyboard.press('Escape');
 });
 
 test('the draft is a 404 for anonymous visitors and absent from home and sitemap', async ({

@@ -5,9 +5,13 @@ import type { ReactNode } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePathname } from '@/i18n/navigation';
 
-/** Tabs (path segment after the event id) that have translatable texts. */
+/**
+ * Pages (path segment after the event id) that have translatable texts. The overview ('') has
+ * none but stays visible: it is the landing page of the event and only shows figures and links.
+ */
 const TRANSLATABLE_SEGMENTS = new Set([
   '',
+  'details',
   'pricing',
   'fees',
   'shop-page',

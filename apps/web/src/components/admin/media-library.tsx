@@ -2,7 +2,7 @@
 
 import type { MediaUsageType } from '@tix/core';
 import { isPublicMediaKind, type MediaAssetKind } from '@tix/shared';
-import { Check, Copy, Download, ExternalLink, Trash2, Upload } from 'lucide-react';
+import { Check, Copy, Download, ExternalLink, ImageOff, Trash2, Upload } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -23,6 +23,7 @@ import { Link } from '@/i18n/navigation';
 import { formatBytes } from '@/lib/bytes';
 import { IDLE, type ActionState } from '@/lib/action-state';
 import { ConfirmAction } from './confirm-action';
+import { EmptyState } from './empty-state';
 import {
   ActionFeedback,
   ActionForm,
@@ -59,7 +60,7 @@ export interface MediaCard {
 export function MediaGrid({ items }: { items: MediaCard[] }) {
   const t = useTranslations('admin.mediaLibrary');
   const format = useFormatter();
-  if (items.length === 0) return <p className="text-sm text-muted-foreground">{t('empty')}</p>;
+  if (items.length === 0) return <EmptyState icon={ImageOff} title={t('empty')} />;
   return (
     <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {items.map((m) => {

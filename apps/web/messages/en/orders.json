@@ -103,7 +103,6 @@
     "detailTitle": "Order",
     "detailHeading": "Order {number}",
     "customerView": "Customer view",
-    "backToList": "All orders",
     "buyer": {
       "title": "Buyer",
       "note": "Note from the buyer"
@@ -476,7 +475,8 @@
         "manualText": "Checks every open PayPal refund and every PayPal payment that can still be refunded against PayPal and books what PayPal already did. Differences end up in the review list below.",
         "run": "Reconcile with PayPal",
         "runHint": "Automatic refunds pause until the comparison is done."
-      }
+      },
+      "listTitle": "Refunds to process"
     },
     "seatChange": {
       "title": "Change seats",
@@ -679,6 +679,17 @@
         "ORDER_NOT_FOUND": "Order not found",
         "INTERNAL_ERROR": "Unexpected error"
       }
+    },
+    "actionsMenu": "Actions",
+    "activity": {
+      "title": "Activity"
+    },
+    "aside": {
+      "customer": "Customer",
+      "customerOrders": "{count, plural, one {# order} other {# orders}} in total",
+      "openCustomer": "Open customer",
+      "noCustomer": "No customer record (box office or guest data only).",
+      "events": "Events"
     }
   },
   "eventPayments": {

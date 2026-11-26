@@ -305,5 +305,6 @@
     "code": "Authenticator or recovery code",
     "passkeyHint": "Instead of a code you can confirm with your passkey.",
     "passkeySubmit": "Enable with passkey"
-  }
+  },
+  "monitoringSettings": "Monitoring settings"
 }

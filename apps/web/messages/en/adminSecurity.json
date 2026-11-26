@@ -128,7 +128,8 @@
     "passkeys": {
       "title": "Passkeys",
       "description": "Sign in with fingerprint, face, a device PIN or a security key instead of a password. A passkey counts as your second factor."
-    }
+    },
+    "sectionsLabel": "On this page"
   },
   "twoFactor": {
     "recoveryTitle": "Recovery codes",
@@ -161,7 +162,6 @@
   "users": {
     "title": "Users",
     "description": "Admin Portal accounts, roles and invitations.",
-    "back": "All users",
     "columns": {
       "name": "Name",
       "roles": "Roles",
@@ -197,7 +197,8 @@
       "displayName": "Name",
       "email": "E-mail",
       "submit": "Send invitation",
-      "sending": "Sending…"
+      "sending": "Sending…",
+      "open": "Invite user"
     },
     "edit": {
       "title": "Name and roles",
@@ -217,13 +218,20 @@
       "confirmDeleteInvite": "Delete this invitation?",
       "unlock": "Unlock",
       "signOutAll": "Sign out everywhere",
-      "confirmSignOutAll": "End all sessions of this user? They have to sign in again on every device."
+      "confirmSignOutAll": "End all sessions of this user? They have to sign in again on every device.",
+      "menu": "Actions"
     },
     "activity": {
       "title": "Sign-in activity",
       "lastSignIn": "Last sign-in",
       "lastIp": "IP address of the last sign-in",
       "activeSessions": "Active sessions"
+    },
+    "tabsLabel": "Filter by status",
+    "empty": "No users yet.",
+    "detail": {
+      "email": "E-mail",
+      "createdAt": "Created"
     }
   },
   "settings": {

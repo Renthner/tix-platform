@@ -1,13 +1,42 @@
 'use client';
 
 import { ADMIN_ROLES, type AdminRole } from '@tix/shared';
+import {
+  ChevronDown,
+  KeyRound,
+  LogOut,
+  Mail,
+  Trash2,
+  Unlock,
+  UserCheck,
+  UserPlus,
+  UserX,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
+import { useActionState, useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import {
+  ActionPendingContext,
+  useReportActionPending,
+} from '@/components/admin/action-dialog-pending';
 import { ErrorAlert } from '@/components/admin/auth/password-link-forms';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import { ActionForm, Field, SubmitButton } from '@/components/admin/form-controls';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { SECURITY_IDLE, type SecurityState } from '@/lib/security-state';
 import type { UserOperation } from '@/server/admin/users';
@@ -48,15 +77,34 @@ function RoleChecks({ defaultRoles }: { defaultRoles: readonly AdminRole[] }) {
   );
 }
 
-export function InviteUserForm({ action }: { action: Action }) {
+export function InviteUserForm({
+  action,
+  onSuccess,
+}: {
+  action: Action;
+  /** Runs once per successful invitation (e.g. closes the surrounding dialog). */
+  onSuccess?: () => void;
+}) {
   const t = useTranslations('adminSecurity.users.invite');
-  const [state, formAction] = useActionState(action, SECURITY_IDLE);
+  const [state, formAction, pending] = useActionState(action, SECURITY_IDLE);
   useSuccessToast(state);
+  // Inside a dialog host: the dialog cannot be closed while the invitation is being sent.
+  useReportActionPending(pending);
+  const lastSuccess = useRef<number | null>(null);
+  const onSuccessRef = useRef(onSuccess);
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  });
+  useEffect(() => {
+    if (state.status !== 'success' || state.at === lastSuccess.current) return;
+    lastSuccess.current = state.at;
+    onSuccessRef.current?.();
+  }, [state]);
   return (
     <ActionForm
       action={formAction}
       resetOnSuccess={state.status === 'success' ? { status: 'success', at: state.at } : undefined}
-      className="max-w-md space-y-4"
+      className="space-y-4"
     >
       <ErrorAlert state={state} />
       <Field label={t('displayName')} htmlFor="invite-name">
@@ -68,6 +116,77 @@ export function InviteUserForm({ action }: { action: Action }) {
       <RoleChecks defaultRoles={['EVENT_MANAGER']} />
       <SubmitButton pendingLabel={t('sending')}>{t('submit')}</SubmitButton>
     </ActionForm>
+  );
+}
+
+/**
+ * Dialog shell whose form reports its pending state (`ActionPendingContext`): while the request
+ * runs, Escape, overlay clicks and the close button are ignored.
+ */
+function PendingLockDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  testId,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: ReactNode;
+  description?: ReactNode;
+  testId: string;
+  children: ReactNode;
+}) {
+  const [pending, setPending] = useState(false);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && pending) return;
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+        data-testid={testId}
+        showCloseButton={!pending}
+        onEscapeKeyDown={(e) => {
+          if (pending) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (pending) e.preventDefault();
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {description && <DialogDescription>{description}</DialogDescription>}
+        </DialogHeader>
+        <ActionPendingContext.Provider value={setPending}>{children}</ActionPendingContext.Provider>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** "Invite user" header button; the form opens in a dialog that closes after a successful send. */
+export function InviteUserDialog({ action }: { action: Action }) {
+  const t = useTranslations('adminSecurity.users.invite');
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button type="button" onClick={() => setOpen(true)} data-testid="users-invite">
+        <UserPlus /> {t('open')}
+      </Button>
+      <PendingLockDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={t('title')}
+        description={t('description')}
+        testId="users-invite-dialog"
+      >
+        <InviteUserForm action={action} onSuccess={() => setOpen(false)} />
+      </PendingLockDialog>
+    </>
   );
 }
 
@@ -102,8 +221,15 @@ export function EditUserForm({
   );
 }
 
-/** Row of single-click operations; destructive ones ask for confirmation. */
-export function UserOperations({
+type Asking = { operation: UserOperation; confirmKey: string; labelKey: string };
+
+/**
+ * Header actions of the user detail page: the one operation that matters in the account's state
+ * as a button (resend invitation, unlock or reactivate) and an "Actions" menu with the others
+ * (destructive deletion last, in red). Confirmations use a dialog outside the (non-modal) menu.
+ * Errors are reported as a toast; the controls are disabled while an operation runs.
+ */
+export function UserHeaderActions({
   userId,
   isActive,
   invitePending,
@@ -126,85 +252,111 @@ export function UserOperations({
   run: (id: string, op: UserOperation) => Promise<SecurityState>;
 }) {
   const t = useTranslations('adminSecurity.users.operations');
+  const tErrors = useTranslations('adminSecurity.errors');
   const [state, setState] = useState<SecurityState>(SECURITY_IDLE);
   const [pending, startTransition] = useTransition();
   useSuccessToast(state);
+  const lastError = useRef<number | null>(null);
+  useEffect(() => {
+    if (state.status !== 'error' || state.at === lastError.current) return;
+    lastError.current = state.at;
+    toast.error(tErrors(state.code, { min: state.min ?? 0 }));
+  }, [state, tErrors]);
 
-  const [asking, setAsking] = useState<{
-    operation: UserOperation;
-    confirmKey: string;
-    labelKey: string;
-  } | null>(null);
+  const [asking, setAsking] = useState<Asking | null>(null);
+  // Set when the menu closes because a dialog opens: the focus then goes to the dialog.
+  const openingDialog = useRef(false);
+  const actionsTrigger = useRef<HTMLButtonElement>(null);
 
   const execute = (operation: UserOperation) =>
     startTransition(async () => setState(await run(userId, operation)));
-  const op = (operation: UserOperation, confirmKey?: string) => () => {
-    if (confirmKey) setAsking({ operation, confirmKey, labelKey: operation });
-    else execute(operation);
+  const ask = (operation: UserOperation, confirmKey: string) => {
+    openingDialog.current = true;
+    setAsking({ operation, confirmKey, labelKey: operation });
   };
 
+  // The one state-driven primary action (same visibility rules as before).
+  const primary: UserOperation | null =
+    invitePending && isActive ? 'resendInvite' : locked ? 'unlock' : !isActive ? 'activate' : null;
+  const primaryIcon = { resendInvite: Mail, unlock: Unlock, activate: UserCheck } as const;
+
+  const items: { op: UserOperation; confirmKey?: string; icon: typeof Mail; testId?: string }[] =
+    [];
+  if (invitePending && isActive && primary !== 'resendInvite')
+    items.push({ op: 'resendInvite', icon: Mail });
+  if (locked && primary !== 'unlock') items.push({ op: 'unlock', icon: Unlock });
+  if (!isActive && primary !== 'activate') items.push({ op: 'activate', icon: UserCheck });
+  if (hasTwoFactor)
+    items.push({ op: 'resetTwoFactor', confirmKey: 'confirmResetTwoFactor', icon: KeyRound });
+  if (!self && activeSessions > 0)
+    items.push({
+      op: 'signOutAll',
+      confirmKey: 'confirmSignOutAll',
+      icon: LogOut,
+      testId: 'user-sign-out-all',
+    });
+  if (isActive && !self)
+    items.push({ op: 'deactivate', confirmKey: 'confirmDeactivate', icon: UserX });
+
+  const PrimaryIcon = primary ? primaryIcon[primary as keyof typeof primaryIcon] : null;
+
   return (
-    <div className="space-y-3">
-      <ErrorAlert state={state} />
-      <div className="flex flex-wrap gap-2">
-        {invitePending && isActive && (
-          <Button type="button" variant="outline" disabled={pending} onClick={op('resendInvite')}>
-            {t('resendInvite')}
-          </Button>
-        )}
-        {isActive ? (
-          !self && (
+    <>
+      {primary && PrimaryIcon && (
+        <Button
+          type="button"
+          disabled={pending}
+          onClick={() => execute(primary)}
+          data-testid={`user-${primary}`}
+        >
+          <PrimaryIcon /> {t(primary as 'unlock')}
+        </Button>
+      )}
+      {(items.length > 0 || canDeleteInvite) && (
+        // Not modal: a modal menu that closes while a dialog opens can leave the page inert.
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
             <Button
+              ref={actionsTrigger}
               type="button"
               variant="outline"
               disabled={pending}
-              onClick={op('deactivate', 'confirmDeactivate')}
+              data-testid="user-actions"
             >
-              {t('deactivate')}
+              {t('menu')} <ChevronDown />
             </Button>
-          )
-        ) : (
-          <Button type="button" variant="outline" disabled={pending} onClick={op('activate')}>
-            {t('activate')}
-          </Button>
-        )}
-        {locked && (
-          <Button type="button" variant="outline" disabled={pending} onClick={op('unlock')}>
-            {t('unlock')}
-          </Button>
-        )}
-        {hasTwoFactor && (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={pending}
-            onClick={op('resetTwoFactor', 'confirmResetTwoFactor')}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="min-w-56"
+            onCloseAutoFocus={(e) => {
+              if (openingDialog.current) e.preventDefault();
+              openingDialog.current = false;
+            }}
           >
-            {t('resetTwoFactor')}
-          </Button>
-        )}
-        {!self && activeSessions > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={pending}
-            onClick={op('signOutAll', 'confirmSignOutAll')}
-            data-testid="user-sign-out-all"
-          >
-            {t('signOutAll')}
-          </Button>
-        )}
-        {canDeleteInvite && (
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={pending}
-            onClick={op('deleteInvite', 'confirmDeleteInvite')}
-          >
-            {t('deleteInvite')}
-          </Button>
-        )}
-      </div>
+            {items.map(({ op, confirmKey, icon: Icon, testId }) => (
+              <DropdownMenuItem
+                key={op}
+                data-testid={testId}
+                onSelect={() => (confirmKey ? ask(op, confirmKey) : execute(op))}
+              >
+                <Icon /> {t(op as 'unlock')}
+              </DropdownMenuItem>
+            ))}
+            {canDeleteInvite && (
+              <>
+                {items.length > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => ask('deleteInvite', 'confirmDeleteInvite')}
+                >
+                  <Trash2 /> {t('deleteInvite')}
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       <ConfirmDialog
         open={asking !== null}
         onOpenChange={(open) => {
@@ -215,7 +367,12 @@ export function UserOperations({
         onConfirm={() => {
           if (asking) execute(asking.operation);
         }}
+        onCloseAutoFocus={(e) => {
+          // The menu item is gone: the focus returns to the "Actions" button.
+          e.preventDefault();
+          actionsTrigger.current?.focus();
+        }}
       />
-    </div>
+    </>
   );
 }

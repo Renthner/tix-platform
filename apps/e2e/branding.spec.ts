@@ -246,7 +246,10 @@ test.describe.serial('brand colour, theme mode, logo and sponsors', () => {
     const adminPage = await admin.newPage();
     await adminPage.goto('/admin');
     expect(await isDark(adminPage)).toBe(false);
-    await expect(adminPage.getByTestId('theme-switcher').first()).toBeVisible();
+    // The admin keeps its theme choice (in the user menu).
+    await adminPage.getByTestId('admin-user-menu').click();
+    await expect(adminPage.getByRole('menuitemradio', { name: 'Dark' })).toBeVisible();
+    await adminPage.keyboard.press('Escape');
     // Soft navigation shop -> admin keeps working (area is re-evaluated on the client).
     await adminPage.goto('/');
     expect(await isDark(adminPage)).toBe(true);

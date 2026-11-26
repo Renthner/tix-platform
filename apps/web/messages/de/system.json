@@ -305,5 +305,6 @@
     "code": "Authenticator- oder Wiederherstellungscode",
     "passkeyHint": "Statt eines Codes kannst du mit deinem Passkey bestätigen.",
     "passkeySubmit": "Mit Passkey aktivieren"
-  }
+  },
+  "monitoringSettings": "Monitoring-Einstellungen"
 }

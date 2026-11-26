@@ -27,6 +27,7 @@ import { getSetting } from './settings';
  * Scope: events whose status is in the (per-admin) status filter; running / upcoming ones
  * (PUBLISHED, POSTPONED) only until one day after their start. The overview aggregates every
  * matching event, the cards are capped (`maxEvents`, ordered by the admin's saved card order).
+ * Test orders (`orders.is_test`) are left out of every figure: money, inventory and check-in.
  */
 
 export interface DashboardKpis {
@@ -44,6 +45,11 @@ export interface DashboardInventory {
   locked: number;
   available: number;
   blocked: number;
+  /**
+   * Places occupied by (non-cancelled) test orders: not sold, not reserved, but not available
+   * either. Test orders are left out of every figure (`orders.is_test`).
+   */
+  testHeld: number;
   capacity: number;
 }
 
@@ -120,6 +126,7 @@ const zeroInventory = (): DashboardInventory => ({
   locked: 0,
   available: 0,
   blocked: 0,
+  testHeld: 0,
   capacity: 0,
 });
 
@@ -248,11 +255,14 @@ export async function getDashboardData(
     tasks.push(
       (async () => {
         const counts = (
-          await ctx.db.execute<{ event_id: string; status: string; n: number }>(sql`
-            SELECT event_id, status, COUNT(*)::int AS n FROM order_items
-            WHERE status IN ('PENDING','CONFIRMED') AND event_id IN (${scope})
-            GROUP BY event_id, status
-          `)
+          await ctx.db.execute<{ event_id: string; status: string; is_test: boolean; n: number }>(
+            sql`
+            SELECT i.event_id, i.status, o.is_test, COUNT(*)::int AS n
+            FROM order_items i JOIN orders o ON o.id = i.order_id
+            WHERE i.status IN ('PENDING','CONFIRMED') AND i.event_id IN (${scope})
+            GROUP BY i.event_id, i.status, o.is_test
+          `,
+          )
         ).rows;
         const capacity = (
           await ctx.db.execute<{
@@ -276,13 +286,16 @@ export async function getDashboardData(
         const live = await ctx.seats.liveHoldCountsMany(ids);
         const soldBy = new Map<string, number>();
         const reservedBy = new Map<string, number>();
+        const testBy = new Map<string, number>();
         for (const c of counts) {
-          (c.status === 'CONFIRMED' ? soldBy : reservedBy).set(c.event_id, num(c.n));
+          const target = c.is_test ? testBy : c.status === 'CONFIRMED' ? soldBy : reservedBy;
+          target.set(c.event_id, (target.get(c.event_id) ?? 0) + num(c.n));
         }
         const capBy = new Map(capacity.map((c) => [c.event_id, c]));
         for (const [id, s] of stats) {
           const sold = soldBy.get(id) ?? 0;
           const reserved = reservedBy.get(id) ?? 0;
+          const testHeld = testBy.get(id) ?? 0;
           const cap = capBy.get(id);
           const total = num(cap?.seats) + num(cap?.standing);
           const blocked = num(cap?.blocked);
@@ -293,8 +306,9 @@ export async function getDashboardData(
             reserved,
             locked,
             blocked,
+            testHeld,
             capacity: total,
-            available: Math.max(0, total - blocked - sold - reserved - locked),
+            available: Math.max(0, total - blocked - sold - reserved - testHeld - locked),
           };
         }
       })(),
@@ -317,10 +331,11 @@ export async function getDashboardData(
       (async () => {
         const rows = (
           await ctx.db.execute<{ event_id: string; valid: number; checked_in: number }>(sql`
-            SELECT event_id, COUNT(*)::int AS valid,
-              COUNT(*) FILTER (WHERE check_in_state = 'CHECKED_IN')::int AS checked_in
-            FROM tickets WHERE status = 'VALID' AND event_id IN (${scope})
-            GROUP BY event_id
+            SELECT t.event_id, COUNT(*)::int AS valid,
+              COUNT(*) FILTER (WHERE t.check_in_state = 'CHECKED_IN')::int AS checked_in
+            FROM tickets t JOIN orders o ON o.id = t.order_id
+            WHERE t.status = 'VALID' AND NOT o.is_test AND t.event_id IN (${scope})
+            GROUP BY t.event_id
           `)
         ).rows;
         const byEvent = new Map(rows.map((r) => [r.event_id, r]));
@@ -398,6 +413,95 @@ export async function getDashboardData(
     ...(kpis ? { kpis } : {}),
     overview,
     events: cards,
+  };
+}
+
+/** Figures of one event for its admin overview page. Test orders are left out of every number. */
+export interface EventOverviewStats {
+  /**
+   * Seat inventory of real orders. `testHeld` = places occupied by (non-cancelled) test orders:
+   * they are not sold, but not available either.
+   */
+  inventory: DashboardInventory;
+  /** Gross price of confirmed tickets of real orders, in the event's currency. */
+  revenueCents: number;
+  /** Valid tickets of real orders and how many of them are checked in. */
+  checkIn: { checkedIn: number; valid: number };
+  /** Confirmed waiting-list entries (double opt-in done). */
+  waitlistConfirmed: number;
+}
+
+/**
+ * Overview figures of one event regardless of its status or date (the dashboard scope rules do not
+ * apply). Same conventions as `getDashboardData` (test orders are left out of every figure).
+ */
+export async function getEventOverviewStats(
+  ctx: CoreContext,
+  eventId: string,
+): Promise<EventOverviewStats> {
+  const [items, capacity, checkIn, waitlist, live] = await Promise.all([
+    ctx.db.execute<{ status: string; is_test: boolean; n: number; gross: string }>(sql`
+      SELECT i.status, o.is_test, COUNT(*)::int AS n, COALESCE(SUM(i.price_gross), 0) AS gross
+      FROM order_items i JOIN orders o ON o.id = i.order_id
+      WHERE i.event_id = ${eventId}::uuid AND i.status IN ('PENDING', 'CONFIRMED')
+      GROUP BY i.status, o.is_test
+    `),
+    ctx.db.execute<{ seats: number; blocked: number; standing: number }>(sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM seats s
+          WHERE s.seat_map_id = e.seat_map_id AND s.removed_at IS NULL) AS seats,
+        (SELECT COUNT(*)::int FROM seats s
+          WHERE s.seat_map_id = e.seat_map_id AND s.removed_at IS NULL
+            AND s.block_reason IS NOT NULL) AS blocked,
+        (SELECT COALESCE(SUM(m.capacity), 0)::int FROM seat_map_sections m
+          WHERE m.seat_map_id = e.seat_map_id AND m.type = 'STANDING'
+            AND m.is_active AND m.removed_at IS NULL) AS standing
+      FROM events e WHERE e.id = ${eventId}::uuid
+    `),
+    ctx.db.execute<{ valid: number; checked_in: number }>(sql`
+      SELECT COUNT(*)::int AS valid,
+        COUNT(*) FILTER (WHERE t.check_in_state = 'CHECKED_IN')::int AS checked_in
+      FROM tickets t JOIN orders o ON o.id = t.order_id
+      WHERE t.event_id = ${eventId}::uuid AND t.status = 'VALID' AND NOT o.is_test
+    `),
+    ctx.db.execute<{ n: number }>(sql`
+      SELECT COUNT(*)::int AS n FROM waitlist_entries
+      WHERE event_id = ${eventId}::uuid AND confirmed_at IS NOT NULL
+    `),
+    ctx.seats.liveHoldCountsMany([eventId]),
+  ]);
+  let sold = 0;
+  let reserved = 0;
+  let testHeld = 0;
+  let revenueCents = 0;
+  for (const r of items.rows) {
+    if (r.is_test) testHeld += num(r.n);
+    else if (r.status === 'CONFIRMED') {
+      sold += num(r.n);
+      revenueCents += num(r.gross);
+    } else reserved += num(r.n);
+  }
+  const cap = capacity.rows[0];
+  const total = num(cap?.seats) + num(cap?.standing);
+  const blocked = num(cap?.blocked);
+  const hold = live.get(eventId);
+  const locked = (hold?.seats ?? 0) + (hold?.gaSpots ?? 0);
+  return {
+    inventory: {
+      sold,
+      reserved,
+      locked,
+      blocked,
+      testHeld,
+      capacity: total,
+      available: Math.max(0, total - blocked - sold - reserved - testHeld - locked),
+    },
+    revenueCents,
+    checkIn: {
+      valid: num(checkIn.rows[0]?.valid),
+      checkedIn: num(checkIn.rows[0]?.checked_in),
+    },
+    waitlistConfirmed: num(waitlist.rows[0]?.n),
   };
 }
 

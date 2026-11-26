@@ -154,7 +154,6 @@
     }
   },
   "page": {
-    "back": "Alle Vorlagen",
     "global": "Globale Vorlage",
     "overrideFor": "Überschreibung für Veranstaltung: {event}",
     "overrideHint": "Dieser Text wird für Bestellungen dieser Veranstaltung anstelle der globalen Vorlage verwendet.",

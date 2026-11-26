@@ -22,7 +22,7 @@ test('customers list pages, searches, sorts and changes the page size on the ser
   // Search resets the page and filters by name.
   await page.goto('/admin/customers');
   await page.getByPlaceholder(/Search by name/).fill('Customer07');
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByPlaceholder(/Search by name/).press('Enter');
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toContainText('Pager Customer07');
   await expect(page.getByText('Page 1 of')).toHaveCount(0);
@@ -108,13 +108,9 @@ test('the e-mail template editor warns before leaving with unsaved changes', asy
   await expect(page).toHaveURL(/\/admin\/orders/);
 });
 
-/** The sidebar sections are collapsed accordions: open the one holding "Orders" before clicking it. */
+/** Clicks "Orders" in the sidebar (sections are always expanded). */
 async function clickOrdersLink(page: import('@playwright/test').Page): Promise<void> {
-  const link = page.locator('aside a[href$="/admin/orders"]');
-  if (!(await link.isVisible())) {
-    await page.locator('aside button[aria-expanded="false"]', { hasText: 'Sales' }).click();
-  }
-  await link.click();
+  await page.locator('aside a[href$="/admin/orders"]').click();
 }
 
 async function demoEventId(page: import('@playwright/test').Page): Promise<string> {
@@ -137,6 +133,7 @@ test('untouched guarded forms never block navigation (no false "unsaved" prompt)
     '/admin/settings/seo',
     '/admin/settings/organizer',
     `/admin/events/${id}`,
+    `/admin/events/${id}/details`,
     `/admin/events/${id}/shop-page`,
     '/admin/email-templates',
   ];

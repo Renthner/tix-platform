@@ -1,11 +1,9 @@
-import { ArrowLeft } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { CheckInPanel, type CheckInFilters } from '@/components/admin/scanners/check-in-panel';
-import { Button } from '@/components/ui/button';
 import { resolveLocale } from '@/i18n/locale';
-import { Link } from '@/i18n/navigation';
+import { hubBreadcrumbs } from '@/server/admin/breadcrumbs';
 import { getEventWithVenue } from '@/server/admin/queries';
 import { SCANNER_VIEW_ROLES } from '@/server/admin/scanners';
 import { requireAdmin } from '@/server/auth';
@@ -33,16 +31,10 @@ export default async function ScannerEventPage({
   const t = await getTranslations('scanners.checkIn');
   return (
     <>
-      <PageHeader
+      <AdminPageHeader
+        breadcrumbs={await hubBreadcrumbs('scanners')}
         title={`${t('title')}: ${row.event.title}`}
         description={t('description')}
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/admin/scanners">
-              <ArrowLeft /> {t('backToDevices')}
-            </Link>
-          </Button>
-        }
       />
       <div className="p-6">
         <CheckInPanel

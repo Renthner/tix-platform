@@ -124,13 +124,11 @@
   },
   "events": {
     "title": "Einlass-Fortschritt je Veranstaltung",
-    "empty": "Es gibt noch keine Veranstaltungen.",
-    "open": "Öffnen"
+    "empty": "Es gibt noch keine Veranstaltungen."
   },
   "checkIn": {
     "title": "Einlass",
     "description": "Live-Fortschritt und Scan-Protokoll dieser Veranstaltung.",
-    "backToDevices": "Einlass-Geräte",
     "reports": {
       "title": "Listen für den Einlass",
       "description": "Druckbare Listen für den Eingang. Testbestellungen und stornierte Bestellungen sind nicht enthalten.",
@@ -301,6 +299,7 @@
     "checkOut": "Auschecken",
     "firstScan": "Erster Einlass: {time} bei {device}",
     "firstEntry": "Erster Einlass bei {device}",
+    "dismiss": "Meldung ausblenden",
     "errors": {
       "INVALID": "Die Anfrage war ungültig.",
       "EVENT_NOT_ASSIGNED": "Für diese Veranstaltung ist kein Einlass über das Web möglich.",

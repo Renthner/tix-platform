@@ -28,6 +28,7 @@ export function ConfirmDialog({
   variant = 'destructive',
   onConfirm,
   onCancel,
+  onCloseAutoFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,6 +40,8 @@ export function ConfirmDialog({
   onConfirm: () => void;
   /** Runs when the dialog is dismissed without confirming. */
   onCancel?: () => void;
+  /** Passed to the dialog content, e.g. to move the focus somewhere when the trigger is gone. */
+  onCloseAutoFocus?: (event: Event) => void;
 }) {
   const t = useTranslations('common');
   const cancel = () => {
@@ -59,6 +62,7 @@ export function ConfirmDialog({
           e.preventDefault();
           (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-cancel]')?.focus();
         }}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <DialogTitle>{title ?? t('confirm.title')}</DialogTitle>

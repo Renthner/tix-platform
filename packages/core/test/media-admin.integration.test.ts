@@ -227,7 +227,12 @@ describe.skipIf(!adminUrl || !redisUrl)('media administration (integration)', ()
       lonely.id,
     ]);
     expect(usages.get(cover.id)).toEqual([
-      { type: 'EVENT_COVER', label: event.title, detail: null, href: `/admin/events/${event.id}` },
+      {
+        type: 'EVENT_COVER',
+        label: event.title,
+        detail: null,
+        href: `/admin/events/${event.id}/details`,
+      },
     ]);
     expect(usages.get(series.id)?.[0]?.type).toBe('SERIES_IMAGE');
     expect(usages.get(venueImg.id)?.[0]).toMatchObject({

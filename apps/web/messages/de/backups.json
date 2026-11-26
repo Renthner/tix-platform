@@ -3,7 +3,8 @@
     "driverFs": "Dateispeicher: lokales Verzeichnis {dir}",
     "driverS3": "Dateispeicher: S3-kompatibler Objektspeicher",
     "localOnlyTitle": "Sicherungen liegen nur auf diesem Server",
-    "localOnlyText": "Sicherungen auf demselben Datenträger überstehen den Verlust der Festplatte oder des Servers nicht. Richte unten unter \"Externe S3-Kopie\" ein externes Ziel ein, damit jede Sicherung zusätzlich an anderer Stelle liegt."
+    "localOnlyText": "Sicherungen auf demselben Datenträger überstehen den Verlust der Festplatte oder des Servers nicht. Richte unten unter \"Externe S3-Kopie\" ein externes Ziel ein, damit jede Sicherung zusätzlich an anderer Stelle liegt.",
+    "title": "Speicher & Schlüssel"
   },
   "title": "Sicherungen",
   "description": "Vollständige Sicherungen der Datenbank und aller gespeicherten Dateien (Bilder, Rechnungen, Tickets, Kontoauszüge). Sicherungen sind verschlüsselt und liegen im lokalen Speicher; ein externes S3-Ziel ist optional.",
@@ -136,7 +137,8 @@
     },
     "details": "{orders} Bestellungen, {assets} Bilder, {documents} Dokumente · Migration {migration}",
     "detailsDatabaseOnly": "Nur Datenbank, {orders} Bestellungen · Migration {migration} · Version {version}",
-    "uploaded": "hochgeladene Datei"
+    "uploaded": "hochgeladene Datei",
+    "rowActions": "Weitere Aktionen für die Sicherung vom {date}"
   },
   "verifyDetail": {
     "ARCHIVE_MISMATCH": "Das Archiv stimmt nicht mit seiner Beschreibung überein.",

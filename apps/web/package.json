@@ -1,6 +1,6 @@
 {
   "name": "@tix/web",
-  "version": "1.0.0-alpha.42",
+  "version": "1.0.0-alpha.43",
   "private": true,
   "license": "PolyForm-Shield-1.0.0",
   "type": "module",
@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "node scripts/next.mjs start --port 3000",
     "typecheck": "next typegen && tsc -p tsconfig.json",
-    "test": "node scripts/check-messages.mjs && node scripts/check-i18n-usage.mjs"
+    "test": "node scripts/check-messages.mjs && node scripts/check-i18n-usage.mjs && node --test \"test/**/*.test.ts\""
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",

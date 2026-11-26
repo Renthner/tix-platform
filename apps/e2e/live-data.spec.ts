@@ -25,7 +25,7 @@ async function visitor(browser: Browser, baseURL: string) {
 }
 
 async function setSubtitle(page: Page, id: string, subtitle: string) {
-  await page.goto(`/admin/events/${id}`);
+  await page.goto(`/admin/events/${id}/details`);
   const form = page.locator('form').filter({ has: page.locator('#subtitle') });
   await form.locator('#subtitle').fill(subtitle);
   await form.getByRole('button', { name: 'Save' }).click();
@@ -50,7 +50,7 @@ test('a subtitle edit in the admin shows on the next page load of a visitor', as
   const base = baseURL ?? 'http://localhost:18090';
   const id = await eventId(page);
   const original = await (async () => {
-    await page.goto(`/admin/events/${id}`);
+    await page.goto(`/admin/events/${id}/details`);
     return page.locator('#subtitle').inputValue();
   })();
   const fresh = `Live data ${Date.now()}`;

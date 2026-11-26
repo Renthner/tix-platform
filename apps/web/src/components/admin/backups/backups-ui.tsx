@@ -25,8 +25,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { RowActions } from '@/components/admin/row-actions';
 import {
   checkSourceKeysAction,
   reEncryptPasskeyOptionsAction,
@@ -272,42 +274,90 @@ export function ProbeNowButton({ action }: { action: OperationAction }) {
   );
 }
 
-export function VerifyButton({ action }: { action: OperationAction }) {
-  const t = useTranslations('backups.actions');
-  const feedback = useFeedback();
-  const [pending, start] = useTransition();
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      disabled={pending}
-      onClick={() => start(async () => feedback(await action()))}
-    >
-      <ShieldCheck /> {t('verify')}
-    </Button>
-  );
-}
-
-export function DeleteBackupButton({
-  action,
+/**
+ * "⋯" menu of a backup row: download, verify and delete (the restore stays a visible button with
+ * its own dialog). The delete confirmation lives outside the (non-modal) menu with controlled
+ * state, so it stays mounted when the menu closes; it cannot be dismissed while deleting.
+ */
+export function BackupRowActions({
+  id,
+  label,
+  verify,
+  remove,
   hasExternalCopy,
 }: {
-  action: (deleteExternal: boolean) => Promise<BackupActionState>;
+  id: string;
+  /** Accessible name of the menu trigger. */
+  label: string;
+  verify: OperationAction;
+  remove: (deleteExternal: boolean) => Promise<BackupActionState>;
   hasExternalCopy: boolean;
 }) {
   const t = useTranslations('backups');
   const feedback = useFeedback();
   const router = useRouter();
+  const [verifying, startVerify] = useTransition();
   const [open, setOpen] = useState(false);
   const [deleteExternal, setDeleteExternal] = useState(false);
   const [pending, start] = useTransition();
+  // Set when the menu closes because the dialog opens: the focus then goes to the dialog.
+  const openingDialog = useRef(false);
+  const trigger = useRef<HTMLDivElement>(null);
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Trash2 /> {t('actions.delete')}
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+      <div ref={trigger} className="inline-flex">
+        <RowActions
+          label={label}
+          data-testid="backup-row-actions"
+          onCloseAutoFocus={(e) => {
+            if (openingDialog.current) e.preventDefault();
+            openingDialog.current = false;
+          }}
+        >
+          <DropdownMenuItem asChild>
+            <a href={`/api/admin/backups/${id}/download`}>
+              <Download /> {t('actions.download')}
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={verifying}
+            onSelect={() => startVerify(async () => feedback(await verify()))}
+          >
+            <ShieldCheck /> {t('actions.verify')}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onSelect={() => {
+              openingDialog.current = true;
+              setOpen(true);
+            }}
+          >
+            <Trash2 /> {t('actions.delete')}
+          </DropdownMenuItem>
+        </RowActions>
+      </div>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next && pending) return;
+          setOpen(next);
+        }}
+      >
+        <DialogContent
+          showCloseButton={!pending}
+          onEscapeKeyDown={(e) => {
+            if (pending) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (pending) e.preventDefault();
+          }}
+          onCloseAutoFocus={(e) => {
+            // The menu item is gone: the focus returns to the row's menu button.
+            e.preventDefault();
+            trigger.current?.querySelector<HTMLElement>('button')?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>{t('deleteConfirm.title')}</DialogTitle>
             <DialogDescription>{t('deleteConfirm.description')}</DialogDescription>
@@ -324,15 +374,16 @@ export function DeleteBackupButton({
             </label>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" disabled={pending} onClick={() => setOpen(false)}>
               {t('actions.cancel')}
             </Button>
             <Button
               variant="destructive"
               disabled={pending}
+              data-testid="backup-delete-confirm"
               onClick={() =>
                 start(async () => {
-                  feedback(await action(deleteExternal));
+                  feedback(await remove(deleteExternal));
                   setOpen(false);
                   router.refresh();
                 })
@@ -344,17 +395,6 @@ export function DeleteBackupButton({
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-export function DownloadLink({ id }: { id: string }) {
-  const t = useTranslations('backups.actions');
-  return (
-    <Button variant="outline" size="sm" asChild>
-      <a href={`/api/admin/backups/${id}/download`}>
-        <Download /> {t('download')}
-      </a>
-    </Button>
   );
 }
 

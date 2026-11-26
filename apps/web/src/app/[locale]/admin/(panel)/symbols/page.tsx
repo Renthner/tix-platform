@@ -2,13 +2,14 @@ import { listSymbols } from '@tix/core';
 import { SYMBOL_KINDS, type SymbolKind } from '@tix/shared';
 import { Images } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader } from '@/components/admin/page-header';
+import { StatusTabs } from '@/components/admin/status-tabs';
+import { hubBreadcrumbs } from '@/server/admin/breadcrumbs';
 import { SymbolGrid, SymbolUploadForm } from '@/components/admin/symbol-library';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
-import { cn } from '@/lib/utils';
 import { requireAdmin } from '@/server/auth';
 import { symbolUsage } from '@/server/admin/queries';
 import { deleteSymbolAction, renameSymbolAction, uploadSymbolAction } from '@/server/admin/symbols';
@@ -40,7 +41,8 @@ export default async function SymbolsPage({
 
   return (
     <>
-      <PageHeader
+      <AdminPageHeader
+        breadcrumbs={await hubBreadcrumbs('design')}
         title={t('title')}
         description={t('description')}
         actions={
@@ -61,22 +63,15 @@ export default async function SymbolsPage({
             <SymbolUploadForm action={uploadSymbolAction} defaultKind={kind ?? 'SEAT'} />
           </CardContent>
         </Card>
-        <div className="flex flex-wrap gap-2 text-sm">
-          {[undefined, ...SYMBOL_KINDS].map((k) => (
-            <Link
-              key={k ?? 'all'}
-              href={k ? `/admin/symbols?kind=${k}` : '/admin/symbols'}
-              className={cn(
-                'rounded-full border px-3 py-1',
-                kind === k
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'hover:bg-accent',
-              )}
-            >
-              {k ? t(`kinds.${k}`) : t('filterAll')}
-            </Link>
-          ))}
-        </div>
+        <StatusTabs
+          label={t('kind')}
+          tabs={[undefined, ...SYMBOL_KINDS].map((k) => ({
+            key: k ?? 'all',
+            label: k ? t(`kinds.${k}`) : t('filterAll'),
+            href: k ? `/admin/symbols?kind=${k}` : '/admin/symbols',
+            active: kind === k,
+          }))}
+        />
         <SymbolGrid
           symbols={symbols.map((s) => ({
             id: s.id,

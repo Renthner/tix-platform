@@ -1,14 +1,14 @@
 import { CUSTOMER_SORT_KEYS, getSetting, listCustomers, type CustomerSortKey } from '@tix/core';
 import { buildQuery, parsePage, parsePageSize } from '@tix/shared';
-import { ArrowDown, ArrowUp, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, UserRound } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { AdminPagination } from '@/components/admin/admin-pagination';
-import { PageHeader } from '@/components/admin/form-controls';
-import { PrivacySettingsForm } from '@/components/admin/customers/customer-forms';
+import { EmptyState } from '@/components/admin/empty-state';
+import { ListToolbar, type ActiveFilterChip } from '@/components/admin/list-toolbar';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -48,8 +48,9 @@ export default async function CustomersPage({
     : undefined;
   const dir = sp.dir === 'asc' ? 'asc' : sp.dir === 'desc' ? 'desc' : undefined;
   const core = getCore();
-  const [t, format, result, privacy, general] = await Promise.all([
+  const [t, tl, format, result, general] = await Promise.all([
     getTranslations('customers'),
+    getTranslations('admin.list'),
     getFormatter(),
     listCustomers(core, {
       q,
@@ -58,11 +59,11 @@ export default async function CustomersPage({
       sort,
       dir: dir ?? (sort === 'name' ? 'asc' : 'desc'),
     }),
-    getSetting(core, 'privacy'),
     getSetting(core, 'general'),
   ]);
   const currency = general.defaultCurrency;
-  const filters = { q, sort, dir, pageSize: pageSize !== DEFAULT_PAGE_SIZE ? pageSize : undefined };
+  const keptPageSize = pageSize !== DEFAULT_PAGE_SIZE ? pageSize : undefined;
+  const filters = { q, sort, dir, pageSize: keptPageSize };
   // Click a sortable header: first click = natural direction, second click flips it.
   const sortHref = (key: CustomerSortKey) => {
     const natural = key === 'name' ? 'asc' : 'desc';
@@ -89,87 +90,94 @@ export default async function CustomersPage({
     );
   };
 
+  // The search is the only filter; sort and page size stay when it is removed.
+  const resetHref = q ? buildQuery('/admin/customers', filters, { q: undefined }) : null;
+  const chips: ActiveFilterChip[] =
+    q && resetHref
+      ? [{ key: 'q', label: tl('searchChip', { value: q }), removeHref: resetHref }]
+      : [];
+
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
+      <AdminPageHeader title={t('title')} description={t('description')} />
       <div className="space-y-4 p-6">
-        <form className="flex gap-2" action="" method="get">
-          <div className="relative min-w-64 flex-1">
-            <Search className="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-            <Input
-              name="q"
-              defaultValue={q ?? ''}
-              placeholder={t('searchPlaceholder')}
-              className="pl-8"
-            />
-          </div>
-          {sort && <input type="hidden" name="sort" value={sort} />}
-          {dir && <input type="hidden" name="dir" value={dir} />}
-          {pageSize !== DEFAULT_PAGE_SIZE && (
-            <input type="hidden" name="pageSize" value={pageSize} />
-          )}
-          <Button type="submit">{t('search')}</Button>
-        </form>
+        <ListToolbar
+          data-testid="customers-toolbar"
+          search={{ value: q, placeholder: t('searchPlaceholder') }}
+          hidden={{ sort, dir, pageSize: keptPageSize }}
+          resetHref={resetHref}
+          chips={chips}
+        />
         <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {sortHead('name')}
-                  <TableHead>{t('columns.email')}</TableHead>
-                  <TableHead>{t('columns.phone')}</TableHead>
-                  <TableHead>{t('columns.account')}</TableHead>
-                  {sortHead('orders', 'text-right')}
-                  <TableHead className="text-right">{t('columns.revenue')}</TableHead>
-                  {sortHead('lastOrder')}
-                  {sortHead('created')}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {result.rows.length === 0 && (
+          <CardContent className={result.rows.length === 0 ? undefined : 'p-0'}>
+            {result.rows.length === 0 ? (
+              <EmptyState
+                icon={UserRound}
+                title={t('empty')}
+                description={q ? tl('emptyFiltered') : undefined}
+                action={
+                  resetHref ? (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={resetHref}>{tl('reset')}</Link>
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                      {t('empty')}
-                    </TableCell>
+                    {sortHead('name')}
+                    <TableHead>{t('columns.email')}</TableHead>
+                    <TableHead>{t('columns.phone')}</TableHead>
+                    <TableHead>{t('columns.account')}</TableHead>
+                    {sortHead('orders', 'text-right')}
+                    <TableHead className="text-right">{t('columns.revenue')}</TableHead>
+                    {sortHead('lastOrder')}
+                    {sortHead('created')}
                   </TableRow>
-                )}
-                {result.rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">
-                      <Link href={`/admin/customers/${row.id}`} className="hover:underline">
-                        {row.anonymizedAt ? (
-                          <span className="text-muted-foreground">{t('anonymizedName')}</span>
+                </TableHeader>
+                <TableBody>
+                  {result.rows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">
+                        <Link href={`/admin/customers/${row.id}`} className="hover:underline">
+                          {row.anonymizedAt ? (
+                            <span className="text-muted-foreground">{t('anonymizedName')}</span>
+                          ) : (
+                            `${row.firstName} ${row.lastName}`
+                          )}
+                        </Link>{' '}
+                        {row.anonymizedAt && <Badge variant="secondary">{t('anonymized')}</Badge>}
+                      </TableCell>
+                      <TableCell>{row.anonymizedAt ? '–' : row.email}</TableCell>
+                      <TableCell className="whitespace-nowrap">{row.phone ?? '–'}</TableCell>
+                      <TableCell>
+                        {row.hasAccount ? (
+                          <Badge variant={row.emailVerified ? 'default' : 'outline'}>
+                            {row.emailVerified ? t('account.verified') : t('account.unverified')}
+                          </Badge>
                         ) : (
-                          `${row.firstName} ${row.lastName}`
+                          <span className="text-muted-foreground">{t('account.guest')}</span>
                         )}
-                      </Link>{' '}
-                      {row.anonymizedAt && <Badge variant="secondary">{t('anonymized')}</Badge>}
-                    </TableCell>
-                    <TableCell>{row.anonymizedAt ? '–' : row.email}</TableCell>
-                    <TableCell>{row.phone ?? '–'}</TableCell>
-                    <TableCell>
-                      {row.hasAccount ? (
-                        <Badge variant={row.emailVerified ? 'default' : 'outline'}>
-                          {row.emailVerified ? t('account.verified') : t('account.unverified')}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">{t('account.guest')}</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{row.orderCount}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {format.number(row.revenue / 100, { style: 'currency', currency })}
-                    </TableCell>
-                    <TableCell>
-                      {row.lastOrderAt
-                        ? format.dateTime(row.lastOrderAt, { dateStyle: 'medium' })
-                        : '–'}
-                    </TableCell>
-                    <TableCell>{format.dateTime(row.createdAt, { dateStyle: 'medium' })}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{row.orderCount}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {format.number(row.revenue / 100, { style: 'currency', currency })}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {row.lastOrderAt
+                          ? format.dateTime(row.lastOrderAt, { dateStyle: 'medium' })
+                          : '–'}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {format.dateTime(row.createdAt, { dateStyle: 'medium' })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
         <AdminPagination
@@ -183,15 +191,15 @@ export default async function CustomersPage({
           summary={t('total', { count: result.total })}
         />
         {hasRole(session, ['SUPER_ADMIN']) && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('settings.title')}</CardTitle>
-              <CardDescription>{t('settings.description')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <PrivacySettingsForm initial={privacy} />
-            </CardContent>
-          </Card>
+          <p className="text-sm text-muted-foreground" data-testid="customers-retention-hint">
+            {t.rich('settings.movedHint', {
+              link: (chunks) => (
+                <Link href="/admin/settings/privacy" className="font-medium underline">
+                  {chunks}
+                </Link>
+              ),
+            })}
+          </p>
         )}
       </div>
     </>

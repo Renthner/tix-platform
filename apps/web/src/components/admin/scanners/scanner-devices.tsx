@@ -1,9 +1,9 @@
 'use client';
 
-import { Pencil, ShieldOff, Trash2 } from 'lucide-react';
+import { MonitorSmartphone, Pencil, ShieldOff, Trash2 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -24,7 +25,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '../empty-state';
 import { Field } from '../form-controls';
+import { RowActions } from '../row-actions';
 import { AssignmentPicker } from './assignment-picker';
 import {
   adminRequest,
@@ -167,8 +170,22 @@ function RevokeDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && busy) return;
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent
+        showCloseButton={!busy}
+        onEscapeKeyDown={(e) => {
+          if (busy) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (busy) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{t('title')}</DialogTitle>
           <DialogDescription>{t('text', { name: device.name })}</DialogDescription>
@@ -179,7 +196,12 @@ function RevokeDialog({
           </Alert>
         ) : null}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
             {tc('cancel')}
           </Button>
           <Button type="button" variant="destructive" disabled={busy} onClick={revoke}>
@@ -223,8 +245,22 @@ function DeleteDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && busy) return;
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent
+        showCloseButton={!busy}
+        onEscapeKeyDown={(e) => {
+          if (busy) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (busy) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{t('title')}</DialogTitle>
           <DialogDescription>{t('text', { name: device.name })}</DialogDescription>
@@ -235,7 +271,12 @@ function DeleteDialog({
           </Alert>
         ) : null}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
             {tc('cancel')}
           </Button>
           <Button type="button" variant="destructive" disabled={busy} onClick={remove}>
@@ -263,13 +304,20 @@ export function ScannerDevices({
   const te = useTranslations('scanners.edit');
   const tr = useTranslations('scanners.revoke');
   const td = useTranslations('scanners.delete');
+  const tl = useTranslations('admin.list');
   const format = useFormatter();
+  // Set when a row menu closes because a dialog opens: the focus then goes to the dialog.
+  const openingDialog = useRef(false);
+  const openDialog = (open: (id: string) => void, id: string) => {
+    openingDialog.current = true;
+    open(id);
+  };
   const [editing, setEditing] = useState<string | null>(null);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   if (devices.length === 0) {
-    return <p className="p-4 text-sm text-muted-foreground">{t('empty')}</p>;
+    return <EmptyState size="sm" icon={MonitorSmartphone} title={t('empty')} />;
   }
   const when = (iso: string | null) =>
     iso ? format.dateTime(new Date(iso), { dateStyle: 'short', timeStyle: 'short' }) : t('never');
@@ -330,36 +378,36 @@ export function ScannerDevices({
                 </Badge>
               </TableCell>
               {canManage ? (
-                <TableCell className="text-right whitespace-nowrap">
-                  {device.isActive ? (
-                    <>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditing(device.id)}
+                <TableCell className="text-right">
+                  <RowActions
+                    label={tl('rowActions', { name: device.name })}
+                    data-testid="scanner-device-actions"
+                    onCloseAutoFocus={(e) => {
+                      if (openingDialog.current) e.preventDefault();
+                      openingDialog.current = false;
+                    }}
+                  >
+                    {device.isActive ? (
+                      <>
+                        <DropdownMenuItem onSelect={() => openDialog(setEditing, device.id)}>
+                          <Pencil /> {te('button')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onSelect={() => openDialog(setRevoking, device.id)}
+                        >
+                          <ShieldOff /> {tr('button')}
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => openDialog(setDeleting, device.id)}
                       >
-                        <Pencil /> {te('button')}
-                      </Button>{' '}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setRevoking(device.id)}
-                      >
-                        <ShieldOff /> {tr('button')}
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setDeleting(device.id)}
-                    >
-                      <Trash2 /> {td('button')}
-                    </Button>
-                  )}
+                        <Trash2 /> {td('button')}
+                      </DropdownMenuItem>
+                    )}
+                  </RowActions>
                 </TableCell>
               ) : null}
             </TableRow>

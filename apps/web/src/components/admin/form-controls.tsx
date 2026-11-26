@@ -16,6 +16,7 @@ import {
 } from 'react';
 import { useFormStatus } from 'react-dom';
 import { toast } from 'sonner';
+import { PageHeaderLayout, type PageHeaderProps } from '@/components/admin/page-header-layout';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useUnsavedFormGuard } from '@/components/admin/unsaved-changes';
@@ -236,22 +237,7 @@ export function ActionFeedback({ state }: { state: ActionState }) {
   );
 }
 
-export function PageHeader({
-  title,
-  description,
-  actions,
-}: {
-  title: ReactNode;
-  description?: ReactNode;
-  actions?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-4 border-b px-6 py-5">
-      <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-        {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
-      </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
-    </div>
-  );
+/** Same markup as `AdminPageHeader` (one visual for every admin page), without breadcrumbs. */
+export function PageHeader(props: Omit<PageHeaderProps, 'breadcrumbs'>) {
+  return <PageHeaderLayout {...props} />;
 }

@@ -424,7 +424,7 @@ export async function saveTranslations(
 
 // ─── Global (event independent) texts ───────────────────────────────────────
 
-/** Global fees (`/admin/fees`) and the global waiting room config (`/admin/waiting-room`). */
+/** Global fees (`/admin/settings/fees`) and the global waiting room config (`/admin/settings/waitingRoom`). */
 export const GLOBAL_TRANSLATION_SCOPES = ['globalFees', 'globalQueue'] as const;
 export type GlobalTranslationScope = (typeof GLOBAL_TRANSLATION_SCOPES)[number];
 

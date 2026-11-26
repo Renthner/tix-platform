@@ -16,7 +16,6 @@
     "autoMatched": "Matched automatically",
     "manuallyMatched": "Assigned manually",
     "last30": "{count} matched in the last 30 days",
-    "openReview": "Open clarification cases",
     "connections": "Bank connections",
     "noConnections": "No bank connections yet – add a receiving account and a connection, or upload statement files.",
     "setUp": "Set up accounts",
@@ -159,11 +158,11 @@
     "addConnection": "Add connection",
     "delete": "Delete account",
     "deleteTitle": "Delete this account?",
-    "deleteDescription": "Only possible while no transactions were imported. Accounts with transactions can be deactivated instead."
+    "deleteDescription": "Only possible while no transactions were imported. Accounts with transactions can be deactivated instead.",
+    "detailsTitle": "Account details"
   },
   "connection": {
     "newTitle": "New connection: {adapter}",
-    "backToAccount": "Back to the account",
     "sections": {
       "general": "General",
       "bank": "Bank access",
@@ -335,7 +334,6 @@
     "description": "Incoming transfers the system could not assign automatically. Assign them to an order with one click or dismiss them.",
     "allReasons": "All reasons",
     "allAccounts": "All accounts",
-    "filter": "Filter",
     "empty": "Nothing to clarify – all incoming transfers are assigned.",
     "count": "{count, plural, one {# case} other {# cases}}",
     "candidates": "Suggestions",
@@ -376,24 +374,21 @@
     "details": "Details",
     "reference": "Reference found",
     "reversedInfo": "Reversed by {who} on {when}",
-    "previewAdjustment": "Assigns the exact amount to the open additional payment."
+    "previewAdjustment": "Assigns the exact amount to the open additional payment.",
+    "reasonsLabel": "Review reasons",
+    "emptyFiltered": "No clarification cases for this filter."
   },
   "transactions": {
     "title": "Bank transactions",
     "searchPlaceholder": "Name, text, IBAN or reference",
-    "allStatuses": "All statuses",
     "allDirections": "Incoming and outgoing",
     "incoming": "Incoming",
     "outgoing": "Outgoing",
     "from": "From",
     "to": "To",
-    "filter": "Filter",
     "export": "Export CSV",
     "empty": "No transactions found.",
     "total": "{count, plural, one {# transaction} other {# transactions}}",
-    "previous": "Previous",
-    "next": "Next",
-    "page": "Page {page} of {pages}",
     "columns": {
       "date": "Booking date",
       "counterparty": "Counterparty",
@@ -404,7 +399,6 @@
       "account": "Account"
     },
     "detailTitle": "Bank transaction",
-    "backToList": "All transactions",
     "fields": {
       "bookingDate": "Booking date",
       "valueDate": "Value date",
@@ -430,7 +424,14 @@
       "AUTO": "automatic",
       "MANUAL": "manual"
     },
-    "assigned": "Assigned to orders"
+    "assigned": "Assigned to orders",
+    "description": "All imported bank bookings with their matching status. Open a booking to assign it or see its details.",
+    "statusTabs": "Matching status",
+    "filters": {
+      "direction": "Direction",
+      "account": "Account"
+    },
+    "showRaw": "Show raw data"
   },
   "imports": {
     "title": "Statement imports",
@@ -459,7 +460,10 @@
       "imported": "New",
       "duplicates": "Duplicates",
       "status": "Status"
-    }
+    },
+    "headerDescription": "Upload bank statement files and see every import with its result.",
+    "uploadTitle": "Upload statement files",
+    "total": "{count, plural, one {# import} other {# imports}}"
   },
   "messages": {
     "saved": "Saved.",
@@ -568,5 +572,6 @@
     "reason": "Reason (required)",
     "reasonPlaceholder": "e.g. Transfer belongs to order T-2026-0042",
     "confirm": "Reverse assignment"
-  }
+  },
+  "actionsMenu": "Actions"
 }

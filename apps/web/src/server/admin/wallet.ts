@@ -264,13 +264,16 @@ const uuidOrNull = (fd: FormData, name: string): string | null => {
   return v && z.uuid().safeParse(v).success ? v : null;
 };
 
-/** Saves the global (`eventId` null) or the per-event pass design. */
+/**
+ * Saves the global (`eventId` null) or the per-event pass design. The global design is a
+ * settings page (super admins only); event managers edit the per-event design.
+ */
 export async function saveWalletDesignAction(
   eventId: string | null,
   _prev: ActionState,
   fd: FormData,
 ): Promise<ActionState> {
-  const session = await requireAdmin(['EVENT_MANAGER']);
+  const session = await requireAdmin(eventId === null ? ['SUPER_ADMIN'] : ['EVENT_MANAGER']);
   const core = getCore();
   const errors: Errors = {};
   const colors = {

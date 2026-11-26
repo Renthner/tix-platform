@@ -18,19 +18,21 @@ import { desc, eq } from 'drizzle-orm';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { BackupSettingsForm } from '@/components/admin/backups/backup-settings-form';
+import { DatabaseBackup } from 'lucide-react';
 import {
   BackupNowButton,
+  BackupRowActions,
   BackupStatusPanel,
-  DeleteBackupButton,
   DismissNoticeButton,
-  DownloadLink,
   ProbeNowButton,
   ReEncryptButton,
   RestoreButton,
   UploadBackupButton,
-  VerifyButton,
 } from '@/components/admin/backups/backups-ui';
-import { PageHeader } from '@/components/admin/form-controls';
+import { DetailLayout } from '@/components/admin/detail-layout';
+import { EmptyState } from '@/components/admin/empty-state';
+import { AdminPageHeader } from '@/components/admin/page-header';
+import { hubBreadcrumbs } from '@/server/admin/breadcrumbs';
 import { SettingsSection } from '@/components/admin/settings-forms';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -152,7 +154,8 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
 
   return (
     <>
-      <PageHeader
+      <AdminPageHeader
+        breadcrumbs={await hubBreadcrumbs('administration')}
         title={t('title')}
         description={t('description')}
         actions={
@@ -162,228 +165,161 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
           </>
         }
       />
-      <div className="max-w-6xl space-y-6 p-6">
-        {failure && (
-          <Alert variant="destructive">
-            <AlertTitle>{t('dashboardAlert.title')}</AlertTitle>
-            <AlertDescription>
-              {t('dashboardAlert.text', { message: failure.message })}
-            </AlertDescription>
-          </Alert>
-        )}
-        {unreadableSecrets && (
-          <Alert variant="destructive">
-            <AlertTitle>{t('unreadableSecrets.title')}</AlertTitle>
-            <AlertDescription>
-              {t('unreadableSecrets.text', { count: unreadableSecrets.count })}
-              <div className="mt-3">
-                <DismissNoticeButton
-                  action={recheckSecretsAction}
-                  label={t('unreadableSecrets.recheck')}
-                />
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-        {reEncryptPending && (
-          <Alert className="border-warning-border bg-warning-soft text-warning">
-            <AlertTitle>{t('reencryptPending.title')}</AlertTitle>
-            <AlertDescription className="space-y-3">
-              <p>
-                {t(
-                  reEncryptPending.gaveUp ? 'reencryptPending.textGaveUp' : 'reencryptPending.text',
-                )}
-              </p>
-              <DismissNoticeButton
-                action={dismissReEncryptPendingAction}
-                label={t('reencryptPending.dismiss')}
-              />
-            </AlertDescription>
-          </Alert>
-        )}
-        {incomplete && (
-          <Alert variant="destructive">
-            <AlertTitle>{t('incomplete.title')}</AlertTitle>
-            <AlertDescription className="space-y-3">
-              <p>{t('incomplete.text', { step: incomplete.step })}</p>
-              {incomplete.error && (
-                <p className="text-xs">{t('incomplete.error', { error: incomplete.error })}</p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {incomplete.backupId && (
-                  <RestoreButton
-                    backupId={incomplete.backupId}
-                    createdAtLabel={when(incomplete.at)}
-                    preview={previewRestoreAction}
-                    restore={restoreBackupAction}
-                    label={t('incomplete.retry')}
+      <div className="max-w-7xl">
+        <div className="space-y-4 px-6 pt-6 empty:hidden">
+          {failure && (
+            <Alert variant="destructive">
+              <AlertTitle>{t('dashboardAlert.title')}</AlertTitle>
+              <AlertDescription>
+                {t('dashboardAlert.text', { message: failure.message })}
+              </AlertDescription>
+            </Alert>
+          )}
+          {unreadableSecrets && (
+            <Alert variant="destructive">
+              <AlertTitle>{t('unreadableSecrets.title')}</AlertTitle>
+              <AlertDescription>
+                {t('unreadableSecrets.text', { count: unreadableSecrets.count })}
+                <div className="mt-3">
+                  <DismissNoticeButton
+                    action={recheckSecretsAction}
+                    label={t('unreadableSecrets.recheck')}
                   />
-                )}
-                {incomplete.safetyBackupId && (
-                  <RestoreButton
-                    backupId={incomplete.safetyBackupId}
-                    createdAtLabel={when(incomplete.at)}
-                    preview={previewRestoreAction}
-                    restore={restoreBackupAction}
-                    label={t('incomplete.safety')}
-                  />
-                )}
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-        {storage.driver === 'fs' && !settings.externalEnabled && (
-          <Alert className="border-warning-border bg-warning-soft text-warning">
-            <AlertTitle>{t('storage.localOnlyTitle')}</AlertTitle>
-            <AlertDescription>{t('storage.localOnlyText')}</AlertDescription>
-          </Alert>
-        )}
-        <p className="text-sm text-muted-foreground">
-          {storage.driver === 'fs'
-            ? t('storage.driverFs', { dir: storage.dir ?? '' })
-            : t('storage.driverS3')}
-        </p>
-        <BackupStatusPanel foreignKeysAllowed={foreignBackupKeysAllowed()} />
-        {additionalKeyIds.length > 0 && (
-          <Alert>
-            <AlertTitle>{t('additionalKeys.title')}</AlertTitle>
-            <AlertDescription className="space-y-3">
-              <p>{t('additionalKeys.text', { ids: additionalKeyIds.join(', ') })}</p>
-              <ReEncryptButton
-                action={reEncryptNowAction}
-                twoFactor={Boolean(account?.totpSecretEncrypted) || passkeyCount > 0}
-                passkeys={passkeyCount > 0 && passkeysAvailable(core)}
-                backupsUsingKeys={countBackupsUsingKeys(
-                  entries.map((e) => e.manifest),
-                  additionalKeys,
-                )}
-                backupsUnchecked={entries.filter((e) => !e.manifest.secretKeys).length}
-              />
-            </AlertDescription>
-          </Alert>
-        )}
-        {lastRun && lastReEncrypt && (
-          <div className="space-y-1 rounded-lg border p-4 text-sm">
-            <p className="font-medium">
-              {t('reencrypt.last.title')} · {when(lastReEncrypt.at.toISOString())}
-            </p>
-            <p className={lastRun.complete ? 'text-success' : 'text-destructive'}>
-              {lastRun.complete
-                ? t('reencrypt.last.complete', { keys: lastRun.removedKeyIds.join(', ') || '-' })
-                : t('reencrypt.last.incomplete', { remaining: lastRun.remainingForeign })}
-            </p>
-            <ul className="list-disc pl-5 text-xs text-muted-foreground">
-              {lastRun.tables.map((row) => (
-                <li key={row.id}>
-                  {t('reencrypt.last.table', {
-                    table: row.id,
-                    reEncrypted: row.reEncrypted,
-                    skipped: row.skipped,
-                    unreadable: row.undecryptable,
-                  })}
-                </li>
-              ))}
-              {lastRun.undecryptable.map((row) => (
-                <li key={`${row.id}:${row.pk}`} className="text-destructive">
-                  {t('reencrypt.last.unreadableRow', { table: row.id, pk: row.pk })}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <p className="text-sm text-muted-foreground">{t('keyNote', { keyId })}</p>
-        <p className="text-sm text-muted-foreground">{t('upload.hint')}</p>
-
-        <Card>
-          <CardContent className="space-y-3 pt-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="space-y-1">
-                <h2 className="text-sm font-medium">{t('probe.title')}</h2>
-                <p className="max-w-2xl text-xs text-muted-foreground">{t('probe.description')}</p>
-              </div>
-              <ProbeNowButton action={probeNowAction} />
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              {!settings.probeEnabled && <Badge variant="outline">{t('probe.off')}</Badge>}
-              {lastProbe ? (
-                <>
-                  <Badge variant={lastProbe.status === 'OK' ? 'secondary' : 'destructive'}>
-                    {t(`probe.status.${lastProbe.status}`, { date: when(lastProbe.finishedAt) })}
-                  </Badge>
-                  {lastProbe.status === 'FAILED' && (
-                    <span className="text-xs text-destructive">
-                      {verifyReason(lastProbe.error)}
-                    </span>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          {reEncryptPending && (
+            <Alert className="border-warning-border bg-warning-soft text-warning">
+              <AlertTitle>{t('reencryptPending.title')}</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>
+                  {t(
+                    reEncryptPending.gaveUp
+                      ? 'reencryptPending.textGaveUp'
+                      : 'reencryptPending.text',
                   )}
-                </>
-              ) : (
-                <span className="text-xs text-muted-foreground">{t('probe.never')}</span>
-              )}
-            </div>
-            {probes.length > 0 && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('probe.columns.date')}</TableHead>
-                    <TableHead>{t('probe.columns.result')}</TableHead>
-                    <TableHead>{t('probe.columns.backup')}</TableHead>
-                    <TableHead className="text-right">{t('probe.columns.duration')}</TableHead>
-                    <TableHead>{t('probe.columns.details')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {probes.slice(0, 10).map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="whitespace-nowrap align-top">
-                        {when(p.startedAt)}
-                        <div className="text-xs text-muted-foreground">
-                          {t(`probe.trigger.${p.trigger}`)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="align-top">
-                        <Badge variant={p.status === 'OK' ? 'secondary' : 'destructive'}>
-                          {t(`probe.result.${p.status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap align-top">
-                        {p.backupCreatedAt ? when(p.backupCreatedAt) : '–'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-right align-top tabular-nums">
-                        {t('probe.seconds', {
-                          seconds: Math.max(1, Math.round(p.durationMs / 1000)),
-                        })}
-                      </TableCell>
-                      <TableCell className="align-top text-xs">
-                        {p.status === 'OK' ? (
-                          <span className="text-muted-foreground">
-                            {t('probe.counts', {
-                              events: p.counts?.events ?? 0,
-                              orders: p.counts?.orders ?? 0,
-                              tickets: p.counts?.tickets ?? 0,
-                              migrations: p.migrationsApplied ?? 0,
-                            })}
-                          </span>
-                        ) : (
-                          <span className="text-destructive">
-                            {verifyReason(p.error)}
-                            {p.mismatches?.map((m) => (
-                              <div key={m}>{m}</div>
-                            ))}
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
+                </p>
+                <DismissNoticeButton
+                  action={dismissReEncryptPendingAction}
+                  label={t('reencryptPending.dismiss')}
+                />
+              </AlertDescription>
+            </Alert>
+          )}
+          {incomplete && (
+            <Alert variant="destructive">
+              <AlertTitle>{t('incomplete.title')}</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>{t('incomplete.text', { step: incomplete.step })}</p>
+                {incomplete.error && (
+                  <p className="text-xs">{t('incomplete.error', { error: incomplete.error })}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {incomplete.backupId && (
+                    <RestoreButton
+                      backupId={incomplete.backupId}
+                      createdAtLabel={when(incomplete.at)}
+                      preview={previewRestoreAction}
+                      restore={restoreBackupAction}
+                      label={t('incomplete.retry')}
+                    />
+                  )}
+                  {incomplete.safetyBackupId && (
+                    <RestoreButton
+                      backupId={incomplete.safetyBackupId}
+                      createdAtLabel={when(incomplete.at)}
+                      preview={previewRestoreAction}
+                      restore={restoreBackupAction}
+                      label={t('incomplete.safety')}
+                    />
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          {storage.driver === 'fs' && !settings.externalEnabled && (
+            <Alert className="border-warning-border bg-warning-soft text-warning">
+              <AlertTitle>{t('storage.localOnlyTitle')}</AlertTitle>
+              <AlertDescription>{t('storage.localOnlyText')}</AlertDescription>
+            </Alert>
+          )}
+          <BackupStatusPanel foreignKeysAllowed={foreignBackupKeysAllowed()} />
+          {additionalKeyIds.length > 0 && (
+            <Alert>
+              <AlertTitle>{t('additionalKeys.title')}</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>{t('additionalKeys.text', { ids: additionalKeyIds.join(', ') })}</p>
+                <ReEncryptButton
+                  action={reEncryptNowAction}
+                  twoFactor={Boolean(account?.totpSecretEncrypted) || passkeyCount > 0}
+                  passkeys={passkeyCount > 0 && passkeysAvailable(core)}
+                  backupsUsingKeys={countBackupsUsingKeys(
+                    entries.map((e) => e.manifest),
+                    additionalKeys,
+                  )}
+                  backupsUnchecked={entries.filter((e) => !e.manifest.secretKeys).length}
+                />
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+        <DetailLayout
+          aside={
+            <>
+              <SettingsSection id="storage" title={t('storage.title')}>
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  <p>
+                    {storage.driver === 'fs'
+                      ? t('storage.driverFs', { dir: storage.dir ?? '' })
+                      : t('storage.driverS3')}
+                  </p>
+                  <p>{t('keyNote', { keyId })}</p>
+                  <p>{t('upload.hint')}</p>
+                </div>
+                {lastRun && lastReEncrypt && (
+                  <div className="space-y-1 rounded-lg border p-4 text-sm">
+                    <p className="font-medium">
+                      {t('reencrypt.last.title')} · {when(lastReEncrypt.at.toISOString())}
+                    </p>
+                    <p className={lastRun.complete ? 'text-success' : 'text-destructive'}>
+                      {lastRun.complete
+                        ? t('reencrypt.last.complete', {
+                            keys: lastRun.removedKeyIds.join(', ') || '-',
+                          })
+                        : t('reencrypt.last.incomplete', { remaining: lastRun.remainingForeign })}
+                    </p>
+                    <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                      {lastRun.tables.map((row) => (
+                        <li key={row.id}>
+                          {t('reencrypt.last.table', {
+                            table: row.id,
+                            reEncrypted: row.reEncrypted,
+                            skipped: row.skipped,
+                            unreadable: row.undecryptable,
+                          })}
+                        </li>
+                      ))}
+                      {lastRun.undecryptable.map((row) => (
+                        <li key={`${row.id}:${row.pk}`} className="text-destructive">
+                          {t('reencrypt.last.unreadableRow', { table: row.id, pk: row.pk })}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </SettingsSection>
+            </>
+          }
+        >
+          <SettingsSection id="backupList" title={t('list.title')}>
             {entries.length === 0 ? (
-              <p className="py-4 text-sm text-muted-foreground">{t('list.empty')}</p>
+              <EmptyState
+                icon={DatabaseBackup}
+                size="sm"
+                title={t('list.empty')}
+                data-testid="backups-empty"
+              />
             ) : (
               <Table>
                 <TableHeader>
@@ -475,9 +411,7 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
                         )}
                       </TableCell>
                       <TableCell className="align-top">
-                        <div className="flex flex-wrap justify-end gap-1.5">
-                          <DownloadLink id={manifest.id} />
-                          <VerifyButton action={verifyBackupAction.bind(null, manifest.id)} />
+                        <div className="flex items-center justify-end gap-1.5">
                           <RestoreButton
                             backupId={manifest.id}
                             createdAtLabel={when(manifest.createdAt)}
@@ -485,8 +419,11 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
                             preview={previewRestoreAction}
                             restore={restoreBackupAction}
                           />
-                          <DeleteBackupButton
-                            action={deleteBackupAction.bind(null, manifest.id)}
+                          <BackupRowActions
+                            id={manifest.id}
+                            label={t('list.rowActions', { date: when(manifest.createdAt) })}
+                            verify={verifyBackupAction.bind(null, manifest.id)}
+                            remove={deleteBackupAction.bind(null, manifest.id)}
                             hasExternalCopy={state.external.status === 'UPLOADED'}
                           />
                         </div>
@@ -496,21 +433,109 @@ export default async function BackupsPage({ params }: { params: Promise<{ locale
                 </TableBody>
               </Table>
             )}
-          </CardContent>
-        </Card>
+          </SettingsSection>
 
-        <SettingsSection
-          id="backupSettings"
-          title={t('settings.title')}
-          description={t('settings.description', { timeZone: general.defaultTimeZone })}
-        >
-          <BackupSettingsForm
-            action={saveBackupSettingsAction}
-            testAction={testBackupTargetAction}
-            initial={settings}
-            credentialsStored={credentialsStored}
-          />
-        </SettingsSection>
+          <Card>
+            <CardContent className="space-y-3 pt-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <h2 className="text-sm font-medium">{t('probe.title')}</h2>
+                  <p className="max-w-2xl text-xs text-muted-foreground">
+                    {t('probe.description')}
+                  </p>
+                </div>
+                <ProbeNowButton action={probeNowAction} />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                {!settings.probeEnabled && <Badge variant="outline">{t('probe.off')}</Badge>}
+                {lastProbe ? (
+                  <>
+                    <Badge variant={lastProbe.status === 'OK' ? 'secondary' : 'destructive'}>
+                      {t(`probe.status.${lastProbe.status}`, { date: when(lastProbe.finishedAt) })}
+                    </Badge>
+                    {lastProbe.status === 'FAILED' && (
+                      <span className="text-xs text-destructive">
+                        {verifyReason(lastProbe.error)}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{t('probe.never')}</span>
+                )}
+              </div>
+              {probes.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('probe.columns.date')}</TableHead>
+                      <TableHead>{t('probe.columns.result')}</TableHead>
+                      <TableHead>{t('probe.columns.backup')}</TableHead>
+                      <TableHead className="text-right">{t('probe.columns.duration')}</TableHead>
+                      <TableHead>{t('probe.columns.details')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {probes.slice(0, 10).map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="whitespace-nowrap align-top">
+                          {when(p.startedAt)}
+                          <div className="text-xs text-muted-foreground">
+                            {t(`probe.trigger.${p.trigger}`)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <Badge variant={p.status === 'OK' ? 'secondary' : 'destructive'}>
+                            {t(`probe.result.${p.status}`)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap align-top">
+                          {p.backupCreatedAt ? when(p.backupCreatedAt) : '–'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right align-top tabular-nums">
+                          {t('probe.seconds', {
+                            seconds: Math.max(1, Math.round(p.durationMs / 1000)),
+                          })}
+                        </TableCell>
+                        <TableCell className="align-top text-xs">
+                          {p.status === 'OK' ? (
+                            <span className="text-muted-foreground">
+                              {t('probe.counts', {
+                                events: p.counts?.events ?? 0,
+                                orders: p.counts?.orders ?? 0,
+                                tickets: p.counts?.tickets ?? 0,
+                                migrations: p.migrationsApplied ?? 0,
+                              })}
+                            </span>
+                          ) : (
+                            <span className="text-destructive">
+                              {verifyReason(p.error)}
+                              {p.mismatches?.map((m) => (
+                                <div key={m}>{m}</div>
+                              ))}
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <SettingsSection
+            id="backupSettings"
+            title={t('settings.title')}
+            description={t('settings.description', { timeZone: general.defaultTimeZone })}
+          >
+            <BackupSettingsForm
+              action={saveBackupSettingsAction}
+              testAction={testBackupTargetAction}
+              initial={settings}
+              credentialsStored={credentialsStored}
+            />
+          </SettingsSection>
+        </DetailLayout>
       </div>
     </>
   );

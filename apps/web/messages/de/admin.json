@@ -7,8 +7,8 @@
     "events": "Veranstaltungen",
     "orders": "Bestellungen",
     "customers": "Kunden",
-    "banking": "Bank & Zahlungseingang",
-    "accounting": "Buchhaltung & Export",
+    "banking": "Bank & Klärfälle",
+    "accounting": "Buchhaltung",
     "venues": "Spielstätten & Saalpläne",
     "waitingRoom": "Warteraum",
     "media": "Medienbibliothek",
@@ -17,27 +17,30 @@
     "fees": "Gebühren & Steuern",
     "emailTemplates": "E-Mail-Vorlagen",
     "ticketTemplates": "Ticket-Designs",
-    "refunds": "Offene Erstattungen",
+    "refunds": "Erstattungen",
     "boxOffice": "Abendkasse",
     "cashUp": "Kassenabschluss",
     "door": "Einlass",
     "users": "Benutzer & Rollen",
     "backups": "Sicherungen",
-    "scanners": "Einlass-Scanner",
-    "statistics": "Statistiken",
+    "scanners": "Scanner-Geräte",
+    "statistics": "Statistik",
     "system": "Systemstatus",
     "audit": "Aktivitätsprotokoll",
     "menu": "Menü",
     "label": "Admin-Navigation",
-    "paypal": "PayPal",
     "discounts": "Rabattcodes",
     "groups": {
+      "events": "Veranstaltungen",
       "sales": "Verkauf",
-      "events": "Veranstaltungen & Einlass",
-      "design": "Gestaltung & Inhalte",
-      "finance": "Finanzen",
-      "administration": "Verwaltung"
-    }
+      "onSite": "Vor Ort",
+      "finance": "Finanzen"
+    },
+    "overview": "Übersicht",
+    "design": "Gestaltung",
+    "administration": "System",
+    "pages": "Seiten",
+    "account": "Mein Konto"
   },
   "login": {
     "title": "Admin-Anmeldung",
@@ -141,38 +144,8 @@
     "ENDED": "Verkauf beendet"
   },
   "dashboard": {
-    "analytics": {
-      "statistics": "Statistiken",
-      "system": "Systemstatus"
-    },
-    "title": "Übersicht",
     "welcome": "Willkommen zurück, {name}.",
-    "todo": {
-      "title": "Zu erledigen",
-      "tiles": {
-        "bankReview": "Zahlungen zu klären (Klärfälle)",
-        "overdueTransfers": "Überfällige Vorkasse-Zahlungen",
-        "openRefunds": "Offene Erstattungen",
-        "openAdjustments": "Offene Nachzahlungen",
-        "waitlistPending": "Wartelisten-Einträge",
-        "expiringCodes": "Bald ablaufende Zugangscodes"
-      }
-    },
     "denied": "Du hast keine Berechtigung, diese Seite zu öffnen.",
-    "upcoming": "Kommende Veranstaltungen",
-    "noEvents": "Noch keine kommenden Veranstaltungen.",
-    "links": {
-      "newEvent": "Neue Veranstaltung",
-      "venues": "Spielstätten & Pläne",
-      "waitingRoom": "Warteraum-Standards"
-    },
-    "columns": {
-      "event": "Veranstaltung",
-      "date": "Datum",
-      "venue": "Spielstätte",
-      "status": "Status",
-      "sale": "Verkauf"
-    },
     "updates": {
       "available": {
         "title": "Update verfügbar: v{version} (Kanal {channel})",
@@ -187,11 +160,6 @@
         "link": "docker-compose.yml von v{version}"
       }
     },
-    "refundsOpen": {
-      "title": "{count, plural, one {# Erstattung offen} other {# Erstattungen offen}}",
-      "text": "Kunden warten auf ihr Geld.",
-      "link": "Offene Erstattungen"
-    },
     "live": {
       "title": "Live-Übersicht",
       "updated": "Aktualisiert {time}",
@@ -199,71 +167,43 @@
       "kpi": {
         "revenueToday": "Umsatz heute",
         "revenue7d": "Umsatz, letzte 7 Tage",
-        "revenueEvent": "Umsatz der Veranstaltung",
         "netOfRefunds": "brutto, abzüglich Erstattungen",
         "ordersToday": "Bestellungen heute",
         "ticketsToday": "Verkaufte Tickets heute",
         "openVorkasse": "Offene Überweisungen",
-        "openVorkasseCount": "{count, plural, one {# Bestellung} other {# Bestellungen}}",
-        "openRefunds": "Offene Erstattungen"
+        "openVorkasseCount": "{count, plural, one {# Bestellung} other {# Bestellungen}}"
       },
       "inventory": {
-        "title": "Plätze",
-        "capacity": "{count} insgesamt",
-        "sold": "Verkauft",
-        "reserved": "Reserviert (unbezahlt)",
-        "locked": "In Warenkörben",
-        "available": "Frei",
-        "blocked": "Gesperrt",
-        "aria": "Verkauft {sold}, reserviert {reserved}, in Warenkörben {locked}, frei {available}, gesperrt {blocked}"
-      },
-      "queue": {
-        "title": "Warteraum",
-        "value": "{active} gerade im Shop (live), {waiting} wartend",
-        "lobby": "{count} in der Lobby"
-      },
-      "payments": {
-        "title": "Zahlungsarten",
-        "none": "Noch keine bezahlten Tickets.",
-        "tickets": "{count, plural, one {# Ticket} other {# Tickets}}"
+        "aria": "Verkauft {sold}, reserviert {reserved}, in Warenkörben {locked}, frei {available}, gesperrt {blocked}",
+        "summary": "{sold} verkauft · {reserved} reserviert · {available} von {capacity} frei"
       },
       "checkIn": {
         "title": "Check-in"
       },
       "overview": {
-        "title": "Alle Veranstaltungen",
-        "events": "{count, plural, one {# Veranstaltung} other {# Veranstaltungen}}",
         "none": "Keine Veranstaltung passt zu den gewählten Status.",
-        "revenue": "Umsatz",
-        "revenueHint": "brutto, bestätigte Tickets",
-        "otherCurrency": "{count, plural, one {# Veranstaltung in anderer Währung ist} other {# Veranstaltungen in anderen Währungen sind}} im Umsatz und bei den Zahlungsarten nicht enthalten.",
         "statusLabel": "Status-Filter"
       },
-      "cards": {
-        "title": "Veranstaltungen",
+      "events": {
+        "title": "Veranstaltungen im Verkauf & demnächst",
+        "all": "Alle Veranstaltungen",
+        "inShop": "{active} gerade im Shop, {waiting} wartend",
         "showing": "{shown} von {total} Veranstaltungen angezeigt.",
-        "handle": "Karte „{title}“ verschieben",
-        "handleHint": "Zum Umsortieren ziehen oder die Pfeiltasten drücken.",
-        "moved": "„{title}“ steht jetzt an Position {position} von {total}.",
-        "saveFailed": "Die Reihenfolge konnte nicht gespeichert werden."
+        "saveFailed": "Der Status-Filter konnte nicht gespeichert werden.",
+        "columns": {
+          "event": "Veranstaltung",
+          "status": "Status",
+          "seats": "Plätze"
+        }
       }
-    },
-    "adjustmentsOpen": {
-      "title": "{count, plural, one {# Nachzahlung ist unbezahlt} other {# Nachzahlungen sind unbezahlt}}",
-      "text": "Die Erinnerung wurde gesendet – setze den Tarif zurück oder storniere das Ticket.",
-      "link": "Liste öffnen"
-    },
-    "invoiceCorrections": {
-      "title": "{count, plural, one {# Rechnung muss korrigiert werden} other {# Rechnungen müssen korrigiert werden}}",
-      "text": "Eine Nachzahlung ist eingegangen, die Rechnung wurde aber nicht automatisch korrigiert.",
-      "link": "Liste öffnen"
     },
     "refundReconcile": {
       "pendingTitle": "PayPal-Erstattungen warten auf den Abgleich nach der Wiederherstellung",
       "pendingText": "Automatische Erstattungen pausieren, bis der Abgleich mit PayPal abgeschlossen ist.",
       "failing": "Der Abgleich mit PayPal schlägt weiterhin fehl ({error}). Automatische Erstattungen bleiben pausiert.",
       "reviewTitle": "{count, plural, one {# Bestellung braucht eine Erstattungsprüfung} other {# Bestellungen brauchen eine Erstattungsprüfung}}",
-      "reviewText": "PayPal zeigt Erstattungen, die hier nicht erfasst sind. Automatische Erstattungen dieser Bestellungen sind angehalten."
+      "reviewText": "PayPal zeigt Erstattungen, die hier nicht erfasst sind. Automatische Erstattungen dieser Bestellungen sind angehalten.",
+      "link": "Offene Erstattungen"
     },
     "setup": {
       "title": "Erste Schritte",
@@ -313,6 +253,12 @@
       "hints": {
         "externalBackup": "Tipp: Richte zusätzlich ein externes S3-Ziel ein, damit Backups nicht nur auf diesem Server liegen (Sicherungen auf demselben Datenträger überstehen dessen Verlust nicht)."
       }
+    },
+    "overview": "Übersicht",
+    "attention": {
+      "title": "Zu erledigen",
+      "allClear": "Alles erledigt",
+      "allClearText": "Gerade ist nichts zu tun."
     }
   },
   "venues": {
@@ -321,8 +267,8 @@
     "new": "Neue Spielstätte",
     "newDescription": "Lege einen Ort an. Master-Saalpläne werden nach dem Speichern hinzugefügt.",
     "empty": "Noch keine Spielstätten.",
+    "emptyDescription": "Lege eine Spielstätte an, um Master-Pläne hinzuzufügen und sie für Veranstaltungen zu nutzen.",
     "edit": "Details der Spielstätte",
-    "backToList": "Alle Spielstätten",
     "columns": {
       "name": "Name",
       "city": "Ort",
@@ -412,6 +358,11 @@
       "confirmTitle": "„{name}“ endgültig löschen?",
       "confirmDescription": "Die Spielstätte und {plans, plural, =0 {ihre Saalplan-Vorlagen} one {ihre Saalplan-Vorlage} other {ihre # Saalplan-Vorlagen}} werden entfernt. Das kann nicht rückgängig gemacht werden.",
       "confirm": "Endgültig löschen"
+    },
+    "facts": {
+      "title": "Überblick",
+      "events": "Veranstaltungen",
+      "openMap": "Karte öffnen"
     }
   },
   "shopOrder": {
@@ -443,7 +394,6 @@
       "past": "Vergangen",
       "apply": "Suchen"
     },
-    "backToList": "Alle Veranstaltungen",
     "defaultTicketType": "Normalpreis",
     "columns": {
       "title": "Veranstaltung",
@@ -483,19 +433,20 @@
       "orphanSeatRuleHint": "Wenn aktiviert, können Kunden nicht zum Warenkorb weitergehen, wenn ihre Auswahl einen einzelnen freien Platz in einer Reihe zurücklassen würde. Geprüft wird beim Klick auf „Weiter zum Warenkorb“."
     },
     "tabs": {
-      "label": "Bereiche der Veranstaltung",
+      "overview": "Übersicht",
       "details": "Details",
-      "sales": "Verkauf",
-      "pricing": "Preise",
+      "sales": "Verkaufseinstellungen",
+      "pricing": "Preise & Tarife",
       "seating": "Saalplan",
       "waitingRoom": "Warteraum",
       "accessCodes": "Zugangscodes",
       "page": "Shop-Seite",
       "fees": "Gebühren",
-      "ticket": "Ticket",
+      "ticket": "Ticket-Design",
       "wallet": "Wallet",
       "checkIn": "Einlass",
-      "communication": "Kommunikation"
+      "communication": "Kommunikation",
+      "status": "Status & Lebenszyklus"
     },
     "details": {
       "title": "Details der Veranstaltung"
@@ -730,6 +681,58 @@
       "deleteAllDescription": "{orders} Testbestellungen ({seats} Plätze) werden vollständig gelöscht und ihre Plätze freigegeben. Eine Testbestellung aus einem Warenkorb mit mehreren Entwurfs-Veranstaltungen wird komplett gelöscht, auch ihre Plätze bei den anderen Veranstaltungen. Bestellungen mit echtem Geldeingang können nicht gelöscht werden („nur stornierbar“): storniere und blende sie auf der Bestellseite aus.",
       "deleteAllConfirm": "Testbestellungen löschen",
       "showOrders": "Testbestellungen anzeigen"
+    },
+    "actions": "Aktionen",
+    "viewInShop": "Im Shop ansehen",
+    "menu": {
+      "label": "Bereiche der Veranstaltung",
+      "pageSelect": "Bereich",
+      "groups": {
+        "setup": "Einrichtung",
+        "sales": "Verkauf",
+        "presentation": "Darstellung",
+        "operations": "Betrieb"
+      }
+    },
+    "overview": {
+      "kpis": {
+        "label": "Kennzahlen",
+        "sold": "Verkauft",
+        "soldOf": "von {capacity} Plätzen",
+        "reserved": "Reserviert",
+        "reservedDetail": "{pending} warten auf Zahlung · {locked} in Warenkörben",
+        "available": "Verfügbar",
+        "blocked": "{count} gesperrt",
+        "testHeld": "{count} durch Testbestellungen belegt",
+        "revenue": "Ticketumsatz",
+        "revenueHint": "Brutto, bestätigte Tickets",
+        "checkIn": "Eingelassen",
+        "checkInOf": "von {valid} gültigen Tickets",
+        "testExcluded": "Testbestellungen sind in diesen Zahlen nicht enthalten."
+      },
+      "facts": {
+        "title": "Termine & Verkauf",
+        "starts": "Beginn",
+        "ends": "Ende",
+        "doors": "Einlass",
+        "presale": "Vorverkauf ab",
+        "publicSale": "Allgemeiner Verkauf ab",
+        "saleEnds": "Verkaufsende",
+        "notSet": "Nicht gesetzt",
+        "paused": "Der Verkauf ist pausiert",
+        "venue": "Spielstätte",
+        "seatPlan": "Saalplan",
+        "openEditor": "Editor öffnen",
+        "noPlan": "Kein Saalplan zugeordnet"
+      },
+      "links": {
+        "title": "Schnellzugriff",
+        "orders": "Bestellungen dieser Veranstaltung",
+        "waitlist": "Warteliste: {count, plural, =0 {keine bestätigten Einträge} one {# bestätigter Eintrag} other {# bestätigte Einträge}}",
+        "testOrders": "Testbestellungen: {count}",
+        "checkIn": "Einlass & Scan-Protokoll"
+      },
+      "statusLink": "Verschieben, absagen oder löschen: Status & Lebenszyklus"
     }
   },
   "pricing": {
@@ -1589,6 +1592,7 @@
       "searchLabel": "Einstellungen durchsuchen",
       "searchPlaceholder": "Einstellung suchen…",
       "searchNone": "Keine Einstellung gefunden.",
+      "pageSelect": "Einstellungsseite",
       "groups": {
         "shop": "Shop",
         "design": "Gestaltung",
@@ -1608,6 +1612,8 @@
       "sponsors": "Sponsoren",
       "seatDisplay": "Saalplan-Farben",
       "checkout": "Warenkorb & Plätze",
+      "fees": "Gebühren & Steuern",
+      "waitingRoom": "Warteraum",
       "waitlist": "Warteliste",
       "accounts": "Kundenkonten",
       "selfService": "Ticket-Selbstservice",
@@ -1622,7 +1628,57 @@
       "walletGoogle": "Google Wallet",
       "scanner": "Scanner-App",
       "security": "Sicherheit",
-      "monitoring": "Monitoring"
+      "monitoring": "Monitoring",
+      "privacy": "Datenschutz & Aufbewahrung"
+    },
+    "tabInfo": {
+      "general": "Shop-Name, Sprachen, Währung, Zeitzone und Vorgaben für neue Veranstaltungen.",
+      "organizer": "Rechtliche Angaben des Verkäufers für Rechnungen und die Fußzeile der E-Mails.",
+      "seo": "Indexierung durch Suchmaschinen, Seitentitel, Beschreibungen und das Bild für geteilte Links.",
+      "cookies": "Hinweisleiste zu den Cookies im Shop (alle technisch notwendig).",
+      "appearance": "Logo, Markenfarbe, Farbschema, Fußzeile und rechtliche Links des Shops.",
+      "startPage": "Inhalt der Startseite des Shops, solange keine Veranstaltung veröffentlicht ist.",
+      "shopLayout": "Wie die Veranstaltungen auf der Startseite des Shops angeordnet werden.",
+      "sponsors": "Sponsoren-Logos, die im Shop-Header neben dem Logo wechseln.",
+      "seatDisplay": "Wie Platzzustände den Kunden im Saalplan angezeigt werden.",
+      "checkout": "Reservierungszeiten, Bestelllimits, Regeln der Platzauswahl und Felder der Kasse.",
+      "fees": "Steuersätze und Servicegebühren, die zusätzlich zum Ticketpreis berechnet werden. Veranstaltungen können Gebühren im Reiter „Gebühren“ anpassen oder erlassen.",
+      "waitingRoom": "Standard-Warteraum für jede Veranstaltung ohne eigene Konfiguration.",
+      "waitlist": "Benachrichtigung per E-Mail, wenn bei einer ausverkauften Veranstaltung wieder Tickets frei werden. Veranstaltungen schalten das im Tab „Verkauf“ um.",
+      "accounts": "Optionale Kundenkonten zusätzlich zum Gastkauf.",
+      "selfService": "Kunden ändern den Namen auf einem Ticket oder geben es an jemand anderen weiter.",
+      "payments": "Überweisung (Vorkasse): Zahlungsfristen, Erinnerungen und automatische Zuordnung.",
+      "paypal": "Zugangsdaten der PayPal-REST-App, Sandbox oder Live.",
+      "invoicing": "Rechnungsnummern und die PDF-Rechnungen, die bei Zahlungseingang automatisch erstellt werden.",
+      "email": "Postausgangsserver für Bestellbestätigungen, Erinnerungen, Rechnungen und Konto-E-Mails.",
+      "emailHeader": "Das farbige Band am Anfang jeder E-Mail: Shopname und Logo.",
+      "notifications": "Warn-E-Mails an Admins, wenn etwas Aufmerksamkeit braucht. Jeder Admin wählt die Warnungen auf seiner Kontoseite; die Texte bearbeitest du unter E-Mail-Vorlagen.",
+      "wallet": "Optionale Apple-Wallet- und Google-Wallet-Pässe für Tickets und ihr Design.",
+      "walletApple": "Signierte .pkpass-Dateien, eine pro Ticket. Erfordert einen Apple-Developer-Account.",
+      "walletGoogle": "„In Google Wallet speichern“-Links. Ein Google-Pay-&-Wallet-Aussteller-Konto ist kostenlos.",
+      "scanner": "Verhalten, Updates und Serveradresse der Android-Check-in-App.",
+      "security": "Sitzungen, Sperre, Passwörter und Zwei-Faktor-Authentifizierung der Admin-Benutzer.",
+      "monitoring": "Optionaler Prometheus-Endpunkt mit den Zahlen der Seite System.",
+      "privacy": "Aufbewahrungsfristen für E-Mail-Protokolle, Rechnungen und Zahlungs-Webhooks."
+    },
+    "overview": {
+      "description": "Alles, was Shop, Verkauf, Zahlungen, E-Mails, Tickets und System konfiguriert. Werte für einzelne Veranstaltungen legst du in der jeweiligen Veranstaltung fest.",
+      "searchPlaceholder": "Einstellung suchen…",
+      "status": {
+        "configured": "Eingerichtet",
+        "notSetUp": "Nicht eingerichtet",
+        "on": "An",
+        "off": "Aus",
+        "live": "Live",
+        "sandbox": "Sandbox",
+        "indexed": "Indexiert",
+        "notIndexed": "Für Suchmaschinen verborgen",
+        "twoFactorRequired": "2FA Pflicht",
+        "twoFactorSuperAdmins": "2FA für Super-Admins",
+        "twoFactorOptional": "2FA optional",
+        "customAddress": "Eigene Adresse",
+        "shopAddress": "Shop-Adresse"
+      }
     },
     "waitlist": {
       "title": "Warteliste",
@@ -1922,5 +1978,158 @@
     "remove": "Entfernen",
     "removeNotify": "Per E-Mail informieren",
     "removeConfirm": "Entfernen"
+  },
+  "shell": {
+    "breadcrumbs": "Brotkrumen-Navigation",
+    "search": {
+      "button": "Suchen…",
+      "ctrlK": "Strg K",
+      "title": "Suche",
+      "description": "Admin-Seiten, Einstellungen, Bestellungen, Kunden und Veranstaltungen finden.",
+      "label": "Im Admin-Portal suchen",
+      "placeholder": "Seiten, Einstellungen, Bestellnummer, E-Mail, Veranstaltung…",
+      "results": "Suchergebnisse",
+      "sections": {
+        "pages": "Seiten & Einstellungen",
+        "orders": "Bestellungen",
+        "customers": "Kunden",
+        "events": "Veranstaltungen"
+      },
+      "none": "Nichts gefunden.",
+      "minChars": "Mindestens 2 Zeichen eingeben, um Bestellungen, Kunden und Veranstaltungen zu suchen.",
+      "failed": "Die Suche ist gerade nicht verfügbar.",
+      "footer": "↑ ↓ zum Wechseln, Enter zum Öffnen, Esc zum Schließen"
+    },
+    "bell": {
+      "label": "Aufgaben",
+      "labelCount": "Aufgaben: {count} offen",
+      "title": "Offene Aufgaben",
+      "empty": "Gerade ist nichts zu tun.",
+      "dashboard": "Zur Übersicht",
+      "items": {
+        "bankReview": "Zahlungseingänge zu klären",
+        "overdueTransfers": "Überfällige Überweisungen",
+        "openRefunds": "Offene Erstattungen",
+        "openAdjustments": "Offene Nachzahlungen",
+        "invoiceCorrections": "Rechnungskorrekturen",
+        "waitlistPending": "Wartelisten-Einträge",
+        "expiringCodes": "Bald ablaufende Zugangscodes"
+      }
+    },
+    "create": {
+      "button": "Neu",
+      "event": "Veranstaltung",
+      "boxOffice": "Abendkasse-Verkauf",
+      "discount": "Rabattcode",
+      "venue": "Spielstätte"
+    },
+    "user": {
+      "label": "Kontomenü von {name}",
+      "account": "Mein Konto",
+      "language": "Sprache",
+      "version": "Version v{version}"
+    }
+  },
+  "hubs": {
+    "design": {
+      "title": "Gestaltung",
+      "description": "Aussehen des Shops, Ticket- und E-Mail-Vorlagen, Bilder und Symbole.",
+      "sections": {
+        "shop": "Shop",
+        "documents": "Tickets & E-Mails",
+        "libraries": "Bibliotheken"
+      },
+      "cards": {
+        "appearance": {
+          "title": "Marke & Farben",
+          "description": "Logo, Markenfarbe und Farbschema des Shops."
+        },
+        "startPage": {
+          "title": "Startseite",
+          "description": "Inhalt der Shop-Startseite."
+        },
+        "shopLayout": {
+          "title": "Shop-Layout",
+          "description": "Kopfbereich, Fußbereich und Veranstaltungsliste."
+        },
+        "sponsors": {
+          "title": "Sponsoren",
+          "description": "Sponsorenlogos neben dem Shop-Logo."
+        },
+        "seatDisplay": {
+          "title": "Platzdarstellung",
+          "description": "Farben und Markierungen im Saalplan."
+        },
+        "ticketTemplates": {
+          "title": "Ticket-Designs",
+          "description": "Layout der PDF-Tickets."
+        },
+        "emailTemplates": {
+          "title": "E-Mail-Vorlagen",
+          "description": "Texte aller E-Mails an Kunden."
+        },
+        "emailHeader": {
+          "title": "E-Mail-Kopf",
+          "description": "Logo und Kopfbereich jeder E-Mail."
+        },
+        "media": {
+          "title": "Medienbibliothek",
+          "description": "Hochgeladene Bilder und ihre Verwendung."
+        },
+        "symbols": {
+          "title": "Symbolbibliothek",
+          "description": "Symbole und Sitzformen für Saalpläne."
+        }
+      }
+    },
+    "administration": {
+      "title": "System",
+      "description": "Benutzer, Sicherheit, Datenaufbewahrung, Aktivitätsprotokoll, Sicherungen und Systemstatus.",
+      "sections": {
+        "access": "Zugang",
+        "operations": "Betrieb"
+      },
+      "cards": {
+        "users": {
+          "title": "Benutzer & Rollen",
+          "description": "Admin-Konten und ihre Rollen."
+        },
+        "security": {
+          "title": "Sicherheit",
+          "description": "Zwei-Faktor-Anmeldung und Anmelderegeln."
+        },
+        "privacy": {
+          "title": "Datenschutz & Aufbewahrung",
+          "description": "Wie lange E-Mail-Protokolle, Rechnungen und Webhooks aufbewahrt werden."
+        },
+        "audit": {
+          "title": "Aktivitätsprotokoll",
+          "description": "Wer hat wann was geändert."
+        },
+        "backups": {
+          "title": "Sicherungen",
+          "description": "Datenbank und Dateien sichern und wiederherstellen."
+        },
+        "system": {
+          "title": "Systemstatus",
+          "description": "Dienste, Warteschlangen und Lasttest-Modus."
+        },
+        "monitoring": {
+          "title": "Monitoring",
+          "description": "Metrik-Endpunkt und sein Zugriffstoken."
+        }
+      }
+    }
+  },
+  "list": {
+    "all": "Alle",
+    "searchChip": "Suche: {value}",
+    "moreFilters": "Weitere Filter",
+    "apply": "Anwenden",
+    "reset": "Filter zurücksetzen",
+    "activeFilters": "Aktive Filter",
+    "removeFilter": "Filter entfernen: {filter}",
+    "emptyFiltered": "Keine Einträge passen zu den aktuellen Filtern.",
+    "rowActions": "Aktionen für {name}"
   }
 }

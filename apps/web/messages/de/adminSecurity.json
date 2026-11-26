@@ -128,7 +128,8 @@
     "passkeys": {
       "title": "Passkeys",
       "description": "Melde dich mit Fingerabdruck, Gesicht, Geräte-PIN oder Sicherheitsschlüssel statt mit Passwort an. Ein Passkey zählt als dein zweiter Faktor."
-    }
+    },
+    "sectionsLabel": "Auf dieser Seite"
   },
   "twoFactor": {
     "recoveryTitle": "Wiederherstellungscodes",
@@ -161,7 +162,6 @@
   "users": {
     "title": "Benutzer",
     "description": "Admin-Portal-Konten, Rollen und Einladungen.",
-    "back": "Alle Benutzer",
     "columns": {
       "name": "Name",
       "roles": "Rollen",
@@ -197,7 +197,8 @@
       "displayName": "Name",
       "email": "E-Mail",
       "submit": "Einladung senden",
-      "sending": "Sende…"
+      "sending": "Sende…",
+      "open": "Benutzer einladen"
     },
     "edit": {
       "title": "Name und Rollen",
@@ -217,13 +218,20 @@
       "confirmDeleteInvite": "Diese Einladung löschen?",
       "unlock": "Entsperren",
       "signOutAll": "Überall abmelden",
-      "confirmSignOutAll": "Alle Sitzungen dieses Benutzers beenden? Er oder sie muss sich auf jedem Gerät neu anmelden."
+      "confirmSignOutAll": "Alle Sitzungen dieses Benutzers beenden? Er oder sie muss sich auf jedem Gerät neu anmelden.",
+      "menu": "Aktionen"
     },
     "activity": {
       "title": "Anmeldeaktivität",
       "lastSignIn": "Letzte Anmeldung",
       "lastIp": "IP-Adresse der letzten Anmeldung",
       "activeSessions": "Aktive Sitzungen"
+    },
+    "tabsLabel": "Nach Status filtern",
+    "empty": "Noch keine Benutzer.",
+    "detail": {
+      "email": "E-Mail",
+      "createdAt": "Angelegt"
     }
   },
   "settings": {

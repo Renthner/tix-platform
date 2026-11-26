@@ -331,6 +331,7 @@ export function SeatMapEditor(props: SeatMapEditorProps) {
         planName={doc.name}
         isEventMap={isEventMap}
         backHref={props.backHref}
+        parent={props.parent}
         dirty={dirty}
         saving={saving}
         canUndo={state.past.length > 0}

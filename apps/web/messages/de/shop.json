@@ -68,6 +68,10 @@
         "purpose": "Merkt sich, dass die Einrichtungs-Checkliste eingeklappt ist.",
         "lifetime": "1 Jahr"
       },
+      "settingsGroups": {
+        "purpose": "Merkt sich, welche Gruppen des Einstellungsmenüs aufgeklappt sind.",
+        "lifetime": "1 Jahr"
+      },
       "queueTest": {
         "purpose": "Nur für Mitarbeitende: merkt sich, dass ein Super-Admin den Warteraum wie ein Kunde ausprobieren möchte.",
         "lifetime": "Sitzung"

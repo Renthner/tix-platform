@@ -1,7 +1,13 @@
-import { BANK_TX_REVIEW_REASONS, type BankTxReviewReason } from '@tix/shared';
+import { BANK_TX_REVIEW_REASONS, buildQuery, type BankTxReviewReason } from '@tix/shared';
+import { CheckCheck } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
-import { NativeSelect } from '@/components/admin/form-controls';
+import { AdminPagination } from '@/components/admin/admin-pagination';
+import { BankingPage } from '@/components/admin/banking/banking-page';
 import { ReviewCase } from '@/components/admin/banking/review-case';
+import { EmptyState } from '@/components/admin/empty-state';
+import { FilterSelect } from '@/components/admin/filter-select';
+import { ListToolbar, type ActiveFilterChip } from '@/components/admin/list-toolbar';
+import { StatusTabs } from '@/components/admin/status-tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
@@ -31,69 +37,92 @@ export default async function ReviewPage({
     : undefined;
   const accountId = UUID.test(sp.account ?? '') ? sp.account : undefined;
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
-  const [t, accounts, result] = await Promise.all([
+  const [t, tl, accounts, result] = await Promise.all([
     getTranslations('banking'),
+    getTranslations('admin.list'),
     listBankAccounts(),
     listReviewCases({ reason, accountId }, page, PAGE_SIZE),
   ]);
-  const pages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
-  const href = (p: number) => {
-    const usp = new URLSearchParams(
-      Object.entries({ reason, account: accountId, page: p > 1 ? String(p) : undefined }).filter(
-        (e): e is [string, string] => Boolean(e[1]),
-      ),
-    );
-    const s = usp.toString();
-    return s ? `/admin/banking/review?${s}` : '/admin/banking/review';
-  };
+
+  const base = '/admin/banking/review';
+  const listParams = { reason, account: accountId };
+  const totalAll = Object.values(result.reasons).reduce((s, n) => s + n, 0);
+  // Reason tabs: only reasons with open cases (plus the selected one), each with its count.
+  const tabs = [
+    {
+      key: 'all',
+      label: t('review.allReasons'),
+      href: buildQuery(base, listParams, { reason: undefined }),
+      active: !reason,
+      count: totalAll,
+      'data-testid': 'review-reason-all',
+    },
+    ...BANK_TX_REVIEW_REASONS.filter((r) => (result.reasons[r] ?? 0) > 0 || r === reason).map(
+      (r) => ({
+        key: r,
+        label: t(`reason.${r}`),
+        href: buildQuery(base, listParams, { reason: r }),
+        active: reason === r,
+        count: result.reasons[r] ?? 0,
+        'data-testid': `review-reason-${r}`,
+      }),
+    ),
+  ];
+
+  const accountName = accounts.find((a) => a.id === accountId)?.name;
+  const chips: ActiveFilterChip[] = accountId
+    ? [
+        {
+          key: 'account',
+          label: `${t('transactions.filters.account')}: ${accountName ?? accountId}`,
+          removeHref: buildQuery(base, listParams, { account: undefined }),
+        },
+      ]
+    : [];
+  const resetHref = chips.length > 0 ? buildQuery(base, { reason }) : null;
+
   return (
-    <>
-      <div className="space-y-1">
-        <h2 className="text-lg font-semibold">{t('review.title')}</h2>
-        <p className="text-sm text-muted-foreground">{t('review.description')}</p>
-      </div>
-      <form method="get" className="flex flex-wrap items-end gap-2">
-        <NativeSelect
-          name="reason"
-          defaultValue={reason ?? ''}
-          className="w-auto"
-          aria-label={t('review.allReasons')}
-        >
-          <option value="">
-            {t('review.allReasons')} ({Object.values(result.reasons).reduce((s, n) => s + n, 0)})
-          </option>
-          {BANK_TX_REVIEW_REASONS.map((r) => (
-            <option key={r} value={r}>
-              {t(`reason.${r}`)} ({result.reasons[r] ?? 0})
-            </option>
-          ))}
-        </NativeSelect>
-        {accounts.length > 1 ? (
-          <NativeSelect
-            name="account"
-            defaultValue={accountId ?? ''}
-            className="w-auto"
-            aria-label={t('review.allAccounts')}
-          >
-            <option value="">{t('review.allAccounts')}</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </NativeSelect>
-        ) : null}
-        <Button type="submit" variant="secondary">
-          {t('review.filter')}
-        </Button>
-        <span className="ml-auto text-sm text-muted-foreground">
-          {t('review.count', { count: result.total })}
-        </span>
-      </form>
+    <BankingPage title={t('review.title')} description={t('review.description')}>
+      <StatusTabs label={t('review.reasonsLabel')} tabs={tabs} />
+      {accounts.length > 1 || accountId ? (
+        <ListToolbar
+          filters={
+            <FilterSelect
+              name="account"
+              value={accountId}
+              ariaLabel={t('transactions.filters.account')}
+              allLabel={t('review.allAccounts')}
+              searchable={false}
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+            />
+          }
+          hidden={{ reason }}
+          resetHref={resetHref}
+          chips={chips}
+        />
+      ) : null}
       {result.cases.length === 0 ? (
         <Card>
           <CardContent>
-            <p className="py-6 text-center text-sm text-muted-foreground">{t('review.empty')}</p>
+            {reason || accountId ? (
+              <EmptyState
+                icon={CheckCheck}
+                title={t('review.emptyFiltered')}
+                description={tl('emptyFiltered')}
+                action={
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={base}>{tl('reset')}</Link>
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={CheckCheck}
+                tone="success"
+                title={t('review.empty')}
+                data-testid="review-empty"
+              />
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -103,25 +132,14 @@ export default async function ReviewPage({
           ))}
         </div>
       )}
-      {pages > 1 ? (
-        <div className="flex items-center justify-between text-sm">
-          {page > 1 ? (
-            <Button asChild variant="outline" size="sm">
-              <Link href={href(page - 1)}>{t('transactions.previous')}</Link>
-            </Button>
-          ) : (
-            <span />
-          )}
-          <span className="text-muted-foreground">{t('transactions.page', { page, pages })}</span>
-          {page < pages ? (
-            <Button asChild variant="outline" size="sm">
-              <Link href={href(page + 1)}>{t('transactions.next')}</Link>
-            </Button>
-          ) : (
-            <span />
-          )}
-        </div>
-      ) : null}
-    </>
+      <AdminPagination
+        pathname={base}
+        params={listParams}
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={result.total}
+        summary={t('review.count', { count: result.total })}
+      />
+    </BankingPage>
   );
 }

@@ -1,5 +1,7 @@
 import type { AlertHistoryRow } from '@tix/core';
 import { getFormatter, getTranslations } from 'next-intl/server';
+import { BellOff } from 'lucide-react';
+import { EmptyState } from '@/components/admin/empty-state';
 import { SettingsSection } from '@/components/admin/settings-forms';
 
 /** Last warning e-mails of the installation (System page). */
@@ -13,7 +15,7 @@ export async function AlertHistory({ rows }: { rows: AlertHistoryRow[] }) {
       description={t('history.description')}
     >
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('history.empty')}</p>
+        <EmptyState icon={BellOff} size="sm" title={t('history.empty')} />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm" data-testid="alert-history">

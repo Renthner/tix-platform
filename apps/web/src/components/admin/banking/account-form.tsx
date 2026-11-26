@@ -2,7 +2,14 @@
 
 import { formatIban } from '@tix/shared';
 import { useTranslations } from 'next-intl';
-import { useActionState, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import { ActionForm, SubmitButton } from '@/components/admin/form-controls';
 import { Button } from '@/components/ui/button';
 import {
@@ -126,7 +133,12 @@ export function BankAccountForm({
   );
 }
 
-/** Confirmation dialog for banking actions (delete, dismiss with note …). */
+/**
+ * Confirmation dialog for banking actions (delete, dismiss with note …). Uncontrolled it renders
+ * its own trigger button (`children`); controlled (`open` + `onOpenChange`, e.g. opened from an
+ * "Actions" menu) it renders the dialog only. While the action runs the dialog cannot be closed
+ * (Escape, overlay, X, cancel), so a request is never submitted twice or orphaned.
+ */
 export function BankingConfirm({
   action,
   title,
@@ -136,6 +148,9 @@ export function BankingConfirm({
   size = 'sm',
   children,
   fields,
+  open: controlledOpen,
+  onOpenChange,
+  onCloseAutoFocus,
 }: {
   action: Action;
   title: ReactNode;
@@ -143,24 +158,54 @@ export function BankingConfirm({
   confirmLabel: ReactNode;
   variant?: ComponentProps<typeof Button>['variant'];
   size?: ComponentProps<typeof Button>['size'];
-  children: ReactNode;
+  /** Label of the trigger button (uncontrolled use only). */
+  children?: ReactNode;
   /** Extra inputs inside the dialog (e.g. a note). */
   fields?: (state: BankingActionState) => ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }) {
   const tc = useTranslations('common.actions');
-  const [open, setOpen] = useState(false);
-  const [state, formAction] = useActionState(action, BANKING_IDLE);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : ownOpen;
+  const [state, formAction, pending] = useActionState(action, BANKING_IDLE);
+  const setOpen = (next: boolean) => {
+    if (!next && pending) return;
+    if (controlled) onOpenChange?.(next);
+    else setOwnOpen(next);
+  };
+  const lastSuccess = useRef<number | null>(null);
   useEffect(() => {
-    if (state.status === 'success') setOpen(false);
-  }, [state]);
+    if (state.status !== 'success' || state.at === lastSuccess.current) return;
+    lastSuccess.current = state.at;
+    if (controlled) onOpenChange?.(false);
+    else setOwnOpen(false);
+  }, [state, controlled, onOpenChange]);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button type="button" variant={variant === 'destructive' ? 'outline' : variant} size={size}>
-          {children}
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
+      {controlled ? null : (
+        <DialogTrigger asChild>
+          <Button
+            type="button"
+            variant={variant === 'destructive' ? 'outline' : variant}
+            size={size}
+          >
+            {children}
+          </Button>
+        </DialogTrigger>
+      )}
+      <DialogContent
+        showCloseButton={!pending}
+        onEscapeKeyDown={(e) => {
+          if (pending) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (pending) e.preventDefault();
+        }}
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
@@ -169,7 +214,12 @@ export function BankingConfirm({
           <BankingFeedback state={state} />
           {fields?.(state)}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setOpen(false)}
+            >
               {tc('cancel')}
             </Button>
             <SubmitButton variant={variant}>{confirmLabel}</SubmitButton>

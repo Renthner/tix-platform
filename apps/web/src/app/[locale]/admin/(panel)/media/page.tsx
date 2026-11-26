@@ -4,11 +4,18 @@ import {
   mediaAssetUsagesBatch,
   mediaSummary,
 } from '@tix/core';
-import { MEDIA_ASSET_KINDS, parsePage, type MediaAssetKind } from '@tix/shared';
+import { MEDIA_ASSET_KINDS, buildQuery, parsePage, type MediaAssetKind } from '@tix/shared';
 import { Shapes } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { AdminPagination } from '@/components/admin/admin-pagination';
-import { NativeSelect, PageHeader } from '@/components/admin/form-controls';
+import { FilterSelect } from '@/components/admin/filter-select';
+import {
+  ListToolbar,
+  MoreFilterField,
+  type ActiveFilterChip,
+} from '@/components/admin/list-toolbar';
+import { AdminPageHeader } from '@/components/admin/page-header';
+import { hubBreadcrumbs } from '@/server/admin/breadcrumbs';
 import {
   BulkDeleteDialog,
   MediaGrid,
@@ -18,7 +25,6 @@ import {
 import { formatBytes } from '@/lib/bytes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { requireAdmin } from '@/server/auth';
@@ -68,8 +74,9 @@ export default async function MediaPage({
   const pageNo = parsePage(sp.page);
 
   const core = getCore();
-  const [t, list, summary, unused] = await Promise.all([
+  const [t, tl, list, summary, unused] = await Promise.all([
     getTranslations('admin.mediaLibrary'),
+    getTranslations('admin.list'),
     listMediaAssets(core, { kind, usage, search, sort, dir, page: pageNo, pageSize: PAGE_SIZE }),
     mediaSummary(core),
     listUnusedMediaAssets(core, { kind }),
@@ -79,9 +86,48 @@ export default async function MediaPage({
     list.items.map((i) => i.id),
   );
 
+  // Active filters as removable chips; sorting stays when filters are reset.
+  const base = '/admin/media';
+  const listParams = {
+    kind,
+    usage,
+    q: search,
+    sort: sort === 'date' ? undefined : sort,
+    dir: dir === 'desc' ? undefined : dir,
+  };
+  const without = (overrides: Record<string, string | undefined>) =>
+    buildQuery(base, listParams, overrides);
+  const chips: ActiveFilterChip[] = [];
+  if (search) {
+    chips.push({
+      key: 'q',
+      label: tl('searchChip', { value: search }),
+      removeHref: without({ q: undefined }),
+    });
+  }
+  if (kind) {
+    chips.push({
+      key: 'kind',
+      label: `${t('kind')}: ${t(`kinds.${kind}`)}`,
+      removeHref: without({ kind: undefined }),
+    });
+  }
+  if (usage) {
+    chips.push({
+      key: 'usage',
+      label: `${t('usageFilter')}: ${usage === 'used' ? t('filterUsed') : t('filterUnused')}`,
+      removeHref: without({ usage: undefined }),
+    });
+  }
+  const resetHref =
+    chips.length > 0 ? buildQuery(base, { sort: listParams.sort, dir: listParams.dir }) : null;
+  const moreActiveCount = [listParams.sort, listParams.dir].filter(Boolean).length;
+  const wideSelect = '[&_select]:max-w-none [&_select]:w-full';
+
   return (
     <>
-      <PageHeader
+      <AdminPageHeader
+        breadcrumbs={await hubBreadcrumbs('design')}
         title={t('title')}
         description={t('description')}
         actions={
@@ -111,76 +157,86 @@ export default async function MediaPage({
           </CardContent>
         </Card>
 
-        <form className="flex flex-wrap items-end gap-3" role="search">
-          <div className="space-y-1">
-            <label htmlFor="f-q" className="text-xs text-muted-foreground">
-              {t('search')}
-            </label>
-            <Input id="f-q" name="q" defaultValue={search} placeholder={t('searchPlaceholder')} />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="f-kind" className="text-xs text-muted-foreground">
-              {t('kind')}
-            </label>
-            <NativeSelect id="f-kind" name="kind" defaultValue={kind ?? ''}>
-              <option value="">{t('filterAll')}</option>
-              {LIBRARY_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {t(`kinds.${k}`)}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="f-usage" className="text-xs text-muted-foreground">
-              {t('usageFilter')}
-            </label>
-            <NativeSelect id="f-usage" name="usage" defaultValue={usage ?? ''}>
-              <option value="">{t('filterAll')}</option>
-              <option value="used">{t('filterUsed')}</option>
-              <option value="unused">{t('filterUnused')}</option>
-            </NativeSelect>
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="f-sort" className="text-xs text-muted-foreground">
-              {t('sort')}
-            </label>
-            <NativeSelect id="f-sort" name="sort" defaultValue={sort}>
-              <option value="date">{t('sortDate')}</option>
-              <option value="size">{t('sortSize')}</option>
-            </NativeSelect>
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="f-dir" className="text-xs text-muted-foreground">
-              {t('direction')}
-            </label>
-            <NativeSelect id="f-dir" name="dir" defaultValue={dir}>
-              <option value="desc">{t('dirDesc')}</option>
-              <option value="asc">{t('dirAsc')}</option>
-            </NativeSelect>
-          </div>
-          <Button type="submit">{t('apply')}</Button>
-        </form>
+        <ListToolbar
+          data-testid="media-toolbar"
+          search={{ value: search, placeholder: t('searchPlaceholder'), label: t('search') }}
+          filters={
+            <>
+              <FilterSelect
+                name="kind"
+                value={kind}
+                ariaLabel={t('kind')}
+                allLabel={`${t('kind')}: ${t('filterAll')}`}
+                searchable={false}
+                options={LIBRARY_KINDS.map((k) => ({ value: k, label: t(`kinds.${k}`) }))}
+              />
+              <FilterSelect
+                name="usage"
+                value={usage}
+                ariaLabel={t('usageFilter')}
+                allLabel={`${t('usageFilter')}: ${t('filterAll')}`}
+                searchable={false}
+                options={[
+                  { value: 'used', label: t('filterUsed') },
+                  { value: 'unused', label: t('filterUnused') },
+                ]}
+              />
+            </>
+          }
+          moreActiveCount={moreActiveCount}
+          moreFilters={
+            <>
+              <MoreFilterField label={t('sort')}>
+                <FilterSelect
+                  name="sort"
+                  value={sort}
+                  ariaLabel={t('sort')}
+                  searchable={false}
+                  className={wideSelect}
+                  options={[
+                    { value: 'date', label: t('sortDate') },
+                    { value: 'size', label: t('sortSize') },
+                  ]}
+                />
+              </MoreFilterField>
+              <MoreFilterField label={t('direction')}>
+                <FilterSelect
+                  name="dir"
+                  value={dir}
+                  ariaLabel={t('direction')}
+                  searchable={false}
+                  className={wideSelect}
+                  options={[
+                    { value: 'desc', label: t('dirDesc') },
+                    { value: 'asc', label: t('dirAsc') },
+                  ]}
+                />
+              </MoreFilterField>
+            </>
+          }
+          resetHref={resetHref}
+          chips={chips}
+          actions={
+            <>
+              <BulkDeleteDialog
+                items={unused.items.map((i) => ({
+                  id: i.id,
+                  fileName: i.fileName,
+                  kind: i.kind,
+                  sizeBytes: i.sizeBytes,
+                }))}
+                total={unused.total}
+                action={bulkDeleteMediaAction.bind(
+                  null,
+                  unused.items.map((i) => i.id),
+                )}
+              />
+              <SweepOrphansButton action={sweepMediaOrphansAction} />
+            </>
+          }
+        />
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">{t('results', { count: list.total })}</p>
-          <div className="flex flex-wrap gap-2">
-            <BulkDeleteDialog
-              items={unused.items.map((i) => ({
-                id: i.id,
-                fileName: i.fileName,
-                kind: i.kind,
-                sizeBytes: i.sizeBytes,
-              }))}
-              total={unused.total}
-              action={bulkDeleteMediaAction.bind(
-                null,
-                unused.items.map((i) => i.id),
-              )}
-            />
-            <SweepOrphansButton action={sweepMediaOrphansAction} />
-          </div>
-        </div>
+        <p className="text-sm text-muted-foreground">{t('results', { count: list.total })}</p>
 
         <MediaGrid
           items={list.items.map((m) => ({
@@ -201,7 +257,7 @@ export default async function MediaPage({
 
         <AdminPagination
           pathname="/admin/media"
-          params={{ kind, usage, q: search, sort, dir }}
+          params={listParams}
           page={list.page}
           pageSize={list.pageSize}
           total={list.total}

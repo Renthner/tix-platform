@@ -1,11 +1,11 @@
-import { ArrowLeft } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
+import { BankingPage } from '@/components/admin/banking/banking-page';
 import { ReviewCase } from '@/components/admin/banking/review-case';
+import { DetailLayout, DetailSection } from '@/components/admin/detail-layout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { bankTxHold } from '@/lib/banking-hold';
-import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { requireAdmin } from '@/server/auth';
 import { getTransactionDetail, toReviewCaseView } from '@/server/admin/banking-queries';
@@ -50,48 +50,59 @@ export default async function TransactionDetailPage({
     ],
     [t('transactions.fields.note'), tx.reviewNote],
   ];
+  const amount = format.number(tx.amount / 100, {
+    style: 'currency',
+    currency: tx.currency,
+    signDisplay: 'exceptZero',
+  });
   return (
-    <>
-      <Button asChild variant="ghost" size="sm">
-        <Link href="/admin/banking/transactions">
-          <ArrowLeft /> {t('transactions.backToList')}
-        </Link>
-      </Button>
-      <ReviewCase
-        view={toReviewCaseView(detail)}
-        showDetailsLink={false}
-        hold={bankTxHold(tx.rawData)}
-      />
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('review.details')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[12rem_1fr]">
-            {rows.map(([label, value]) => (
-              <div key={label} className="contents">
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="break-words">{value ?? '–'}</dd>
-              </div>
-            ))}
-          </dl>
-          {detail.importId ? (
-            <Button asChild variant="outline" size="sm">
-              <a href={`/api/admin/banking/imports/${detail.importId}`}>{t('imports.download')}</a>
-            </Button>
-          ) : null}
-          {tx.rawData ? (
+    <BankingPage
+      title={`${t('transactions.detailTitle')} · ${amount}`}
+      description={`${date(tx.bookingDate)} · ${tx.counterpartyName ?? '–'} · ${detail.accountName}`}
+      trail={[{ label: t('tabs.transactions'), href: '/admin/banking/transactions' }]}
+      actions={
+        detail.importId ? (
+          <Button asChild variant="outline">
+            <a href={`/api/admin/banking/imports/${detail.importId}`}>
+              <Download /> {t('imports.download')}
+            </a>
+          </Button>
+        ) : undefined
+      }
+    >
+      <DetailLayout
+        className="p-0"
+        aside={
+          <DetailSection title={t('review.details')}>
+            <dl className="space-y-2 text-sm">
+              {rows.map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="break-words">{value ?? '–'}</dd>
+                </div>
+              ))}
+            </dl>
+          </DetailSection>
+        }
+      >
+        <ReviewCase
+          view={toReviewCaseView(detail)}
+          showDetailsLink={false}
+          hold={bankTxHold(tx.rawData)}
+        />
+        {tx.rawData ? (
+          <DetailSection title={t('transactions.fields.raw')}>
             <details>
               <summary className="cursor-pointer text-sm text-muted-foreground">
-                {t('transactions.fields.raw')}
+                {t('transactions.showRaw')}
               </summary>
               <pre className="mt-2 overflow-x-auto rounded-md bg-muted/50 p-3 text-xs">
                 {JSON.stringify(tx.rawData, null, 2)}
               </pre>
             </details>
-          ) : null}
-        </CardContent>
-      </Card>
-    </>
+          </DetailSection>
+        ) : null}
+      </DetailLayout>
+    </BankingPage>
   );
 }

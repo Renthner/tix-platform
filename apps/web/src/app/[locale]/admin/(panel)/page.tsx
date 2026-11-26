@@ -1,55 +1,34 @@
 import {
-  computeSaleState,
-  countAdjustmentsNeedingAttention,
-  countInvoiceCorrections,
-  countOpenRefunds,
   countRefundRestoreReviews,
   getRefundReconcileStatus,
   getBackupFailure,
   getSetupChecklist,
 } from '@tix/core';
-import {
-  Activity,
-  Building2,
-  CalendarPlus,
-  ChartLine,
-  DatabaseBackup,
-  FileWarning,
-  Hourglass,
-  Undo2,
-  Rocket,
-} from 'lucide-react';
+import { DatabaseBackup, FileWarning, Rocket, ShieldAlert, Undo2 } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
-import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
-import { PageHeader } from '@/components/admin/form-controls';
+import { DashboardAttention } from '@/components/admin/dashboard-attention';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { LiveDashboard } from '@/components/admin/live-dashboard';
 import { SetupChecklistCard } from '@/components/admin/setup-checklist-card';
-import { TodoTiles } from '@/components/admin/todo-tiles';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
-import { formatInZone } from '@/lib/datetime';
 import { hasRole, requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { loadDashboard } from '@/server/admin/dashboard';
-import { listEvents } from '@/server/admin/queries';
+import { loadAdminShellData } from '@/server/admin/shell';
 import { loadUpdateNotice } from '@/server/updates';
 
 export async function generateMetadata() {
   const t = await getTranslations('admin.dashboard');
-  return { title: t('title') };
+  return { title: t('overview') };
 }
 
+/**
+ * Admin start page, top → bottom: system alerts (only when present), "Needs attention" (open
+ * to-dos only), live KPIs and one compact table of the events in scope; the "First steps"
+ * checklist sits in a side column on wide screens.
+ */
 export default async function AdminDashboardPage({
   params,
   searchParams,
@@ -57,297 +36,181 @@ export default async function AdminDashboardPage({
   params: Promise<{ locale: string }>;
   searchParams: Promise<{ denied?: string }>;
 }) {
-  const locale = await resolveLocale(params);
+  await resolveLocale(params);
   const session = await requireAdmin();
   const { denied } = await searchParams;
-  const [
-    t,
-    tb,
-    upcoming,
-    openRefunds,
-    openAdjustments,
-    invoiceCorrections,
-    backupFailure,
-    live,
-    refundReviews,
-    reconcile,
-    setup,
-    updates,
-  ] = await Promise.all([
-    getTranslations('admin.dashboard'),
-    getTranslations('backups.dashboardAlert'),
-    listEvents({ upcomingOnly: true }),
-    hasRole(session, ['FINANCE']) ? countOpenRefunds(getCore()) : Promise.resolve(0),
-    hasRole(session, ['FINANCE'])
-      ? countAdjustmentsNeedingAttention(getCore())
-      : Promise.resolve(0),
-    hasRole(session, ['FINANCE']) ? countInvoiceCorrections(getCore()) : Promise.resolve(0),
-    hasRole(session, ['SUPER_ADMIN'])
-      ? getBackupFailure(getCore()).catch(() => null)
-      : Promise.resolve(null),
-    loadDashboard(session).catch(() => null),
-    hasRole(session, ['FINANCE'])
-      ? countRefundRestoreReviews(getCore()).catch(() => 0)
-      : Promise.resolve(0),
-    hasRole(session, ['FINANCE'])
-      ? getRefundReconcileStatus(getCore()).catch(() => null)
-      : Promise.resolve(null),
-    // Same role as the settings pages; a failing probe must never break the dashboard.
-    session.roles.includes('SUPER_ADMIN')
-      ? getSetupChecklist(getCore(), session.userId).catch(() => null)
-      : Promise.resolve(null),
-    // Super admins only; answers from the cache and never waits for GitHub.
-    session.roles.includes('SUPER_ADMIN') ? loadUpdateNotice() : Promise.resolve(null),
-  ]);
-  const tu = await getTranslations('admin.dashboard.updates');
+  const finance = hasRole(session, ['FINANCE']);
+  const eventManager = hasRole(session, ['EVENT_MANAGER']);
+  const superAdmin = hasRole(session, ['SUPER_ADMIN']);
+  const [t, tb, tu, shell, backupFailure, live, refundReviews, reconcile, setup, updates] =
+    await Promise.all([
+      getTranslations('admin.dashboard'),
+      getTranslations('backups.dashboardAlert'),
+      getTranslations('admin.dashboard.updates'),
+      // Same (request-cached) data as the notification bell.
+      loadAdminShellData(),
+      superAdmin ? getBackupFailure(getCore()).catch(() => null) : Promise.resolve(null),
+      loadDashboard(session).catch(() => null),
+      finance ? countRefundRestoreReviews(getCore()).catch(() => 0) : Promise.resolve(0),
+      finance ? getRefundReconcileStatus(getCore()).catch(() => null) : Promise.resolve(null),
+      // Same role as the settings pages; a failing probe must never break the dashboard.
+      session.roles.includes('SUPER_ADMIN')
+        ? getSetupChecklist(getCore(), session.userId).catch(() => null)
+        : Promise.resolve(null),
+      // Super admins only; answers from the cache and never waits for GitHub.
+      session.roles.includes('SUPER_ADMIN') ? loadUpdateNotice() : Promise.resolve(null),
+    ]);
+  const showChecklist = Boolean(setup && !setup.allDone);
+  const updateAvailable =
+    updates?.status.status === 'ok' && updates.status.latest && updates.status.updateAvailable
+      ? updates.status.latest
+      : null;
+  const pinnedNewer =
+    updates?.status.status === 'ok' &&
+    updates.status.pinned &&
+    updates.status.latest &&
+    updates.status.latest.version !== updates.status.current
+      ? updates.status.latest
+      : null;
+
+  const alertLink = 'font-medium underline';
+  const alerts = [
+    denied && (
+      <Alert key="denied" variant="destructive">
+        <ShieldAlert className="size-4" />
+        <AlertDescription>{t('denied')}</AlertDescription>
+      </Alert>
+    ),
+    backupFailure && (
+      <Alert key="backup" variant="destructive">
+        <DatabaseBackup className="size-4" />
+        <AlertTitle>{tb('title')}</AlertTitle>
+        <AlertDescription>
+          <span>{tb('text', { message: backupFailure.message })}</span>{' '}
+          <Link href="/admin/backups" className={alertLink}>
+            {tb('link')}
+          </Link>
+        </AlertDescription>
+      </Alert>
+    ),
+    (refundReviews > 0 || reconcile?.pending) && (
+      <Alert key="reconcile" variant="destructive">
+        <Undo2 className="size-4" />
+        <AlertTitle>
+          {reconcile?.pending
+            ? t('refundReconcile.pendingTitle')
+            : t('refundReconcile.reviewTitle', { count: refundReviews })}
+        </AlertTitle>
+        <AlertDescription>
+          <span>
+            {reconcile?.pending
+              ? reconcile.lastError || reconcile.alert
+                ? t('refundReconcile.failing', { error: reconcile.lastError ?? '' })
+                : t('refundReconcile.pendingText')
+              : t('refundReconcile.reviewText')}
+          </span>{' '}
+          <Link href="/admin/refunds" className={alertLink}>
+            {t('refundReconcile.link')}
+          </Link>
+        </AlertDescription>
+      </Alert>
+    ),
+    updates?.drift && (
+      <Alert key="drift" className="border-warning-border bg-warning-soft text-warning">
+        <FileWarning className="size-4" />
+        <AlertTitle>{tu('drift.title')}</AlertTitle>
+        <AlertDescription>
+          <span>
+            {tu('drift.text', {
+              composeVersion: updates.drift.composeVersion,
+              appVersion: updates.drift.appVersion,
+            })}
+          </span>{' '}
+          {updates.drift.downloadUrl && (
+            <a href={updates.drift.downloadUrl} className={alertLink} rel="noopener noreferrer">
+              {tu('drift.link', { version: updates.drift.appVersion })}
+            </a>
+          )}
+        </AlertDescription>
+      </Alert>
+    ),
+    updateAvailable && updates?.status.status === 'ok' && (
+      <Alert key="update">
+        <Rocket className="size-4" />
+        <AlertTitle>
+          {tu('available.title', {
+            version: updateAvailable.version,
+            channel: updates.status.channel,
+          })}
+        </AlertTitle>
+        <AlertDescription>
+          <span>
+            {tu('available.text', { current: updates.status.current, command: './tix-update.sh' })}
+          </span>{' '}
+          <a
+            href={updateAvailable.url}
+            className={alertLink}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            {tu('available.link')}
+          </a>
+        </AlertDescription>
+      </Alert>
+    ),
+  ].filter(Boolean);
+
+  const main = (
+    <div className="min-w-0 space-y-6">
+      {(finance || eventManager) && <DashboardAttention todos={shell?.todos ?? []} />}
+      {live && <LiveDashboard initial={live} canOpenEvents={eventManager} />}
+    </div>
+  );
 
   return (
     <>
-      <PageHeader title={t('title')} description={t('welcome', { name: session.displayName })} />
+      <AdminPageHeader
+        title={t('overview')}
+        description={t('welcome', { name: session.displayName })}
+      />
       <div className="space-y-6 p-6">
-        <TodoTiles
-          finance={hasRole(session, ['FINANCE'])}
-          eventManager={hasRole(session, ['EVENT_MANAGER'])}
-        />
-        {(hasRole(session, ['EVENT_MANAGER', 'FINANCE']) || hasRole(session, ['SUPER_ADMIN'])) && (
-          <div className="flex flex-wrap gap-2">
-            {hasRole(session, ['EVENT_MANAGER', 'FINANCE']) && (
-              <Button asChild variant="outline" size="sm">
-                <Link href="/admin/statistics">
-                  <ChartLine className="size-4" />
-                  {t('analytics.statistics')}
-                </Link>
-              </Button>
-            )}
-            {hasRole(session, ['SUPER_ADMIN']) && (
-              <Button asChild variant="outline" size="sm">
-                <Link href="/admin/system">
-                  <Activity className="size-4" />
-                  {t('analytics.system')}
-                </Link>
-              </Button>
-            )}
+        {alerts.length > 0 && (
+          <div className="space-y-3" data-testid="dashboard-alerts">
+            {alerts}
           </div>
         )}
-        {denied && (
-          <Alert variant="destructive">
-            <AlertDescription>{t('denied')}</AlertDescription>
-          </Alert>
+        {showChecklist && setup ? (
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+            {main}
+            <aside className="min-w-0">
+              <SetupChecklistCard checklist={setup} canDismiss={superAdmin} compact />
+            </aside>
+          </div>
+        ) : (
+          main
         )}
-        {setup && !setup.allDone && (
-          <SetupChecklistCard checklist={setup} canDismiss={hasRole(session, ['SUPER_ADMIN'])} />
-        )}
-        {updates?.drift && (
-          <Alert className="border-warning-border bg-warning-soft text-warning">
-            <FileWarning className="size-4" />
-            <AlertTitle>{tu('drift.title')}</AlertTitle>
-            <AlertDescription>
-              <span>
-                {tu('drift.text', {
-                  composeVersion: updates.drift.composeVersion,
-                  appVersion: updates.drift.appVersion,
-                })}
-              </span>{' '}
-              {updates.drift.downloadUrl && (
-                <a
-                  href={updates.drift.downloadUrl}
-                  className="font-medium underline"
-                  rel="noopener noreferrer"
-                >
-                  {tu('drift.link', { version: updates.drift.appVersion })}
-                </a>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-        {updates?.status.status === 'ok' &&
-          updates.status.latest &&
-          updates.status.updateAvailable && (
-            <Alert>
-              <Rocket className="size-4" />
-              <AlertTitle>
-                {tu('available.title', {
-                  version: updates.status.latest.version,
+        {(pinnedNewer || updates?.status.status === 'error') && (
+          <p className="text-xs text-muted-foreground">
+            {pinnedNewer && updates?.status.status === 'ok' ? (
+              <>
+                {tu('pinned', {
                   channel: updates.status.channel,
-                })}
-              </AlertTitle>
-              <AlertDescription>
-                <span>
-                  {tu('available.text', {
-                    current: updates.status.current,
-                    command: './tix-update.sh',
-                  })}
-                </span>{' '}
+                  version: pinnedNewer.version,
+                })}{' '}
                 <a
-                  href={updates.status.latest.url}
-                  className="font-medium underline"
+                  href={pinnedNewer.url}
+                  className="underline"
                   rel="noopener noreferrer"
                   target="_blank"
                 >
                   {tu('available.link')}
                 </a>
-              </AlertDescription>
-            </Alert>
-          )}
-        {updates?.status.status === 'ok' &&
-          updates.status.pinned &&
-          updates.status.latest &&
-          updates.status.latest.version !== updates.status.current && (
-            <p className="text-sm text-muted-foreground">
-              {tu('pinned', {
-                channel: updates.status.channel,
-                version: updates.status.latest.version,
-              })}{' '}
-              <a
-                href={updates.status.latest.url}
-                className="underline"
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                {tu('available.link')}
-              </a>
-            </p>
-          )}
-        {updates?.status.status === 'error' && (
-          <p className="text-sm text-muted-foreground">{tu('checkFailed')}</p>
-        )}
-        {backupFailure && (
-          <Alert variant="destructive">
-            <DatabaseBackup className="size-4" />
-            <AlertTitle>{tb('title')}</AlertTitle>
-            <AlertDescription>
-              <span>{tb('text', { message: backupFailure.message })}</span>{' '}
-              <Link href="/admin/backups" className="font-medium underline">
-                {tb('link')}
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
-        {(refundReviews > 0 || reconcile?.pending) && (
-          <Alert variant="destructive">
-            <Undo2 className="size-4" />
-            <AlertTitle>
-              {reconcile?.pending
-                ? t('refundReconcile.pendingTitle')
-                : t('refundReconcile.reviewTitle', { count: refundReviews })}
-            </AlertTitle>
-            <AlertDescription>
-              <span>
-                {reconcile?.pending
-                  ? reconcile.lastError || reconcile.alert
-                    ? t('refundReconcile.failing', { error: reconcile.lastError ?? '' })
-                    : t('refundReconcile.pendingText')
-                  : t('refundReconcile.reviewText')}
-              </span>{' '}
-              <Link href="/admin/refunds" className="font-medium underline">
-                {t('refundsOpen.link')}
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
-        {openRefunds > 0 && (
-          <Alert variant="destructive">
-            <Undo2 className="size-4" />
-            <AlertTitle>{t('refundsOpen.title', { count: openRefunds })}</AlertTitle>
-            <AlertDescription>
-              <span>{t('refundsOpen.text')}</span>{' '}
-              <Link href="/admin/refunds" className="font-medium underline">
-                {t('refundsOpen.link')}
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
-        {invoiceCorrections > 0 && (
-          <Alert variant="destructive">
-            <Undo2 className="size-4" />
-            <AlertTitle>{t('invoiceCorrections.title', { count: invoiceCorrections })}</AlertTitle>
-            <AlertDescription>
-              <span>{t('invoiceCorrections.text')}</span>{' '}
-              <Link href="/admin/refunds" className="font-medium underline">
-                {t('invoiceCorrections.link')}
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
-        {openAdjustments > 0 && (
-          <Alert variant="destructive">
-            <Undo2 className="size-4" />
-            <AlertTitle>{t('adjustmentsOpen.title', { count: openAdjustments })}</AlertTitle>
-            <AlertDescription>
-              <span>{t('adjustmentsOpen.text')}</span>{' '}
-              <Link href="/admin/refunds" className="font-medium underline">
-                {t('adjustmentsOpen.link')}
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
-        <div className="flex flex-wrap gap-2">
-          <Button asChild>
-            <Link href="/admin/events/new">
-              <CalendarPlus /> {t('links.newEvent')}
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/admin/venues">
-              <Building2 /> {t('links.venues')}
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/admin/waiting-room">
-              <Hourglass /> {t('links.waitingRoom')}
-            </Link>
-          </Button>
-        </div>
-        {live && <LiveDashboard initial={live} />}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('upcoming')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {upcoming.length === 0 ? (
-              <p className="py-4 text-sm text-muted-foreground">{t('noEvents')}</p>
+              </>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('columns.event')}</TableHead>
-                    <TableHead>{t('columns.date')}</TableHead>
-                    <TableHead>{t('columns.venue')}</TableHead>
-                    <TableHead>{t('columns.status')}</TableHead>
-                    <TableHead>{t('columns.sale')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {upcoming.slice(0, 20).map(({ event, venueName }) => (
-                    <TableRow
-                      key={event.id}
-                      className="relative cursor-pointer focus-within:bg-muted/50"
-                    >
-                      <TableCell className="font-medium">
-                        <Link
-                          href={`/admin/events/${event.id}`}
-                          className="outline-none after:absolute after:inset-0 hover:underline focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
-                        >
-                          {event.title}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {formatInZone(event.startsAt, event.timeZone, locale)}
-                      </TableCell>
-                      <TableCell>{venueName}</TableCell>
-                      <TableCell>
-                        <EventStatusBadge status={event.status} />
-                      </TableCell>
-                      <TableCell>
-                        <SaleStateBadge state={computeSaleState(event)} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              tu('checkFailed')
             )}
-          </CardContent>
-        </Card>
+          </p>
+        )}
       </div>
     </>
   );

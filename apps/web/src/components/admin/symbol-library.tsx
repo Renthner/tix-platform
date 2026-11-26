@@ -1,7 +1,7 @@
 'use client';
 
 import { SYMBOL_KINDS, type SymbolKind } from '@tix/shared';
-import { Lock, Trash2, Upload } from 'lucide-react';
+import { Lock, Shapes, Trash2, Upload } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useActionState, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { IDLE, type ActionState } from '@/lib/action-state';
 import { ConfirmAction } from './confirm-action';
+import { EmptyState } from './empty-state';
 import {
   ActionForm,
   ActionFeedback,
@@ -66,7 +67,7 @@ export function SymbolPreview({
 
 export function SymbolGrid({ symbols }: { symbols: SymbolCard[] }) {
   const t = useTranslations('admin.symbols');
-  if (symbols.length === 0) return <p className="text-sm text-muted-foreground">{t('empty')}</p>;
+  if (symbols.length === 0) return <EmptyState icon={Shapes} title={t('empty')} />;
   return (
     <ul className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
       {symbols.map((s) => (

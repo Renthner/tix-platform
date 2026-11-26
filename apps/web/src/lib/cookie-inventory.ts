@@ -7,6 +7,7 @@
  * Keep this list in sync when a new cookie is introduced.
  */
 
+import { SETTINGS_GROUPS_COOKIE } from './settings-tabs';
 import { THEME_COOKIE } from './theme';
 
 /** Remembers that the information notice was dismissed. */
@@ -25,6 +26,7 @@ export type CookieKey =
   | 'adminTwoFactor'
   | 'editLocale'
   | 'setupCollapsed'
+  | 'settingsGroups'
   | 'queueTest';
 
 export interface CookieInfo {
@@ -47,5 +49,6 @@ export const COOKIE_INVENTORY: readonly CookieInfo[] = [
   { key: 'adminTwoFactor', name: 'tix_admin_2fa', scope: 'staff' },
   { key: 'editLocale', name: 'tix_edit_locale', scope: 'staff' },
   { key: 'setupCollapsed', name: 'tix_setup_collapsed', scope: 'staff' },
+  { key: 'settingsGroups', name: SETTINGS_GROUPS_COOKIE, scope: 'staff' },
   { key: 'queueTest', name: 'tix_admin_queue_test', scope: 'staff' },
 ];

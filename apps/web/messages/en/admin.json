@@ -7,8 +7,8 @@
     "events": "Events",
     "orders": "Orders",
     "customers": "Customers",
-    "banking": "Bank & incoming payments",
-    "accounting": "Accounting & export",
+    "banking": "Bank & review",
+    "accounting": "Accounting",
     "venues": "Venues & seating plans",
     "waitingRoom": "Waiting room",
     "media": "Media library",
@@ -17,27 +17,30 @@
     "fees": "Fees & taxes",
     "emailTemplates": "E-mail templates",
     "ticketTemplates": "Ticket designs",
-    "refunds": "Open refunds",
+    "refunds": "Refunds",
     "boxOffice": "Box office",
     "cashUp": "Cash-up",
     "door": "Door check-in",
     "users": "Users & roles",
     "backups": "Backups",
-    "scanners": "Check-in scanners",
+    "scanners": "Scanner devices",
     "statistics": "Statistics",
     "system": "System status",
     "audit": "Activity log",
     "menu": "Menu",
     "label": "Admin navigation",
-    "paypal": "PayPal",
     "discounts": "Discount codes",
     "groups": {
+      "events": "Events",
       "sales": "Sales",
-      "events": "Events & check-in",
-      "design": "Design & content",
-      "finance": "Finance",
-      "administration": "Administration"
-    }
+      "onSite": "On site",
+      "finance": "Finance"
+    },
+    "overview": "Overview",
+    "design": "Design",
+    "administration": "System",
+    "pages": "Pages",
+    "account": "My account"
   },
   "login": {
     "title": "Admin sign-in",
@@ -141,38 +144,8 @@
     "ENDED": "Sale ended"
   },
   "dashboard": {
-    "analytics": {
-      "statistics": "Statistics",
-      "system": "System status"
-    },
-    "title": "Dashboard",
     "welcome": "Welcome back, {name}.",
-    "todo": {
-      "title": "To do",
-      "tiles": {
-        "bankReview": "Bank payments to clarify",
-        "overdueTransfers": "Overdue bank transfers",
-        "openRefunds": "Open refunds",
-        "openAdjustments": "Open additional payments",
-        "waitlistPending": "Waiting-list entries",
-        "expiringCodes": "Access codes expiring soon"
-      }
-    },
     "denied": "You do not have permission to open that page.",
-    "upcoming": "Upcoming events",
-    "noEvents": "No upcoming events yet.",
-    "links": {
-      "newEvent": "New event",
-      "venues": "Venues & plans",
-      "waitingRoom": "Waiting room defaults"
-    },
-    "columns": {
-      "event": "Event",
-      "date": "Date",
-      "venue": "Venue",
-      "status": "Status",
-      "sale": "Sale"
-    },
     "updates": {
       "available": {
         "title": "Update available: v{version} (channel {channel})",
@@ -187,11 +160,6 @@
         "link": "docker-compose.yml of v{version}"
       }
     },
-    "refundsOpen": {
-      "title": "{count, plural, one {# refund is open} other {# refunds are open}}",
-      "text": "Customers are waiting for their money.",
-      "link": "Open refunds"
-    },
     "live": {
       "title": "Live overview",
       "updated": "Updated {time}",
@@ -199,71 +167,43 @@
       "kpi": {
         "revenueToday": "Revenue today",
         "revenue7d": "Revenue, last 7 days",
-        "revenueEvent": "Revenue of event",
         "netOfRefunds": "gross, net of refunds",
         "ordersToday": "Orders today",
         "ticketsToday": "Tickets sold today",
         "openVorkasse": "Open bank transfers",
-        "openVorkasseCount": "{count, plural, one {# order} other {# orders}}",
-        "openRefunds": "Open refunds"
+        "openVorkasseCount": "{count, plural, one {# order} other {# orders}}"
       },
       "inventory": {
-        "title": "Seats",
-        "capacity": "{count} in total",
-        "sold": "Sold",
-        "reserved": "Reserved (unpaid)",
-        "locked": "In carts",
-        "available": "Available",
-        "blocked": "Blocked",
-        "aria": "Sold {sold}, reserved {reserved}, in carts {locked}, available {available}, blocked {blocked}"
-      },
-      "queue": {
-        "title": "Waiting room",
-        "value": "{active} in the shop right now (live), {waiting} waiting",
-        "lobby": "{count} in lobby"
-      },
-      "payments": {
-        "title": "Payment methods",
-        "none": "No paid tickets yet.",
-        "tickets": "{count, plural, one {# ticket} other {# tickets}}"
+        "aria": "Sold {sold}, reserved {reserved}, in carts {locked}, available {available}, blocked {blocked}",
+        "summary": "{sold} sold · {reserved} reserved · {available} of {capacity} available"
       },
       "checkIn": {
         "title": "Check-in"
       },
       "overview": {
-        "title": "All events",
-        "events": "{count, plural, one {# event} other {# events}}",
         "none": "No events match the selected statuses.",
-        "revenue": "Revenue",
-        "revenueHint": "gross, confirmed tickets",
-        "otherCurrency": "{count, plural, one {# event in another currency is} other {# events in other currencies are}} not included in revenue and payment methods.",
         "statusLabel": "Status filter"
       },
-      "cards": {
-        "title": "Events",
+      "events": {
+        "title": "Events on sale & upcoming",
+        "all": "All events",
+        "inShop": "{active} in the shop right now, {waiting} waiting",
         "showing": "Showing {shown} of {total} events.",
-        "handle": "Move card \"{title}\"",
-        "handleHint": "Drag to rearrange, or press the arrow keys.",
-        "moved": "\"{title}\" is now at position {position} of {total}.",
-        "saveFailed": "Could not save the card order."
+        "saveFailed": "Could not save the status filter.",
+        "columns": {
+          "event": "Event",
+          "status": "Status",
+          "seats": "Seats"
+        }
       }
-    },
-    "adjustmentsOpen": {
-      "title": "{count, plural, one {# additional payment is unpaid} other {# additional payments are unpaid}}",
-      "text": "The reminder was sent – reset the tariff or cancel the ticket.",
-      "link": "Open list"
-    },
-    "invoiceCorrections": {
-      "title": "{count, plural, one {# invoice has to be corrected} other {# invoices have to be corrected}}",
-      "text": "An additional payment was received, but the invoice was not corrected automatically.",
-      "link": "Open list"
     },
     "refundReconcile": {
       "pendingTitle": "PayPal refunds are waiting for the reconciliation after the restore",
       "pendingText": "Automatic refunds are paused until the comparison with PayPal is done.",
       "failing": "The comparison with PayPal keeps failing ({error}). Automatic refunds stay paused.",
       "reviewTitle": "{count, plural, one {# order needs a refund review} other {# orders need a refund review}}",
-      "reviewText": "PayPal shows refunds that are not recorded here. Automatic refunds of these orders are on hold."
+      "reviewText": "PayPal shows refunds that are not recorded here. Automatic refunds of these orders are on hold.",
+      "link": "Open refunds"
     },
     "setup": {
       "title": "First steps",
@@ -313,6 +253,12 @@
       "hints": {
         "externalBackup": "Tip: also configure an external S3 target so backups are stored off this server (backups on the same disk do not survive its loss)."
       }
+    },
+    "overview": "Overview",
+    "attention": {
+      "title": "Needs attention",
+      "allClear": "All clear",
+      "allClearText": "Nothing needs your attention right now."
     }
   },
   "venues": {
@@ -321,8 +267,8 @@
     "new": "New venue",
     "newDescription": "Create a location. Master seating plans are added after saving.",
     "empty": "No venues yet.",
+    "emptyDescription": "Create a venue to add master seating plans and use it for events.",
     "edit": "Venue details",
-    "backToList": "All venues",
     "columns": {
       "name": "Name",
       "city": "City",
@@ -412,6 +358,11 @@
       "confirmTitle": "Delete “{name}” permanently?",
       "confirmDescription": "The venue and its {plans, plural, =0 {master plans} one {master plan} other {# master plans}} are removed. This cannot be undone.",
       "confirm": "Delete permanently"
+    },
+    "facts": {
+      "title": "Overview",
+      "events": "Events",
+      "openMap": "Open map"
     }
   },
   "shopOrder": {
@@ -443,7 +394,6 @@
       "past": "Past",
       "apply": "Search"
     },
-    "backToList": "All events",
     "defaultTicketType": "Regular",
     "columns": {
       "title": "Event",
@@ -483,19 +433,20 @@
       "orphanSeatRuleHint": "When enabled, customers cannot continue to the cart if their selection would leave a single empty seat in a row. The rule is checked when they click “Continue to cart”."
     },
     "tabs": {
-      "label": "Event sections",
+      "overview": "Overview",
       "details": "Details",
-      "sales": "Sales",
-      "pricing": "Pricing",
-      "seating": "Seating",
+      "sales": "Sales settings",
+      "pricing": "Prices & tariffs",
+      "seating": "Seating plan",
       "waitingRoom": "Waiting room",
       "accessCodes": "Access codes",
       "page": "Shop page",
       "fees": "Fees",
-      "ticket": "Ticket",
+      "ticket": "Ticket design",
       "wallet": "Wallet",
       "checkIn": "Check-in",
-      "communication": "Communication"
+      "communication": "Communication",
+      "status": "Status & lifecycle"
     },
     "details": {
       "title": "Event details"
@@ -730,6 +681,58 @@
       "deleteAllDescription": "{orders} test orders ({seats} seats) are deleted completely and their seats released. A test order from a cart with several draft events is deleted entirely, including its seats at the other events. Orders that received real money cannot be deleted (“cancel only”): cancel and hide them on the order page.",
       "deleteAllConfirm": "Delete test orders",
       "showOrders": "Show test orders"
+    },
+    "actions": "Actions",
+    "viewInShop": "View in shop",
+    "menu": {
+      "label": "Event sections",
+      "pageSelect": "Section",
+      "groups": {
+        "setup": "Setup",
+        "sales": "Sales",
+        "presentation": "Presentation",
+        "operations": "Operations"
+      }
+    },
+    "overview": {
+      "kpis": {
+        "label": "Key figures",
+        "sold": "Sold",
+        "soldOf": "of {capacity} places",
+        "reserved": "Reserved",
+        "reservedDetail": "{pending} awaiting payment · {locked} in carts",
+        "available": "Available",
+        "blocked": "{count} blocked",
+        "testHeld": "{count} held by test orders",
+        "revenue": "Ticket revenue",
+        "revenueHint": "Gross, confirmed tickets",
+        "checkIn": "Checked in",
+        "checkInOf": "of {valid} valid tickets",
+        "testExcluded": "Test orders are not included in these figures."
+      },
+      "facts": {
+        "title": "Dates & sale",
+        "starts": "Starts",
+        "ends": "Ends",
+        "doors": "Doors open",
+        "presale": "Presale starts",
+        "publicSale": "Public sale starts",
+        "saleEnds": "Sale ends",
+        "notSet": "Not set",
+        "paused": "Sales are paused",
+        "venue": "Venue",
+        "seatPlan": "Seating plan",
+        "openEditor": "Open editor",
+        "noPlan": "No seating plan assigned"
+      },
+      "links": {
+        "title": "Quick links",
+        "orders": "Orders of this event",
+        "waitlist": "Waiting list: {count, plural, =0 {no confirmed entries} one {# confirmed entry} other {# confirmed entries}}",
+        "testOrders": "Test orders: {count}",
+        "checkIn": "Check-in & scan log"
+      },
+      "statusLink": "Postpone, cancel or delete: Status & lifecycle"
     }
   },
   "pricing": {
@@ -1589,6 +1592,7 @@
       "searchLabel": "Search settings",
       "searchPlaceholder": "Search settings…",
       "searchNone": "No setting found.",
+      "pageSelect": "Settings page",
       "groups": {
         "shop": "Shop",
         "design": "Design",
@@ -1608,6 +1612,8 @@
       "sponsors": "Sponsors",
       "seatDisplay": "Seat colours",
       "checkout": "Cart & seats",
+      "fees": "Fees & taxes",
+      "waitingRoom": "Waiting room",
       "waitlist": "Waiting list",
       "accounts": "Customer accounts",
       "selfService": "Ticket self-service",
@@ -1622,7 +1628,57 @@
       "walletGoogle": "Google Wallet",
       "scanner": "Scanner app",
       "security": "Security",
-      "monitoring": "Monitoring"
+      "monitoring": "Monitoring",
+      "privacy": "Data protection & retention"
+    },
+    "tabInfo": {
+      "general": "Shop name, languages, currency, time zone and defaults for new events.",
+      "organizer": "Legal seller details printed on invoices and in e-mail footers.",
+      "seo": "Search engine indexing, page titles, descriptions and the image for shared links.",
+      "cookies": "Information bar about the cookies of the shop (all of them strictly necessary).",
+      "appearance": "Logo, brand colour, colour theme, footer and legal links of the shop.",
+      "startPage": "Content of the shop home page while no event is published.",
+      "shopLayout": "How the events are arranged on the shop home page.",
+      "sponsors": "Sponsor logos rotating next to the shop logo in the header.",
+      "seatDisplay": "How seat states are shown to customers on the seating chart.",
+      "checkout": "Reservation times, order limits, seat selection rules and checkout fields.",
+      "fees": "Tax rates and service fees charged on top of ticket prices. Events can adjust or waive fees in their “Fees” tab.",
+      "waitingRoom": "Default waiting room for every event without its own configuration.",
+      "waitlist": "E-mail notification when tickets for a sold-out event become available again. Events can switch it in their “Sales” tab.",
+      "accounts": "Optional customer accounts in addition to guest checkout.",
+      "selfService": "Customers change the name on a ticket or pass it on to someone else.",
+      "payments": "Bank transfer (prepayment): payment terms, reminders and automatic matching.",
+      "paypal": "Credentials of the PayPal REST app, sandbox or live.",
+      "invoicing": "Invoice numbers and the PDF invoices issued automatically when an order is paid.",
+      "email": "Outgoing mail server for order confirmations, reminders, invoices and account e-mails.",
+      "emailHeader": "The coloured band at the top of every e-mail: shop name and logo.",
+      "notifications": "Warning e-mails to admins when something needs attention. Each admin picks the warnings on their account page; the texts are edited under E-mail templates.",
+      "wallet": "Optional Apple Wallet and Google Wallet passes for tickets and their design.",
+      "walletApple": "Signed .pkpass files, one per ticket. Requires an Apple Developer account.",
+      "walletGoogle": "“Save to Google Wallet” links. A Google Pay & Wallet issuer account is free.",
+      "scanner": "Behaviour, updates and server address of the Android check-in app.",
+      "security": "Sessions, lockout, passwords and two-factor authentication of admin users.",
+      "monitoring": "Optional Prometheus endpoint with the numbers of the System page.",
+      "privacy": "Retention periods for e-mail logs, invoices and payment webhooks."
+    },
+    "overview": {
+      "description": "Everything that configures the shop, sales, payments, e-mails, tickets and the system. Event-specific values are set in each event.",
+      "searchPlaceholder": "Search settings…",
+      "status": {
+        "configured": "Configured",
+        "notSetUp": "Not set up",
+        "on": "On",
+        "off": "Off",
+        "live": "Live",
+        "sandbox": "Sandbox",
+        "indexed": "Indexed",
+        "notIndexed": "Hidden from search engines",
+        "twoFactorRequired": "2FA required",
+        "twoFactorSuperAdmins": "2FA for super admins",
+        "twoFactorOptional": "2FA optional",
+        "customAddress": "Own address",
+        "shopAddress": "Shop address"
+      }
     },
     "waitlist": {
       "title": "Waiting list",
@@ -1922,5 +1978,158 @@
     "remove": "Remove",
     "removeNotify": "Tell them by e-mail",
     "removeConfirm": "Remove"
+  },
+  "shell": {
+    "breadcrumbs": "Breadcrumb",
+    "search": {
+      "button": "Search…",
+      "ctrlK": "Ctrl K",
+      "title": "Search",
+      "description": "Find admin pages, settings, orders, customers and events.",
+      "label": "Search the admin",
+      "placeholder": "Pages, settings, order number, e-mail, event…",
+      "results": "Search results",
+      "sections": {
+        "pages": "Pages & settings",
+        "orders": "Orders",
+        "customers": "Customers",
+        "events": "Events"
+      },
+      "none": "Nothing found.",
+      "minChars": "Type at least 2 characters to search orders, customers and events.",
+      "failed": "Search is not available right now.",
+      "footer": "↑ ↓ to move, Enter to open, Esc to close"
+    },
+    "bell": {
+      "label": "To-dos",
+      "labelCount": "To-dos: {count} open",
+      "title": "Open to-dos",
+      "empty": "Nothing to do right now.",
+      "dashboard": "To the overview",
+      "items": {
+        "bankReview": "Bank payments to clarify",
+        "overdueTransfers": "Overdue bank transfers",
+        "openRefunds": "Open refunds",
+        "openAdjustments": "Open additional payments",
+        "invoiceCorrections": "Invoice corrections",
+        "waitlistPending": "Waiting-list entries",
+        "expiringCodes": "Access codes expiring soon"
+      }
+    },
+    "create": {
+      "button": "New",
+      "event": "Event",
+      "boxOffice": "Box office sale",
+      "discount": "Discount code",
+      "venue": "Venue"
+    },
+    "user": {
+      "label": "Account menu of {name}",
+      "account": "My account",
+      "language": "Language",
+      "version": "Version v{version}"
+    }
+  },
+  "hubs": {
+    "design": {
+      "title": "Design",
+      "description": "Shop appearance, ticket and e-mail templates, images and symbols.",
+      "sections": {
+        "shop": "Shop",
+        "documents": "Tickets & e-mails",
+        "libraries": "Libraries"
+      },
+      "cards": {
+        "appearance": {
+          "title": "Branding & colours",
+          "description": "Logo, brand colour and colour theme of the shop."
+        },
+        "startPage": {
+          "title": "Start page",
+          "description": "Content of the shop start page."
+        },
+        "shopLayout": {
+          "title": "Shop layout",
+          "description": "Header, footer and the event list."
+        },
+        "sponsors": {
+          "title": "Sponsors",
+          "description": "Sponsor logos next to the shop logo."
+        },
+        "seatDisplay": {
+          "title": "Seat display",
+          "description": "Colours and markers of the seating plan."
+        },
+        "ticketTemplates": {
+          "title": "Ticket designs",
+          "description": "Layout of the PDF tickets."
+        },
+        "emailTemplates": {
+          "title": "E-mail templates",
+          "description": "Texts of all e-mails to customers."
+        },
+        "emailHeader": {
+          "title": "E-mail header",
+          "description": "Logo and header of every e-mail."
+        },
+        "media": {
+          "title": "Media library",
+          "description": "Uploaded images and where they are used."
+        },
+        "symbols": {
+          "title": "Symbol library",
+          "description": "Symbols and seat shapes for seating plans."
+        }
+      }
+    },
+    "administration": {
+      "title": "System",
+      "description": "Users, security, data retention, activity log, backups and the system status.",
+      "sections": {
+        "access": "Access",
+        "operations": "Operations"
+      },
+      "cards": {
+        "users": {
+          "title": "Users & roles",
+          "description": "Admin accounts and their roles."
+        },
+        "security": {
+          "title": "Security",
+          "description": "Two-factor authentication and sign-in rules."
+        },
+        "privacy": {
+          "title": "Data protection & retention",
+          "description": "How long e-mail logs, invoices and webhooks are kept."
+        },
+        "audit": {
+          "title": "Activity log",
+          "description": "Who changed what, and when."
+        },
+        "backups": {
+          "title": "Backups",
+          "description": "Back up and restore database and files."
+        },
+        "system": {
+          "title": "System status",
+          "description": "Services, queues and load test mode."
+        },
+        "monitoring": {
+          "title": "Monitoring",
+          "description": "Metrics endpoint and its access token."
+        }
+      }
+    }
+  },
+  "list": {
+    "all": "All",
+    "searchChip": "Search: {value}",
+    "moreFilters": "More filters",
+    "apply": "Apply",
+    "reset": "Reset filters",
+    "activeFilters": "Active filters",
+    "removeFilter": "Remove filter: {filter}",
+    "emptyFiltered": "No entries match the current filters.",
+    "rowActions": "Actions for {name}"
   }
 }

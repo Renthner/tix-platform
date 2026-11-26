@@ -19,7 +19,7 @@ import { headerLinkClass } from '@/components/shop/header-styles';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { pickMessages } from '@/i18n/messages';
-import { allowedNavKeys } from '@/lib/admin-nav-access';
+import { allowedSidebarItems } from '@/lib/admin-nav-access';
 import { getAdminSession } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { getCustomerSession } from '@/server/customer-session';
@@ -204,8 +204,9 @@ export default async function ShopLayout({
                     entries={
                       adminMenu.twoFactorSetupRequired
                         ? []
-                        : allowedNavKeys(adminMenu.roles).map((key) => ({
+                        : allowedSidebarItems(adminMenu.roles).map(({ key, href }) => ({
                             key,
+                            href,
                             label: tAdminNav(key),
                           }))
                     }

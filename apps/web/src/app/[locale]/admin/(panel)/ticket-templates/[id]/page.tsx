@@ -4,14 +4,14 @@ import { getBaseContentLocale } from '@/server/admin/edit-locale';
 import { events, mediaAssets } from '@tix/db';
 import { defaultTicketLayout, ticketLayoutSchema } from '@tix/shared';
 import { desc, eq, ne } from 'drizzle-orm';
-import { ArrowLeft, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader, type Breadcrumb } from '@/components/admin/page-header';
 import { TicketDesignerLoader } from '@/components/admin/ticket-designer/loader';
 import { Button } from '@/components/ui/button';
 import { resolveLocale } from '@/i18n/locale';
-import { Link } from '@/i18n/navigation';
+import { NAV_HREFS } from '@/lib/admin-nav-model';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 
@@ -35,7 +35,10 @@ export default async function TicketTemplateEditorPage({
   const baseLocale = await getBaseContentLocale();
   const template = await getTicketTemplate(db, id);
   if (!template) notFound();
-  const t = await getTranslations('ticketDesigner');
+  const [t, tNav] = await Promise.all([
+    getTranslations('ticketDesigner'),
+    getTranslations('admin.nav'),
+  ]);
 
   const layout = ticketLayoutSchema.safeParse(template.layout);
   const asset = async (assetId: string | null | undefined) => {
@@ -53,7 +56,7 @@ export default async function TicketTemplateEditorPage({
   };
   const [eventRow] = template.eventId
     ? await db
-        .select({ hero: events.heroImageAssetId })
+        .select({ hero: events.heroImageAssetId, title: events.title })
         .from(events)
         .where(eq(events.id, template.eventId))
     : [];
@@ -71,32 +74,31 @@ export default async function TicketTemplateEditorPage({
         .orderBy(desc(events.startsAt))
         .limit(50);
 
+  // Event designs belong to the event's "Ticket" tab, library designs to the design hub.
+  const breadcrumbs: Breadcrumb[] =
+    template.eventId && eventRow
+      ? [
+          { label: tNav('events'), href: NAV_HREFS.events },
+          { label: eventRow.title, href: `/admin/events/${template.eventId}/ticket` },
+        ]
+      : [
+          { label: tNav('design'), href: NAV_HREFS.design },
+          { label: tNav('ticketTemplates'), href: NAV_HREFS.ticketTemplates },
+        ];
+
   return (
     <>
-      <PageHeader
+      <AdminPageHeader
+        breadcrumbs={breadcrumbs}
         title={t('page.editorTitle', { name: template.name })}
         description={t('page.editorDescription')}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" size="sm">
-              <a href={`/api/admin/ticket-templates/${template.id}/export`} download>
-                <Download className="size-4" />
-                {t('transfer.export')}
-              </a>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link
-                href={
-                  template.eventId
-                    ? `/admin/events/${template.eventId}/ticket`
-                    : '/admin/ticket-templates'
-                }
-              >
-                <ArrowLeft className="size-4" />
-                {t('page.back')}
-              </Link>
-            </Button>
-          </div>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/admin/ticket-templates/${template.id}/export`} download>
+              <Download className="size-4" />
+              {t('transfer.export')}
+            </a>
+          </Button>
         }
       />
       <TicketDesignerLoader

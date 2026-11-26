@@ -1,8 +1,8 @@
 import { getSetting, localDateOf, formatLocalDate, rangePresets } from '@tix/core';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { AccountingExportForm, AccountingSettingsForm } from '@/components/admin/accounting-forms';
-import { PageHeader } from '@/components/admin/form-controls';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AdminPageHeader } from '@/components/admin/page-header';
+import { DetailSection } from '@/components/admin/detail-layout';
 import { resolveLocale } from '@/i18n/locale';
 import { saveAccountingSettingsAction } from '@/server/admin/accounting';
 import { requireAdmin } from '@/server/auth';
@@ -30,43 +30,31 @@ export default async function AccountingPage({ params }: { params: Promise<{ loc
 
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
+      <AdminPageHeader title={t('title')} description={t('description')} />
       <div className="space-y-6 p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('export.title')}</CardTitle>
-            <p className="text-sm text-muted-foreground">{t('export.description')}</p>
-          </CardHeader>
-          <CardContent>
-            <AccountingExportForm presets={presets} locale={locale} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('settings.title')}</CardTitle>
-            <p className="text-sm text-muted-foreground">{t('settings.description')}</p>
-          </CardHeader>
-          <CardContent>
-            <AccountingSettingsForm
-              action={saveAccountingSettingsAction}
-              initial={{
-                chart: settings.chart,
-                consultantNumber: settings.consultantNumber,
-                clientNumber: settings.clientNumber,
-                fiscalYearStart: settings.fiscalYearStart,
-                accountLength: settings.accountLength,
-                taxAccounts: settings.taxAccounts,
-                debtorAccount: settings.debtorAccount,
-                bankAccount: settings.bankAccount,
-                paypalAccount: settings.paypalAccount,
-                cashAccount: settings.cashAccount,
-                cardAccount: settings.cardAccount,
-                writeOffAccount: settings.writeOffAccount,
-                zeroValueDocuments: settings.zeroValueDocuments,
-              }}
-            />
-          </CardContent>
-        </Card>
+        <DetailSection title={t('export.title')} description={t('export.description')}>
+          <AccountingExportForm presets={presets} locale={locale} />
+        </DetailSection>
+        <DetailSection title={t('settings.title')} description={t('settings.description')}>
+          <AccountingSettingsForm
+            action={saveAccountingSettingsAction}
+            initial={{
+              chart: settings.chart,
+              consultantNumber: settings.consultantNumber,
+              clientNumber: settings.clientNumber,
+              fiscalYearStart: settings.fiscalYearStart,
+              accountLength: settings.accountLength,
+              taxAccounts: settings.taxAccounts,
+              debtorAccount: settings.debtorAccount,
+              bankAccount: settings.bankAccount,
+              paypalAccount: settings.paypalAccount,
+              cashAccount: settings.cashAccount,
+              cardAccount: settings.cardAccount,
+              writeOffAccount: settings.writeOffAccount,
+              zeroValueDocuments: settings.zeroValueDocuments,
+            }}
+          />
+        </DetailSection>
       </div>
     </>
   );

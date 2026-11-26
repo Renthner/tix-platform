@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clickableSeatIds, clickSeat } from './helpers';
+import { clickableSeatIds, clickSeat, openEventDuplicateDialog, openOrderAction } from './helpers';
 
 /**
  * Customer self-service for tickets: the buyer changes the attendee name (PDF link keeps working)
@@ -41,7 +41,7 @@ test('a paid test order exists on a draft duplicate', async ({ page }) => {
     .first()
     .getAttribute('href');
   await page.goto(href!);
-  await page.getByRole('button', { name: 'Duplicate' }).click();
+  await openEventDuplicateDialog(page);
   const dialog = page.getByRole('dialog');
   await dialog.locator('#dupTitle').fill(TITLE);
   await dialog.locator('#dupSlug').fill(SLUG);
@@ -89,7 +89,9 @@ test('a paid test order exists on a draft duplicate', async ({ page }) => {
     .click();
   await page.waitForURL(/\/admin\/orders\/[0-9a-f-]{36}/);
   adminOrderUrl = page.url();
-  await page.getByRole('button', { name: 'Record payment' }).click();
+  const payment = await openOrderAction(page, 'Record payment');
+  await payment.getByRole('button', { name: 'Record payment' }).click();
+  await expect(payment).toBeHidden({ timeout: 30_000 });
   // Tickets are issued by the worker: reload until they show up.
   await expect(async () => {
     await page.reload();

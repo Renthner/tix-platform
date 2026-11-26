@@ -8,17 +8,22 @@ import {
   parsePageSize,
   type EventStatus,
 } from '@tix/shared';
-import { ArrowDown, ArrowUp, ArrowUpDown, Download, ImageIcon, Plus, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ImageIcon, Plus, Search } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { EventStatusBadge, SaleStateBadge } from '@/components/admin/badges';
 import { AdminPagination } from '@/components/admin/admin-pagination';
-import { EventDuplicateDialog } from '@/components/admin/event-duplicate-dialog';
+import {
+  AutoSubmitFallbackButton,
+  AutoSubmitForm,
+  AutoSubmitPending,
+  FilterSearchInput,
+} from '@/components/admin/auto-submit-form';
+import { EventRowActions } from '@/components/admin/event-row-actions';
 import { FilterSelect } from '@/components/admin/filter-select';
 import { EventImportDialog } from '@/components/admin/event-import-dialog';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -102,7 +107,7 @@ export default async function EventsPage({
 
   return (
     <>
-      <PageHeader
+      <AdminPageHeader
         title={t('title')}
         description={t('description')}
         actions={
@@ -145,13 +150,12 @@ export default async function EventsPage({
             </Link>
           ))}
         </div>
-        <form className="flex flex-wrap items-end gap-2" action="" method="get">
+        <AutoSubmitForm role="search" className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-56 flex-1">
             <Search className="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-            <Input
+            <FilterSearchInput
               name="q"
-              type="search"
-              defaultValue={q ?? ''}
+              value={q ?? ''}
               placeholder={t('search.placeholder')}
               aria-label={t('search.label')}
               className="pl-8"
@@ -170,10 +174,9 @@ export default async function EventsPage({
           {filter && <input type="hidden" name="status" value={filter} />}
           {sort && <input type="hidden" name="sort" value={sort} />}
           {sort && dir && <input type="hidden" name="dir" value={dir} />}
-          <Button type="submit" variant="secondary">
-            {t('search.apply')}
-          </Button>
-        </form>
+          <AutoSubmitFallbackButton>{t('search.apply')}</AutoSubmitFallbackButton>
+          <AutoSubmitPending />
+        </AutoSubmitForm>
         <Card>
           <CardContent>
             {rows.length === 0 ? (
@@ -239,22 +242,13 @@ export default async function EventsPage({
                       <TableCell className="text-right whitespace-nowrap tabular-nums">
                         {stock.get(event.id)?.sold ?? 0} / {stock.get(event.id)?.capacity ?? 0}
                       </TableCell>
-                      <TableCell>
-                        <div className="relative z-10 flex gap-2">
-                          <Button asChild variant="outline" size="sm">
-                            <a
-                              href={`/api/admin/events/${event.id}/export`}
-                              download
-                              title={t('transfer.exportTitle')}
-                            >
-                              <Download /> {t('transfer.export')}
-                            </a>
-                          </Button>
-                          <EventDuplicateDialog
-                            size="sm"
-                            action={duplicateEventAction.bind(null, event.id)}
+                      <TableCell className="text-right">
+                        <div className="relative z-10 inline-flex">
+                          <EventRowActions
+                            duplicateAction={duplicateEventAction.bind(null, event.id)}
                             title={event.title}
                             startsAt={utcToZonedWallTime(event.startsAt, event.timeZone)}
+                            exportHref={`/api/admin/events/${event.id}/export`}
                           />
                         </div>
                       </TableCell>

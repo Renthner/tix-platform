@@ -1,6 +1,8 @@
 import {
   getMediaAsset,
   getSecretSetting,
+  listGlobalFees,
+  listTaxRatesWithUsage,
   getSetting,
   hasSecretSetting,
   isMetricsEnabled,
@@ -8,6 +10,7 @@ import {
 } from '@tix/core';
 import { EMAIL_LOGO_MIMES, isPublicMediaKind } from '@tix/shared';
 import { getTranslations } from 'next-intl/server';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import {
   BankTransferSettingsForm,
@@ -22,7 +25,13 @@ import {
   WaitlistSettingsForm,
 } from '@/components/admin/commerce-settings-forms';
 import { EmailHeaderSettingsForm } from '@/components/admin/email-header-form';
-import { PageHeader } from '@/components/admin/form-controls';
+import { FeesAdmin } from '@/components/admin/fees-manager';
+import {
+  GlobalLocaleSwitcher,
+  GlobalTranslationPane,
+} from '@/components/admin/global-translation-pane';
+import { AdminPageHeader } from '@/components/admin/page-header';
+import { PrivacySettingsForm } from '@/components/admin/customers/customer-forms';
 import { Button } from '@/components/ui/button';
 import { BrandingSettingsForm, SponsorsSettingsForm } from '@/components/admin/branding-forms';
 import {
@@ -40,6 +49,7 @@ import {
   ScannerSettingsForm,
   SecuritySettingsForm,
 } from '@/components/admin/security-settings-forms';
+import { QueueConfigForm } from '@/components/admin/queue-forms';
 import { SettingsTabs } from '@/components/admin/settings-tabs';
 import { MetricsTokenCard } from '@/components/admin/system/metrics-token-card';
 import {
@@ -48,9 +58,32 @@ import {
   WalletCheck,
   WalletDesignForm,
 } from '@/components/admin/wallet-settings-forms';
+import { Card, CardContent } from '@/components/ui/card';
 import { resolveLocale } from '@/i18n/locale';
-import { SETTINGS_TABS, type SettingsTab } from '@/lib/settings-tabs';
-import { requireAdmin } from '@/server/auth';
+import { cn } from '@/lib/utils';
+import {
+  allowedSettingsTabs,
+  isSettingsTab,
+  parseOpenSettingsGroups,
+  SETTINGS_GROUPS_COOKIE,
+  SETTINGS_TAB_GROUPS,
+  SETTINGS_TAB_ROLES,
+  settingsGroupsFor,
+  type SettingsTab,
+} from '@/lib/settings-tabs';
+import { hasRole, requireAdmin, type AdminSession } from '@/server/auth';
+import { hubBreadcrumbs } from '@/server/admin/breadcrumbs';
+import { getEditLocale } from '@/server/admin/edit-locale';
+import {
+  deleteGlobalFeeAction,
+  deleteTaxRateAction,
+  reorderGlobalFeesAction,
+  saveGlobalFeeAction,
+  saveTaxRateAction,
+  setGlobalFeeActiveAction,
+} from '@/server/admin/fees';
+import { saveQueueConfigAction } from '@/server/admin/queue';
+import { queueFormValues } from '@/server/admin/queue-defaults';
 import {
   saveSettingsAction,
   sendTestEmailAction,
@@ -74,11 +107,14 @@ import { descriptionToHtml } from '@/server/rich-text';
 export async function generateMetadata({ params }: { params: Promise<{ tab: string }> }) {
   const { tab } = await params;
   const t = await getTranslations('admin.settings');
-  const label = (SETTINGS_TABS as readonly string[]).includes(tab)
-    ? t(`tabs.${tab as SettingsTab}`)
-    : null;
-  return { title: label ? `${label} · ${t('title')}` : t('title') };
+  return { title: isSettingsTab(tab) ? `${t(`tabs.${tab}`)} · ${t('title')}` : t('title') };
 }
+
+/** Header actions per page (translation switcher of the pages with translatable texts). */
+const TAB_ACTIONS: Partial<Record<SettingsTab, React.ReactNode>> = {
+  fees: <GlobalLocaleSwitcher scope="globalFees" />,
+  waitingRoom: <GlobalLocaleSwitcher scope="globalQueue" />,
+};
 
 export default async function SettingsTabPage({
   params,
@@ -86,23 +122,51 @@ export default async function SettingsTabPage({
   params: Promise<{ locale: string; tab: string }>;
 }) {
   const locale = await resolveLocale(params);
-  const session = await requireAdmin(['SUPER_ADMIN']);
   const { tab } = await params;
-  if (!(SETTINGS_TABS as readonly string[]).includes(tab)) notFound();
+  if (!isSettingsTab(tab)) notFound();
+  const session = await requireAdmin(SETTINGS_TAB_ROLES[tab]);
   const t = await getTranslations('admin.settings');
-  // PayPal lives in the Finance section of the admin menu: only its card, no settings menu.
-  const standalone = tab === 'paypal';
+  const tabs = allowedSettingsTabs(session.roles);
+  // Menu groups expanded in this browser; visiting a page adds its group (the client menu saves
+  // it), so the first paint already shows the current group open.
+  const saved = parseOpenSettingsGroups((await cookies()).get(SETTINGS_GROUPS_COOKIE)?.value);
+  const activeGroup = SETTINGS_TAB_GROUPS.find((g) =>
+    (g.tabs as readonly SettingsTab[]).includes(tab),
+  )?.group;
+  const initialOpen = activeGroup && !saved.includes(activeGroup) ? [...saved, activeGroup] : saved;
 
+  // md+: fixed header, menu and content scroll independently (the admin layout makes `<main>`
+  // viewport-high for pages marked `data-admin-panes`). Phones: normal window scrolling.
   return (
-    <>
-      <PageHeader title={standalone ? t('tabs.paypal') : t('title')} />
-      <div className="flex flex-col gap-6 p-6 md:flex-row md:items-start">
-        {!standalone && <SettingsTabs index={await buildSettingsSearchIndex()} />}
-        <div className="min-w-0 max-w-4xl flex-1 space-y-6">
-          <TabContent tab={tab as SettingsTab} locale={locale} adminEmail={session.email} />
+    <div data-admin-panes className="md:flex md:min-h-0 md:flex-1 md:flex-col">
+      <div className="shrink-0">
+        <AdminPageHeader
+          breadcrumbs={await hubBreadcrumbs('settings')}
+          title={t(`tabs.${tab}`)}
+          description={t(`tabInfo.${tab}`)}
+          actions={TAB_ACTIONS[tab]}
+        />
+      </div>
+      <div className="flex flex-col gap-6 p-6 md:min-h-0 md:flex-1 md:flex-row md:gap-0 md:p-0">
+        <SettingsTabs
+          groups={settingsGroupsFor(session.roles)}
+          index={await buildSettingsSearchIndex(tabs)}
+          initialOpen={initialOpen}
+        />
+        <div
+          key={tab}
+          data-testid="settings-content-pane"
+          // `relative`: absolutely positioned helpers (hidden checkbox/switch inputs, sr-only text)
+          // must be contained by the scrolling pane, otherwise they stretch the document.
+          className="min-w-0 md:relative md:min-h-0 md:flex-1 md:overflow-y-auto md:py-6 md:pr-6 md:pl-4"
+        >
+          {/* Fees & taxes are wide tables: full width; forms stay readable at max-w-4xl. */}
+          <div className={cn('space-y-6', tab !== 'fees' && 'max-w-4xl')}>
+            <TabContent tab={tab} locale={locale} session={session} />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -115,11 +179,11 @@ async function pickerAsset(id: string | undefined) {
 async function TabContent({
   tab,
   locale,
-  adminEmail,
+  session,
 }: {
   tab: SettingsTab;
   locale: string;
-  adminEmail: string;
+  session: AdminSession;
 }) {
   const core = getCore();
   const t = await getTranslations('admin.settings');
@@ -140,7 +204,8 @@ async function TabContent({
       | 'bankTransfer',
     children: React.ReactNode,
   ) => (
-    <SettingsSection id={id} title={t(`${id}.title`)} description={t(`${id}.description`)}>
+    // Every page built with this helper has exactly this one section: the page header names it.
+    <SettingsSection id={id} title={t(`${id}.title`)} hideHeading>
       {children}
     </SettingsSection>
   );
@@ -358,11 +423,7 @@ async function TabContent({
               />,
             )}
           {tab === 'paypal' && (
-            <SettingsSection
-              id="paypal"
-              title={t('paypal.title')}
-              description={t('paypal.description')}
-            >
+            <SettingsSection id="paypal" title={t('paypal.title')} hideHeading>
               <details className="mb-4 rounded-md border bg-muted/40 p-3 text-sm [&[open]>summary]:mb-3">
                 <summary className="cursor-pointer font-medium">{t('paypal.guide.title')}</summary>
                 <p className="mb-2 text-muted-foreground">{t('paypal.guide.intro')}</p>
@@ -407,11 +468,7 @@ async function TabContent({
     }
     case 'invoicing':
       return (
-        <SettingsSection
-          id="invoicing"
-          title={t('invoicing.title')}
-          description={t('invoicing.description')}
-        >
+        <SettingsSection id="invoicing" title={t('invoicing.title')} hideHeading>
           <InvoicingSettingsForm
             action={saveSettingsAction.bind(null, 'invoicing')}
             initial={await getSetting(core, 'invoicing')}
@@ -433,7 +490,7 @@ async function TabContent({
       return (
         <>
           {tab === 'email' && (
-            <SettingsSection id="smtp" title={t('smtp.title')} description={t('smtp.description')}>
+            <SettingsSection id="smtp" title={t('smtp.title')} hideHeading>
               <SmtpSettingsForm
                 action={saveSettingsAction.bind(null, 'smtp')}
                 initial={smtp}
@@ -441,17 +498,13 @@ async function TabContent({
               />
               <SmtpTestForm
                 action={sendTestEmailAction}
-                defaultRecipient={adminEmail}
+                defaultRecipient={session.email}
                 defaultLocale={locale}
               />
             </SettingsSection>
           )}
           {tab === 'emailHeader' && (
-            <SettingsSection
-              id="emailHeader"
-              title={t('emailHeader.title')}
-              description={t('emailHeader.description')}
-            >
+            <SettingsSection id="emailHeader" title={t('emailHeader.title')} hideHeading>
               <EmailHeaderSettingsForm
                 action={saveSettingsAction.bind(null, 'emailHeader')}
                 shopName={general.shopName}
@@ -532,11 +585,7 @@ async function TabContent({
             </SettingsSection>
           )}
           {tab === 'walletApple' && (
-            <SettingsSection
-              id="walletApple"
-              title={tw('apple.title')}
-              description={tw('apple.description')}
-            >
+            <SettingsSection id="walletApple" title={tw('apple.title')} hideHeading>
               {guide(
                 'apple',
                 ['account', 'passType', 'certificate', 'export', 'wwdr', 'upload', 'test'],
@@ -554,11 +603,7 @@ async function TabContent({
             </SettingsSection>
           )}
           {tab === 'walletGoogle' && (
-            <SettingsSection
-              id="walletGoogle"
-              title={tw('google.title')}
-              description={tw('google.description')}
-            >
+            <SettingsSection id="walletGoogle" title={tw('google.title')} hideHeading>
               {guide(
                 'google',
                 ['console', 'issuer', 'project', 'serviceAccount', 'access', 'upload', 'test'],
@@ -596,11 +641,7 @@ async function TabContent({
       return (
         <>
           {tab === 'security' && (
-            <SettingsSection
-              id="security"
-              title={ts('settings.security.title')}
-              description={ts('settings.security.description')}
-            >
+            <SettingsSection id="security" title={ts('settings.security.title')} hideHeading>
               <SecuritySettingsForm
                 action={saveSettingsAction.bind(null, 'security')}
                 initial={await getSetting(core, 'security')}
@@ -608,17 +649,26 @@ async function TabContent({
             </SettingsSection>
           )}
           {tab === 'monitoring' && (
-            <SettingsSection id="monitoring" title={tm('title')} description={tm('description')}>
+            <SettingsSection id="monitoring" title={tm('title')} hideHeading>
               <MetricsTokenCard enabled={await isMetricsEnabled(core)} />
             </SettingsSection>
           )}
         </>
       );
     }
+    case 'privacy': {
+      const tp = await getTranslations('customers.settings');
+      return (
+        <SettingsSection id="privacy" title={tp('title')} hideHeading>
+          <p className="mb-4 text-sm text-muted-foreground">{tp('description')}</p>
+          <PrivacySettingsForm initial={await getSetting(core, 'privacy')} />
+        </SettingsSection>
+      );
+    }
     case 'notifications': {
       const ta = await getTranslations('system.alerts.settings');
       return (
-        <SettingsSection id="alerts" title={ta('title')} description={ta('description')}>
+        <SettingsSection id="alerts" title={ta('title')} hideHeading>
           <AlertSettingsForm
             action={saveSettingsAction.bind(null, 'alerts')}
             initial={await getSetting(core, 'alerts')}
@@ -628,11 +678,7 @@ async function TabContent({
     }
     case 'scanner':
       return (
-        <SettingsSection
-          id="scanner"
-          title={ts('settings.scanner.title')}
-          description={ts('settings.scanner.description')}
-        >
+        <SettingsSection id="scanner" title={ts('settings.scanner.title')} hideHeading>
           <p className="mb-4 rounded-md bg-muted p-3 text-sm">{ts('settings.scanner.phaseNote')}</p>
           <ScannerSettingsForm
             action={saveSettingsAction.bind(null, 'scanner')}
@@ -645,11 +691,7 @@ async function TabContent({
       return (
         <>
           {tab === 'accounts' && (
-            <SettingsSection
-              id="customerAccounts"
-              title={t('customerAccounts.title')}
-              description={t('customerAccounts.description')}
-            >
+            <SettingsSection id="customerAccounts" title={t('customerAccounts.title')} hideHeading>
               <CustomerAccountsSettingsForm
                 action={saveSettingsAction.bind(null, 'customerAccounts')}
                 initial={await getSetting(core, 'customerAccounts')}
@@ -660,7 +702,7 @@ async function TabContent({
             <SettingsSection
               id="ticketSelfService"
               title={t('ticketSelfService.title')}
-              description={t('ticketSelfService.description')}
+              hideHeading
             >
               <TicketSelfServiceSettingsForm
                 action={saveSettingsAction.bind(null, 'ticketSelfService')}
@@ -670,5 +712,69 @@ async function TabContent({
           )}
         </>
       );
+    case 'fees': {
+      const editLocale = await getEditLocale();
+      if (editLocale) return <GlobalTranslationPane scope="globalFees" editLocale={editLocale} />;
+      const [general, taxRates, fees] = await Promise.all([
+        getSetting(core, 'general'),
+        listTaxRatesWithUsage(core.db),
+        listGlobalFees(core.db),
+      ]);
+      return (
+        <FeesAdmin
+          currency={general.defaultCurrency}
+          canEdit={hasRole(session, ['FINANCE'])}
+          createTaxRate={saveTaxRateAction.bind(null, null)}
+          createFee={saveGlobalFeeAction.bind(null, null)}
+          setFeeActive={setGlobalFeeActiveAction}
+          reorderFees={reorderGlobalFeesAction}
+          taxRates={taxRates.map((r) => ({
+            id: r.id,
+            name: r.name,
+            rateBasisPoints: r.rateBasisPoints,
+            invoiceNote: r.invoiceNote,
+            isDefault: r.isDefault,
+            isActive: r.isActive,
+            sortOrder: r.sortOrder,
+            eventCount: r.eventCount,
+            feeCount: r.feeCount,
+            save: saveTaxRateAction.bind(null, r.id),
+            remove: deleteTaxRateAction.bind(null, r.id),
+          }))}
+          fees={fees.map((f) => ({
+            id: f.id,
+            name: f.name,
+            scope: f.scope,
+            calculation: f.calculation,
+            value: f.value,
+            taxRateId: f.taxRateId,
+            paymentMethods: f.paymentMethods,
+            channels: f.channels,
+            isActive: f.isActive,
+            sortOrder: f.sortOrder,
+            overrideCount: f.overrideCount,
+            waivedCount: f.waivedCount,
+            save: saveGlobalFeeAction.bind(null, f.id),
+            remove: deleteGlobalFeeAction.bind(null, f.id),
+          }))}
+        />
+      );
+    }
+    case 'waitingRoom': {
+      const editLocale = await getEditLocale();
+      if (editLocale) return <GlobalTranslationPane scope="globalQueue" editLocale={editLocale} />;
+      const form = await queueFormValues(null);
+      return (
+        <Card>
+          <CardContent>
+            <QueueConfigForm
+              action={saveQueueConfigAction.bind(null, null)}
+              initial={form.values}
+              scope="global"
+            />
+          </CardContent>
+        </Card>
+      );
+    }
   }
 }

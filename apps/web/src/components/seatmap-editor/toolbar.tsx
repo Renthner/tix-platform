@@ -3,6 +3,7 @@
 import {
   Armchair,
   ArrowLeft,
+  ChevronRight,
   Circle,
   DoorOpen,
   Hand,
@@ -45,6 +46,7 @@ export function TopBar({
   planName,
   isEventMap,
   backHref,
+  parent,
   dirty,
   saving,
   canUndo,
@@ -62,6 +64,7 @@ export function TopBar({
   planName: string;
   isEventMap: boolean;
   backHref: string;
+  parent?: { label: string; href: string };
   dirty: boolean;
   saving: boolean;
   canUndo: boolean;
@@ -77,6 +80,9 @@ export function TopBar({
   localeSlot?: ReactNode;
 }) {
   const t = useTranslations('editor.toolbar');
+  const tShell = useTranslations('admin.shell');
+  const crumb =
+    'truncate rounded-sm hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-3">
       <Button asChild variant="ghost" size="icon-sm" aria-label={t('back')}>
@@ -91,7 +97,23 @@ export function TopBar({
             {isEventMap ? t('eventMap') : t('template')}
           </Badge>
         </div>
-        <p className="truncate text-xs text-muted-foreground">{title}</p>
+        <nav aria-label={tShell('breadcrumbs')} className="min-w-0">
+          <ol className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+            {parent ? (
+              <li className="flex shrink-0 items-center gap-1">
+                <Link href={parent.href} className={crumb}>
+                  {parent.label}
+                </Link>
+                <ChevronRight className="size-3" aria-hidden />
+              </li>
+            ) : null}
+            <li className="min-w-0 truncate">
+              <Link href={backHref} className={crumb}>
+                {title}
+              </Link>
+            </li>
+          </ol>
+        </nav>
       </div>
       <div className="ml-auto flex items-center gap-1">
         {localeSlot}

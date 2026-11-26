@@ -62,7 +62,7 @@ export function TranslationPane({
           {group.readOnly && (
             <p className="text-sm text-muted-foreground">
               {t('pane.readOnlyGlobal')}{' '}
-              <Link href="/admin/fees" className="underline">
+              <Link href="/admin/settings/fees" className="underline">
                 {t('pane.readOnlyLink')}
               </Link>
             </p>

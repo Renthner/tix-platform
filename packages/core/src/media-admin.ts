@@ -218,7 +218,7 @@ async function usagesBatch(
       type: 'EVENT_COVER',
       label: r.title,
       detail: null,
-      href: `/admin/events/${r.id}`,
+      href: `/admin/events/${r.id}/details`,
     });
   for (const r of seriesRows)
     add(r.asset, { type: 'SERIES_IMAGE', label: r.name, detail: null, href: null });

@@ -8,6 +8,39 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.43] - 2026-11-26
+
+### Changed
+
+- **Admin portal redesign** (structure and layout; colours and design tokens unchanged):
+  - Navigation by work area (Events, Sales, On site, Finance) plus hubs for Design, Settings and
+    System; command palette (Ctrl K) with page and settings search; old URLs redirect.
+  - **Settings hub**: overview with search and status badges; one page per topic in collapsible
+    groups with icons (open state remembered per user); header fixed, menu and content scroll
+    separately. Fees & taxes and the waiting room moved into the settings; data retention moved
+    from the customers page to Settings › System › "Data protection & retention" (also linked on
+    the System hub).
+  - **Event area**: event overview (KPIs, dates, quick links, publish card) with a side menu;
+    details and status/publishing on their own pages; actions (duplicate, export) in a menu.
+  - **Dashboard**: alerts, "Needs attention" (open to-dos only), KPIs, one events table with
+    capacity bars, compact first steps. Test orders no longer count towards seats and check-in.
+  - **Lists**: one filter bar everywhere (search, key filters, "More filters", removable chips,
+    reset); filters apply immediately without an "Apply" button; status tabs; secondary row
+    actions in a "⋯" menu; empty states.
+  - **Detail pages** (orders, customers, discounts, users, bank accounts/connections/transactions,
+    venues): main column plus aside; one primary action in the header, the rest under "Actions"
+    in dialogs that cannot be closed while their action runs (prevents double submissions, e.g.
+    recording a payment twice).
+  - **Door check-in**: KPI strip with progress bar, guest cards in a responsive grid with full-width
+    check-in buttons, result banner stays visible while scrolling.
+  - Scanner devices: the per-event check-in links come first on phones.
+
+### Fixed
+
+- Event managers could save the global wallet design (now SUPER_ADMIN only; event designs
+  unchanged).
+- The customer's order count on the order page no longer includes test orders.
+
 ## [1.0.0-alpha.42] - 2026-11-25
 
 ### Update notes

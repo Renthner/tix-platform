@@ -154,7 +154,6 @@
     }
   },
   "page": {
-    "back": "All templates",
     "global": "Global template",
     "overrideFor": "Override for event: {event}",
     "overrideHint": "This text is used instead of the global template for orders of this event.",

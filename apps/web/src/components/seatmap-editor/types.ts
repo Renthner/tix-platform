@@ -17,6 +17,8 @@ export interface SeatMapEditorProps {
   title: string;
   /** Locale-independent admin path to return to. */
   backHref: string;
+  /** List above `backHref` in the breadcrumb trail ("Venues", "Events"). */
+  parent?: { label: string; href: string };
   /** Complete symbol library (both kinds). */
   symbols: EditorSymbol[];
   /** Content language switch: base language, edited language and completeness per language. */

@@ -3,7 +3,8 @@
     "driverFs": "File storage: local directory {dir}",
     "driverS3": "File storage: S3-compatible object storage",
     "localOnlyTitle": "Backups are only stored on this server",
-    "localOnlyText": "Backups on the same volume do not survive the loss of the disk or the server. Configure an external target under \"External S3 copy\" below so every backup is also stored elsewhere."
+    "localOnlyText": "Backups on the same volume do not survive the loss of the disk or the server. Configure an external target under \"External S3 copy\" below so every backup is also stored elsewhere.",
+    "title": "Storage & keys"
   },
   "title": "Backups",
   "description": "Full backups of the database and all stored files (images, invoices, tickets, bank statements). Backups are encrypted and kept in the local storage; an external S3 target is optional.",
@@ -136,7 +137,8 @@
     },
     "details": "{orders} orders, {assets} images, {documents} documents · migration {migration}",
     "detailsDatabaseOnly": "Database only, {orders} orders · migration {migration} · version {version}",
-    "uploaded": "uploaded file"
+    "uploaded": "uploaded file",
+    "rowActions": "More actions for the backup from {date}"
   },
   "verifyDetail": {
     "ARCHIVE_MISMATCH": "The archive does not match its description.",

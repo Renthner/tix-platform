@@ -1,8 +1,10 @@
 import { getSalesStatistics, parseStatisticsParams, statisticsFilterToParams } from '@tix/core';
+import { Download } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { StatisticsFilters } from '@/components/admin/statistics/statistics-filters';
 import { StatisticsView } from '@/components/admin/statistics/statistics-view';
+import { Button } from '@/components/ui/button';
 import { resolveLocale } from '@/i18n/locale';
 import { listEvents } from '@/server/admin/queries';
 import { requireAdmin } from '@/server/auth';
@@ -20,7 +22,7 @@ export default async function StatisticsPage({
   params: Promise<{ locale: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await resolveLocale(params);
+  const locale = await resolveLocale(params);
   await requireAdmin(['EVENT_MANAGER', 'FINANCE']);
   const filter = parseStatisticsParams(await searchParams);
   const [t, data, eventRows] = await Promise.all([
@@ -28,12 +30,26 @@ export default async function StatisticsPage({
     getSalesStatistics(getCore(), filter),
     listEvents(),
   ]);
+  const filterQuery = statisticsFilterToParams(filter).toString();
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
+      <AdminPageHeader
+        title={t('title')}
+        description={t('description')}
+        actions={
+          <Button asChild variant="outline">
+            <a
+              href={`/api/admin/statistics/export?${filterQuery}&locale=${locale}`}
+              download
+              data-testid="statistics-export"
+            >
+              <Download /> {t('filters.exportCsv')}
+            </a>
+          </Button>
+        }
+      />
       <div className="space-y-6 p-4 sm:p-6">
         <StatisticsFilters
-          key={statisticsFilterToParams(filter).toString()}
           events={eventRows.map(({ event }) => ({
             id: event.id,
             title: event.title,
@@ -45,7 +61,6 @@ export default async function StatisticsPage({
           eventIds={filter.eventIds}
           channels={filter.channels}
           methods={filter.methods}
-          exportQuery={statisticsFilterToParams(filter).toString()}
         />
         <StatisticsView data={data} />
       </div>

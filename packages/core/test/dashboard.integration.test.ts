@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import {
   adminUsers,
   createDb,
+  eventSigningKeys,
   events,
   loadRootEnv,
   orderItems,
@@ -16,8 +17,10 @@ import {
   seatMapSections,
   seatMaps,
   taxRates,
+  tickets,
   ticketTypes,
   venues,
+  waitlistEntries,
   type DbHandle,
 } from '@tix/db';
 import { runMigrations } from '@tix/db/migrate';
@@ -30,6 +33,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createCoreContext,
   getDashboardData,
+  getEventOverviewStats,
   touchShopPresence,
   getDashboardPreferences,
   saveDashboardPreferences,
@@ -342,6 +346,7 @@ describe.skipIf(!adminUrl || !redisUrl)('dashboard telemetry (integration)', () 
       reserved: 2,
       locked: 4,
       blocked: 0,
+      testHeld: 0,
       capacity: 100,
       available: 91,
     });
@@ -409,7 +414,15 @@ describe.skipIf(!adminUrl || !redisUrl)('dashboard telemetry (integration)', () 
     expect(data.events).toHaveLength(4);
     expect(data.overview.eventCount).toBe(4);
     const inv = data.overview.inventory!;
-    for (const key of ['sold', 'reserved', 'locked', 'available', 'blocked', 'capacity'] as const) {
+    for (const key of [
+      'sold',
+      'reserved',
+      'locked',
+      'available',
+      'blocked',
+      'testHeld',
+      'capacity',
+    ] as const) {
       expect(inv[key]).toBe(sum(data.events.map((e) => e.inventory![key])));
     }
     expect(inv).toEqual({
@@ -417,6 +430,7 @@ describe.skipIf(!adminUrl || !redisUrl)('dashboard telemetry (integration)', () 
       reserved: 2,
       locked: 8,
       blocked: 0,
+      testHeld: 0,
       capacity: 190,
       available: 170,
     });
@@ -497,5 +511,182 @@ describe.skipIf(!adminUrl || !redisUrl)('dashboard telemetry (integration)', () 
       sql`UPDATE admin_users SET dashboard_preferences = '{"eventOrder":"x","statusFilter":[1]}' WHERE id = ${userB}::uuid`,
     );
     expect(await getDashboardPreferences(ctx, userB)).toEqual(defaults);
+  });
+
+  // Runs last: it adds a draft event the status-filter tests above do not expect.
+  it('event overview: per-event figures without test orders, test seats are not available', async () => {
+    // The main event (any status/date): same numbers as its dashboard card.
+    const main = await getEventOverviewStats(ctx, eventId);
+    expect(main.inventory).toEqual({
+      sold: 3,
+      reserved: 2,
+      locked: 4,
+      blocked: 0,
+      testHeld: 0,
+      capacity: 100,
+      available: 91,
+    });
+    expect(main.revenueCents).toBe(6000);
+    expect(main.checkIn).toEqual({ checkedIn: 0, valid: 0 });
+
+    const [venue] = await handle.db.select().from(venues).limit(1);
+    const [tax] = await handle.db.select().from(taxRates).limit(1);
+    const [map] = await handle.db
+      .insert(seatMaps)
+      .values({
+        venueId: venue!.id,
+        kind: 'EVENT',
+        name: 'Overview',
+        canvasWidth: 100,
+        canvasHeight: 100,
+      })
+      .returning();
+    const [section] = await handle.db
+      .insert(seatMapSections)
+      .values({
+        seatMapId: map!.id,
+        type: 'STANDING',
+        name: 'Floor',
+        ticketLabel: 'Floor',
+        capacity: 20,
+        geometry: { type: 'rect', x: 0, y: 0, width: 50, height: 50, rotation: 0 },
+      })
+      .returning();
+    // Long past: the dashboard scope would drop it, the overview must not.
+    const [ev] = await handle.db
+      .insert(events)
+      .values({
+        venueId: venue!.id,
+        seatMapId: map!.id,
+        slug: `ov-${randomUUID().slice(0, 6)}`,
+        title: 'Overview show',
+        startsAt: new Date(Date.now() - 3 * 86_400_000),
+        timeZone: 'Europe/Berlin',
+        currency: 'EUR',
+        taxRateId: tax!.id,
+        status: 'PUBLISHED',
+      })
+      .returning();
+    const [cat] = await handle.db
+      .insert(priceCategories)
+      .values({ eventId: ev!.id, name: 'Cat', color: '#112233', basePrice: 1500 })
+      .returning();
+    const [tar] = await handle.db
+      .insert(ticketTypes)
+      .values({ eventId: ev!.id, name: 'Normal' })
+      .returning();
+    const order = async (isTest: boolean, status: 'CONFIRMED' | 'PENDING', count: number) => {
+      const [o] = await handle.db
+        .insert(orders)
+        .values({
+          channel: 'BOX_OFFICE',
+          firstName: 'A',
+          lastName: 'B',
+          locale: 'en',
+          currency: 'EUR',
+          isTest,
+          orderNumber: `${isTest ? 'TEST' : 'D'}-${randomUUID().slice(0, 8)}`,
+          ...(status === 'CONFIRMED'
+            ? { status: 'PAID' as const, paymentMethod: 'CASH' as const }
+            : {
+                status: 'AWAITING_PAYMENT' as const,
+                paymentMethod: 'BANK_TRANSFER' as const,
+                paymentReference: `TIX-2026-${String(Math.floor(Math.random() * 1e6)).padStart(6, '0')}-1`,
+                paymentDueAt: new Date(Date.now() + 5 * 86_400_000),
+              }),
+          subtotalGross: 1500 * count,
+          totalGross: 1500 * count,
+          totalNet: 1400 * count,
+          totalTax: 100 * count,
+          amountPaid: status === 'CONFIRMED' ? 1500 * count : 0,
+          paidAt: status === 'CONFIRMED' ? new Date() : null,
+        })
+        .returning();
+      const items = await handle.db
+        .insert(orderItems)
+        .values(
+          Array.from({ length: count }, () => ({
+            orderId: o!.id,
+            eventId: ev!.id,
+            kind: 'GENERAL_ADMISSION' as const,
+            sectionId: section!.id,
+            priceCategoryId: cat!.id,
+            ticketTypeId: tar!.id,
+            status,
+            sectionLabel: 'Floor',
+            categoryName: 'Cat',
+            ticketTypeName: 'Normal',
+            unitPriceGross: 1500,
+            priceGross: 1500,
+            taxRateBasisPoints: 700,
+            priceNet: 1402,
+            taxAmount: 98,
+          })),
+        )
+        .returning({ id: orderItems.id });
+      return { orderId: o!.id, itemIds: items.map((i) => i.id) };
+    };
+    const real = await order(false, 'CONFIRMED', 2);
+    await order(false, 'PENDING', 1);
+    const test = await order(true, 'CONFIRMED', 3);
+    await order(true, 'PENDING', 1);
+    await redis.hset(ctx.keys.generalAdmissionHeld(ev!.id), section!.id, 2);
+
+    // Tickets: two real (one checked in), three of the test order (one checked in).
+    const [key] = await handle.db
+      .insert(eventSigningKeys)
+      .values({ eventId: ev!.id, keyId: 'ovkey', publicKey: 'x', privateKeyEncrypted: 'x' })
+      .returning();
+    const ticketRows = [
+      ...real.itemIds.map((itemId, n) => ({ itemId, orderId: real.orderId, checkedIn: n === 0 })),
+      ...test.itemIds.map((itemId, n) => ({ itemId, orderId: test.orderId, checkedIn: n === 0 })),
+    ];
+    await handle.db.insert(tickets).values(
+      ticketRows.map((r, n) => ({
+        orderItemId: r.itemId,
+        orderId: r.orderId,
+        eventId: ev!.id,
+        ticketCode: `OV${n}${randomUUID().slice(0, 6)}`,
+        signingKeyId: key!.id,
+        qrPayload: `tix://test/${n}`,
+        checkInState: r.checkedIn ? ('CHECKED_IN' as const) : ('NONE' as const),
+        firstCheckedInAt: r.checkedIn ? new Date() : null,
+        checkInCount: r.checkedIn ? 1 : 0,
+      })),
+    );
+    await handle.db.insert(waitlistEntries).values([
+      { eventId: ev!.id, email: 'w1@example.test', locale: 'en', confirmedAt: new Date() },
+      { eventId: ev!.id, email: 'w2@example.test', locale: 'en' },
+    ]);
+
+    try {
+      const stats = await getEventOverviewStats(ctx, ev!.id);
+      expect(stats.inventory).toEqual({
+        sold: 2,
+        reserved: 1,
+        locked: 2,
+        blocked: 0,
+        testHeld: 4,
+        capacity: 20,
+        available: 11, // 20 − 2 sold − 1 reserved − 4 test − 2 in carts
+      });
+      expect(stats.revenueCents).toBe(3000);
+      expect(stats.checkIn).toEqual({ checkedIn: 1, valid: 2 });
+      expect(stats.waitlistConfirmed).toBe(1);
+
+      // The dashboard leaves test orders out the same way: move the event into its scope.
+      await handle.db.execute(
+        sql`UPDATE events SET starts_at = now() + interval '2 days' WHERE id = ${ev!.id}::uuid`,
+      );
+      const dashboard = await getDashboardData(ctx, { ...FULL, statuses: ['PUBLISHED'] });
+      const card = dashboard.events.find((e) => e.id === ev!.id)!;
+      expect(card.inventory).toEqual(stats.inventory);
+      expect(card.checkIn).toEqual({ checkedIn: 1, valid: 2 });
+      // Money: confirmed tickets of real orders only (2 × 15.00), no CASH line of the test order.
+      expect(card.revenueCents).toBe(3000);
+      expect(card.payments).toEqual([{ method: 'CASH', tickets: 2, amountCents: 3000 }]);
+    } finally {
+      await redis.del(ctx.keys.generalAdmissionHeld(ev!.id));
+    }
   });
 });

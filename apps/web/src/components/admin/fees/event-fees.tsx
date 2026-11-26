@@ -51,7 +51,7 @@ export function EventFeesManager({
         description={t('event.globalDescription')}
         action={
           <Button asChild size="sm" variant="outline">
-            <Link href="/admin/fees">{t('event.manageGlobal')}</Link>
+            <Link href="/admin/settings/fees">{t('event.manageGlobal')}</Link>
           </Button>
         }
       >

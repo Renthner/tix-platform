@@ -21,6 +21,8 @@ type DirtyCheck = () => boolean;
 interface GuardRegistry {
   register: (id: string, check: DirtyCheck) => void;
   unregister: (id: string) => void;
+  /** Runs `go` (a programmatic navigation) now, or after the user confirmed leaving dirty forms. */
+  guard: (go: () => void) => void;
 }
 
 const GuardContext = createContext<GuardRegistry | null>(null);
@@ -33,20 +35,30 @@ const GuardContext = createContext<GuardRegistry | null>(null);
  * Router has no route-change events, so the click is the interception point). Leaving the app
  * (reload, close tab, external link) is covered by the browser's `beforeunload` prompt.
  *
- * Not covered (by design): the browser back/forward buttons and programmatic `router.push` calls.
+ * Programmatic navigations opt in through `useGuardedNavigation` (e.g. the settings page select).
+ * Not covered (by design): the browser back/forward buttons and plain `router.push` calls.
  */
 export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const t = useTranslations('common.unsaved');
   const router = useRouter();
   const checks = useRef(new Map<string, DirtyCheck>());
   const [target, setTarget] = useState<string | null>(null);
+  const pending = useRef<(() => void) | null>(null);
 
   const register = useCallback(
     (id: string, check: DirtyCheck) => void checks.current.set(id, check),
     [],
   );
   const unregister = useCallback((id: string) => void checks.current.delete(id), []);
-  const registry = useMemo(() => ({ register, unregister }), [register, unregister]);
+  const guard = useCallback((go: () => void) => {
+    if (![...checks.current.values()].some((check) => check())) {
+      go();
+      return;
+    }
+    pending.current = go;
+    setTarget(''); // opens the dialog; the pending callback is the destination
+  }, []);
+  const registry = useMemo(() => ({ register, unregister, guard }), [register, unregister, guard]);
 
   useEffect(() => {
     const anyDirty = () => [...checks.current.values()].some((check) => check());
@@ -67,6 +79,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       if (!anyDirty()) return;
       event.preventDefault();
       event.stopPropagation();
+      pending.current = null;
       setTarget(`${url.pathname}${url.search}${url.hash}`);
     };
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -89,6 +102,8 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       <ConfirmDialog
         open={target !== null}
         onOpenChange={(open) => {
+          // `pending` is not cleared here: the dialog closes before `onConfirm` runs. Every path
+          // that opens the dialog sets it (link clicks reset it to null).
           if (!open) setTarget(null);
         }}
         title={t('title')}
@@ -97,11 +112,23 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
         confirmLabel={t('leave')}
         onConfirm={() => {
           // The dirty editor unmounts with the navigation; nothing else to clear.
-          if (target) router.push(target as Parameters<typeof router.push>[0]);
+          const go = pending.current;
+          pending.current = null;
+          if (go) go();
+          else if (target) router.push(target as Parameters<typeof router.push>[0]);
         }}
       />
     </GuardContext.Provider>
   );
+}
+
+/**
+ * Wraps a programmatic navigation so it asks first while a registered editor is dirty
+ * (`guarded(() => router.push(href))`). Without a provider the navigation runs directly.
+ */
+export function useGuardedNavigation(): (go: () => void) => void {
+  const registry = useContext(GuardContext);
+  return useCallback((go: () => void) => (registry ? registry.guard(go) : go()), [registry]);
 }
 
 /**

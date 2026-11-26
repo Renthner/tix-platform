@@ -7,12 +7,17 @@ import {
   passkeysAvailable,
   reapExpiredLoadTest,
 } from '@tix/core';
+import { Gauge } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader } from '@/components/admin/page-header';
+import { hubBreadcrumbs } from '@/server/admin/breadcrumbs';
 import { AlertHistory } from '@/components/admin/system/alert-history';
 import { LoadTestCard } from '@/components/admin/system/load-test-card';
 import { SystemMonitor } from '@/components/admin/system/system-monitor';
+import { Button } from '@/components/ui/button';
+import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
+import { allowedSettingsTabs } from '@/lib/settings-tabs';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 
@@ -37,13 +42,24 @@ export default async function SystemPage({ params }: { params: Promise<{ locale:
   ]);
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
-      <div className="p-4 sm:p-6">
+      <AdminPageHeader
+        breadcrumbs={await hubBreadcrumbs('administration')}
+        title={t('title')}
+        description={t('description')}
+        actions={
+          allowedSettingsTabs(session.roles).includes('monitoring') ? (
+            <Button asChild variant="outline">
+              <Link href="/admin/settings/monitoring">
+                <Gauge /> {t('monitoringSettings')}
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
+      <div className="space-y-6 p-4 sm:p-6">
         <SystemMonitor initial={stats} metricsEnabled={metricsEnabled} />
-        <div className="mt-6">
+        <div className="grid gap-6 xl:grid-cols-2">
           <AlertHistory rows={alerts} />
-        </div>
-        <div className="mt-6">
           <LoadTestCard
             initial={{
               active: loadTest.active,

@@ -1,7 +1,7 @@
 'use client';
 
 import type { DoorGuest } from '@tix/core';
-import { LogIn, LogOut } from 'lucide-react';
+import { LogIn, LogOut, X } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
@@ -77,11 +77,11 @@ export function DoorGuestList({ guests, eventId }: { guests: DoorGuest[]; eventI
       .join(' · ');
   const time = (d: Date) => format.dateTime(d, { timeStyle: 'short', dateStyle: 'short' });
 
-  const banner = () => {
+  const bannerContent = () => {
     if (!last) return null;
     if (last.status === 'error') {
       return (
-        <Alert variant="destructive" role="alert" data-testid="door-result">
+        <Alert variant="destructive" role="alert" data-testid="door-result" className="pr-12">
           <AlertDescription>
             {t(
               `errors.${last.code === 'INVALID' || last.code === 'EVENT_NOT_ASSIGNED' ? last.code : 'INTERNAL_ERROR'}`,
@@ -97,7 +97,7 @@ export function DoorGuestList({ guests, eventId }: { guests: DoorGuest[]; eventI
         role="status"
         data-testid="door-result"
         data-color={outcome.color}
-        className={cn('rounded-md border p-3 text-sm', COLOR_CLASS[outcome.color])}
+        className={cn('rounded-md border p-3 pr-12 text-sm', COLOR_CLASS[outcome.color])}
       >
         <p className="text-base font-semibold">{tResults(outcome.result)}</p>
         {name && <p>{name}</p>}
@@ -120,62 +120,92 @@ export function DoorGuestList({ guests, eventId }: { guests: DoorGuest[]; eventI
     );
   };
 
+  const banner = bannerContent();
+  const accent = (g: DoorGuest) => {
+    if (g.status !== 'VALID') return 'border-l-destructive';
+    if (g.checkInState === 'CHECKED_IN') return 'border-l-success';
+    if (g.checkInState === 'CHECKED_OUT') return 'border-l-warning';
+    return 'border-l-muted-foreground/30';
+  };
+
   return (
     <div className="space-y-3">
-      {banner()}
-      <ul className="space-y-2">
+      {banner && (
+        <div className="sticky top-2 z-20 rounded-md bg-background shadow-md">
+          {banner}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="absolute top-2 right-2"
+            onClick={() => setLast(null)}
+            aria-label={t('dismiss')}
+          >
+            <X />
+          </Button>
+        </div>
+      )}
+      <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {guests.map((g) => {
           const valid = g.status === 'VALID';
           const busy = pendingId === g.id;
+          const seatText = seat(g);
+          const tier = [g.categoryName, g.ticketTypeName].filter(Boolean).join(' · ');
           return (
-            <li key={g.id}>
-              <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium">{g.attendeeName ?? g.buyerName}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {seat(g)} · {g.categoryName}
-                    {g.ticketTypeName ? ` · ${g.ticketTypeName}` : ''}
+            <li key={g.id} className="min-w-0">
+              <Card className={cn('h-full gap-3 border-l-4 p-4', accent(g))}>
+                <div className="min-w-0 space-y-1">
+                  <div className="text-lg leading-tight font-semibold break-words">
+                    {g.attendeeName ?? g.buyerName}
                   </div>
-                  <div className="font-mono text-xs text-muted-foreground">
+                  {seatText && (
+                    <div className="text-base font-medium break-words tabular-nums">{seatText}</div>
+                  )}
+                  {tier && <div className="text-sm text-muted-foreground">{tier}</div>}
+                  <div className="font-mono text-xs break-all text-muted-foreground">
                     {g.orderNumber} · {g.ticketCode}
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {!valid && <Badge variant="destructive">{t(`ticketStatus.${g.status}`)}</Badge>}
-                    {valid && g.checkInState === 'NONE' && (
-                      <Badge variant="outline">{t('state.NONE')}</Badge>
-                    )}
-                    {valid && g.checkInState === 'CHECKED_IN' && (
-                      <Badge>
-                        {t('state.CHECKED_IN')}
-                        {g.firstCheckedInAt ? ` · ${time(g.firstCheckedInAt)}` : ''}
-                      </Badge>
-                    )}
-                    {valid && g.checkInState === 'CHECKED_OUT' && (
-                      <Badge variant="secondary">{t('state.CHECKED_OUT')}</Badge>
-                    )}
-                    {valid && g.requiresProof && (
-                      <Badge variant="outline" className="border-warning-border text-warning">
-                        {g.scannerWarning ?? tWarnings('DISCOUNT_PROOF_REQUIRED')}
-                      </Badge>
-                    )}
-                    {valid && g.additionalPaymentOpen && (
-                      <Badge variant="outline" className="border-warning-border text-warning">
-                        {tWarnings('ADDITIONAL_PAYMENT_OPEN')}
-                      </Badge>
-                    )}
-                  </div>
-                  {valid && g.checkInState !== 'NONE' && g.firstCheckedInDeviceName && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {t('firstEntry', { device: g.firstCheckedInDeviceName })}
-                    </div>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {!valid && <Badge variant="destructive">{t(`ticketStatus.${g.status}`)}</Badge>}
+                  {valid && g.checkInState === 'NONE' && (
+                    <Badge variant="outline">{t('state.NONE')}</Badge>
+                  )}
+                  {valid && g.checkInState === 'CHECKED_IN' && (
+                    <Badge>
+                      {t('state.CHECKED_IN')}
+                      {g.firstCheckedInAt ? ` · ${time(g.firstCheckedInAt)}` : ''}
+                    </Badge>
+                  )}
+                  {valid && g.checkInState === 'CHECKED_OUT' && (
+                    <Badge variant="secondary">{t('state.CHECKED_OUT')}</Badge>
+                  )}
+                  {valid && g.requiresProof && (
+                    <Badge
+                      variant="outline"
+                      className="border-warning-border whitespace-normal text-warning"
+                    >
+                      {g.scannerWarning ?? tWarnings('DISCOUNT_PROOF_REQUIRED')}
+                    </Badge>
+                  )}
+                  {valid && g.additionalPaymentOpen && (
+                    <Badge variant="outline" className="border-warning-border text-warning">
+                      {tWarnings('ADDITIONAL_PAYMENT_OPEN')}
+                    </Badge>
                   )}
                 </div>
+                {valid && g.checkInState !== 'NONE' && g.firstCheckedInDeviceName && (
+                  <div className="text-xs text-muted-foreground">
+                    {t('firstEntry', { device: g.firstCheckedInDeviceName })}
+                  </div>
+                )}
                 {valid && (
-                  <div className="flex gap-2">
+                  <div className="mt-auto pt-1">
                     {g.checkInState !== 'CHECKED_IN' && (
                       <Button
                         type="button"
                         size="lg"
+                        className="min-h-11 w-full"
                         disabled={busy}
                         onClick={() => act(g, 'CHECK_IN')}
                         data-testid="door-check-in"
@@ -188,6 +218,7 @@ export function DoorGuestList({ guests, eventId }: { guests: DoorGuest[]; eventI
                         type="button"
                         size="lg"
                         variant="outline"
+                        className="min-h-11 w-full"
                         disabled={busy}
                         onClick={() => act(g, 'CHECK_OUT')}
                         data-testid="door-check-out"

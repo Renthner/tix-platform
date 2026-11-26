@@ -9,20 +9,25 @@ import {
   parsePageSize,
 } from '@tix/shared';
 import { desc } from 'drizzle-orm';
-import { Download, Search } from 'lucide-react';
+import { Download, Inbox } from 'lucide-react';
 import { getFormatter, getLocale, getTranslations } from 'next-intl/server';
 import { cookies } from 'next/headers';
 import { AdminPagination } from '@/components/admin/admin-pagination';
+import { EmptyState } from '@/components/admin/empty-state';
 import { FilterSelect } from '@/components/admin/filter-select';
-import { PageHeader } from '@/components/admin/form-controls';
+import {
+  ListToolbar,
+  MoreFilterField,
+  type ActiveFilterChip,
+} from '@/components/admin/list-toolbar';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { OrdersTable, type SortHeader } from '@/components/admin/orders-table';
 import { RememberTestsFilter } from '@/components/admin/orders-tests-cookie';
+import { StatusTabs } from '@/components/admin/status-tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
-import { cn } from '@/lib/utils';
 import {
   ORDERS_TESTS_COOKIE,
   parseOrderFilters,
@@ -39,6 +44,8 @@ export async function generateMetadata() {
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 50;
 const SORTABLE = ['number', 'date', 'customer', 'method', 'tickets', 'total', 'status'] as const;
+/** Quick filters of the status tabs (one at a time). */
+const QUICK = ['open', 'overdue', 'today'] as const;
 
 export default async function OrdersPage({
   params,
@@ -60,8 +67,9 @@ export default async function OrdersPage({
   const pageSize = parsePageSize(sp.pageSize, PAGE_SIZES, DEFAULT_PAGE_SIZE);
   const core = getCore();
   const general = await getSetting(core, 'general');
-  const [t, tChannel, tStatus, tMethod, format, locale, result, eventRows] = await Promise.all([
+  const [t, tl, tChannel, tStatus, tMethod, format, locale, result, eventRows] = await Promise.all([
     getTranslations('orders.admin'),
+    getTranslations('admin.list'),
     getTranslations('orders.channel'),
     getTranslations('orders.status'),
     getTranslations('orders.method'),
@@ -72,7 +80,7 @@ export default async function OrdersPage({
       page,
       pageSize,
     }),
-    // All events (no cap): the select narrows the options with its search box.
+    // All events (no cap): a native select with type-ahead.
     core.db
       .select({ id: events.id, title: events.title, startsAt: events.startsAt })
       .from(events)
@@ -96,6 +104,7 @@ export default async function OrdersPage({
     sort: filters.sort,
     dir: filters.dir,
   };
+  const keptPageSize = pageSize !== DEFAULT_PAGE_SIZE ? pageSize : undefined;
 
   // Sorting: first click = natural direction, then toggles; the date column defaults to "desc".
   const sortHeaders: Record<string, SortHeader> = {};
@@ -107,148 +116,257 @@ export default async function OrdersPage({
       active === 'asc' ? 'desc' : active === 'desc' ? 'asc' : key === 'date' ? 'desc' : 'asc';
     sortHeaders[key] = {
       active,
-      href: buildQuery(base, listParams, {
-        sort: key,
-        dir: nextDir,
-        pageSize: pageSize !== DEFAULT_PAGE_SIZE ? pageSize : undefined,
-      }),
+      href: buildQuery(base, listParams, { sort: key, dir: nextDir, pageSize: keptPageSize }),
     };
   }
 
-  const chip = (key: 'open' | 'overdue' | 'today', label: string) => {
-    const on = filters[key] === '1';
-    return (
-      <Link
-        key={key}
-        href={buildQuery(base, listParams, { [key]: on ? undefined : '1' })}
-        aria-pressed={on}
-        data-testid={`chip-${key}`}
-        className={cn(
-          'rounded-full border px-3 py-1 text-sm',
-          on ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent',
-        )}
-      >
-        {label}
-      </Link>
-    );
+  // Status tabs: All / Open / Overdue / Today (one at a time; every other filter is kept).
+  const noQuick = {
+    open: undefined,
+    overdue: undefined,
+    today: undefined,
+    pageSize: keptPageSize,
   };
+  const activeQuick = QUICK.find((key) => filters[key] === '1');
+  const tabs = [
+    {
+      key: 'all',
+      label: tl('all'),
+      href: buildQuery(base, listParams, noQuick),
+      active: !activeQuick,
+      'data-testid': 'chip-all',
+    },
+    ...QUICK.map((key) => ({
+      key,
+      label: t(`chips.${key}`),
+      href: buildQuery(base, listParams, { ...noQuick, [key]: '1' }),
+      active: activeQuick === key,
+      'data-testid': `chip-${key}`,
+    })),
+  ];
+
+  // Active toolbar filters (removable chips) and the reset link (quick tab and sort stay).
+  const eventLabel = (id: string) => {
+    const e = eventRows.find((row) => row.id === id);
+    return e ? `${e.title} · ${format.dateTime(e.startsAt, { dateStyle: 'short' })}` : id;
+  };
+  const without = (overrides: Record<string, string | undefined>) =>
+    buildQuery(base, listParams, { pageSize: keptPageSize, ...overrides });
+  const chips: ActiveFilterChip[] = [];
+  if (filters.q) {
+    chips.push({
+      key: 'q',
+      label: tl('searchChip', { value: filters.q }),
+      removeHref: without({ q: undefined }),
+    });
+  }
+  if (filters.status) {
+    chips.push({
+      key: 'status',
+      label: `${t('filters.status')}: ${tStatus(filters.status)}`,
+      removeHref: without({ status: undefined }),
+    });
+  }
+  if (filters.event) {
+    chips.push({
+      key: 'event',
+      label: `${t('filters.event')}: ${eventLabel(filters.event)}`,
+      removeHref: without({ event: undefined }),
+    });
+  }
+  if (filters.method) {
+    chips.push({
+      key: 'method',
+      label: `${t('filters.method')}: ${tMethod(filters.method)}`,
+      removeHref: without({ method: undefined }),
+    });
+  }
+  if (filters.channel) {
+    chips.push({
+      key: 'channel',
+      label: `${t('filters.channel')}: ${tChannel(filters.channel)}`,
+      removeHref: without({ channel: undefined }),
+    });
+  }
+  if (filters.tests !== 'hide') {
+    chips.push({
+      key: 'tests',
+      label: t(filters.tests === 'only' ? 'filters.testsOnly' : 'filters.testsAll'),
+      // Explicit "hide": a super admin's remembered choice (cookie) would come back otherwise.
+      removeHref: without({ tests: 'hide' }),
+    });
+  }
+  if (filters.from) {
+    chips.push({
+      key: 'from',
+      label: `${t('filters.from')}: ${filters.from}`,
+      removeHref: without({ from: undefined }),
+    });
+  }
+  if (filters.to) {
+    chips.push({
+      key: 'to',
+      label: `${t('filters.to')}: ${filters.to}`,
+      removeHref: without({ to: undefined }),
+    });
+  }
+  const resetHref =
+    chips.length > 0
+      ? buildQuery(base, {
+          open: filters.open,
+          overdue: filters.overdue,
+          today: filters.today,
+          tests: filters.tests !== 'hide' ? 'hide' : undefined,
+          sort: filters.sort,
+          dir: filters.dir,
+          pageSize: keptPageSize,
+        })
+      : null;
+  const moreActiveCount = [
+    filters.channel,
+    filters.tests !== 'hide' ? filters.tests : undefined,
+    filters.from,
+    filters.to,
+    // Counted only on top of another tab (the "Overdue" tab shows it already).
+    filters.overdue && activeQuick !== 'overdue' ? filters.overdue : undefined,
+  ].filter(Boolean).length;
 
   const exportHref = buildQuery('/api/admin/orders/export', { ...listParams, locale });
-  const selectClass = 'h-9 rounded-md border border-input bg-transparent px-3 text-sm';
+  const dateClass =
+    'h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm font-normal text-foreground';
+  const wideSelect = '[&_select]:max-w-none [&_select]:w-full';
 
   return (
     <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <Button asChild variant="outline">
-            <a href={exportHref} download data-testid="orders-export">
-              <Download /> {t('export')}
-            </a>
-          </Button>
-        }
-      />
+      <AdminPageHeader title={t('title')} description={t('description')} />
       <div className="space-y-4 p-6">
         <RememberTestsFilter
           name={ORDERS_TESTS_COOKIE}
           value={isSuperAdmin && sp.tests ? filters.tests : null}
         />
-        <div className="flex flex-wrap gap-2" role="group" aria-label={t('chips.label')}>
-          {chip('open', t('chips.open'))}
-          {chip('overdue', t('chips.overdue'))}
-          {chip('today', t('chips.today'))}
-        </div>
-        <form className="flex flex-wrap items-end gap-2" action="" method="get">
-          <div className="relative min-w-64 flex-1">
-            <Search className="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-            <Input
-              name="q"
-              defaultValue={filters.q ?? ''}
-              placeholder={t('searchPlaceholder')}
-              className="pl-8"
-            />
-          </div>
-          <FilterSelect
-            name="status"
-            value={filters.status}
-            ariaLabel={t('filters.status')}
-            allLabel={t('filters.allStatuses')}
-            options={ORDER_STATUSES.map((s) => ({ value: s, label: tStatus(s) }))}
-          />
-          <FilterSelect
-            name="method"
-            value={filters.method}
-            ariaLabel={t('filters.method')}
-            allLabel={t('filters.allMethods')}
-            options={PAYMENT_METHODS.map((m) => ({ value: m, label: tMethod(m) }))}
-          />
-          <FilterSelect
-            name="channel"
-            value={filters.channel}
-            ariaLabel={t('filters.channel')}
-            allLabel={t('filters.allChannels')}
-            options={SALES_CHANNELS.map((c) => ({ value: c, label: tChannel(c) }))}
-          />
-          <FilterSelect
-            name="event"
-            value={filters.event}
-            ariaLabel={t('filters.event')}
-            allLabel={t('filters.allEvents')}
-            searchable
-            options={eventRows.map((e) => ({
-              value: e.id,
-              label: `${e.title} · ${format.dateTime(e.startsAt, { dateStyle: 'short' })}`,
-            }))}
-          />
-          <FilterSelect
-            name="tests"
-            value={filters.tests}
-            ariaLabel={t('filters.tests')}
-            options={[
-              { value: 'hide', label: t('filters.testsHide') },
-              { value: 'all', label: t('filters.testsAll') },
-              { value: 'only', label: t('filters.testsOnly') },
-            ]}
-          />
-          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            {t('filters.from')}
-            <input
-              type="date"
-              name="from"
-              defaultValue={filters.from ?? ''}
-              className={selectClass}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            {t('filters.to')}
-            <input type="date" name="to" defaultValue={filters.to ?? ''} className={selectClass} />
-          </label>
-          <label className="flex h-9 items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              name="overdue"
-              value="1"
-              defaultChecked={filters.overdue === '1'}
-            />
-            {t('filters.overdue')}
-          </label>
-          {filters.open && <input type="hidden" name="open" value="1" />}
-          {filters.today && <input type="hidden" name="today" value="1" />}
-          {filters.sort && <input type="hidden" name="sort" value={filters.sort} />}
-          {filters.sort && filters.dir && <input type="hidden" name="dir" value={filters.dir} />}
-          {pageSize !== DEFAULT_PAGE_SIZE && (
-            <input type="hidden" name="pageSize" value={pageSize} />
-          )}
-          <Button type="submit" variant="secondary">
-            {t('filters.apply')}
-          </Button>
-        </form>
+        <StatusTabs label={t('chips.label')} tabs={tabs} />
+        <ListToolbar
+          data-testid="orders-toolbar"
+          search={{ value: filters.q, placeholder: t('searchPlaceholder') }}
+          filters={
+            <>
+              <FilterSelect
+                name="status"
+                value={filters.status}
+                ariaLabel={t('filters.status')}
+                allLabel={t('filters.allStatuses')}
+                searchable={false}
+                options={ORDER_STATUSES.map((s) => ({ value: s, label: tStatus(s) }))}
+              />
+              <FilterSelect
+                name="event"
+                value={filters.event}
+                ariaLabel={t('filters.event')}
+                allLabel={t('filters.allEvents')}
+                searchable={false}
+                options={eventRows.map((e) => ({ value: e.id, label: eventLabel(e.id) }))}
+              />
+              <FilterSelect
+                name="method"
+                value={filters.method}
+                ariaLabel={t('filters.method')}
+                allLabel={t('filters.allMethods')}
+                searchable={false}
+                options={PAYMENT_METHODS.map((m) => ({ value: m, label: tMethod(m) }))}
+              />
+            </>
+          }
+          moreActiveCount={moreActiveCount}
+          moreFilters={
+            <>
+              <MoreFilterField label={t('filters.channel')}>
+                <FilterSelect
+                  name="channel"
+                  value={filters.channel}
+                  ariaLabel={t('filters.channel')}
+                  allLabel={t('filters.allChannels')}
+                  searchable={false}
+                  className={wideSelect}
+                  options={SALES_CHANNELS.map((c) => ({ value: c, label: tChannel(c) }))}
+                />
+              </MoreFilterField>
+              <MoreFilterField label={t('filters.tests')}>
+                <FilterSelect
+                  name="tests"
+                  value={filters.tests}
+                  ariaLabel={t('filters.tests')}
+                  searchable={false}
+                  className={wideSelect}
+                  options={[
+                    { value: 'hide', label: t('filters.testsHide') },
+                    { value: 'all', label: t('filters.testsAll') },
+                    { value: 'only', label: t('filters.testsOnly') },
+                  ]}
+                />
+              </MoreFilterField>
+              <div className="grid grid-cols-2 gap-2">
+                <MoreFilterField label={t('filters.from')}>
+                  <input
+                    type="date"
+                    name="from"
+                    defaultValue={filters.from ?? ''}
+                    className={dateClass}
+                  />
+                </MoreFilterField>
+                <MoreFilterField label={t('filters.to')}>
+                  <input
+                    type="date"
+                    name="to"
+                    defaultValue={filters.to ?? ''}
+                    className={dateClass}
+                  />
+                </MoreFilterField>
+              </div>
+              {/* Combinable with the "Open" / "Today" tabs; no hidden input, so unchecking clears it. */}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="overdue"
+                  value="1"
+                  defaultChecked={filters.overdue === '1'}
+                />
+                {t('filters.overdue')}
+              </label>
+            </>
+          }
+          hidden={{
+            open: filters.open,
+            today: filters.today,
+            sort: filters.sort,
+            dir: filters.sort ? filters.dir : undefined,
+            pageSize: keptPageSize,
+          }}
+          resetHref={resetHref}
+          chips={chips}
+          actions={
+            <Button asChild variant="outline">
+              <a href={exportHref} download data-testid="orders-export">
+                <Download /> {t('export')}
+              </a>
+            </Button>
+          }
+        />
 
         <Card>
           <CardContent>
             {result.rows.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">{t('empty')}</p>
+              <EmptyState
+                icon={Inbox}
+                title={t('empty')}
+                description={resetHref || activeQuick ? tl('emptyFiltered') : undefined}
+                action={
+                  resetHref ? (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={resetHref}>{tl('reset')}</Link>
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : (
               <OrdersTable rows={result.rows} sortHeaders={sortHeaders} now={Date.now()} />
             )}

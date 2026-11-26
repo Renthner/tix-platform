@@ -196,6 +196,7 @@ export async function savePrivacySettingsAction(
     );
     await audit(core.db, session, 'settings.update', 'system_setting', 'privacy', { value: saved });
     revalidatePath('/[locale]/admin/customers', 'layout');
+    revalidatePath('/[locale]/admin/settings', 'layout');
     return ok('settingsSaved');
   } catch (err) {
     if (err instanceof z.ZodError) {

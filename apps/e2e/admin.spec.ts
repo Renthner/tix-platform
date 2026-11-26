@@ -5,7 +5,7 @@ import { collectCsp, EVENT_SLUG } from './helpers';
 
 test('dashboard shows the first-steps checklist', async ({ page }) => {
   await page.goto('/admin');
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
   await expect(page.getByText('First steps').first()).toBeVisible();
   await expect(page.getByText(/\d+ of \d+ steps done/)).toBeVisible();
 });
@@ -35,8 +35,19 @@ test('event row is clickable as a whole, Duplicate does not navigate', async ({ 
   await page.goto('/admin/events');
   const row = page.getByTestId('event-row').first();
   await expect(row).toBeVisible();
-  await row.getByRole('button').first().click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  // Row actions live in the "⋯" menu (retried until hydration has attached the trigger).
+  await expect(async () => {
+    if (await page.getByRole('dialog').isVisible()) return;
+    const item = page.getByRole('menuitem', { name: 'Duplicate' });
+    if (!(await item.isVisible())) await row.getByTestId('event-row-actions').click();
+    await expect(page.getByRole('menuitem', { name: 'Export' })).toHaveAttribute(
+      'href',
+      /\/api\/admin\/events\/[0-9a-f-]{36}\/export$/,
+      { timeout: 2_000 },
+    );
+    await item.click({ timeout: 2_000 });
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await expect(page).toHaveURL(/\/admin\/events$/);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -51,7 +62,8 @@ test('event row is clickable as a whole, Duplicate does not navigate', async ({ 
 
 test('appearance settings show the start page card', async ({ page }) => {
   await page.goto('/admin/settings/startPage');
-  await expect(page.getByText('Home page without events')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Start page' })).toBeVisible();
+  await expect(page.locator('#startPage')).toBeVisible();
 });
 
 async function eventId(page: import('@playwright/test').Page): Promise<string> {

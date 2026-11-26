@@ -75,7 +75,8 @@
   "gdpr": {
     "title": "Data protection (GDPR)",
     "description": "Right of access (Art. 15) and right to erasure (Art. 17).",
-    "export": "Export data (GDPR Art. 15)"
+    "export": "Export data (GDPR Art. 15)",
+    "financeOnly": "Data export and anonymisation are available to the Finance role."
   },
   "anonymize": {
     "title": "Anonymise customer (Art. 17)",
@@ -101,7 +102,8 @@
     "invoiceRetentionYearsHint": "Billing data of anonymised customers stays on orders with invoices until this many years after the end of the invoice year.",
     "webhookRetentionDays": "Payment webhook retention (days)",
     "webhookRetentionDaysHint": "Payer name, e-mail and address inside stored PayPal webhook payloads are erased after this time (ids, type, amount and status stay). 0 = keep.",
-    "save": "Save"
+    "save": "Save",
+    "movedHint": "Retention periods: <link>Settings › Data protection & retention</link>"
   },
   "messages": {
     "saved": "Profile saved.",
@@ -125,5 +127,6 @@
     "ACCOUNT_REQUIRED": "This customer has no account.",
     "ACCOUNTS_DISABLED": "Customer accounts are switched off in the settings.",
     "INTERNAL_ERROR": "Something went wrong."
-  }
+  },
+  "actionsMenu": "Actions"
 }

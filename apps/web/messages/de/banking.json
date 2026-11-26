@@ -16,7 +16,6 @@
     "autoMatched": "Automatisch zugeordnet",
     "manuallyMatched": "Manuell zugeordnet",
     "last30": "{count} zugeordnet in den letzten 30 Tagen",
-    "openReview": "Klärfälle öffnen",
     "connections": "Bankverbindungen",
     "noConnections": "Noch keine Bankverbindungen – lege ein Empfangskonto und eine Verbindung an oder lade Kontoauszüge hoch.",
     "setUp": "Konten einrichten",
@@ -159,11 +158,11 @@
     "addConnection": "Verbindung hinzufügen",
     "delete": "Konto löschen",
     "deleteTitle": "Dieses Konto löschen?",
-    "deleteDescription": "Nur möglich, solange keine Umsätze importiert wurden. Konten mit Umsätzen können stattdessen deaktiviert werden."
+    "deleteDescription": "Nur möglich, solange keine Umsätze importiert wurden. Konten mit Umsätzen können stattdessen deaktiviert werden.",
+    "detailsTitle": "Kontodaten"
   },
   "connection": {
     "newTitle": "Neue Verbindung: {adapter}",
-    "backToAccount": "Zurück zum Konto",
     "sections": {
       "general": "Allgemein",
       "bank": "Bankzugang",
@@ -335,7 +334,6 @@
     "description": "Eingehende Überweisungen, die nicht automatisch zugeordnet werden konnten. Mit einem Klick einer Bestellung zuordnen oder verwerfen.",
     "allReasons": "Alle Gründe",
     "allAccounts": "Alle Konten",
-    "filter": "Filtern",
     "empty": "Nichts zu klären – alle Zahlungseingänge sind zugeordnet.",
     "count": "{count, plural, one {# Klärfall} other {# Klärfälle}}",
     "candidates": "Vorschläge",
@@ -376,24 +374,21 @@
     "details": "Details",
     "reference": "Gefundene Referenz",
     "reversedInfo": "Aufgehoben von {who} am {when}",
-    "previewAdjustment": "Ordnet den genauen Betrag der offenen Nachzahlung zu."
+    "previewAdjustment": "Ordnet den genauen Betrag der offenen Nachzahlung zu.",
+    "reasonsLabel": "Klärungsgründe",
+    "emptyFiltered": "Keine Klärfälle für diesen Filter."
   },
   "transactions": {
     "title": "Bankumsätze",
     "searchPlaceholder": "Name, Text, IBAN oder Referenz",
-    "allStatuses": "Alle Status",
     "allDirections": "Eingänge und Ausgänge",
     "incoming": "Eingänge",
     "outgoing": "Ausgänge",
     "from": "Von",
     "to": "Bis",
-    "filter": "Filtern",
     "export": "CSV exportieren",
     "empty": "Keine Umsätze gefunden.",
     "total": "{count, plural, one {# Umsatz} other {# Umsätze}}",
-    "previous": "Zurück",
-    "next": "Weiter",
-    "page": "Seite {page} von {pages}",
     "columns": {
       "date": "Buchungstag",
       "counterparty": "Zahlungsbeteiligter",
@@ -404,7 +399,6 @@
       "account": "Konto"
     },
     "detailTitle": "Bankumsatz",
-    "backToList": "Alle Umsätze",
     "fields": {
       "bookingDate": "Buchungstag",
       "valueDate": "Valuta",
@@ -430,7 +424,14 @@
       "AUTO": "automatisch",
       "MANUAL": "manuell"
     },
-    "assigned": "Bestellungen zugeordnet"
+    "assigned": "Bestellungen zugeordnet",
+    "description": "Alle importierten Bankbuchungen mit ihrem Abgleichstatus. Öffne eine Buchung, um sie zuzuordnen oder Details zu sehen.",
+    "statusTabs": "Abgleichstatus",
+    "filters": {
+      "direction": "Richtung",
+      "account": "Konto"
+    },
+    "showRaw": "Rohdaten anzeigen"
   },
   "imports": {
     "title": "Kontoauszugs-Importe",
@@ -459,7 +460,10 @@
       "imported": "Neu",
       "duplicates": "Doppelt",
       "status": "Status"
-    }
+    },
+    "headerDescription": "Kontoauszugsdateien hochladen und jeden Import mit seinem Ergebnis sehen.",
+    "uploadTitle": "Kontoauszüge hochladen",
+    "total": "{count, plural, one {# Import} other {# Importe}}"
   },
   "messages": {
     "saved": "Gespeichert.",
@@ -568,5 +572,6 @@
     "reason": "Begründung (Pflichtfeld)",
     "reasonPlaceholder": "z. B. Überweisung gehört zu Bestellung T-2026-0042",
     "confirm": "Zuordnung aufheben"
-  }
+  },
+  "actionsMenu": "Aktionen"
 }

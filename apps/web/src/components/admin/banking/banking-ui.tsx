@@ -209,18 +209,19 @@ export function BankingTabs({ reviewCount }: { reviewCount: number }) {
           <Link
             key={key}
             href={href}
+            aria-current={active ? 'page' : undefined}
             className={cn(
-              '-mb-px flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors',
+              '-mb-px flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
               active
-                ? 'border-primary font-medium'
+                ? 'border-primary font-medium text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
             {t(key)}
             {key === 'review' && reviewCount > 0 ? (
-              <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">
+              <span className="rounded-full bg-destructive px-1.5 text-xs text-white tabular-nums">
                 {reviewCount}
-              </Badge>
+              </span>
             ) : null}
           </Link>
         );

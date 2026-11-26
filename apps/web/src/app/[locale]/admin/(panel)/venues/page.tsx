@@ -1,7 +1,8 @@
-import { Plus } from 'lucide-react';
+import { MapPin, Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { ActiveBadge } from '@/components/admin/badges';
-import { PageHeader } from '@/components/admin/form-controls';
+import { EmptyState } from '@/components/admin/empty-state';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,7 +37,7 @@ export default async function VenuesPage({
   const [t, rows] = await Promise.all([getTranslations('admin.venues'), listVenuesWithPlanCount()]);
   return (
     <>
-      <PageHeader
+      <AdminPageHeader
         title={t('title')}
         description={t('description')}
         actions={
@@ -56,7 +57,18 @@ export default async function VenuesPage({
         <Card>
           <CardContent>
             {rows.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">{t('empty')}</p>
+              <EmptyState
+                icon={MapPin}
+                title={t('empty')}
+                description={t('emptyDescription')}
+                action={
+                  <Button asChild size="sm">
+                    <Link href="/admin/venues/new">
+                      <Plus /> {t('new')}
+                    </Link>
+                  </Button>
+                }
+              />
             ) : (
               <Table>
                 <TableHeader>
@@ -69,9 +81,16 @@ export default async function VenuesPage({
                 </TableHeader>
                 <TableBody>
                   {rows.map((v) => (
-                    <TableRow key={v.id}>
+                    <TableRow
+                      key={v.id}
+                      data-testid="venue-row"
+                      className="relative cursor-pointer focus-within:bg-muted/50"
+                    >
                       <TableCell className="font-medium">
-                        <Link href={`/admin/venues/${v.id}`} className="hover:underline">
+                        <Link
+                          href={`/admin/venues/${v.id}`}
+                          className="outline-none after:absolute after:inset-0 hover:underline focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
+                        >
                           {v.name}
                         </Link>
                       </TableCell>

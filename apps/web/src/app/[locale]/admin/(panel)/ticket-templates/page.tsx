@@ -1,6 +1,9 @@
 import { listTicketTemplates } from '@tix/core';
+import { Ticket } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
-import { PageHeader } from '@/components/admin/form-controls';
+import { EmptyState } from '@/components/admin/empty-state';
+import { AdminPageHeader } from '@/components/admin/page-header';
+import { hubBreadcrumbs } from '@/server/admin/breadcrumbs';
 import { TicketDesignImport } from '@/components/admin/ticket-designer/design-import';
 import {
   CreateLibraryTemplateForm,
@@ -41,7 +44,11 @@ export default async function TicketTemplatesPage({
 
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
+      <AdminPageHeader
+        breadcrumbs={await hubBreadcrumbs('design')}
+        title={t('title')}
+        description={t('description')}
+      />
       <div className="space-y-6 p-6">
         <Card>
           <CardHeader>
@@ -49,7 +56,7 @@ export default async function TicketTemplatesPage({
           </CardHeader>
           <CardContent>
             {templates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t('page.none')}</p>
+              <EmptyState size="sm" icon={Ticket} title={t('page.none')} />
             ) : (
               <Table>
                 <TableHeader>

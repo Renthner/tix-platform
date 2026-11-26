@@ -31,8 +31,9 @@ test.describe('admin 404 (signed in)', () => {
     expect(res?.status()).toBe(404);
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Back to the dashboard' })).toBeVisible();
-    // Sidebar sections are collapsed here; the section buttons prove the navigation is rendered.
-    await expect(page.locator('aside button[aria-expanded]', { hasText: 'Sales' })).toBeVisible();
+    // The sidebar (always expanded sections) is rendered around the 404.
+    await expect(page.locator('aside nav').getByText('Sales', { exact: true })).toBeVisible();
+    await expect(page.locator('aside a[href$="/admin/orders"]')).toBeVisible();
   });
 
   test('unknown order id is a 404 inside the admin', async ({ page }) => {

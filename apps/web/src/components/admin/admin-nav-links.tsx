@@ -1,121 +1,106 @@
 'use client';
 
 import {
+  Activity,
   Building2,
-  ChevronRight,
   Calculator,
+  CalendarDays,
+  ChartLine,
   ClipboardCheck,
   Coins,
   DatabaseBackup,
-  CalendarDays,
   Hourglass,
   Images,
   Landmark,
-  Mail,
   LayoutDashboard,
-  ChartLine,
-  Activity,
+  Mail,
+  Menu,
+  Palette,
+  Percent,
+  ReceiptText,
   ScanLine,
   ScrollText,
-  Percent,
-  TicketPercent,
-  ReceiptText,
+  Server,
   Settings,
   Shapes,
   Store,
   Ticket,
+  TicketPercent,
   Undo2,
-  Menu,
   UserRound,
   Users,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Link, usePathname } from '@/i18n/navigation';
+import {
+  NAV_HREFS,
+  activeSidebarKey,
+  type NavKey,
+  type SidebarSection,
+} from '@/lib/admin-nav-model';
 import { cn } from '@/lib/utils';
 
+export type { NavKey } from '@/lib/admin-nav-model';
+
 /** PayPal logo mark (Simple Icons, CC0); lucide ships no brand icons. */
-const PayPalIcon = (({ className }: { className?: string }) => (
+export const PayPalIcon = (({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
     <path d="M15.607 4.653H8.941L6.645 19.251H1.82L4.862 0h7.995c3.754 0 6.375 2.294 6.473 5.513-.648-.478-2.105-.86-3.722-.86m6.57 5.546c0 3.41-3.01 6.853-6.958 6.853h-2.493L11.595 24H6.74l1.845-11.538h3.592c4.208 0 7.346-3.634 7.153-6.949a5.24 5.24 0 0 1 2.848 4.686M9.653 5.546h6.408c.907 0 1.942.222 2.363.541-.195 2.741-2.655 5.483-6.441 5.483H8.714Z" />
   </svg>
 )) as unknown as LucideIcon;
 
-export const NAV_ITEMS = {
-  dashboard: { href: '/admin', icon: LayoutDashboard, exact: true },
-  boxOffice: { href: '/admin/box-office', icon: Store, exact: false },
-  cashUp: { href: '/admin/cash-up', icon: Coins, exact: false },
-  door: { href: '/admin/door', icon: ClipboardCheck, exact: false },
-  events: { href: '/admin/events', icon: CalendarDays, exact: false },
-  orders: { href: '/admin/orders', icon: ReceiptText, exact: false },
-  statistics: { href: '/admin/statistics', icon: ChartLine, exact: false },
-  customers: { href: '/admin/customers', icon: UserRound, exact: false },
-  banking: { href: '/admin/banking', icon: Landmark, exact: false },
-  paypal: { href: '/admin/settings/paypal', icon: PayPalIcon, exact: false },
-  refunds: { href: '/admin/refunds', icon: Undo2, exact: false },
-  accounting: { href: '/admin/accounting', icon: Calculator, exact: false },
-  fees: { href: '/admin/fees', icon: Percent, exact: false },
-  discounts: { href: '/admin/discounts', icon: TicketPercent, exact: false },
-  emailTemplates: { href: '/admin/email-templates', icon: Mail, exact: false },
-  ticketTemplates: { href: '/admin/ticket-templates', icon: Ticket, exact: false },
-  venues: { href: '/admin/venues', icon: Building2, exact: false },
-  media: { href: '/admin/media', icon: Images, exact: false },
-  symbols: { href: '/admin/symbols', icon: Shapes, exact: false },
-  waitingRoom: { href: '/admin/waiting-room', icon: Hourglass, exact: false },
-  users: { href: '/admin/users', icon: Users, exact: false },
-  scanners: { href: '/admin/scanners', icon: ScanLine, exact: false },
-  backups: { href: '/admin/backups', icon: DatabaseBackup, exact: false },
-  system: { href: '/admin/system', icon: Activity, exact: false },
-  audit: { href: '/admin/audit', icon: ScrollText, exact: false },
-  settings: { href: '/admin/settings', icon: Settings, exact: false },
-} satisfies Record<string, { href: string; icon: LucideIcon; exact: boolean }>;
+export const NAV_ICONS: Record<NavKey, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  events: CalendarDays,
+  venues: Building2,
+  orders: ReceiptText,
+  customers: UserRound,
+  discounts: TicketPercent,
+  refunds: Undo2,
+  statistics: ChartLine,
+  boxOffice: Store,
+  door: ClipboardCheck,
+  cashUp: Coins,
+  scanners: ScanLine,
+  banking: Landmark,
+  accounting: Calculator,
+  design: Palette,
+  settings: Settings,
+  administration: Server,
+  ticketTemplates: Ticket,
+  emailTemplates: Mail,
+  media: Images,
+  symbols: Shapes,
+  fees: Percent,
+  waitingRoom: Hourglass,
+  users: Users,
+  backups: DatabaseBackup,
+  system: Activity,
+  audit: ScrollText,
+};
 
-export type NavKey = keyof typeof NAV_ITEMS;
+/** URL + icon per page (used by the shop header's dashboard menu as well). */
+export const NAV_ITEMS = Object.fromEntries(
+  (Object.keys(NAV_HREFS) as NavKey[]).map((key) => [
+    key,
+    { href: NAV_HREFS[key], icon: NAV_ICONS[key] },
+  ]),
+) as Record<NavKey, { href: string; icon: LucideIcon }>;
 
-/**
- * Sidebar sections (display order). `heading: null` = entries without a section title at the top.
- * Every NavKey must appear exactly once; sections without an accessible entry are hidden.
- */
-export const NAV_GROUPS: readonly {
-  heading: 'sales' | 'events' | 'design' | 'finance' | 'administration' | null;
-  keys: readonly NavKey[];
-}[] = [
-  { heading: null, keys: ['dashboard', 'boxOffice', 'door'] },
-  {
-    heading: 'sales',
-    keys: ['orders', 'cashUp', 'customers', 'discounts', 'refunds', 'statistics'],
-  },
-  { heading: 'events', keys: ['events', 'venues', 'waitingRoom', 'scanners'] },
-  { heading: 'design', keys: ['ticketTemplates', 'emailTemplates', 'media', 'symbols'] },
-  { heading: 'finance', keys: ['banking', 'paypal', 'accounting', 'fees'] },
-  { heading: 'administration', keys: ['users', 'backups', 'system', 'audit', 'settings'] },
-];
-
-/** Splits the accessible keys into the configured sections (empty sections dropped). */
-function groupKeys(keys: readonly NavKey[]) {
-  return NAV_GROUPS.map((g) => ({
-    heading: g.heading,
-    keys: g.keys.filter((k) => keys.includes(k)),
-  })).filter((g) => g.keys.length > 0);
-}
-
-type Badges = Partial<Record<NavKey, number>>;
-
-function groupBadge(keys: readonly NavKey[], badges: Badges) {
-  return keys.reduce((sum, k) => sum + (badges[k] ?? 0), 0);
-}
+/** Label message key of a navigation entry (the dashboard is called "Overview" in the sidebar). */
+export const navLabelKey = (key: NavKey) => (key === 'dashboard' ? 'overview' : key);
 
 function Badge({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -127,60 +112,51 @@ function Badge({ count }: { count: number }) {
 }
 
 /**
- * Renders the admin navigation entries the current user may access (filtered on the server).
- * Sections are collapsed by default; the one containing the current page is open.
+ * Sidebar navigation: always expanded sections with small-caps headings (entries filtered by
+ * role on the server; hubs carry the summed badge of their pages).
  */
-export function AdminNavLinks({ keys, badges = {} }: { keys: NavKey[]; badges?: Badges }) {
+export function AdminNavLinks({ sections }: { sections: SidebarSection[] }) {
   const t = useTranslations('admin.nav');
-  const pathname = usePathname();
-  const isActive = (key: NavKey) => {
-    const { href, exact } = NAV_ITEMS[key];
-    if (key === 'settings' && pathname.startsWith(NAV_ITEMS.paypal.href)) return false;
-    return exact ? pathname === href : pathname.startsWith(href);
-  };
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
-
-  const link = (key: NavKey, indent = false) => {
-    const { href, icon: Icon } = NAV_ITEMS[key];
-    const active = isActive(key);
-    return (
-      <Link
-        key={key}
-        href={href}
-        aria-current={active ? 'page' : undefined}
-        className={cn(
-          'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent',
-          indent && 'ml-3',
-          active && 'bg-accent font-medium',
-        )}
-      >
-        <Icon className="size-4" aria-hidden />
-        {t(key)}
-        <Badge count={badges[key] ?? 0} />
-      </Link>
-    );
-  };
-
+  const active = activeSidebarKey(usePathname());
   return (
-    <nav aria-label={t('label')} className="flex flex-col gap-1">
-      {groupKeys(keys).map((group) => {
-        if (!group.heading) return group.keys.map((key) => link(key));
-        const id = group.heading;
-        const open = toggled[id] ?? group.keys.some(isActive);
-        const hiddenBadge = open ? 0 : groupBadge(group.keys, badges);
+    <nav aria-label={t('label')} className="flex flex-col gap-4">
+      {sections.map((section, i) => {
+        const headingId = section.heading ? `admin-nav-${section.heading}` : undefined;
         return (
-          <div key={id} className="flex flex-col gap-1">
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => setToggled((prev) => ({ ...prev, [id]: !open }))}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <ChevronRight className={cn('size-4 transition-transform', open && 'rotate-90')} />
-              <span className="text-left">{t(`groups.${id}`)}</span>
-              <Badge count={hiddenBadge} />
-            </button>
-            {open && group.keys.map((key) => link(key, true))}
+          <div
+            key={section.heading ?? `section-${i}`}
+            className={cn('flex flex-col gap-0.5', section.separator && 'border-t pt-4')}
+          >
+            {section.heading && (
+              <div
+                id={headingId}
+                className="px-3 pb-1 text-[0.7rem] font-semibold tracking-wider text-muted-foreground uppercase"
+              >
+                {t(`groups.${section.heading}`)}
+              </div>
+            )}
+            <ul aria-labelledby={headingId} className="flex flex-col gap-0.5">
+              {section.items.map(({ key, href, badge }) => {
+                const Icon = NAV_ICONS[key];
+                const current = active === key;
+                return (
+                  <li key={key}>
+                    <Link
+                      href={href}
+                      aria-current={current ? 'page' : undefined}
+                      className={cn(
+                        'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                        current && 'bg-accent font-medium',
+                      )}
+                    >
+                      <Icon className="size-4" aria-hidden />
+                      {t(navLabelKey(key))}
+                      <Badge count={badge} />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         );
       })}
@@ -190,60 +166,55 @@ export function AdminNavLinks({ keys, badges = {} }: { keys: NavKey[]; badges?: 
 
 /** Compact navigation for small screens (the sidebar is hidden below the md breakpoint). */
 export function AdminMobileMenu({
-  keys,
-  badges = {},
+  sections,
   children,
 }: {
-  keys: NavKey[];
-  badges?: Badges;
-  /** Extra entries (server-rendered), e.g. the sign-out form. */
+  sections: SidebarSection[];
+  /** Extra entries (server-rendered). */
   children?: ReactNode;
 }) {
   const t = useTranslations('admin.nav');
-  const pathname = usePathname();
-  const item = (key: NavKey) => {
-    const { href, icon: Icon, exact } = NAV_ITEMS[key];
-    const active =
-      key === 'settings' && pathname.startsWith(NAV_ITEMS.paypal.href)
-        ? false
-        : exact
-          ? pathname === href
-          : pathname.startsWith(href);
-    return (
-      <DropdownMenuItem key={key} asChild>
-        <Link
-          href={href}
-          aria-current={active ? 'page' : undefined}
-          className={cn(active && 'font-medium')}
-        >
-          <Icon className="size-4" />
-          {t(key)}
-          <Badge count={badges[key] ?? 0} />
-        </Link>
-      </DropdownMenuItem>
-    );
-  };
+  const active = activeSidebarKey(usePathname());
+  const total = sections.reduce(
+    (sum, s) => sum + s.items.reduce((n, item) => n + item.badge, 0),
+    0,
+  );
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" aria-label={t('menu')}>
-          <Menu className="size-4" /> <span>{t('menu')}</span>
+          <Menu className="size-4" /> <span className="max-sm:sr-only">{t('menu')}</span>
+          <Badge count={total} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" collisionPadding={8} className="min-w-56">
-        {groupKeys(keys).map((group) =>
-          group.heading ? (
-            <DropdownMenuSub key={group.heading}>
-              <DropdownMenuSubTrigger>
-                {t(`groups.${group.heading}`)}
-                <Badge count={groupBadge(group.keys, badges)} />
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>{group.keys.map(item)}</DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ) : (
-            group.keys.map(item)
-          ),
-        )}
+      <DropdownMenuContent align="start" collisionPadding={8} className="min-w-60">
+        {sections.map((section, i) => (
+          <DropdownMenuGroup key={section.heading ?? `section-${i}`}>
+            {i > 0 && <DropdownMenuSeparator />}
+            {section.heading && (
+              <DropdownMenuLabel className="text-[0.7rem] font-semibold tracking-wider text-muted-foreground uppercase">
+                {t(`groups.${section.heading}`)}
+              </DropdownMenuLabel>
+            )}
+            {section.items.map(({ key, href, badge }) => {
+              const Icon = NAV_ICONS[key];
+              const current = active === key;
+              return (
+                <DropdownMenuItem key={key} asChild>
+                  <Link
+                    href={href}
+                    aria-current={current ? 'page' : undefined}
+                    className={cn(current && 'bg-accent font-medium')}
+                  >
+                    <Icon className="size-4" />
+                    {t(navLabelKey(key))}
+                    <Badge count={badge} />
+                  </Link>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuGroup>
+        ))}
         {children && <DropdownMenuSeparator />}
         {children}
       </DropdownMenuContent>

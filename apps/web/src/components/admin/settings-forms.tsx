@@ -728,19 +728,29 @@ export function SettingsSection({
   id,
   title,
   description,
+  hideHeading = false,
   children,
 }: {
   id: string;
   title: string;
   description?: string;
+  /**
+   * The page header already names this section (single-section settings page): the title stays
+   * for screen readers only and the description is left out.
+   */
+  hideHeading?: boolean;
   children: ReactNode;
 }) {
   return (
     <section id={id} className="scroll-mt-6 space-y-4 rounded-xl border bg-card p-5">
-      <div>
-        <h2 className="font-semibold">{title}</h2>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
-      </div>
+      {hideHeading ? (
+        <h2 className="sr-only">{title}</h2>
+      ) : (
+        <div>
+          <h2 className="font-semibold">{title}</h2>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
+        </div>
+      )}
       {children}
     </section>
   );

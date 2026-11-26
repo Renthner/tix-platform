@@ -3,7 +3,7 @@ import { events, venues } from '@tix/db';
 import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { BoxOffice, type BoxOfficeEvent } from '@/components/admin/box-office/box-office';
-import { PageHeader } from '@/components/admin/form-controls';
+import { AdminPageHeader } from '@/components/admin/page-header';
 import { resolveLocale } from '@/i18n/locale';
 import { BOX_OFFICE_ROLES, boxOfficePermissions } from '@/server/admin/box-office';
 import { hasRole, requireAdmin } from '@/server/auth';
@@ -60,7 +60,7 @@ export default async function BoxOfficePage({ params }: { params: Promise<{ loca
   }));
   return (
     <>
-      <PageHeader title={t('title')} description={t('description')} />
+      <AdminPageHeader title={t('title')} description={t('description')} />
       <div className="p-6">
         <BoxOffice
           events={eventList}

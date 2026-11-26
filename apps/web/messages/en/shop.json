@@ -68,6 +68,10 @@
         "purpose": "Remembers that the setup checklist is collapsed.",
         "lifetime": "1 year"
       },
+      "settingsGroups": {
+        "purpose": "Remembers which groups of the settings menu are expanded.",
+        "lifetime": "1 year"
+      },
       "queueTest": {
         "purpose": "Staff only: remembers that a super admin wants to try the waiting room like a customer.",
         "lifetime": "Session"

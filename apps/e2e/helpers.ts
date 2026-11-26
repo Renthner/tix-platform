@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 export const EVENT_SLUG = process.env.E2E_EVENT_SLUG ?? 'demo-concert';
 export const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'e2e@example.org';
@@ -25,6 +25,45 @@ export async function waitRealtimeConnected(page: Page): Promise<void> {
  */
 export async function clickableSeatIds(page: Page): Promise<string[]> {
   return page.$$eval('g[data-seat]', (els) => els.map((e) => e.getAttribute('data-seat') ?? ''));
+}
+
+/**
+ * On an admin event page: opens the header's "Actions" menu and its "Duplicate" dialog (retried
+ * until hydration has attached the menu's handlers).
+ */
+export async function openEventDuplicateDialog(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog');
+  await expect(async () => {
+    // A previous attempt may have opened it already (its check just came too late).
+    if (await dialog.isVisible()) return;
+    const item = page.getByRole('menuitem', { name: 'Duplicate' });
+    if (!(await item.isVisible())) await page.getByTestId('event-actions').click();
+    await item.click({ timeout: 2_000 });
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
+/**
+ * On an admin order page: opens the dialog of an order action and returns it. `name` is either a
+ * header button ("Record payment", "Send tickets again") or an entry of the "Actions" menu
+ * ("Internal note" is inline, not here). Retried until hydration has attached the handlers.
+ */
+export async function openOrderAction(page: Page, name: string): Promise<Locator> {
+  const dialog = page.getByRole('dialog');
+  await expect(async () => {
+    // A previous attempt may have opened it already (its check just came too late).
+    if (await dialog.isVisible()) return;
+    const header = page.getByRole('button', { name, exact: true }).first();
+    if (await header.isVisible()) {
+      await header.click({ timeout: 2_000 });
+    } else {
+      const item = page.getByRole('menuitem', { name, exact: true });
+      if (!(await item.isVisible())) await page.getByTestId('order-actions').click();
+      await item.click({ timeout: 2_000 });
+    }
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  return dialog;
 }
 
 /** Clicks a seat the way a visitor does (the SVG seats are tiny, hence force). */
