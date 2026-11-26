@@ -1,5 +1,5 @@
 import { coreLog } from '../log';
-import { emailMessages, orderAdjustments } from '@tix/db';
+import { emailMessages, orderAdjustments, orders } from '@tix/db';
 import { and, eq, lt, or, sql } from 'drizzle-orm';
 import type { SendMailOptions } from 'nodemailer';
 import { DomainError, requireCapability, type CoreContext } from '../context';
@@ -65,6 +65,40 @@ export type DeliverResult =
    * and can never receive mail. No retry, no failure, no admin warning.
    */
   | { status: 'SKIPPED' };
+
+/** `last_error` of payment requests / reminders retired because nothing is due any more. */
+export const PAYMENT_REQUEST_OBSOLETE_ERROR =
+  'obsolete: the order was paid or cancelled before the payment request was sent';
+
+/** Mails asking the buyer to pay an order (bank transfer). */
+const PAYMENT_REQUEST_KEYS: ReadonlySet<string> = new Set([
+  'ORDER_CONFIRMATION_BANK_TRANSFER',
+  'PAYMENT_REMINDER',
+]);
+
+/**
+ * True when a payment request / reminder refers to an order that no longer awaits payment
+ * (paid, cancelled, expired) or has nothing left to pay. Rendered at send time, such a mail would
+ * show "please transfer 0,00 €".
+ */
+export async function isPaymentRequestOutdated(
+  db: CoreContext['db'],
+  message: { orderId: string | null; templateKey: string | null },
+): Promise<boolean> {
+  if (!message.orderId || !message.templateKey || !PAYMENT_REQUEST_KEYS.has(message.templateKey)) {
+    return false;
+  }
+  const [order] = await db
+    .select({
+      status: orders.status,
+      totalGross: orders.totalGross,
+      amountPaid: orders.amountPaid,
+    })
+    .from(orders)
+    .where(eq(orders.id, message.orderId));
+  if (!order) return false;
+  return order.status !== 'AWAITING_PAYMENT' || order.amountPaid >= order.totalGross;
+}
 
 /** A message stuck in SENDING longer than this is considered abandoned (crashed worker). */
 const SENDING_TIMEOUT = sql`now() - interval '2 minutes'`;
@@ -141,6 +175,16 @@ export async function deliverEmailMessage(
           .where(eq(emailMessages.id, messageId));
         return { status: 'OBSOLETE' };
       }
+    }
+    // Payment request / reminder of an order that was paid (or cancelled) before the mail went
+    // out: it would ask for "0,00 €" or for money of a cancelled order. The confirmation of the
+    // payment (or the cancellation) is its own mail.
+    if (await isPaymentRequestOutdated(ctx.db, message)) {
+      await ctx.db
+        .update(emailMessages)
+        .set({ status: 'FAILED', lastError: PAYMENT_REQUEST_OBSOLETE_ERROR, updatedAt: new Date() })
+        .where(eq(emailMessages.id, messageId));
+      return { status: 'OBSOLETE' };
     }
     // The buyer e-mail of the order was changed since this mail was queued: the order link would
     // carry the new access token to the old address.

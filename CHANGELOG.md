@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.45] - 2026-11-26
+
+### Fixed
+
+- Bank-transfer order confirmations and payment reminders are no longer sent when the order was
+  paid (or cancelled) between queueing and sending; they asked for "0,00 €" (seen with demo data,
+  possible with a fast bank match or a mail queue backlog). Such mails are retired as obsolete.
+
 ## [1.0.0-alpha.44] - 2026-11-26
 
 ### Update notes

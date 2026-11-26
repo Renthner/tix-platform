@@ -49,6 +49,7 @@ import {
   createCoreContext,
   createEmailMessage,
   deliverEmailMessage,
+  PAYMENT_REQUEST_OBSOLETE_ERROR,
   enqueueEmail,
   formatMoney,
   getSetting,
@@ -657,6 +658,35 @@ describe.skipIf(!adminUrl || !redisUrl)('invoices & e-mail (integration)', () =>
     });
     expect(none.inlineImages).toEqual([]);
     expect(none.html).not.toContain('cid:');
+  });
+
+  it('retires payment requests of orders paid before the mail went out (no "transfer 0,00 €")', async () => {
+    const order = await insertOrder({
+      items: [{ eventId: event7, price: 3210, rate: 700 }],
+      status: 'AWAITING_PAYMENT',
+      paymentMethod: 'BANK_TRANSFER',
+    });
+    const confirmation = await createEmailMessage(ctx, ctx.db, {
+      key: 'ORDER_CONFIRMATION_BANK_TRANSFER',
+      orderId: order.id,
+    });
+    const reminder = await createEmailMessage(ctx, ctx.db, {
+      key: 'PAYMENT_REMINDER',
+      orderId: order.id,
+    });
+    // Paid between queueing and sending (fast bank match, demo data, queue backlog).
+    await handle.db
+      .update(orders)
+      .set({ status: 'PAID', amountPaid: 3210, paidAt: new Date() })
+      .where(eq(orders.id, order.id));
+    const sender = jsonSender();
+    for (const id of [confirmation, reminder]) {
+      expect(await deliverEmailMessage(ctx, id, { sender })).toEqual({ status: 'OBSOLETE' });
+      const [row] = await handle.db.select().from(emailMessages).where(eq(emailMessages.id, id));
+      expect(row!.status).toBe('FAILED');
+      expect(row!.lastError).toBe(PAYMENT_REQUEST_OBSOLETE_ERROR);
+    }
+    expect(sender.sent).toEqual([]);
   });
 
   it('never hands mails to reserved example domains to SMTP (SKIPPED, no retry, no alert)', async () => {
