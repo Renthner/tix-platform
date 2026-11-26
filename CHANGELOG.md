@@ -8,6 +8,45 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.44] - 2026-11-26
+
+### Update notes
+
+- Migrations 0045 (Google Wallet image columns on wallet designs) and 0046 (two new e-mail
+  template keys) run automatically; the new default templates are added on start.
+
+### Added
+
+- **Separate wallet images for Apple and Google**: the wallet design (global and per event) has an
+  "Apple Wallet" section (logo, icon, strip image) and a "Google Wallet" section with an optional
+  logo (square, ≥ 660 × 660 px; empty = shop logo), hero image (1032 × 336 px; empty = event cover)
+  and wide logo / wordmark (empty = none). Google images are public (Google downloads them).
+  Removing an image now also removes it from the Google pass class.
+- **Customer e-mail change moves the orders**: when an admin changes a customer's e-mail address,
+  "Also move the orders to the new address" (default on) moves every active order of an event that
+  has not ended (not pending PayPal approvals, not orders with a PayPal additional payment in
+  progress) with the same rules as the per-order change (old links stop working, open mails are
+  re-created for the new address). Instead of one mail per order, the new address gets one summary
+  with all order links and the old address one notice (new templates
+  `CUSTOMER_EMAIL_CHANGED_ORDERS` / `CUSTOMER_EMAIL_CHANGED_OLD`).
+- **Own account → Sessions**: "Sign out on all other devices" (keeps the current session).
+
+### Fixed
+
+- **Admin alert e-mails and the backup probe did not run since alpha.36** (worker log every 5 min:
+  "ALERT_TEMPLATE_KEYS is not iterable" / "attemptKey is not a function"; also the manual restore
+  probe): a dynamic import made the worker bundle skip the initialisation of some modules. The
+  worker build now fails if this can happen again.
+- Event mailings: the send button label ("Send…") looked like a running send while the button was
+  only disabled because no recipient matched; it now says "Send", explains a count of 0 or a failed
+  count, and is locked while a mailing is being sent (no double send).
+- Event cancellation: the progress of a running cancellation is shown live and the page switches to
+  the result by itself (before, it showed "a cancellation is running" until reloaded).
+- "Sign out everywhere" on an admin user was only offered while the user had an active admin
+  session; it is now available for every other active user.
+- Lock order of buyer e-mail changes aligned with the payment confirmation (avoids deadlock
+  retries).
+
 ## [1.0.0-alpha.43] - 2026-11-26
 
 ### Changed

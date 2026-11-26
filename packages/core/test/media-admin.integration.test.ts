@@ -166,6 +166,7 @@ describe.skipIf(!adminUrl || !redisUrl)('media administration (integration)', ()
     const mail = await upload('EMAIL_IMAGE');
     const logo = await upload('LOGO');
     const lonely = await upload('OTHER');
+    const googleHero = await upload('EVENT_IMAGE');
 
     const event = await makeEvent({ heroImageAssetId: cover.id });
     await handle.db.insert(eventSeries).values({
@@ -205,6 +206,7 @@ describe.skipIf(!adminUrl || !redisUrl)('media administration (integration)', ()
       foregroundColor: '#ffffff',
       labelColor: '#ffffff',
       stripAssetId: wallet.id,
+      googleHeroAssetId: googleHero.id,
     } as typeof walletPassDesigns.$inferInsert);
     await handle.db
       .update(emailTemplates)
@@ -225,6 +227,7 @@ describe.skipIf(!adminUrl || !redisUrl)('media administration (integration)', ()
       mail.id,
       logo.id,
       lonely.id,
+      googleHero.id,
     ]);
     expect(usages.get(cover.id)).toEqual([
       {
@@ -256,6 +259,14 @@ describe.skipIf(!adminUrl || !redisUrl)('media administration (integration)', ()
       detail: 'strip',
       href: `/admin/events/${event.id}/wallet`,
     });
+    expect(usages.get(googleHero.id)).toEqual([
+      {
+        type: 'WALLET_DESIGN',
+        label: event.title,
+        detail: 'Google hero',
+        href: `/admin/events/${event.id}/wallet`,
+      },
+    ]);
     expect(usages.get(mail.id)?.[0]?.type).toBe('EMAIL_TEMPLATE');
     expect(usages.get(logo.id)?.[0]).toMatchObject({
       type: 'SETTING',
@@ -268,7 +279,18 @@ describe.skipIf(!adminUrl || !redisUrl)('media administration (integration)', ()
     // The SQL predicate (filter / summary) agrees with the detailed usages.
     const unused = await listMediaAssets(ctx, { usage: 'unused', pageSize: 200 });
     expect(unused.items.map((i) => i.id)).toContain(lonely.id);
-    for (const used of [cover, series, venueImg, mapBg, tplBg, tplImg, wallet, mail, logo]) {
+    for (const used of [
+      cover,
+      series,
+      venueImg,
+      mapBg,
+      tplBg,
+      tplImg,
+      wallet,
+      googleHero,
+      mail,
+      logo,
+    ]) {
       expect(unused.items.map((i) => i.id)).not.toContain(used.id);
     }
   });

@@ -77,6 +77,16 @@ export const walletPassDesigns = pgTable(
     iconAssetId: uuid('icon_asset_id').references(() => mediaAssets.id, { onDelete: 'set null' }),
     stripAssetId: uuid('strip_asset_id').references(() => mediaAssets.id, { onDelete: 'set null' }),
     heroAssetId: uuid('hero_asset_id').references(() => mediaAssets.id, { onDelete: 'set null' }),
+    /** Google Wallet images (public kinds: Google downloads them from `/api/media/<id>`). */
+    googleLogoAssetId: uuid('google_logo_asset_id').references(() => mediaAssets.id, {
+      onDelete: 'set null',
+    }),
+    googleHeroAssetId: uuid('google_hero_asset_id').references(() => mediaAssets.id, {
+      onDelete: 'set null',
+    }),
+    googleWideLogoAssetId: uuid('google_wide_logo_asset_id').references(() => mediaAssets.id, {
+      onDelete: 'set null',
+    }),
     ...timestamps(),
   },
   (t) => [

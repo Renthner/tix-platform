@@ -14,6 +14,7 @@ import {
   type TemplateVariables,
 } from './template';
 import { messageBodyVariable } from './message-body';
+import { movedOrdersVariable } from './moved-orders';
 import { buildPaymentQr, inlineImagesAsDataUris, PAYMENT_QR_VARIABLE } from './payment-qr';
 import { shopVariables } from './variables';
 
@@ -320,6 +321,15 @@ export function sampleEmailVariables(
         : 'Doors open 30 minutes earlier.\n\nPlease bring photo ID.',
     ),
     previousEmail: 'old.address@example.org',
+    movedOrders: movedOrdersVariable(
+      [
+        { orderNumber: '2026-000123', url: `${base}/orders/sample-token` },
+        { orderNumber: '2026-000124', url: `${base}/orders/sample-token-2` },
+      ],
+      locale,
+    ),
+    movedOrderCount: 2,
+    movedOrderNumbers: '2026-000123, 2026-000124',
     [PAYMENT_QR_VARIABLE]: samplePaymentQr(locale)?.variable ?? null,
   };
   return variables;

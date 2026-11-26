@@ -3,6 +3,10 @@ import type { SecretBoxKey } from '@tix/shared/server';
 import type { CoreContext } from '../context';
 import { formatDateTime } from '../format';
 import { smtpSender } from '../email/transport';
+// Static imports only: a dynamic import() of a workspace module makes the worker bundle lazy-wrap
+// it, and its constants were then undefined at run time (see alerts/text.ts, apps/worker/build.mjs).
+import { alertText } from '../alerts/text';
+import { createEmailMessage, dispatchEmailMessage } from '../email/request';
 import { getSecretSetting, getSetting } from '../settings';
 import type { PgBinaries } from './pg';
 import { assertSafeEndpoint, EndpointNotAllowedError } from './endpoint-guard';
@@ -162,11 +166,6 @@ export async function sendBackupAlert(
   message: string,
 ): Promise<boolean> {
   try {
-    // Lazy: the alert engine imports the backup module (cycle).
-    const [{ alertText }, { createEmailMessage, dispatchEmailMessage }] = await Promise.all([
-      import('../alerts/engine'),
-      import('../email/request'),
-    ]);
     const general = await getSetting(ctx, 'general');
     const locale = normalizeLocale(general.defaultLocale);
     const text = alertText(

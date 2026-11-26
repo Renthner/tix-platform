@@ -28,7 +28,7 @@ import { text } from './form';
  */
 export type CustomerActionState =
   | { status: 'idle' }
-  | { status: 'success'; message: string; at: number }
+  | { status: 'success'; message: string; at: number; values?: Record<string, number> }
   | { status: 'error'; code: string; at: number; fields?: string[] };
 
 const ok = (message: string): CustomerActionState => ({
@@ -85,29 +85,42 @@ export async function updateCustomerAction(
     const city = text(fd, 'city');
     const country = text(fd, 'country')?.toUpperCase();
     const hasAddress = Boolean(street || addressLine2 || postalCode || city);
+    // Unchecked boxes are absent from the form data; ignored by the core when the e-mail is unchanged.
+    const moveOrders = fd.get('moveOrders') === 'on';
+    let movedOrders = 0;
     try {
-      await updateCustomerAsAdmin(getCore(), await actorOf(session), customerId, {
-        firstName: text(fd, 'firstName') ?? '',
-        lastName: text(fd, 'lastName') ?? '',
-        email: text(fd, 'email') ?? '',
-        company: text(fd, 'company') ?? null,
-        phone: text(fd, 'phone') ?? null,
-        address: hasAddress
-          ? {
-              street: street ?? '',
-              addressLine2,
-              postalCode: postalCode ?? '',
-              city: city ?? '',
-              country: country ?? '',
-            }
-          : null,
-        locale: (text(fd, 'locale') as AppLocale | undefined) ?? null,
-      });
+      ({ movedOrders } = await updateCustomerAsAdmin(
+        getCore(),
+        await actorOf(session),
+        customerId,
+        {
+          firstName: text(fd, 'firstName') ?? '',
+          lastName: text(fd, 'lastName') ?? '',
+          email: text(fd, 'email') ?? '',
+          company: text(fd, 'company') ?? null,
+          phone: text(fd, 'phone') ?? null,
+          address: hasAddress
+            ? {
+                street: street ?? '',
+                addressLine2,
+                postalCode: postalCode ?? '',
+                city: city ?? '',
+                country: country ?? '',
+              }
+            : null,
+          locale: (text(fd, 'locale') as AppLocale | undefined) ?? null,
+        },
+        { moveOrders },
+      ));
     } catch (err) {
       if (err instanceof z.ZodError) {
         return fail('VALIDATION', [...new Set(err.issues.map((i) => String(i.path[0] ?? '_')))]);
       }
       throw err;
+    }
+    // The checkbox is only rendered while the e-mail field differs from the stored address.
+    if (moveOrders) {
+      return { ...ok('savedMovedOrders'), values: { count: movedOrders } };
     }
     return ok('saved');
   });

@@ -20,10 +20,13 @@ export async function loadWalletDesignValues(
   const core = getCore();
   const own = await getWalletPassDesignRow(core.db, eventId);
   const resolved = own ?? (await resolveWalletDesign(core, eventId));
-  const [logo, icon, strip] = await Promise.all([
+  const [logo, icon, strip, googleLogo, googleHero, googleWideLogo] = await Promise.all([
     asset(resolved.logoAssetId),
     asset(resolved.iconAssetId),
     asset(resolved.stripAssetId),
+    asset(resolved.googleLogoAssetId),
+    asset(resolved.googleHeroAssetId),
+    asset(resolved.googleWideLogoAssetId),
   ]);
   return {
     isOverride: Boolean(own),
@@ -36,6 +39,9 @@ export async function loadWalletDesignValues(
       logo,
       icon,
       strip,
+      googleLogo,
+      googleHero,
+      googleWideLogo,
     },
   };
 }

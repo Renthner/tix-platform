@@ -149,7 +149,7 @@ export async function getGoogleAccessToken(
 async function api(
   config: GoogleWalletConfig,
   doFetch: FetchLike,
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT',
   path: string,
   body?: unknown,
 ): Promise<{ status: number; json: unknown }> {
@@ -219,6 +219,9 @@ export function isSubset(wanted: unknown, actual: unknown): boolean {
  * `reviewStatus` on every insert / patch and demands `UNDER_REVIEW` (it flips the class to
  * `APPROVED` itself and echoes that on GET, so the stored value must never be sent back).
  */
+/** Class images set from the design / branding; removing one must reach Google. */
+const MANAGED_CLASS_IMAGES = ['logo', 'heroImage', 'wideLogo'] as const;
+
 export async function ensureClass(
   config: GoogleWalletConfig,
   doFetch: FetchLike,
@@ -239,11 +242,15 @@ export async function ensureClass(
     throw new GoogleWalletApiError(errorMessage(existing.json, existing.status), existing.status);
   }
   const { reviewStatus: _ignored, ...relevant } = body;
-  if (isSubset(relevant, existing.json)) return;
+  // A PATCH never clears a field it leaves out: an image removed in the design would stay on the
+  // pass. Then the class is replaced as a whole (PUT, the body is a complete class).
+  const current = (existing.json ?? {}) as Record<string, unknown>;
+  const staleImage = MANAGED_CLASS_IMAGES.some((key) => current[key] != null && !(key in body));
+  if (!staleImage && isSubset(relevant, existing.json)) return;
   const patched = await api(
     config,
     doFetch,
-    'PATCH',
+    staleImage ? 'PUT' : 'PATCH',
     `/eventTicketClass/${encodeURIComponent(classId)}`,
     body,
   );
@@ -334,6 +341,28 @@ export async function publicMediaUri(
 export interface GoogleImages {
   logo: string | null;
   hero: string | null;
+  /** Wide logo: replaces the round logo in the pass header when set. */
+  wideLogo: string | null;
+}
+
+/**
+ * Picks the class images: the design's own Google images win; the logo falls back to the shop
+ * logo and the hero image to the event cover, the wide logo has no fallback. Inputs are already
+ * resolved URIs (null = missing / not public / no https app URL), so an unusable design image
+ * still falls back.
+ */
+export function pickGoogleImages(input: {
+  designLogo: string | null;
+  designHero: string | null;
+  designWideLogo: string | null;
+  shopLogo: string | null;
+  eventCover: string | null;
+}): GoogleImages {
+  return {
+    logo: input.designLogo ?? input.shopLogo,
+    hero: input.designHero ?? input.eventCover,
+    wideLogo: input.designWideLogo,
+  };
 }
 
 /** `EventTicketClass` of an event (see Wallet Objects REST reference). */
@@ -375,6 +404,7 @@ export function buildGoogleClass(
     hexBackgroundColor: design.backgroundColor,
     ...(images.logo ? { logo: { sourceUri: { uri: images.logo } } } : {}),
     ...(images.hero ? { heroImage: { sourceUri: { uri: images.hero } } } : {}),
+    ...(images.wideLogo ? { wideLogo: { sourceUri: { uri: images.wideLogo } } } : {}),
     ...(data.latitude !== null && data.longitude !== null
       ? { locations: [{ latitude: data.latitude, longitude: data.longitude }] }
       : {}),
@@ -454,10 +484,13 @@ export async function ensureGoogleSaveUrl(
   const general = await getSetting(ctx, 'general');
   const design = await resolveWalletDesign(ctx, data.eventId);
   const branding = await getSetting(ctx, 'branding');
-  const images: GoogleImages = {
-    logo: await publicMediaUri(ctx, branding.logoAssetId),
-    hero: await publicMediaUri(ctx, data.heroImageAssetId),
-  };
+  const images = pickGoogleImages({
+    designLogo: await publicMediaUri(ctx, design.googleLogoAssetId),
+    designHero: await publicMediaUri(ctx, design.googleHeroAssetId),
+    designWideLogo: await publicMediaUri(ctx, design.googleWideLogoAssetId),
+    shopLogo: await publicMediaUri(ctx, branding.logoAssetId),
+    eventCover: await publicMediaUri(ctx, data.heroImageAssetId),
+  });
 
   const classBody = buildGoogleClass(config, data, design, images, general.defaultLocale);
   const classId = classBody.id as string;

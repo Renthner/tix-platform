@@ -221,5 +221,9 @@
     "doors": "Einlass {time}",
     "organizer": "Veranstalter: {name}",
     "eventPage": "Veranstaltungsseite"
+  },
+  "movedOrders": {
+    "order": "Bestellung {number}",
+    "viewOrder": "Bestellung ansehen"
   }
 }

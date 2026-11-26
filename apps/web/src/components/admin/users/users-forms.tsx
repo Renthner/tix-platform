@@ -237,7 +237,6 @@ export function UserHeaderActions({
   hasTwoFactor,
   locked,
   self,
-  activeSessions = 0,
   run,
 }: {
   userId: string;
@@ -247,8 +246,6 @@ export function UserHeaderActions({
   hasTwoFactor: boolean;
   locked: boolean;
   self: boolean;
-  /** Sessions still valid; the sign-out action is offered when there are any (never for yourself). */
-  activeSessions?: number;
   run: (id: string, op: UserOperation) => Promise<SecurityState>;
 }) {
   const t = useTranslations('adminSecurity.users.operations');
@@ -288,7 +285,10 @@ export function UserHeaderActions({
   if (!isActive && primary !== 'activate') items.push({ op: 'activate', icon: UserCheck });
   if (hasTwoFactor)
     items.push({ op: 'resetTwoFactor', confirmKey: 'confirmResetTwoFactor', icon: KeyRound });
-  if (!self && activeSessions > 0)
+  // Offered for every other active account, whatever the session count shows: the count only
+  // covers admin sessions, the action also ends linked shop sessions and is harmless when none
+  // exist. The own sessions are ended on the account page (keeps the current one).
+  if (!self && isActive)
     items.push({
       op: 'signOutAll',
       confirmKey: 'confirmSignOutAll',

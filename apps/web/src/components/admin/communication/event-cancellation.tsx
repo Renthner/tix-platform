@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormatter, useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useState } from 'react';
 import { ActionForm, Field, SubmitButton } from '@/components/admin/form-controls';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -83,7 +84,14 @@ export function EventCancellationCard({
     if (state.status === 'success') setOpen(false);
   }, [state]);
   const [understood, setUnderstood] = useState(false);
-  const running = preview.runningRunId !== null || runs.some((r) => r.status === 'RUNNING');
+  // Runs as last polled; reset whenever the server render delivers fresh props.
+  const [liveRuns, setLiveRuns] = useState(runs);
+  useEffect(() => setLiveRuns(runs), [runs]);
+  const runningRun = liveRuns.find((r) => r.status === 'RUNNING') ?? null;
+  // The preview flag only counts while the runs are the server's own (a poll that saw the run
+  // finish wins until the refreshed render lands).
+  const running = runningRun !== null || (liveRuns === runs && preview.runningRunId !== null);
+  useCancellationRunPoll(eventId, running, setLiveRuns);
   const actionable = preview.unpaid.orders + preview.paid.orders;
 
   return (
@@ -104,8 +112,34 @@ export function EventCancellationCard({
           </Alert>
         )}
         {running && (
-          <Alert>
-            <AlertDescription>{t('running')}</AlertDescription>
+          <Alert data-testid="event-cancel-running" aria-live="polite">
+            <AlertDescription className="space-y-2">
+              <p>{t('running')}</p>
+              {runningRun && runningRun.totalOrders > 0 && (
+                <>
+                  <p className="text-xs" data-testid="event-cancel-progress">
+                    {t('progress', {
+                      cancelled: runningRun.cancelledOrders,
+                      total: runningRun.totalOrders,
+                    })}
+                  </p>
+                  <div
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={runningRun.totalOrders}
+                    aria-valuenow={Math.min(runningRun.cancelledOrders, runningRun.totalOrders)}
+                  >
+                    <div
+                      className="h-full bg-primary transition-[width]"
+                      style={{
+                        width: `${Math.min(100, Math.round((runningRun.cancelledOrders / runningRun.totalOrders) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+            </AlertDescription>
           </Alert>
         )}
         <Dialog open={open} onOpenChange={setOpen}>
@@ -172,11 +206,11 @@ export function EventCancellationCard({
             </ActionForm>
           </DialogContent>
         </Dialog>
-        {runs.length > 0 && (
+        {liveRuns.length > 0 && (
           <div>
             <h3 className="mb-2 text-sm font-medium">{t('runs')}</h3>
-            <ul className="divide-y text-sm">
-              {runs.map((r) => (
+            <ul className="divide-y text-sm" data-testid="event-cancel-runs">
+              {liveRuns.map((r) => (
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <div>
                     <div>
@@ -215,6 +249,73 @@ export function EventCancellationCard({
       </CardContent>
     </Card>
   );
+}
+
+const RUN_POLL_INTERVAL_MS = 2_000;
+
+/**
+ * Live progress of a running cancellation run (same pattern as the shop's order payment watcher):
+ * polls the event's runs every 2 s while a run is RUNNING and the tab is visible – paused while
+ * hidden, checked at once when it becomes visible again. When no run is RUNNING any more it
+ * reloads the page data (event status, preview, "run again") and stops.
+ */
+function useCancellationRunPoll(
+  eventId: string,
+  running: boolean,
+  setRuns: (runs: CancellationRunItem[]) => void,
+) {
+  const router = useRouter();
+  useEffect(() => {
+    if (!running) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    let inFlight = false;
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = undefined;
+      if (!cancelled && !document.hidden) {
+        timer = setTimeout(() => void poll(), RUN_POLL_INTERVAL_MS);
+      }
+    };
+    const poll = async () => {
+      if (cancelled || inFlight || document.hidden) return;
+      inFlight = true;
+      try {
+        const response = await fetch(`/api/admin/events/${eventId}/cancellation-runs`, {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
+        const fresh = response.ok
+          ? ((await response.json()) as { runs: CancellationRunItem[] }).runs
+          : null;
+        if (fresh && !cancelled) {
+          setRuns(fresh);
+          // Finished (or ended with errors): the new props restart / stop this effect.
+          if (!fresh.some((r) => r.status === 'RUNNING')) router.refresh();
+        }
+      } catch {
+        /* next poll retries */
+      } finally {
+        inFlight = false;
+      }
+      schedule();
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        clearTimeout(timer);
+        timer = undefined;
+      } else {
+        void poll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    schedule();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [eventId, running, router, setRuns]);
 }
 
 function PreviewList({

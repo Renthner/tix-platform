@@ -1944,14 +1944,24 @@
       "logoTextHint": "Shown next to the logo on Apple passes. Optional.",
       "descriptionField": "Accessibility description",
       "descriptionHint": "Short description read by screen readers; defaults to the event title.",
-      "imagesHint": "Apple Wallet only accepts PNG images; other formats are ignored. Without an icon a neutral square in the background colour is generated. Google passes use the event image and shop logo instead.",
+      "imagesHint": "Apple and Google Wallet need images in different formats, so each has its own fields. All images are optional.",
       "images": {
+        "appleTitle": "Apple Wallet",
+        "appleHint": "Apple Wallet only accepts PNG images. Without an icon a neutral square in the background colour is generated.",
         "logo": "Logo",
         "logoHint": "PNG, e.g. 160 x 50 px (also used as icon when none is set).",
         "icon": "Icon",
         "iconHint": "PNG, 58 x 58 px or larger (shown on the lock screen).",
         "strip": "Strip image",
-        "stripHint": "PNG, e.g. 750 x 196 px banner behind the event title."
+        "stripHint": "PNG, e.g. 750 x 196 px banner behind the event title.",
+        "googleTitle": "Google Wallet",
+        "googleHint": "Google downloads these images from the public shop address, so they are publicly accessible. Google only shows them when the shop runs on an https address.",
+        "googleLogo": "Logo",
+        "googleLogoHint": "Square, at least 660 x 660 px; shown round. Empty = shop logo.",
+        "googleHero": "Banner image",
+        "googleHeroHint": "Wide banner, recommended 1032 x 336 px. Empty = event cover image.",
+        "googleWideLogo": "Wide logo",
+        "googleWideLogoHint": "Wordmark, recommended 1280 x 400 px; replaces the round logo in the pass header. Empty = none."
       }
     }
   },

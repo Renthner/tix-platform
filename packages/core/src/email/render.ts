@@ -6,6 +6,7 @@ import { loadOrderDocumentData } from '../documents/order-data';
 import { mailTranslator } from '../i18n/mail-messages';
 import { getSetting } from '../settings';
 import { messageBodyVariable } from './message-body';
+import { loadMovedOrders, movedOrdersVariable, parseMovedOrderIds } from './moved-orders';
 import { orderPaymentQr, PAYMENT_QR_VARIABLE, type InlineImage } from './payment-qr';
 import {
   htmlToText,
@@ -97,8 +98,12 @@ export async function renderEmail(
   const general = await getSetting(ctx, 'general');
   const data = params.orderId ? await loadOrderDocumentData(ctx.db, params.orderId) : null;
   if (params.orderId && !data) throw new DomainError('ORDER_NOT_FOUND', 'Order not found', 404);
+  // The notice to a customer's OLD address carries the customer id only so a GDPR erasure finds
+  // it: the customer record already holds the NEW address, which must never reach that mail.
   const customer =
-    !data && params.customerId ? await customerVariables(ctx.db, params.customerId) : null;
+    !data && params.customerId && params.key !== 'CUSTOMER_EMAIL_CHANGED_OLD'
+      ? await customerVariables(ctx.db, params.customerId)
+      : null;
 
   const requested =
     params.locale ?? data?.order.locale ?? customer?.locale ?? general.defaultLocale;
@@ -136,6 +141,15 @@ export async function renderEmail(
   // Admin free text (order / event messages): plain string in the outbox, HTML built here.
   if (typeof variables.messageBody === 'string') {
     variables.messageBody = messageBodyVariable(variables.messageBody);
+  }
+  // Customer e-mail change: the moved orders with their current links (stored as ids only).
+  if (params.key === 'CUSTOMER_EMAIL_CHANGED_ORDERS') {
+    const ids = parseMovedOrderIds(variables.movedOrderIds);
+    variables.movedOrders = movedOrdersVariable(
+      await loadMovedOrders(ctx, ids, to),
+      template.locale,
+    );
+    delete variables.movedOrderIds;
   }
   // GiroCode of the open amount: generated only when the template uses it (inline PNG).
   const candidateImages: InlineImage[] = [];

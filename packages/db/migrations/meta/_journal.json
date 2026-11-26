@@ -316,6 +316,20 @@
       "when": 1795623466163,
       "tag": "0044_email_status_skipped",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1795697803846,
+      "tag": "0045_wallet_google_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1795698540552,
+      "tag": "0046_customer_email_change_mails",
+      "breakpoints": true
     }
   ]
 }

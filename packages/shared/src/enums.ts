@@ -395,6 +395,10 @@ export const EMAIL_TEMPLATE_KEYS = values(
   'ORDER_EMAIL_CHANGED_OLD',
   // Event cancellation notice to the holder of a passed-on ticket (refund goes to the buyer).
   'EVENT_CANCELLED_HOLDER',
+  // Admin changed a customer's e-mail and moved the orders along: one summary to the new
+  // address (fresh order links), one notice to the old address (no links, no new address).
+  'CUSTOMER_EMAIL_CHANGED_ORDERS',
+  'CUSTOMER_EMAIL_CHANGED_OLD',
 );
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 

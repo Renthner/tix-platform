@@ -25,7 +25,8 @@ function useFeedback(state: CustomerActionState) {
   useEffect(() => {
     if (state.status === 'idle' || state.at === last.current) return;
     last.current = state.at;
-    if (state.status === 'success') toast.success(t(`messages.${state.message}` as never));
+    if (state.status === 'success')
+      toast.success(t(`messages.${state.message}` as never, state.values as never));
     else if (t.has(`errors.${state.code}` as never))
       toast.error(t(`errors.${state.code}` as never));
     else toast.error(t('errors.INTERNAL_ERROR'));
@@ -65,6 +66,9 @@ export function CustomerProfileForm({
     state.status === 'error' && state.fields?.includes(name) ? true : undefined;
   const addressBad =
     bad('address') ?? bad('street') ?? bad('postalCode') ?? bad('city') ?? bad('country');
+  // The "move orders" option only matters while the typed address differs from the stored one.
+  const [email, setEmail] = useState(initial.email);
+  const emailChanged = email.trim().toLowerCase() !== initial.email.trim().toLowerCase();
   return (
     <ActionForm action={action} className="space-y-4">
       <fieldset disabled={disabled} className="space-y-4">
@@ -98,7 +102,22 @@ export function CustomerProfileForm({
               maxLength={254}
               required
               aria-invalid={bad('email')}
+              onChange={(e) => setEmail(e.currentTarget.value)}
             />
+            {emailChanged && (
+              <label className="mt-2 flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="moveOrders"
+                  defaultChecked
+                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                />
+                <span>
+                  {t('moveOrders')}
+                  <span className="block text-xs text-muted-foreground">{t('moveOrdersHint')}</span>
+                </span>
+              </label>
+            )}
           </Field>
           <Field label={t('company')} htmlFor="company">
             <Input id="company" name="company" defaultValue={initial.company} maxLength={200} />

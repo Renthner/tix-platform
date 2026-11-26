@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { mailingSendBlock } from '@/lib/mailing-send-status';
 import {
   countEventMailingRecipientsAction,
   sendEventMailingAction,
@@ -46,15 +47,15 @@ export function EventMailingCard({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [count, setCount] = useState<number | null>(null);
-  const [, startCount] = useTransition();
+  const [countFailed, setCountFailed] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const [sendState, sendAction] = useActionState(
+  const [sendState, sendAction, sending] = useActionState(
     sendEventMailingAction.bind(null, eventId),
     COMMUNICATION_IDLE,
   );
-  const [testState, testAction] = useActionState(
+  const [testState, testAction, testing] = useActionState(
     testEventMailingAction.bind(null, eventId),
     COMMUNICATION_IDLE,
   );
@@ -64,14 +65,21 @@ export function EventMailingCard({
 
   useEffect(() => {
     let current = true;
-    startCount(async () => {
-      const n = await countEventMailingRecipientsAction(
-        eventId,
-        audience,
-        audience === 'CATEGORY' ? categoryId || null : null,
-      );
-      if (current) setCount(n);
-    });
+    void (async () => {
+      // A count for another audience must never enable the send button.
+      setCount(null);
+      setCountFailed(false);
+      try {
+        const n = await countEventMailingRecipientsAction(
+          eventId,
+          audience,
+          audience === 'CATEGORY' ? categoryId || null : null,
+        );
+        if (current) setCount(n);
+      } catch {
+        if (current) setCountFailed(true);
+      }
+    })();
     return () => {
       current = false;
     };
@@ -84,7 +92,7 @@ export function EventMailingCard({
     }
   }, [sendState]);
 
-  const ready = subject.trim() !== '' && body.trim() !== '' && (count ?? 0) > 0;
+  const ready = mailingSendBlock({ subject, body, count, countFailed, sending }) === null;
   return (
     <div className="space-y-6">
       <Card>
@@ -134,8 +142,17 @@ export function EventMailingCard({
               )}
             </div>
             <p className="text-sm" data-testid="mailing-recipient-count">
-              {count === null ? t('counting') : t('recipients', { count })}
+              {countFailed
+                ? t('countFailed')
+                : count === null
+                  ? t('counting')
+                  : t('recipients', { count })}
             </p>
+            {count === 0 && (
+              <p className="text-sm text-muted-foreground" data-testid="mailing-no-recipients">
+                {t('noRecipients')}
+              </p>
+            )}
             <Field label={t('subject')} htmlFor="mailing-subject">
               <Input
                 id="mailing-subject"
@@ -158,16 +175,21 @@ export function EventMailingCard({
               />
             </Field>
             <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={!ready} data-testid="mailing-send">
-                {t('send')}
+              <Button
+                type="submit"
+                disabled={!ready}
+                aria-busy={sending}
+                data-testid="mailing-send"
+              >
+                {sending ? t('sending') : t('send')}
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                disabled={subject.trim() === '' || body.trim() === ''}
+                disabled={testing || subject.trim() === '' || body.trim() === ''}
                 onClick={() => {
                   const form = formRef.current;
-                  if (!form) return;
+                  if (!form || testing) return;
                   startSend(() => testAction(new FormData(form)));
                 }}
               >
@@ -236,7 +258,7 @@ export function EventMailingCard({
         variant="default"
         onConfirm={() => {
           const form = formRef.current;
-          if (!form) return;
+          if (!form || sending) return;
           const data = new FormData(form);
           startSend(() => sendAction(data));
         }}

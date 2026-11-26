@@ -1,0 +1,6 @@
+ALTER TABLE "wallet_pass_designs" ADD COLUMN "google_logo_asset_id" uuid;--> statement-breakpoint
+ALTER TABLE "wallet_pass_designs" ADD COLUMN "google_hero_asset_id" uuid;--> statement-breakpoint
+ALTER TABLE "wallet_pass_designs" ADD COLUMN "google_wide_logo_asset_id" uuid;--> statement-breakpoint
+ALTER TABLE "wallet_pass_designs" ADD CONSTRAINT "wallet_pass_designs_google_logo_asset_id_media_assets_id_fk" FOREIGN KEY ("google_logo_asset_id") REFERENCES "public"."media_assets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wallet_pass_designs" ADD CONSTRAINT "wallet_pass_designs_google_hero_asset_id_media_assets_id_fk" FOREIGN KEY ("google_hero_asset_id") REFERENCES "public"."media_assets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wallet_pass_designs" ADD CONSTRAINT "wallet_pass_designs_google_wide_logo_asset_id_media_assets_id_fk" FOREIGN KEY ("google_wide_logo_asset_id") REFERENCES "public"."media_assets"("id") ON DELETE set null ON UPDATE no action;

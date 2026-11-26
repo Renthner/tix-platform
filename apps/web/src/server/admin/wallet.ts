@@ -300,6 +300,20 @@ export async function saveWalletDesignAction(
     // Apple Wallet only accepts PNG; with library reuse a JPEG/WebP event image is easy to pick.
     else if (asset.mimeType !== 'image/png') errors[name] = 'pngOnly';
   }
+  // Google downloads its images from the public media URL, so only public kinds are accepted.
+  const googleAssetIds: Record<
+    'googleLogoAssetId' | 'googleHeroAssetId' | 'googleWideLogoAssetId',
+    string | null
+  > = {
+    googleLogoAssetId: uuidOrNull(fd, 'googleLogoAssetId'),
+    googleHeroAssetId: uuidOrNull(fd, 'googleHeroAssetId'),
+    googleWideLogoAssetId: uuidOrNull(fd, 'googleWideLogoAssetId'),
+  };
+  for (const [name, id] of Object.entries(googleAssetIds)) {
+    if (!id) continue;
+    const asset = await getMediaAsset(core, id);
+    if (!asset || !isMediaKindAllowed(asset.kind, 'public')) errors[name] = 'invalid';
+  }
   if (Object.keys(errors).length > 0) return fieldError(errors);
 
   const input = {
@@ -308,6 +322,7 @@ export async function saveWalletDesignAction(
     description,
     ...assetIds,
     heroAssetId: null,
+    ...googleAssetIds,
   };
   await saveWalletPassDesign(core.db, eventId, input);
   await audit(core.db, session, 'wallet.design.update', 'wallet_pass_design', eventId, input);

@@ -69,6 +69,10 @@ export interface ResolvedWalletDesign {
   iconAssetId: string | null;
   stripAssetId: string | null;
   heroAssetId: string | null;
+  /** Google Wallet images (public kinds); null = fallback (shop logo / event cover / none). */
+  googleLogoAssetId: string | null;
+  googleHeroAssetId: string | null;
+  googleWideLogoAssetId: string | null;
   /** Design row ids that contributed (for cache hashing). */
   sources: string[];
 }
@@ -254,6 +258,10 @@ export async function resolveWalletDesign(
     iconAssetId: eventRow?.iconAssetId ?? globalRow?.iconAssetId ?? null,
     stripAssetId: eventRow?.stripAssetId ?? globalRow?.stripAssetId ?? null,
     heroAssetId: eventRow?.heroAssetId ?? globalRow?.heroAssetId ?? null,
+    googleLogoAssetId: eventRow?.googleLogoAssetId ?? globalRow?.googleLogoAssetId ?? null,
+    googleHeroAssetId: eventRow?.googleHeroAssetId ?? globalRow?.googleHeroAssetId ?? null,
+    googleWideLogoAssetId:
+      eventRow?.googleWideLogoAssetId ?? globalRow?.googleWideLogoAssetId ?? null,
     sources: [eventRow?.id, globalRow?.id].filter((v): v is string => Boolean(v)),
   };
 }
@@ -279,6 +287,9 @@ export interface WalletPassDesignInput {
   iconAssetId: string | null;
   stripAssetId: string | null;
   heroAssetId: string | null;
+  googleLogoAssetId: string | null;
+  googleHeroAssetId: string | null;
+  googleWideLogoAssetId: string | null;
 }
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;

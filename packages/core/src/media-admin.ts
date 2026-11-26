@@ -105,6 +105,9 @@ const HANDLED_COLUMNS = new Set([
   'wallet_pass_designs.icon_asset_id',
   'wallet_pass_designs.strip_asset_id',
   'wallet_pass_designs.hero_asset_id',
+  'wallet_pass_designs.google_logo_asset_id',
+  'wallet_pass_designs.google_hero_asset_id',
+  'wallet_pass_designs.google_wide_logo_asset_id',
 ]);
 
 function settingsHref(key: string): string {
@@ -194,13 +197,20 @@ async function usagesBatch(
       icon: string | null;
       strip: string | null;
       hero: string | null;
+      google_logo: string | null;
+      google_hero: string | null;
+      google_wide_logo: string | null;
     }>(
       db,
       sql`SELECT w.event_id, ev.title, w.logo_asset_id AS logo, w.icon_asset_id AS icon,
-                 w.strip_asset_id AS strip, w.hero_asset_id AS hero
+                 w.strip_asset_id AS strip, w.hero_asset_id AS hero,
+                 w.google_logo_asset_id AS google_logo, w.google_hero_asset_id AS google_hero,
+                 w.google_wide_logo_asset_id AS google_wide_logo
           FROM wallet_pass_designs w LEFT JOIN events ev ON ev.id = w.event_id
           WHERE w.logo_asset_id = ANY(${list}) OR w.icon_asset_id = ANY(${list})
-             OR w.strip_asset_id = ANY(${list}) OR w.hero_asset_id = ANY(${list})`,
+             OR w.strip_asset_id = ANY(${list}) OR w.hero_asset_id = ANY(${list})
+             OR w.google_logo_asset_id = ANY(${list}) OR w.google_hero_asset_id = ANY(${list})
+             OR w.google_wide_logo_asset_id = ANY(${list})`,
     ),
     rows<{ key: string; locale: string; event_id: string | null; body: string }>(
       db,
@@ -257,6 +267,9 @@ async function usagesBatch(
       ['icon', r.icon],
       ['strip', r.strip],
       ['hero', r.hero],
+      ['Google logo', r.google_logo],
+      ['Google hero', r.google_hero],
+      ['Google wide logo', r.google_wide_logo],
     ] as const) {
       if (id) add(id, { type: 'WALLET_DESIGN', label, detail: slot, href });
     }

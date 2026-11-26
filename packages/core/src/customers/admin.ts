@@ -3,15 +3,38 @@ import {
   customerSessions,
   customerTokens,
   customers,
+  emailMessages,
+  events,
+  orderItems,
   orders,
   withTransaction,
   type Executor,
 } from '@tix/db';
-import { SUPPORTED_LOCALES, postalAddressSchema, type OrderStatus } from '@tix/shared';
-import { and, asc, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
+import {
+  INVENTORY_HOLDING_ITEM_STATUSES,
+  SUPPORTED_LOCALES,
+  postalAddressSchema,
+  type OrderStatus,
+} from '@tix/shared';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  ilike,
+  inArray,
+  isNull,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { z } from 'zod';
 import type { AdminActor } from '../admin-users';
 import { DomainError, type CoreContext } from '../context';
+import { createEmailMessage, CUSTOMER_EMAIL_OBSOLETE_ERROR, dispatchEmailMessage } from '../email';
+import { coreLog } from '../log';
+import { applyOrderEmailChange } from '../orders/email-change';
 import { customerEmailSchema } from './accounts';
 
 /**
@@ -232,19 +255,58 @@ export async function getCustomerAdminView(ctx: Pick<CoreContext, 'db'>, custome
 
 // ─── Profile ──────────────────────────────────────────────────────────────────────────
 
+/** Orders in these states are never moved along with a customer e-mail change. */
+const NOT_MOVED_ORDER_STATUSES = [
+  // A PayPal approval may be in progress: the return URL carries the order token, a version
+  // bump would break the capture on return. Such orders are short-lived (expire / get paid).
+  'PENDING',
+  'CANCELLED',
+  'EXPIRED',
+  'REFUNDED',
+] as const satisfies readonly OrderStatus[];
+
+export interface UpdateCustomerOptions {
+  /**
+   * Only relevant when the e-mail changes: also move the customer's current orders to the new
+   * address (see `updateCustomerAsAdmin`). Default false (the orders keep their buyer snapshot).
+   */
+  moveOrders?: boolean;
+}
+
 /**
  * Edits the customer record. Past orders keep their buyer snapshot. Changing the e-mail
  * address of an account un-verifies it and ends all sessions (the new owner must prove the
  * address; login links keep working for the new address).
+ *
+ * With `moveOrders` and a changed e-mail, the customer's CURRENT orders move to the new address in
+ * the same transaction, with the semantics of `changeOrderEmail` (token version bump = earlier
+ * order links die, history + audit, mails still queued for the old address retired and the
+ * important ones re-created for the new one). Moved are orders that
+ *  - belong to this customer record AND still carry the customer's previous address (orders left
+ *    on an even older address by an earlier per-order change stay as they are),
+ *  - are not PENDING / CANCELLED / EXPIRED / REFUNDED, not test orders, not anonymised,
+ *  - have at least one inventory-holding item of an event that has not ended yet
+ *    (`coalesce(ends_at, starts_at) > now()`, like the GDPR erasure blockers).
+ * The order stays with the same customer record, so per-customer ticket limits are unaffected.
+ * Instead of two mails per order, ONE summary (`CUSTOMER_EMAIL_CHANGED_ORDERS`, the moved orders
+ * with their fresh links, built at send time) goes to the new address and ONE notice
+ * (`CUSTOMER_EMAIL_CHANGED_OLD`, order numbers only – no links, no new address) to the old one;
+ * no mails when nothing was moved.
+ * Also excluded: orders with an open additional payment whose PayPal attempt is in flight (the
+ * PayPal return URL carries the order token).
+ * Lock order: customer row, then per eligible order (by id) the payment-mail advisory lock, then
+ * the order rows (FOR UPDATE, by id) – advisory lock before the row like `processPaidOrder`.
+ * A summary of an earlier change still queued/failed for the previous address is retired.
  */
 export async function updateCustomerAsAdmin(
   ctx: CoreContext,
   actor: AdminActor,
   customerId: string,
   input: AdminCustomerProfileInput,
-): Promise<void> {
+  options: UpdateCustomerOptions = {},
+): Promise<{ movedOrders: number }> {
   const data = adminCustomerProfileSchema.parse(input);
-  await withTransaction(ctx.db, async (tx) => {
+  const outcome = await withTransaction(ctx.db, async (tx) => {
     const [current] = await tx
       .select()
       .from(customers)
@@ -278,7 +340,7 @@ export async function updateCustomerAsAdmin(
     const changed = (Object.keys(next) as (keyof typeof next)[]).filter(
       (key) => JSON.stringify(next[key] ?? null) !== JSON.stringify(current[key] ?? null),
     );
-    if (changed.length === 0) return;
+    if (changed.length === 0) return { moved: 0, messages: [] as string[] };
     await tx
       .update(customers)
       .set({
@@ -290,7 +352,133 @@ export async function updateCustomerAsAdmin(
       await tx.delete(customerSessions).where(eq(customerSessions.customerId, customerId));
       await tx.delete(customerTokens).where(eq(customerTokens.customerId, customerId));
     }
-    await writeCustomerAudit(tx, actor, 'customer.update', customerId, { fields: changed });
+
+    const messages: string[] = [];
+    const moved: { id: string; orderNumber: string; locale: string }[] = [];
+    if (emailChanged) {
+      // A summary of an earlier change still waiting for the previous address must not go out:
+      // it names that address and lists order links (the delivery checks this as well).
+      await tx
+        .update(emailMessages)
+        .set({ status: 'FAILED', lastError: CUSTOMER_EMAIL_OBSOLETE_ERROR, updatedAt: new Date() })
+        .where(
+          and(
+            eq(emailMessages.templateKey, 'CUSTOMER_EMAIL_CHANGED_ORDERS'),
+            inArray(emailMessages.status, ['QUEUED', 'FAILED']),
+            sql`${emailMessages.attachments}->>'customerId' = ${customerId}`,
+            sql`lower(trim(${emailMessages.toEmail})) = ${current.email.trim().toLowerCase()}`,
+          ),
+        );
+    }
+    if (emailChanged && options.moveOrders) {
+      const previous = current.email.trim().toLowerCase();
+      const eligibleWhere = and(
+        eq(orders.customerId, customerId),
+        sql`lower(trim(${orders.email})) = ${previous}`,
+        notInArray(orders.status, [...NOT_MOVED_ORDER_STATUSES]),
+        eq(orders.isTest, false),
+        isNull(orders.anonymizedAt),
+        exists(
+          tx
+            .select({ one: sql`1` })
+            .from(orderItems)
+            .innerJoin(events, eq(events.id, orderItems.eventId))
+            .where(
+              and(
+                eq(orderItems.orderId, orders.id),
+                inArray(orderItems.status, [...INVENTORY_HOLDING_ITEM_STATUSES]),
+                sql`coalesce(${events.endsAt}, ${events.startsAt}) > now()`,
+              ),
+            ),
+        ),
+        // An open additional payment with a PayPal attempt in flight: its return URL carries the
+        // order token, which the move would invalidate (same condition as the dunning sweep).
+        sql`not exists (select 1 from order_adjustments a join payments p on p.adjustment_id = a.id where a.order_id = ${orders.id} and a.status in ('PROPOSED','CONFIRMED') and p.method = 'PAYPAL' and p.status in ('CREATED','APPROVED'))`,
+      );
+      // Lock order like the payment confirmation (`processPaidOrder`: advisory lock, then the
+      // order row): first the payment-mail advisory locks in id order, then the rows. The
+      // condition is evaluated again under the row locks.
+      const candidates = await tx
+        .select({ id: orders.id })
+        .from(orders)
+        .where(eligibleWhere)
+        .orderBy(asc(orders.id));
+      for (const { id } of candidates) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`order-paid-mail:${id}`}))`);
+      }
+      const eligible =
+        candidates.length === 0
+          ? []
+          : await tx
+              .select()
+              .from(orders)
+              .where(
+                and(
+                  inArray(
+                    orders.id,
+                    candidates.map((c) => c.id),
+                  ),
+                  eligibleWhere,
+                ),
+              )
+              .orderBy(asc(orders.id))
+              .for('update', { of: orders });
+      for (const order of eligible) {
+        const result = await applyOrderEmailChange(ctx, tx, order, {
+          newEmail: data.email,
+          customerId,
+          userId: actor.userId,
+          limitsOverridden: false,
+          changeMails: false,
+          via: 'customer',
+        });
+        messages.push(...result.messages);
+        moved.push({ id: order.id, orderNumber: order.orderNumber, locale: order.locale });
+      }
+      if (moved.length > 0) {
+        const locale = data.locale ?? moved[0]!.locale;
+        // New address: the moved orders with their links (built at send time from the ids).
+        messages.unshift(
+          await createEmailMessage(ctx, tx, {
+            key: 'CUSTOMER_EMAIL_CHANGED_ORDERS',
+            to: data.email,
+            customerId,
+            locale,
+            // Recipient data as of this change (never read from the customer row at send time:
+            // a later correction of the address must not show up in this mail).
+            variables: {
+              email: data.email,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              fullName: `${data.firstName} ${data.lastName}`.trim(),
+              previousEmail: current.email,
+              movedOrderIds: moved.map((o) => o.id).join(','),
+              movedOrderCount: moved.length,
+            },
+          }),
+          // Old address: notice only – order numbers, never links or the new address (GDPR).
+          // `customerId` only lets an erasure find the message; the renderer does not read the
+          // customer for this key.
+          await createEmailMessage(ctx, tx, {
+            key: 'CUSTOMER_EMAIL_CHANGED_OLD',
+            to: current.email,
+            customerId,
+            locale,
+            variables: {
+              firstName: data.firstName,
+              previousEmail: current.email,
+              movedOrderCount: moved.length,
+              movedOrderNumbers: moved.map((o) => o.orderNumber).join(', '),
+            },
+          }),
+        );
+      }
+    }
+    await writeCustomerAudit(tx, actor, 'customer.update', customerId, {
+      fields: changed,
+      ...(emailChanged && options.moveOrders ? { movedOrders: moved.length } : {}),
+    });
+    return { moved: moved.length, messages };
   }).catch((err: unknown) => {
     // Drizzle wraps driver errors: the unique index race surfaces with the code on `cause`.
     if ((err as { cause?: { code?: string } }).cause?.code === '23505') {
@@ -298,6 +486,12 @@ export async function updateCustomerAsAdmin(
     }
     throw err;
   });
+  for (const id of outcome.messages) {
+    await dispatchEmailMessage(ctx, id).catch((err: unknown) =>
+      coreLog.error({ err }, '[customer-email] mail stored but not queued (outbox retries)'),
+    );
+  }
+  return { movedOrders: outcome.moved };
 }
 
 // ─── Account housekeeping ─────────────────────────────────────────────────────────────

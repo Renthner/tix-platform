@@ -25,7 +25,7 @@
     "firstName": "Vorname",
     "lastName": "Nachname",
     "email": "E-Mail",
-    "emailHint": "Wird die E-Mail-Adresse eines Kontos geändert, gilt sie als unbestätigt und der Kunde wird abgemeldet. Bisherige Bestellungen behalten ihre eigenen Käuferdaten.",
+    "emailHint": "Wird die E-Mail-Adresse eines Kontos geändert, gilt sie als unbestätigt und der Kunde wird abgemeldet. Bestellungen behalten ihre eigenen Käuferdaten, sofern du sie nicht mit umstellst.",
     "company": "Firma",
     "phone": "Telefon",
     "locale": "Sprache",
@@ -38,6 +38,8 @@
     "countryHint": "2-stelliger Code, z. B. DE",
     "addressHint": "Alle Adressfelder leer lassen, um keine Adresse zu speichern.",
     "invalid": "Bitte die markierten Felder prüfen (eine Postadresse braucht Straße, PLZ, Ort und Land).",
+    "moveOrders": "Bestellungen auch auf die neue Adresse umstellen",
+    "moveOrdersHint": "Aktuelle Bestellungen (nicht storniert, Veranstaltung noch nicht vorbei) erhalten die neue Adresse; ihre alten Links funktionieren nicht mehr. Der Kunde erhält eine Zusammenfassung an die neue und einen Hinweis an die alte Adresse.",
     "save": "Profil speichern"
   },
   "account": {
@@ -107,6 +109,7 @@
   },
   "messages": {
     "saved": "Profil gespeichert.",
+    "savedMovedOrders": "Profil gespeichert. {count, plural, =0 {Es mussten keine aktuellen Bestellungen umgestellt werden.} one {# Bestellung wurde auf die neue Adresse umgestellt.} other {# Bestellungen wurden auf die neue Adresse umgestellt.}}",
     "verificationSent": "Bestätigungs-E-Mail gesendet.",
     "alreadyVerified": "Die E-Mail-Adresse ist bereits bestätigt.",
     "passwordResetSent": "Link zum Zurücksetzen des Passworts gesendet.",

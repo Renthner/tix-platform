@@ -353,6 +353,9 @@ export interface WalletDesignValues {
   logo: MediaPickerAsset | null;
   icon: MediaPickerAsset | null;
   strip: MediaPickerAsset | null;
+  googleLogo: MediaPickerAsset | null;
+  googleHero: MediaPickerAsset | null;
+  googleWideLogo: MediaPickerAsset | null;
 }
 
 function ColorInput({
@@ -477,32 +480,72 @@ export function WalletDesignForm({
           />
         </div>
         <p className="text-xs text-muted-foreground">{t('imagesHint')}</p>
-        <div className="grid gap-6 md:grid-cols-3">
-          {(
-            [
-              ['logoAssetId', 'logo', initial.logo, 1],
-              ['iconAssetId', 'icon', initial.icon, 1],
-              ['stripAssetId', 'strip', initial.strip, 375 / 98],
-            ] as const
-          ).map(([name, key, asset, ratio]) => (
-            <Field
-              key={name}
-              label={t(`images.${key}`)}
-              htmlFor={name}
-              error={err(name)}
-              hint={t(`images.${key}Hint`)}
-            >
-              <MediaPicker
-                name={name}
-                kind="WALLET_IMAGE"
-                visibility="private"
-                initialAsset={asset}
-                aspectRatio={ratio}
-                previewClassName="max-w-[12rem]"
-              />
-            </Field>
-          ))}
-        </div>
+        <fieldset className="space-y-3 rounded-lg border p-4">
+          <legend className="px-1 text-sm font-semibold">{t('images.appleTitle')}</legend>
+          <p className="text-xs text-muted-foreground">{t('images.appleHint')}</p>
+          <div className="grid gap-6 md:grid-cols-3">
+            {(
+              [
+                ['logoAssetId', 'logo', initial.logo, 1],
+                ['iconAssetId', 'icon', initial.icon, 1],
+                ['stripAssetId', 'strip', initial.strip, 375 / 98],
+              ] as const
+            ).map(([name, key, asset, ratio]) => (
+              <Field
+                key={name}
+                label={t(`images.${key}`)}
+                htmlFor={name}
+                error={err(name)}
+                hint={t(`images.${key}Hint`)}
+              >
+                <MediaPicker
+                  name={name}
+                  kind="WALLET_IMAGE"
+                  visibility="private"
+                  initialAsset={asset}
+                  aspectRatio={ratio}
+                  previewClassName="max-w-[12rem]"
+                />
+              </Field>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset className="space-y-3 rounded-lg border p-4">
+          <legend className="px-1 text-sm font-semibold">{t('images.googleTitle')}</legend>
+          <p className="text-xs text-muted-foreground">{t('images.googleHint')}</p>
+          <div className="grid gap-6 md:grid-cols-3">
+            {(
+              [
+                ['googleLogoAssetId', 'googleLogo', 'LOGO', initial.googleLogo, 1],
+                ['googleHeroAssetId', 'googleHero', 'EVENT_IMAGE', initial.googleHero, 1032 / 336],
+                [
+                  'googleWideLogoAssetId',
+                  'googleWideLogo',
+                  'LOGO',
+                  initial.googleWideLogo,
+                  1280 / 400,
+                ],
+              ] as const
+            ).map(([name, key, kind, asset, ratio]) => (
+              <Field
+                key={name}
+                label={t(`images.${key}`)}
+                htmlFor={name}
+                error={err(name)}
+                hint={t(`images.${key}Hint`)}
+              >
+                <MediaPicker
+                  name={name}
+                  kind={kind}
+                  visibility="public"
+                  initialAsset={asset}
+                  aspectRatio={ratio}
+                  previewClassName="max-w-[12rem]"
+                />
+              </Field>
+            ))}
+          </div>
+        </fieldset>
         <SubmitButton>{tc('save')}</SubmitButton>
       </ActionForm>
       {resetAction && isOverride && (

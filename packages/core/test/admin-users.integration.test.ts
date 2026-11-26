@@ -11,6 +11,8 @@ import {
   adminUsers,
   auditLogs,
   createDb,
+  customerSessions,
+  customers,
   emailMessages,
   loadRootEnv,
   type DbHandle,
@@ -44,6 +46,7 @@ import {
   resetAdminTwoFactor,
   saveSetting,
   setAdminUserActive,
+  signOutOwnOtherSessions,
   unlockAdminUser,
   updateAdminUser,
   verifyAdminSecondFactor,
@@ -433,6 +436,61 @@ describe.skipIf(!adminUrl || !redisUrl)('admin users (integration)', () => {
       .from(adminSessions)
       .where(eq(adminSessions.userId, userId));
     expect(left.map((s) => s.tokenHash)).toEqual(['keep-me']);
+  });
+
+  it('signing out the own other sessions keeps the current admin and shop session', async () => {
+    const userId = await makeUser('others@example.org');
+    const otherUserId = await makeUser('bystander@example.org');
+    const later = new Date(Date.now() + 3_600_000);
+    await handle.db.insert(adminSessions).values([
+      { tokenHash: 'own-current', userId, expiresAt: later },
+      { tokenHash: 'own-phone', userId, expiresAt: later },
+      { tokenHash: 'own-laptop', userId, expiresAt: later },
+      { tokenHash: 'bystander', userId: otherUserId, expiresAt: later },
+    ]);
+    const [customer] = await handle.db
+      .insert(customers)
+      .values({ email: 'others@example.org', firstName: 'Own', lastName: 'Admin' })
+      .returning({ id: customers.id });
+    await handle.db.insert(customerSessions).values([
+      {
+        tokenHash: 'shop-current',
+        customerId: customer!.id,
+        linkedAdminUserId: userId,
+        expiresAt: later,
+      },
+      {
+        tokenHash: 'shop-phone',
+        customerId: customer!.id,
+        linkedAdminUserId: userId,
+        expiresAt: later,
+      },
+      { tokenHash: 'shop-own', customerId: customer!.id, expiresAt: later },
+    ]);
+
+    await expectCode(signOutOwnOtherSessions(ctx, { userId }, ''), 'VALIDATION');
+    expect(await signOutOwnOtherSessions(ctx, { userId }, 'own-current', 'shop-current')).toBe(2);
+
+    const admins = await handle.db
+      .select({ tokenHash: adminSessions.tokenHash })
+      .from(adminSessions)
+      .where(sql`${adminSessions.userId} IN (${userId}, ${otherUserId})`)
+      .orderBy(asc(adminSessions.tokenHash));
+    expect(admins.map((s) => s.tokenHash)).toEqual(['bystander', 'own-current']);
+    const shop = await handle.db
+      .select({ tokenHash: customerSessions.tokenHash })
+      .from(customerSessions)
+      .where(eq(customerSessions.customerId, customer!.id))
+      .orderBy(asc(customerSessions.tokenHash));
+    // The customer's own (not admin-linked) session is not touched.
+    expect(shop.map((s) => s.tokenHash)).toEqual(['shop-current', 'shop-own']);
+    const [audit] = await handle.db
+      .select({ changes: auditLogs.changes })
+      .from(auditLogs)
+      .where(
+        sql`${auditLogs.action} = 'admin_user.sessions_revoked' AND ${auditLogs.entityId} = ${userId}`,
+      );
+    expect(audit?.changes).toEqual({ sessions: 2, keptCurrent: true });
   });
 
   it('never lets the last active super admin go, even concurrently', async () => {

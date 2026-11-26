@@ -6,6 +6,7 @@ import {
   customers,
   events,
   loadRootEnv,
+  mediaAssets,
   orderItems,
   orders,
   priceCategories,
@@ -309,6 +310,9 @@ describe.skipIf(!adminUrl || !redisUrl)('wallet passes (integration)', () => {
       iconAssetId: null,
       stripAssetId: null,
       heroAssetId: null,
+      googleLogoAssetId: null,
+      googleHeroAssetId: null,
+      googleWideLogoAssetId: null,
     });
     expect((await resolveWalletDesign(ctx, null)).backgroundColor).toBe('#AA0000');
     const changed = await ensureApplePass(ctx, ticketIds[0]!);
@@ -376,6 +380,67 @@ describe.skipIf(!adminUrl || !redisUrl)('wallet passes (integration)', () => {
     const before = calls.length;
     await ensureGoogleSaveUrl(ctx, ticketIds[0]!, fakeFetch);
     expect(calls.length).toBe(before); // unchanged payloads are not re-sent
+
+    // Dedicated Google images in the design are sent with the class (public kinds only).
+    const media = async (kind: 'LOGO' | 'EVENT_IMAGE' | 'WALLET_IMAGE') => {
+      const [row] = await handle.db
+        .insert(mediaAssets)
+        .values({
+          kind,
+          bucket: 'assets',
+          objectKey: `media/${kind.toLowerCase()}/${randomUUID()}.png`,
+          fileName: 'img.png',
+          mimeType: 'image/png',
+          sizeBytes: 5,
+          sha256: randomUUID(),
+        })
+        .returning();
+      return row!.id;
+    };
+    const gLogo = await media('LOGO');
+    const gHero = await media('EVENT_IMAGE');
+    const gWide = await media('LOGO');
+    const baseDesign = {
+      backgroundColor: '#AA0000',
+      foregroundColor: '#FFFFFF',
+      labelColor: '#EEEEEE',
+      logoText: null,
+      description: null,
+      logoAssetId: null,
+      iconAssetId: null,
+      stripAssetId: null,
+      heroAssetId: null,
+    };
+    await saveWalletPassDesign(handle.db, null, {
+      ...baseDesign,
+      googleLogoAssetId: gLogo,
+      googleHeroAssetId: gHero,
+      googleWideLogoAssetId: gWide,
+    });
+    const lastClassBody = () =>
+      [...calls].reverse().find((c) => c.method !== 'GET' && /\/eventTicketClass/.test(c.url))
+        ?.body;
+    const withImages = calls.length;
+    await ensureGoogleSaveUrl(ctx, ticketIds[0]!, fakeFetch);
+    expect(calls.length).toBeGreaterThan(withImages); // changed class is synced again
+    expect(lastClassBody()).toMatchObject({
+      logo: { sourceUri: { uri: `https://shop.example/api/media/${gLogo}` } },
+      heroImage: { sourceUri: { uri: `https://shop.example/api/media/${gHero}` } },
+      wideLogo: { sourceUri: { uri: `https://shop.example/api/media/${gWide}` } },
+    });
+
+    // A private image is never handed to Google (falls back; no shop logo / cover here).
+    await saveWalletPassDesign(handle.db, null, {
+      ...baseDesign,
+      googleLogoAssetId: await media('WALLET_IMAGE'),
+      googleHeroAssetId: null,
+      googleWideLogoAssetId: null,
+    });
+    await ensureGoogleSaveUrl(ctx, ticketIds[0]!, fakeFetch);
+    const fallback = lastClassBody();
+    expect(fallback.logo).toBeUndefined();
+    expect(fallback.wideLogo).toBeUndefined();
+    expect(fallback.heroImage).toBeUndefined();
 
     expect((await checkGoogleWalletConfiguration(ctx, fakeFetch)).ok).toBe(true);
 

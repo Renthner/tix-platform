@@ -2204,6 +2204,98 @@ Es tut uns sehr leid für die Umstände.
 ${COMMON.de.regardsText}`,
     }),
   },
+
+  CUSTOMER_EMAIL_CHANGED_ORDERS: {
+    en: () => ({
+      subject: 'Your e-mail address was changed',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'your e-mail address with us was changed from {{previousEmail}} to <strong>{{email}}</strong>. Your current orders were moved to this address as well: from now on all messages about them, including tickets, are sent here.',
+        ),
+        '{{movedOrders}}',
+        paragraph(
+          `<span style="${MUTED}">Earlier links to these orders no longer work – please use the links above.</span>`,
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+your e-mail address with us was changed from {{previousEmail}} to {{email}}. Your current orders were moved to this address as well: from now on all messages about them, including tickets, are sent here.
+
+{{movedOrders}}
+
+Earlier links to these orders no longer work – please use the links above.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Deine E-Mail-Adresse wurde geändert',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'deine E-Mail-Adresse bei uns wurde von {{previousEmail}} auf <strong>{{email}}</strong> geändert. Deine aktuellen Bestellungen wurden ebenfalls auf diese Adresse umgestellt: Ab jetzt gehen alle Nachrichten dazu, auch die Tickets, an diese Adresse.',
+        ),
+        '{{movedOrders}}',
+        paragraph(
+          `<span style="${MUTED}">Frühere Links zu diesen Bestellungen funktionieren nicht mehr – bitte nutze die Links oben.</span>`,
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+deine E-Mail-Adresse bei uns wurde von {{previousEmail}} auf {{email}} geändert. Deine aktuellen Bestellungen wurden ebenfalls auf diese Adresse umgestellt: Ab jetzt gehen alle Nachrichten dazu, auch die Tickets, an diese Adresse.
+
+{{movedOrders}}
+
+Frühere Links zu diesen Bestellungen funktionieren nicht mehr – bitte nutze die Links oben.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
+
+  CUSTOMER_EMAIL_CHANGED_OLD: {
+    en: () => ({
+      subject: 'Your e-mail address was changed',
+      html: [
+        paragraph(COMMON.en.hello),
+        paragraph(
+          'the e-mail address we have on file for you was changed from this address to a different one. The following orders were moved along: <strong>{{movedOrderNumbers}}</strong>. You will not receive messages about them here any more, and earlier links to them no longer work.',
+        ),
+        paragraph(
+          'If you did not expect this, please reply to this e-mail or contact us right away.',
+        ),
+        paragraph(COMMON.en.regards),
+      ].join('\n'),
+      text: `Hello{{#if firstName}} {{firstName}}{{/if}},
+
+the e-mail address we have on file for you was changed from this address to a different one. The following orders were moved along: {{movedOrderNumbers}}. You will not receive messages about them here any more, and earlier links to them no longer work.
+
+If you did not expect this, please reply to this e-mail or contact us right away.
+
+${COMMON.en.regardsText}`,
+    }),
+    de: () => ({
+      subject: 'Deine E-Mail-Adresse wurde geändert',
+      html: [
+        paragraph(COMMON.de.hello),
+        paragraph(
+          'die bei uns hinterlegte E-Mail-Adresse wurde von dieser Adresse auf eine andere geändert. Folgende Bestellungen wurden mit umgestellt: <strong>{{movedOrderNumbers}}</strong>. Du erhältst hier keine Nachrichten zu ihnen mehr, und frühere Links dazu funktionieren nicht mehr.',
+        ),
+        paragraph(
+          'Falls du damit nicht gerechnet hast, antworte bitte auf diese E-Mail oder melde dich sofort bei uns.',
+        ),
+        paragraph(COMMON.de.regards),
+      ].join('\n'),
+      text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
+
+die bei uns hinterlegte E-Mail-Adresse wurde von dieser Adresse auf eine andere geändert. Folgende Bestellungen wurden mit umgestellt: {{movedOrderNumbers}}. Du erhältst hier keine Nachrichten zu ihnen mehr, und frühere Links dazu funktionieren nicht mehr.
+
+Falls du damit nicht gerechnet hast, antworte bitte auf diese E-Mail oder melde dich sofort bei uns.
+
+${COMMON.de.regardsText}`,
+    }),
+  },
 };
 
 const LOCALES: readonly Locale[] = ['en', 'de'];

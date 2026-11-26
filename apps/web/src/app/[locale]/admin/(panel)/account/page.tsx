@@ -26,6 +26,7 @@ export default async function AccountPage() {
           { id: 'profile', label: t('profile.title') },
           { id: 'alerts', label: ta('account.title') },
           { id: 'password', label: t('password.title') },
+          { id: 'sessions', label: t('sessions.title') },
         ]),
   ];
   return (

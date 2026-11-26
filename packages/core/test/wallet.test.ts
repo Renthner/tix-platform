@@ -5,6 +5,7 @@ import {
   buildApplePassJson,
   buildGoogleClass,
   buildGoogleObject,
+  pickGoogleImages,
   buildSaveUrl,
   isoWithOffset,
   packPkpass,
@@ -68,6 +69,9 @@ const design: ResolvedWalletDesign = {
   iconAssetId: null,
   stripAssetId: null,
   heroAssetId: null,
+  googleLogoAssetId: null,
+  googleHeroAssetId: null,
+  googleWideLogoAssetId: null,
   sources: [],
 };
 
@@ -251,7 +255,7 @@ describe('Google Wallet payloads', () => {
       gConfig,
       data,
       design,
-      { logo: null, hero: 'https://x/h' },
+      { logo: null, hero: 'https://x/h', wideLogo: null },
       'en',
     ) as any;
     expect(cls.id).toBe(`${gConfig.issuerId}.tix_${data.eventId}`);
@@ -267,7 +271,13 @@ describe('Google Wallet payloads', () => {
     expect(cls.customSeatLabel.translatedValues[0].value).toBe('Platz');
     expect(cls.customSectionLabel.translatedValues[0].value).toBe('Block');
     expect(cls.customGateLabel.translatedValues[0].value).toBe('Eingang');
-    const de = buildGoogleClass(gConfig, data, design, { logo: null, hero: null }, 'de') as any;
+    const de = buildGoogleClass(
+      gConfig,
+      data,
+      design,
+      { logo: null, hero: null, wideLogo: null },
+      'de',
+    ) as any;
     expect(de.customRowLabel.defaultValue).toEqual({ language: 'de', value: 'Reihe' });
     expect(de.customRowLabel.translatedValues).toEqual([{ language: 'en', value: 'Row' }]);
 
@@ -282,6 +292,54 @@ describe('Google Wallet payloads', () => {
     expect(obj.seatInfo.section.defaultValue.value).toBe('Parkett');
     const hidden = buildGoogleObject(gConfig, ticket({ block: null })) as any;
     expect(hidden.seatInfo.section).toBeUndefined();
+  });
+
+  it('picks Google images: design first, then shop logo / event cover; wide logo only from the design', () => {
+    const fallbacks = { shopLogo: 'https://s/logo', eventCover: 'https://s/cover' };
+    expect(
+      pickGoogleImages({ designLogo: null, designHero: null, designWideLogo: null, ...fallbacks }),
+    ).toEqual({ logo: 'https://s/logo', hero: 'https://s/cover', wideLogo: null });
+    expect(
+      pickGoogleImages({
+        designLogo: 'https://s/g-logo',
+        designHero: 'https://s/g-hero',
+        designWideLogo: 'https://s/g-wide',
+        ...fallbacks,
+      }),
+    ).toEqual({ logo: 'https://s/g-logo', hero: 'https://s/g-hero', wideLogo: 'https://s/g-wide' });
+    expect(
+      pickGoogleImages({
+        designLogo: null,
+        designHero: null,
+        designWideLogo: null,
+        shopLogo: null,
+        eventCover: null,
+      }),
+    ).toEqual({ logo: null, hero: null, wideLogo: null });
+  });
+
+  it('puts the Google images into the class only when set', () => {
+    const data = ticket();
+    const none = buildGoogleClass(
+      gConfig,
+      data,
+      design,
+      { logo: null, hero: null, wideLogo: null },
+      'en',
+    ) as any;
+    expect(none.logo).toBeUndefined();
+    expect(none.heroImage).toBeUndefined();
+    expect(none.wideLogo).toBeUndefined();
+    const all = buildGoogleClass(
+      gConfig,
+      data,
+      design,
+      { logo: 'https://x/l', hero: 'https://x/h', wideLogo: 'https://x/w' },
+      'en',
+    ) as any;
+    expect(all.logo).toEqual({ sourceUri: { uri: 'https://x/l' } });
+    expect(all.heroImage).toEqual({ sourceUri: { uri: 'https://x/h' } });
+    expect(all.wideLogo).toEqual({ sourceUri: { uri: 'https://x/w' } });
   });
 
   it('parses service account keys and formats offsets', () => {
@@ -300,10 +358,13 @@ describe('Google Wallet payloads', () => {
 
   describe('Google class sync (restart scenario)', () => {
     const body = () =>
-      buildGoogleClass(gConfig, ticket(), design, { logo: null, hero: null }, 'en') as Record<
-        string,
-        unknown
-      >;
+      buildGoogleClass(
+        gConfig,
+        ticket(),
+        design,
+        { logo: null, hero: null, wideLogo: null },
+        'en',
+      ) as Record<string, unknown>;
     const harness = (existing: { status: number; json?: unknown }) => {
       const calls: { method: string; body?: any }[] = [];
       const fake = async (url: string, init?: RequestInit) => {
@@ -357,6 +418,21 @@ describe('Google Wallet payloads', () => {
       });
       await ensureClass(gConfig, fake, 'cls-changed', body());
       expect(calls.map((c) => c.method)).toEqual(['GET', 'PATCH']);
+      expect(calls[1]!.body.reviewStatus).toBe('UNDER_REVIEW');
+    });
+
+    it('replaces the class (PUT) when an image was removed from the design', async () => {
+      const { calls, fake } = harness({
+        status: 200,
+        json: {
+          ...body(),
+          reviewStatus: 'APPROVED',
+          heroImage: { sourceUri: { uri: 'https://shop.example/api/media/old' } },
+        },
+      });
+      await ensureClass(gConfig, fake, 'cls-image-removed', body());
+      expect(calls.map((c) => c.method)).toEqual(['GET', 'PUT']);
+      expect(calls[1]!.body.heroImage).toBeUndefined();
       expect(calls[1]!.body.reviewStatus).toBe('UNDER_REVIEW');
     });
 

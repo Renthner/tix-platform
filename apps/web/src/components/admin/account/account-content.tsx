@@ -1,4 +1,5 @@
 import {
+  getAdminUserActivity,
   getOwnAccount,
   getOwnAlertPreferences,
   getSetting,
@@ -23,6 +24,7 @@ import {
   disableTwoFactorAction,
   regenerateRecoveryCodesAction,
   sendEmailVerificationAction,
+  signOutOtherSessionsAction,
   startTwoFactorSetupAction,
   updateProfileAction,
 } from '@/server/admin/account';
@@ -31,6 +33,7 @@ import {
   EmailVerifyForm,
   PasswordForm,
   ProfileForm,
+  SessionsForm,
   TwoFactorPanel,
 } from './account-forms';
 import { PasskeyPanel } from './passkey-panel';
@@ -44,13 +47,14 @@ export async function AccountContent({
   setupRequired: boolean;
 }) {
   const core = getCore();
-  const [t, account, security, alertPrefs, alertSettings, passkeys] = await Promise.all([
+  const [t, account, security, alertPrefs, alertSettings, passkeys, activity] = await Promise.all([
     getTranslations('adminSecurity.account'),
     getOwnAccount(core, userId),
     getSetting(core, 'security'),
     getOwnAlertPreferences(core, userId),
     getSetting(core, 'alerts'),
     listOwnPasskeys(core, userId),
+    getAdminUserActivity(core, userId),
   ]);
   const ta = await getTranslations('system.alerts');
   return (
@@ -148,6 +152,16 @@ export async function AccountContent({
             description={t('password.description')}
           >
             <PasswordForm action={changePasswordAction} minLength={security.minPasswordLength} />
+          </SettingsSection>
+          <SettingsSection
+            id="sessions"
+            title={t('sessions.title')}
+            description={t('sessions.description')}
+          >
+            <SessionsForm
+              action={signOutOtherSessionsAction}
+              activeSessions={activity.activeSessions}
+            />
           </SettingsSection>
         </>
       )}

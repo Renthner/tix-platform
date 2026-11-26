@@ -151,6 +151,14 @@
     "EVENT_CANCELLED_HOLDER": {
       "name": "Veranstaltung abgesagt (Empfänger)",
       "description": "Geht bei einer Absage an den Inhaber eines weitergegebenen Tickets: Das Ticket ist ungültig, das Geld geht an den ursprünglichen Käufer – die Erstattung klärt der Inhaber direkt mit ihm. Enthält keine Bestell- oder Käuferdaten."
+    },
+    "CUSTOMER_EMAIL_CHANGED_ORDERS": {
+      "name": "Kunden-E-Mail geändert, Bestellungen umgestellt (neue Adresse)",
+      "description": "Geht einmal an die neue Adresse, wenn ein Admin die E-Mail-Adresse eines Kunden ändert und die Bestellungen mit umstellt. Listet die umgestellten Bestellungen mit ihren neuen Links."
+    },
+    "CUSTOMER_EMAIL_CHANGED_OLD": {
+      "name": "Kunden-E-Mail geändert (alte Adresse)",
+      "description": "Hinweis an die bisherige Adresse, wenn die Bestellungen mit umgestellt wurden. Enthält nur die Bestellnummern – keine Links und nicht die neue Adresse."
     }
   },
   "page": {

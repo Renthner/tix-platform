@@ -1944,14 +1944,24 @@
       "logoTextHint": "Wird bei Apple-Pässen neben dem Logo angezeigt. Optional.",
       "descriptionField": "Beschreibung für Barrierefreiheit",
       "descriptionHint": "Kurzbeschreibung für Screenreader; Standard ist der Veranstaltungstitel.",
-      "imagesHint": "Apple Wallet akzeptiert nur PNG-Bilder; andere Formate werden ignoriert. Ohne Icon wird ein neutrales Quadrat in der Hintergrundfarbe erzeugt. Google-Pässe verwenden stattdessen Veranstaltungsbild und Shop-Logo.",
+      "imagesHint": "Apple und Google Wallet brauchen Bilder in unterschiedlichen Formaten, daher gibt es für beide eigene Felder. Alle Bilder sind optional.",
       "images": {
+        "appleTitle": "Apple Wallet",
+        "appleHint": "Apple Wallet akzeptiert nur PNG-Bilder. Ohne Icon wird ein neutrales Quadrat in der Hintergrundfarbe erzeugt.",
         "logo": "Logo",
         "logoHint": "PNG, z. B. 160 x 50 px (dient auch als Icon, wenn keines gesetzt ist).",
         "icon": "Icon",
         "iconHint": "PNG, 58 x 58 px oder größer (Sperrbildschirm).",
         "strip": "Streifenbild",
-        "stripHint": "PNG, z. B. 750 x 196 px, Banner hinter dem Veranstaltungstitel."
+        "stripHint": "PNG, z. B. 750 x 196 px, Banner hinter dem Veranstaltungstitel.",
+        "googleTitle": "Google Wallet",
+        "googleHint": "Google lädt diese Bilder über die öffentliche Shop-Adresse herunter, sie sind daher öffentlich abrufbar. Google zeigt sie nur an, wenn der Shop unter einer https-Adresse läuft.",
+        "googleLogo": "Logo",
+        "googleLogoHint": "Quadratisch, mindestens 660 x 660 px; wird rund angezeigt. Leer = Shop-Logo.",
+        "googleHero": "Bannerbild",
+        "googleHeroHint": "Breites Banner, empfohlen 1032 x 336 px. Leer = Titelbild der Veranstaltung.",
+        "googleWideLogo": "Breites Logo",
+        "googleWideLogoHint": "Schriftzug, empfohlen 1280 x 400 px; ersetzt im Kopf des Passes das runde Logo. Leer = keins."
       }
     }
   },

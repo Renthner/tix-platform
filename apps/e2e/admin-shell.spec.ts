@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openOrderAction } from './helpers';
+import { ADMIN_EMAIL, ADMIN_PASSWORD, openOrderAction } from './helpers';
 
 // Admin shell: sidebar sections, hub pages, search palette, notification bell (admin session).
 
@@ -601,6 +601,63 @@ test('order page: a dialog from the actions menu closes with Escape and returns 
     'aria-selected',
     'true',
   );
+});
+
+test('user page: "Sign out everywhere" is offered for another admin without sessions', async ({
+  page,
+}) => {
+  // Seeded by scripts/e2e/run.mjs; never signed in, so it has no active session.
+  await page.goto('/admin/users');
+  await page.locator('a[href^="/admin/users/"]', { hasText: 'E2E Staff' }).first().click();
+  await page.waitForURL(/\/admin\/users\/[0-9a-f-]{36}$/);
+  await page.getByTestId('user-actions').click();
+  await page.getByTestId('user-sign-out-all').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('End all sessions of this user?');
+  await dialog.getByRole('button', { name: 'Sign out everywhere' }).click();
+  await expect(page.getByText('All sessions of this user ended.')).toBeVisible();
+
+  // Never for the own account: that has "Sign out on all other devices" on the account page.
+  await page.goto('/admin/users');
+  await page.locator('a[href^="/admin/users/"]', { hasText: 'E2E Admin' }).first().click();
+  await page.waitForURL(/\/admin\/users\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'E2E Admin' })).toBeVisible();
+  // The own account may have no menu at all (no 2FA): open it only when it is there.
+  if ((await page.getByTestId('user-actions').count()) > 0) {
+    await page.getByTestId('user-actions').click();
+    await expect(page.getByRole('menu')).toBeVisible();
+  }
+  await expect(page.getByTestId('user-sign-out-all')).toHaveCount(0);
+});
+
+test('account page: "Sign out on all other devices" keeps this session', async ({
+  page,
+  browser,
+}) => {
+  // A second sign-in of the same admin (counts once against the sign-in rate limit).
+  const other = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  try {
+    const otherPage = await other.newPage();
+    await otherPage.goto('/admin/login');
+    await otherPage.locator('input[type=email]').fill(ADMIN_EMAIL);
+    await otherPage.locator('input[type=password]').fill(ADMIN_PASSWORD);
+    await otherPage.locator('button[type=submit]').click();
+    await otherPage.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 30_000 });
+
+    await page.goto('/admin/account');
+    const section = page.locator('#sessions');
+    await expect(section.getByRole('heading', { name: 'Sessions' })).toBeVisible();
+    await section.getByTestId('account-sign-out-others').click();
+    await expect(page.getByText('Signed out on all other devices.')).toBeVisible();
+
+    // The other browser is signed out, this one still works.
+    await otherPage.goto('/admin/account');
+    await otherPage.waitForURL(/\/admin\/login/);
+    await page.reload();
+    await expect(page.locator('#sessions')).toBeVisible();
+  } finally {
+    await other.close();
+  }
 });
 
 test('data retention lives in the settings', async ({ page }) => {

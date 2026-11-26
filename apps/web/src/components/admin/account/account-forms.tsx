@@ -81,6 +81,30 @@ export function EmailVerifyForm({
   );
 }
 
+/** Ends the own sessions on all other devices; this browser stays signed in. */
+export function SessionsForm({
+  action,
+  activeSessions,
+}: {
+  action: Action;
+  activeSessions: number;
+}) {
+  const t = useTranslations('adminSecurity.account.sessions');
+  const [state, formAction] = useActionState(action, SECURITY_IDLE);
+  useSuccessToast(state);
+  return (
+    <ActionForm action={formAction} className="max-w-md space-y-4">
+      <ErrorAlert state={state} />
+      <p className="text-sm" data-testid="account-active-sessions">
+        {t('active', { count: activeSessions })}
+      </p>
+      <SubmitButton variant="outline" data-testid="account-sign-out-others">
+        {t('signOutOthers')}
+      </SubmitButton>
+    </ActionForm>
+  );
+}
+
 export function PasswordForm({ action, minLength }: { action: Action; minLength: number }) {
   const t = useTranslations('adminSecurity.account.password');
   const [state, formAction] = useActionState(action, SECURITY_IDLE);

@@ -254,6 +254,20 @@ const BY_KEY: Record<EmailTemplateKey, readonly EmailVariableInfo[]> = {
     ...EMAIL_CHANGE,
   ],
   EVENT_CANCELLED_HOLDER: [...SHOP, ...EVENT_HOLDER_CANCELLED],
+  CUSTOMER_EMAIL_CHANGED_ORDERS: [
+    ...SHOP,
+    ...CUSTOMER,
+    ...EMAIL_CHANGE,
+    ...names('order', ['movedOrderCount']),
+    ...names('order', ['movedOrders'], 'html'),
+  ],
+  // Like ORDER_EMAIL_CHANGED_OLD: no order links and never the new address.
+  CUSTOMER_EMAIL_CHANGED_OLD: [
+    ...SHOP,
+    ...names('customer', ['firstName']),
+    ...EMAIL_CHANGE,
+    ...names('order', ['movedOrderCount', 'movedOrderNumbers']),
+  ],
 };
 
 /** Variables a template of this key can use (de-duplicated, in display order). */

@@ -19,14 +19,17 @@ import {
   requestAdminEmailVerification,
   resetOwnAlertPreferences,
   saveOwnAlertPreferences,
+  signOutOwnOtherSessions,
   updateOwnProfile,
 } from '@tix/core';
 import { SUPPORTED_LOCALES, type AppLocale } from '@tix/shared';
+import { hashToken } from '@tix/shared/server';
 import { getLocale } from 'next-intl/server';
 import { revalidatePath } from 'next/cache';
 import type { SecurityState } from '@/lib/security-state';
 import { currentAdminTokenHash, requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
+import { readCustomerSessionToken } from '@/server/customer-session';
 import { clientIp, enforceRateLimit } from '@/server/http';
 import { fail, guarded, ok } from '@/server/security-action';
 
@@ -183,6 +186,29 @@ export async function resetAlertPreferencesAction(
     await resetOwnAlertPreferences(getCore(), actor);
     return ok({ message: 'alertsReset' });
   });
+}
+
+/** Ends the own sessions on all other devices; this browser stays signed in (admin + shop). */
+export async function signOutOtherSessionsAction(
+  _prev: SecurityState,
+  _fd: FormData,
+): Promise<SecurityState> {
+  const { actor } = await account();
+  if (await limited(actor.userId)) return fail('RATE_LIMITED');
+  const bind = await currentAdminTokenHash();
+  if (!bind) return fail('GENERIC');
+  const customerToken = await readCustomerSessionToken();
+  const result = await guarded(async () => {
+    await signOutOwnOtherSessions(
+      getCore(),
+      actor,
+      bind,
+      customerToken ? hashToken(customerToken) : null,
+    );
+    return ok({ message: 'signedOutOtherSessions' });
+  });
+  revalidatePath('/', 'layout');
+  return result;
 }
 
 // ─── Passkeys ─────────────────────────────────────────────────────────────────────────

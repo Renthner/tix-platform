@@ -160,6 +160,12 @@ export const EMAIL_VARIABLES = {
   ],
   /** ORDER_MESSAGE / EVENT_MESSAGE (free text, `messageBody` is built at render time) and the e-mail change notices. */
   message: ['messageSubject', 'messageBody', 'previousEmail'],
+  /**
+   * CUSTOMER_EMAIL_CHANGED_ORDERS / _OLD (customer e-mail changed, orders moved along):
+   * `movedOrders` is the list of moved orders with their CURRENT order links, built at render time
+   * from the stored order ids (new address only); `movedOrderNumbers` the plain order numbers.
+   */
+  customerEmailChange: ['movedOrders', 'movedOrderCount', 'movedOrderNumbers'],
   /** ADMIN_ALERT / ADMIN_ALERT_RESOLVED (warning e-mails to admins). */
   alert: ['firstName', 'alertTitle', 'alertSummary', 'alertSince', 'alertUrl'],
   /** ADMIN_PASSKEY_ADDED (security notice to the admin who registered a passkey). */

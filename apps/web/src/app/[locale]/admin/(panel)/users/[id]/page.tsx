@@ -49,7 +49,6 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
             hasTwoFactor={user.twoFactorEnabled}
             locked={Boolean(user.lockedUntil && user.lockedUntil > now)}
             self={user.id === session.userId}
-            activeSessions={activity.activeSessions}
             run={userOperationAction}
           />
         }

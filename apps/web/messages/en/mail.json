@@ -221,5 +221,9 @@
     "doors": "Doors open {time}",
     "organizer": "Organiser: {name}",
     "eventPage": "Event page"
+  },
+  "movedOrders": {
+    "order": "Order {number}",
+    "viewOrder": "View order"
   }
 }

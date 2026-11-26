@@ -212,6 +212,10 @@ ON CONFLICT DO NOTHING;
 INSERT INTO customers (email, first_name, last_name)
 SELECT 'pager' || n || '@example.org', 'Pager', 'Customer' || lpad(n::text, 2, '0')
 FROM generate_series(1, 30) AS n
+ON CONFLICT DO NOTHING;
+-- A second (never signed-in) admin for the user detail page actions (apps/e2e/admin-shell.spec.ts).
+INSERT INTO admin_users (email, display_name, roles, password_hash)
+VALUES ('e2e-staff@example.org', 'E2E Staff', ARRAY['DOOR_STAFF']::admin_role[], 'not-a-password-hash')
 ON CONFLICT DO NOTHING;`;
     compose([
       'exec',

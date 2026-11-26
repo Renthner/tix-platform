@@ -25,7 +25,7 @@
     "firstName": "First name",
     "lastName": "Last name",
     "email": "E-mail",
-    "emailHint": "Changing the e-mail of an account un-verifies it and signs the customer out. Past orders keep their own buyer data.",
+    "emailHint": "Changing the e-mail of an account un-verifies it and signs the customer out. Orders keep their own buyer data unless you move them along.",
     "company": "Company",
     "phone": "Phone",
     "locale": "Language",
@@ -38,6 +38,8 @@
     "countryHint": "2-letter code, e.g. DE",
     "addressHint": "Leave all address fields empty to store no address.",
     "invalid": "Please check the highlighted fields (a postal address needs street, postal code, city and country).",
+    "moveOrders": "Also move the orders to the new address",
+    "moveOrdersHint": "Current orders (not cancelled, event not yet over) get the new address; their old links stop working. The customer gets one summary at the new address and one notice at the old address.",
     "save": "Save profile"
   },
   "account": {
@@ -107,6 +109,7 @@
   },
   "messages": {
     "saved": "Profile saved.",
+    "savedMovedOrders": "Profile saved. {count, plural, =0 {No current orders had to be moved.} one {# order was moved to the new address.} other {# orders were moved to the new address.}}",
     "verificationSent": "Verification e-mail sent.",
     "alreadyVerified": "The e-mail address is already verified.",
     "passwordResetSent": "Password reset link sent.",

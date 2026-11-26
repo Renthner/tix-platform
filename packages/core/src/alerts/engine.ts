@@ -10,12 +10,14 @@ import { and, asc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { CoreContext } from '../context';
 import { createEmailMessage, dispatchEmailMessage } from '../email/request';
 import { formatDateTime } from '../format';
-import { mailTranslator } from '../i18n/mail-messages';
 import { coreLog } from '../log';
 import { getSetting } from '../settings';
 import { latestScheduledSlot } from '../backup/schedule';
 import { type AlertDetails, type AlertFinding, type AlertSettings } from './checks';
 import { ALERT_TEMPLATE_KEYS, collectFindings, type CollectDeps } from './collect';
+import { alertText } from './text';
+
+export { alertText, type AlertText } from './text';
 
 const HOUR_MS = 3_600_000;
 /** A "resolved" mail that could not go out (rate limit) is retried for this long. */
@@ -102,31 +104,6 @@ function adminLink(ctx: CoreContext, locale: string, type: AdminAlertType, varia
       ? 'settings/payments'
       : ADMIN_PAGE[type];
   return `${ctx.appUrl.replace(/\/+$/, '')}/${locale}/admin/${page}`;
-}
-
-export interface AlertText {
-  title: string;
-  summary: string;
-}
-
-/** Title and one-paragraph summary of an alert in the given language (texts: `mail.json` → `alerts`). */
-export function alertText(
-  type: AdminAlertType,
-  details: AlertDetails,
-  locale: string,
-  timeZone: string,
-): AlertText {
-  const t = mailTranslator(locale);
-  const variant = typeof details.variant === 'string' ? details.variant : 'default';
-  const params: Record<string, string | number | null> = { ...details };
-  if (typeof details.lastBackup === 'string') {
-    params.lastBackup = formatDateTime(new Date(details.lastBackup), locale, timeZone, 'long');
-  }
-  for (const [name, value] of Object.entries(params)) if (value === null) params[name] = '–';
-  return {
-    title: t(`alerts.${type}.${variant}.title`, params),
-    summary: t(`alerts.${type}.${variant}.summary`, params),
-  };
 }
 
 async function mailsInLastHour(ctx: CoreContext, now: Date): Promise<number> {

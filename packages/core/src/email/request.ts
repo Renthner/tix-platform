@@ -175,17 +175,39 @@ export async function createEmailMessage(
 /** `last_error` of order mails retired because the order's e-mail address was changed. */
 export const ORDER_EMAIL_OBSOLETE_ERROR = 'obsolete: the e-mail address of the order was changed';
 
+/** `last_error` of customer e-mail change summaries retired because the address changed again. */
+export const CUSTOMER_EMAIL_OBSOLETE_ERROR =
+  'obsolete: the e-mail address of the customer was changed';
+
 /**
  * True when an order-bound message is addressed to a different address than the order's current
  * e-mail (changed by an admin since it was queued). Such a mail would render the order link of the
  * NEW token version to the OLD recipient. The notice to the old address (`ORDER_EMAIL_CHANGED_OLD`)
  * deliberately goes there and is never outdated; messages without an order or whose order is gone
  * are not affected.
+ *
+ * Also true for the summary `CUSTOMER_EMAIL_CHANGED_ORDERS` (customer-level, no order) when the
+ * customer's address was changed again since: it lists order links and names the address.
  */
 export async function isOrderRecipientOutdated(
   db: Executor,
-  message: { orderId: string | null; templateKey: string | null; toEmail: string },
+  message: {
+    orderId: string | null;
+    templateKey: string | null;
+    toEmail: string;
+    attachments?: unknown;
+  },
 ): Promise<boolean> {
+  if (message.templateKey === 'CUSTOMER_EMAIL_CHANGED_ORDERS') {
+    const customerId = parseStoredEmailRequest(message.attachments).customerId;
+    if (!customerId) return false;
+    const [customer] = await db
+      .select({ email: customers.email })
+      .from(customers)
+      .where(eq(customers.id, customerId));
+    if (!customer) return false;
+    return customer.email.trim().toLowerCase() !== message.toEmail.trim().toLowerCase();
+  }
   if (!message.orderId || message.templateKey === 'ORDER_EMAIL_CHANGED_OLD') return false;
   const [order] = await db
     .select({ email: orders.email })

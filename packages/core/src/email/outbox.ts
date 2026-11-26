@@ -65,6 +65,7 @@ export async function retryEmailMessage(ctx: CoreContext, messageId: string): Pr
       orderId: emailMessages.orderId,
       templateKey: emailMessages.templateKey,
       toEmail: emailMessages.toEmail,
+      attachments: emailMessages.attachments,
     })
     .from(emailMessages)
     .where(eq(emailMessages.id, messageId));

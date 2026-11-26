@@ -1416,3 +1416,43 @@ export async function signOutAdminUserEverywhere(
     return row?.n ?? 0;
   });
 }
+
+/**
+ * Ends the own sessions on all other devices; the current admin session (`keepSessionTokenHash`)
+ * and the shop session of the current browser (`keepCustomerTokenHash`, if it was linked to
+ * this admin) stay signed in. Shop sessions linked to this admin elsewhere end too. Audited;
+ * returns the number of admin sessions ended.
+ */
+export async function signOutOwnOtherSessions(
+  ctx: CoreContext,
+  actor: AdminActor & { userId: string },
+  keepSessionTokenHash: string,
+  keepCustomerTokenHash: string | null = null,
+): Promise<number> {
+  if (!keepSessionTokenHash) {
+    throw new DomainError('VALIDATION', 'The current session is required', 422);
+  }
+  const userId = actor.userId;
+  return withTransaction(ctx.db, async (tx) => {
+    await loadUser(tx, userId, true);
+    const ended = await tx
+      .delete(adminSessions)
+      .where(
+        and(eq(adminSessions.userId, userId), ne(adminSessions.tokenHash, keepSessionTokenHash)),
+      )
+      .returning({ id: adminSessions.tokenHash });
+    await tx
+      .delete(customerSessions)
+      .where(
+        and(
+          eq(customerSessions.linkedAdminUserId, userId),
+          keepCustomerTokenHash ? ne(customerSessions.tokenHash, keepCustomerTokenHash) : undefined,
+        ),
+      );
+    await writeAdminAudit(tx, actor, 'admin_user.sessions_revoked', userId, {
+      sessions: ended.length,
+      keptCurrent: true,
+    });
+    return ended.length;
+  });
+}

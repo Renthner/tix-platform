@@ -151,6 +151,14 @@
     "EVENT_CANCELLED_HOLDER": {
       "name": "Event cancelled (recipient)",
       "description": "Sent to the holder of a handed-over ticket when the event is cancelled: the ticket is void and the money goes to the original buyer, so the holder settles any refund with them. Contains no order or buyer data."
+    },
+    "CUSTOMER_EMAIL_CHANGED_ORDERS": {
+      "name": "Customer e-mail changed, orders moved (new address)",
+      "description": "Sent once to the new address when an admin changes a customer's e-mail address and moves the orders along. Lists the moved orders with their new links."
+    },
+    "CUSTOMER_EMAIL_CHANGED_OLD": {
+      "name": "Customer e-mail changed (old address)",
+      "description": "Notice to the previous address when the orders were moved along. Contains the order numbers only – no links and not the new address."
     }
   },
   "page": {

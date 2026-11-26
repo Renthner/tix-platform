@@ -91,7 +91,8 @@
     "passkeyAdded": "Passkey hinzugefügt.",
     "passkeyRenamed": "Passkey umbenannt.",
     "passkeyRemoved": "Passkey entfernt.",
-    "signedOutEverywhere": "Alle Sitzungen dieses Benutzers wurden beendet."
+    "signedOutEverywhere": "Alle Sitzungen dieses Benutzers wurden beendet.",
+    "signedOutOtherSessions": "Auf allen anderen Geräten abgemeldet."
   },
   "account": {
     "title": "Mein Konto",
@@ -117,6 +118,12 @@
       "hint": "Mindestens {min} Zeichen.",
       "sessionsNote": "Deine anderen Sitzungen werden bei der Änderung abgemeldet.",
       "save": "Passwort ändern"
+    },
+    "sessions": {
+      "title": "Sitzungen",
+      "description": "Gerät verloren oder an einem fremden Computer angemeldet? Beende deine Sitzungen überall sonst – dieser Browser bleibt angemeldet.",
+      "active": "{count, plural, =0 {Keine aktiven Sitzungen.} one {# aktive Sitzung (einschließlich dieser).} other {# aktive Sitzungen (einschließlich dieser).}}",
+      "signOutOthers": "Auf allen anderen Geräten abmelden"
     },
     "emailVerify": {
       "title": "E-Mail-Adresse bestätigen",
