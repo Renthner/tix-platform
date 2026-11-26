@@ -13,6 +13,7 @@ import {
   subscribeConnections,
 } from './lib/common.mjs';
 import { Diagnostics } from './lib/diag.mjs';
+import { assignEvent, emptyEventStats } from './lib/events.mjs';
 import { EndpointStats, Histogram, classifyEnter, rampOffsets } from './lib/stats.mjs';
 
 process.on('message', (msg) => {
@@ -29,7 +30,8 @@ process.on('message', (msg) => {
 let stopping = false;
 
 async function run(m) {
-  const { cfg, eventId, world, slice, plan } = m;
+  const { cfg, events, slice, plan } = m;
+  const perEvent = events.map(() => ({ ...emptyEventStats(), hotWonSeats: new Set() }));
   applyIpv4Only(cfg);
   const stats = new EndpointStats();
   const diag = new Diagnostics(m.runStart ?? Date.now());
@@ -45,7 +47,7 @@ async function run(m) {
   const fanout = new Histogram();
   const counters = {};
   const count = (k, by = 1) => (counters[k] = (counters[k] ?? 0) + by);
-  const intervals = []; // {seat,sid,from,to}
+  const intervals = []; // {seat,sid,from,to,eventIndex}
   const hotAttempts = { attempts: 0, won: 0, lost: 0 };
   const hotWon = new Set();
   // Fan-out probe: a dedicated session locks / releases its own private seats; the delta of each
@@ -93,11 +95,17 @@ async function run(m) {
 
   async function journey(vu, rand, id) {
     const base = plan.locale ? `/${plan.locale}` : '';
+    // primary event of this shopper: deterministic, by the global virtual user id
+    const ei = assignEvent(id, events.length, plan.eventWeights);
+    const ev = events[ei];
+    const { eventId, world } = ev;
+    const evStats = perEvent[ei];
+    evStats.shoppers++;
     // 1) shop pages (HTML)
     await vu.call('PAGE_HOME', 'GET', `${base}/`);
-    if (plan.eventSlug) await vu.call('PAGE_EVENT', 'GET', `${base}/events/${plan.eventSlug}`);
+    if (ev.eventSlug) await vu.call('PAGE_EVENT', 'GET', `${base}/events/${ev.eventSlug}`);
     // 2) enter the shop / waiting room
-    if (!(await enter(vu, rand))) return;
+    if (!(await enter(vu, rand, eventId))) return;
     // 3) seat map + availability like the seating chart page
     await Promise.all([
       vu.call('SEATMAP', 'GET', `/api/events/${eventId}/seatmap`),
@@ -105,12 +113,14 @@ async function run(m) {
     ]);
     // 4) realtime subscription
     let socket = null;
-    if (io && rand() < plan.wsRatio) socket = await openSocket(vu);
+    if (io && rand() < plan.wsRatio) socket = await openSocket(vu, eventId);
     const held = new Map(); // seat -> interval record (open)
-    const lock = async (label, seat) => {
-      const r = await vu.call(label, 'POST', `/api/events/${eventId}/seats`, { seatIds: [seat] });
+    const lock = async (label, seat, index = ei) => {
+      const r = await vu.call(label, 'POST', `/api/events/${events[index].eventId}/seats`, {
+        seatIds: [seat],
+      });
       if (r.status === 200) {
-        held.set(seat, { seat, sid: vu.sid, from: r.wallEnd, to: Infinity });
+        held.set(seat, { seat, sid: vu.sid, from: r.wallEnd, to: Infinity, eventIndex: index });
         return true;
       }
       return false;
@@ -118,20 +128,26 @@ async function run(m) {
     // 5) contention on the hot seats
     for (const seat of shuffle(rand, world.hotSeats).slice(0, plan.hotTries)) {
       hotAttempts.attempts++;
+      evStats.hotAttempts++;
       if (await lock('LOCK_HOT', seat)) {
         hotAttempts.won++;
+        evStats.hotWon++;
         hotWon.add(seat);
+        evStats.hotWonSeats.add(seat);
         break;
       }
       hotAttempts.lost++;
+      evStats.hotLost++;
       await sleep(50 + rand() * 250);
     }
-    // 6) best available for a share of the users
-    if (rand() < plan.bestAvailableRatio && world.categories.length) {
-      const cat = pick(rand, world.categories);
+    // 6) best available for a share of the users (only categories where it can succeed: offered
+    // for the category and at least 2 plain seats in best-available blocks)
+    const baCategories = world.bestAvailableCategories ?? [];
+    if (rand() < plan.bestAvailableRatio && baCategories.length) {
+      const cat = pick(rand, baCategories);
       const r = await vu.call('BEST_AVAILABLE', 'POST', `/api/events/${eventId}/best-available`, {
         categoryId: cat.id,
-        quantity: 2 + Math.floor(rand() * 3),
+        quantity: Math.min(2 + Math.floor(rand() * 3), cat.seats),
       });
       if (r.status === 200) {
         const seatIds = r.body?.seatIds;
@@ -139,9 +155,10 @@ async function run(m) {
           // 200 without a usable body: an endpoint failure, not a crash of the journey
           stats.markFailure('BEST_AVAILABLE', 'BAD_BODY');
         } else {
+          evStats.bestAvailableOk++;
           for (const seat of seatIds) {
             // the response proves the hold; use the response time as certain start
-            held.set(seat, { seat, sid: vu.sid, from: r.wallEnd, to: Infinity });
+            held.set(seat, { seat, sid: vu.sid, from: r.wallEnd, to: Infinity, eventIndex: ei });
           }
         }
       }
@@ -149,7 +166,10 @@ async function run(m) {
     // 7) a couple of cold seats, some change their mind
     const wanted = 1 + Math.floor(rand() * 2);
     for (let got = 0, tries = 0; got < wanted && tries < 4 && world.coldSeats.length; tries++) {
-      if (await lock('LOCK_RANDOM', pick(rand, world.coldSeats))) got++;
+      if (await lock('LOCK_RANDOM', pick(rand, world.coldSeats))) {
+        got++;
+        evStats.coldLocks++;
+      }
     }
     await vu.call('CART', 'GET', '/api/cart');
     if (held.size > 1 && rand() < plan.churnRatio) {
@@ -176,9 +196,18 @@ async function run(m) {
         intervals.push(rec);
       }
     }
+    // 7b) a share of the shoppers also visits a second event and puts 1-2 seats of it into the
+    // same cart: the cart (and an order from it) then spans two events
+    let multiCart = false;
+    if (plan.multiEventRatio > 0 && events.length > 1 && rand() < plan.multiEventRatio) {
+      multiCart = await secondEvent(vu, rand, ei, held, lock, socket);
+    }
     // 8) optional checkout (dedicated copy only)
     if (plan.checkoutRatio > 0 && held.size > 0 && rand() < plan.checkoutRatio) {
-      await checkout(vu, id);
+      if (await checkout(vu, id)) {
+        evStats.checkoutsOk++;
+        if (multiCart) count('checkout_ok_multi');
+      }
     }
     // 9) hold the cart for a while (heartbeat reads like a real shopper), then leave
     const holdUntil = Math.min(deadline, Date.now() + plan.holdMs * (0.5 + rand()));
@@ -199,7 +228,37 @@ async function run(m) {
     if (socket) socket.close();
   }
 
-  async function enter(vu, rand) {
+  /**
+   * Second event of a multi-event shopper: enter it, load its chart like a browser, lock 1-2 of
+   * its cold seats. Returns true when the cart now holds seats of both events.
+   */
+  async function secondEvent(vu, rand, primary, held, lock, socket) {
+    let si = Math.floor(rand() * (events.length - 1));
+    if (si >= primary) si++;
+    const ev = events[si];
+    if (!(await enter(vu, rand, ev.eventId))) return false;
+    await Promise.all([
+      vu.call('SEATMAP', 'GET', `/api/events/${ev.eventId}/seatmap`),
+      vu.call('AVAILABILITY', 'GET', `/api/events/${ev.eventId}/availability`),
+    ]);
+    // a browser on the second chart subscribes to its seat events too (rooms add up)
+    if (socket) socket.emit('seats:subscribe', ev.eventId);
+    const primaryHeld = [...held.values()].some((rec) => rec.eventIndex === primary);
+    const wanted = 1 + Math.floor(rand() * 2);
+    let got = 0;
+    for (let tries = 0; got < wanted && tries < 4 && ev.world.coldSeats.length; tries++) {
+      if (await lock('LOCK_MULTI', pick(rand, ev.world.coldSeats), si)) {
+        got++;
+        perEvent[si].coldLocks++;
+      }
+    }
+    if (got === 0 || !primaryHeld) return false;
+    count('multi_event_carts');
+    perEvent[primary].multiEventCarts++;
+    return true;
+  }
+
+  async function enter(vu, rand, eventId) {
     let r = await vu.call('ENTER', 'POST', `/api/events/${eventId}/enter`);
     const first = classifyEnter(r);
     if (first === 'granted') return true;
@@ -225,7 +284,7 @@ async function run(m) {
     return false;
   }
 
-  async function openSocket(vu) {
+  async function openSocket(vu, eventId) {
     const res = await vu.call('RT_TOKEN', 'GET', '/api/session/realtime-token');
     const token = res.body?.token;
     if (!token) return null;
@@ -269,7 +328,7 @@ async function run(m) {
 
   async function checkout(vu, id) {
     const cart = (await vu.call('CART', 'GET', '/api/cart')).body;
-    if (!cart?.itemCount) return;
+    if (!cart?.itemCount) return false;
     const r = await vu.call('CHECKOUT', 'POST', '/api/checkout', {
       method: 'BANK_TRANSFER',
       email: `load-${plan.runId}-${id}@example.invalid`,
@@ -282,19 +341,47 @@ async function run(m) {
       locale: 'en',
     });
     count(r.status === 200 ? 'checkout_ok' : `checkout_${r.status}`);
+    return r.status === 200;
   }
 
   let probing = true;
   let probeTurn = 0;
+  // The probe session is subject to the server's per-session limit for cart mutations
+  // (`shop-session`: 120 per minute, not skipped by the load test token). Any two probe requests
+  // are at least PROBE_GAP_MS apart (<= ~86 per minute incl. retries); a refused seat (409) moves on
+  // to the next probe seat after a pause, a 429 waits for retryAfterMs.
+  const PROBE_GAP_MS = 700;
+  let probeLastStart = 0;
+  const probeWait = async (ms) => {
+    // in small steps, so the end of the run is not held back by a long wait
+    const until = Date.now() + ms;
+    while (Date.now() < until && probing && !stopping) {
+      await sleep(Math.min(250, until - Date.now()));
+    }
+  };
+  const probeCall = async (vu, label, method, path, json) => {
+    await probeWait(probeLastStart + PROBE_GAP_MS - Date.now());
+    probeLastStart = Date.now();
+    const r = await vu.call(label, method, path, json);
+    if (r.status === 429) {
+      count('probe_rate_limited');
+      const after = Number(r.body?.error?.details?.retryAfterMs);
+      await probeWait(Number.isFinite(after) && after > 0 ? Math.min(after, 60_000) : 5_000);
+    }
+    return r;
+  };
   const probe = (async () => {
     if (!io || !m.probeSeats?.length) return;
+    const probeEventId = events[m.probeEventIndex ?? 0].eventId;
     const vu = new Vu(cfg, 4_000_000 + slice.index, stats, diag);
     const rand = rng(plan.seed * 31 + slice.index);
-    if (!(await enter(vu, rand))) return;
+    if (!(await enter(vu, rand, probeEventId))) return;
     await sleep(Math.min(3000, plan.rampMs / 4)); // let the first sockets connect
     while (probing && !stopping) {
       // round robin: a seat is re-used only after several seconds
       const seat = m.probeSeats[probeTurn++ % m.probeSeats.length];
+      await probeWait(probeLastStart + PROBE_GAP_MS - Date.now());
+      if (!probing || stopping) break;
       const t = Date.now();
       sentAt.set(seat, t);
       // Deltas of this lock count for 4 s only: a later lock of the same seat by someone else
@@ -302,23 +389,34 @@ async function run(m) {
       setTimeout(() => {
         if (sentAt.get(seat) === t) sentAt.delete(seat);
       }, 4000).unref();
-      const r = await vu.call('PROBE_LOCK', 'POST', `/api/events/${eventId}/seats`, {
+      const r = await probeCall(vu, 'PROBE_LOCK', 'POST', `/api/events/${probeEventId}/seats`, {
         seatIds: [seat],
       });
       if (r.status === 200) {
-        const rec = { seat, sid: vu.sid, from: r.wallEnd, to: Date.now() };
+        const rec = {
+          seat,
+          sid: vu.sid,
+          from: r.wallEnd,
+          to: Date.now(),
+          eventIndex: m.probeEventIndex ?? 0,
+        };
         await sleep(700 + rand() * 600);
         rec.to = Date.now();
-        const u = await vu.call('PROBE_UNLOCK', 'DELETE', `/api/events/${eventId}/seats`, {
-          seatIds: [seat],
-        });
+        const u = await probeCall(
+          vu,
+          'PROBE_UNLOCK',
+          'DELETE',
+          `/api/events/${probeEventId}/seats`,
+          { seatIds: [seat] },
+        );
         rec.releaseStatus = u.status;
         rec.releaseCode = u.code || null;
         if (u.status !== 200) rec.toUnknown = true;
         intervals.push(rec);
       } else {
         sentAt.delete(seat);
-        await sleep(300);
+        // seat taken (e.g. by best available): the next turn takes the next probe seat
+        if (r.status !== 429) await probeWait(1000);
       }
     }
     await vu.call('CART_CLEAR', 'DELETE', '/api/cart');
@@ -340,6 +438,7 @@ async function run(m) {
     counters,
     intervals,
     hot: { ...hotAttempts, wonSeats: [...hotWon] },
+    perEvent: perEvent.map((e) => ({ ...e, hotWonSeats: [...e.hotWonSeats] })),
     peakActive,
     seconds: (Date.now() - t0) / 1000,
     wsConnectedMax: sockets.length,

@@ -128,7 +128,8 @@ function printPlan(plan: DemoPlan, count: number): void {
   console.log('Events used (published, on sale; at most 40 % of the free capacity):');
   for (const e of plan.events) {
     console.log(
-      `  - ${e.title} [${e.slug}]  free ${e.free}, up to ${e.budget} tickets, waiting room ${e.queueMode}`,
+      `  - ${e.title} [${e.slug}]  free ${e.free}, up to ${e.budget} tickets, waiting room ${e.queueMode}` +
+        (e.vorkasse ? '' : `, Vorkasse unavailable (${e.vorkasseReason}): box office only`),
     );
   }
   for (const e of plan.skippedEvents) console.log(`  (skipped ${e.slug}: ${e.reason})`);

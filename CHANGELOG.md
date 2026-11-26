@@ -8,6 +8,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.46] - 2026-11-26
+
+### Added
+
+- Journey load test: **several events in one run** (`--event-id a,b,c`, up to 20; optional
+  `--event-weights`) with multi-event carts and orders (`--multi-event-ratio`, default 0.1), hot
+  seats, leak check and hot-seat contention per event, and a per-event table / `events` in the JSON.
+  See docs/LOAD-TEST.md.
+
+### Fixed
+
+- Journey load test: best available only picks categories where it is offered and that have at
+  least two plain seats in best-available blocks (no more 403 `BEST_AVAILABLE_CATEGORY_DISABLED`).
+- Journey load test: the fan-out probe paces its requests (at least 700 ms apart, 1 s pause after a
+  refused seat, honours `retryAfterMs`), so it stays below the per-session limit (no more 429 on
+  `PROBE_LOCK`).
+
+- `demo-orders`: Vorkasse orders only go to events that currently take Vorkasse (events inside the
+  "disable N days before the event" window get box office sales only), and seat picking skips
+  categories without enough regular seats (e.g. a wheelchair-only category) and tries the next
+  category instead of skipping the order.
+
 ## [1.0.0-alpha.45] - 2026-11-26
 
 ### Fixed

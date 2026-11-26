@@ -186,22 +186,60 @@ einer vCPU je ~250 Nutzer.
 
 ## Optionen
 
-| Option                                                                                                       | Bedeutung                                                                           |
-| ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `--target`, `--event-id`, `--event-slug`                                                                     | Server, Event, optionale öffentliche Eventseite                                     |
-| `--yes`, `--dry-run`                                                                                         | bestätigen / nur den Plan ausgeben                                                  |
-| `--loadtest-token` / `TIX_LOADTEST_TOKEN`                                                                    | Token des Lasttest-Modus                                                            |
-| `--vus` (1000), `--workers`, `--ramp` (60s), `--ramp-profile`                                                | Nutzer, Prozesse, Anlauf (`linear`, `step` = 5 Schübe, `spike` = alle auf einmal)   |
-| `--duration` (4m), `--hold` (60s, höchstens 8m)                                                              | Gesamtdauer inklusive Anlauf, mittlere Haltezeit des Warenkorbs                     |
-| `--hot` (20), `--best-available` (0.3), `--ws-ratio` (1)                                                     | umkämpfte Plätze, Anteil Bestplatz / WebSocket                                      |
-| `--checkout-ratio` mit `--allow-orders`                                                                      | Anteil mit Vorkasse-Bestellung (nur eigene Kopie)                                   |
-| `--metrics-token` / `TIX_METRICS_TOKEN`, `--database-url`                                                    | Ressourcen-Momentaufnahmen, optionale lesende Doppelbuchungs-Prüfung per SQL        |
-| `--max-failure-rate` (0.01), `--max-429-rate` (0.001), `--max-503-rate` (0.02), `--max-fanout-p95-ms` (2000) | Grenzen der Prüfungen                                                               |
-| `--ipv4-only`                                                                                                | IPv4 zuerst, kein Wettlauf der Adressfamilien (schließt AAAA- / Cloudflare-Weg aus) |
+| Option                                                                                                       | Bedeutung                                                                               |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `--target`, `--event-id`, `--event-slug`                                                                     | Server, Event(s) (kommagetrennt, bis zu 20), optionale öffentliche Eventseite(n)        |
+| `--event-weights`, `--multi-event-ratio` (0.1)                                                               | mehrere Events: Anteil der Käufer:innen je Event, Anteil mit Warenkorb über zwei Events |
+| `--yes`, `--dry-run`                                                                                         | bestätigen / nur den Plan ausgeben                                                      |
+| `--loadtest-token` / `TIX_LOADTEST_TOKEN`                                                                    | Token des Lasttest-Modus                                                                |
+| `--vus` (1000), `--workers`, `--ramp` (60s), `--ramp-profile`                                                | Nutzer, Prozesse, Anlauf (`linear`, `step` = 5 Schübe, `spike` = alle auf einmal)       |
+| `--duration` (4m), `--hold` (60s, höchstens 8m)                                                              | Gesamtdauer inklusive Anlauf, mittlere Haltezeit des Warenkorbs                         |
+| `--hot` (20), `--best-available` (0.3), `--ws-ratio` (1)                                                     | umkämpfte Plätze, Anteil Bestplatz / WebSocket                                          |
+| `--checkout-ratio` mit `--allow-orders`                                                                      | Anteil mit Vorkasse-Bestellung (nur eigene Kopie)                                       |
+| `--metrics-token` / `TIX_METRICS_TOKEN`, `--database-url`                                                    | Ressourcen-Momentaufnahmen, optionale lesende Doppelbuchungs-Prüfung per SQL            |
+| `--max-failure-rate` (0.01), `--max-429-rate` (0.001), `--max-503-rate` (0.02), `--max-fanout-p95-ms` (2000) | Grenzen der Prüfungen                                                                   |
+| `--ipv4-only`                                                                                                | IPv4 zuerst, kein Wettlauf der Adressfamilien (schließt AAAA- / Cloudflare-Weg aus)     |
 
 Halte die Haltezeit deutlich unter der Warenkorb-Uhr (Standard 10 Minuten): eine Sperre, die
 während des Tests abläuft, darf ein anderer legitim bekommen, was die Exklusivitätsprüfung nicht
 von einer Doppelbuchung unterscheiden kann.
+
+## Mehrere Events gleichzeitig
+
+Ein Lauf kann bis zu 20 Events belasten, zum Beispiel ein Festival, dessen Vorstellungen
+gleichzeitig in den Verkauf gehen:
+
+```bash
+node scripts/load/journey.mjs --target https://shop.example.org --event-id a,b,c,d,e,f --yes \
+     --vus 1000 --checkout-ratio 0.3 --allow-orders --multi-event-ratio 0.15
+```
+
+(`a` … `f` stehen für die Event-IDs.)
+
+- `--event-id` nimmt eine kommagetrennte Liste verschiedener Event-IDs. `--event-slug` ist
+  optional; wenn du ihn angibst, dann einen Slug je ID in derselben Reihenfolge.
+- Jede:r Käufer:in bekommt ein **Haupt-Event** und durchläuft dort den ganzen Weg (Seiten, Eintritt,
+  Saalplan, WebSocket, Hot Seats, Bestplatz, zufällige Plätze, Zurückgeben). Standardmäßig werden
+  die Käufer:innen gleichmäßig verteilt. `--event-weights 3,1,1` (eine positive Zahl je Event)
+  verteilt sie anteilig. Die Zuordnung ist deterministisch.
+- `--multi-event-ratio` (Standard 0.1, bei nur einem Event ohne Wirkung) ist der Anteil der
+  Käufer:innen, die danach zusätzlich ein zweites, zufällig gewähltes Event betreten, dessen Saalplan
+  laden und dort ein bis zwei Plätze sperren (Endpunkt `LOCK_MULTI`). Ihr Warenkorb umfasst dann
+  zwei Events. Mit `--checkout-ratio` wird daraus eine Bestellung über zwei Events. Die Zähler
+  `multi_event_carts` und `checkout_ok_multi` zeigen, wie viele es waren.
+- **Je Event geprüft:** Jedes Event hat eigene `--hot` Hot Seats. Die Leck-Prüfung vergleicht die
+  Sperren vor und nach dem Lauf für jedes Event. Die Prüfung summiert die Events und nennt die mit
+  hängenden Sperren. Eine zusätzliche Prüfung verlangt, dass die Hot Seats jedes Events mindestens
+  einmal vergeben und mindestens einmal abgewiesen wurden. Gib jedem Event deutlich mehr
+  Käufer:innen als `--hot`. Die Exklusivitätsprüfung deckt alle Events ab (Platz-IDs sind eindeutig).
+- Die Konsole zeigt eine Tabelle je Event (Käufer:innen, Hot Seats vergeben / abgewiesen,
+  Platzsperren, Bestplatz, Bestellungen, Warenkörbe über zwei Events, hängende Sperren). Die
+  JSON-Datei enthält dieselben Daten unter `events`. Die Endpunkt-Tabelle bleibt global. Jeder
+  Generator-Prozess misst die Verteilzeit eines Events (Prozess `w` misst Event `w mod n`). Mit
+  weniger Prozessen als Events werden manche Events nicht gemessen (erhöhe `--workers`).
+- Jedes Event muss **veröffentlicht und im Verkauf** sein. Für Vorkasse-Bestellungen
+  (`--checkout-ratio`) muss jedes Event Vorkasse annehmen. Die Bestellungen sind echt, also nur auf
+  einer Testkopie.
 
 ## Ergebnisse lesen
 

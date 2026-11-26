@@ -185,7 +185,8 @@ the generator on a VPS in the same region as the server and give it one vCPU per
 
 | Option                                                                                                       | Meaning                                                                               |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `--target`, `--event-id`, `--event-slug`                                                                     | server, event, optional public event page                                             |
+| `--target`, `--event-id`, `--event-slug`                                                                     | server, event(s) (comma-separated, up to 20), optional public event page(s)           |
+| `--event-weights`, `--multi-event-ratio` (0.1)                                                               | several events: share of shoppers per event, share with a cart spanning two events    |
 | `--yes`, `--dry-run`                                                                                         | confirm / only print the plan                                                         |
 | `--loadtest-token` / `TIX_LOADTEST_TOKEN`                                                                    | token of the load test mode                                                           |
 | `--vus` (1000), `--workers`, `--ramp` (60s), `--ramp-profile`                                                | users, processes, ramp-up (`linear`, `step` = 5 batches, `spike` = everybody at once) |
@@ -199,6 +200,42 @@ the generator on a VPS in the same region as the server and give it one vCPU per
 Keep the hold time well below the cart timer (default 10 minutes): a lock that expires during the
 test can legitimately be taken by someone else, which the exclusivity check cannot tell from a
 double booking.
+
+### Several events at once
+
+One run can load up to 20 events, for example a festival with several shows going on sale at the
+same time:
+
+```bash
+node scripts/load/journey.mjs --target https://shop.example.org --event-id a,b,c,d,e,f --yes \
+     --vus 1000 --checkout-ratio 0.3 --allow-orders --multi-event-ratio 0.15
+```
+
+(`a` ... `f` stand for the event ids.)
+
+- `--event-id` takes a comma-separated list of distinct event ids. `--event-slug` is optional; if
+  given, it needs one slug per id in the same order.
+- Every shopper gets a **primary event** on which they do the whole journey (pages, enter, seat map,
+  WebSocket, hot seats, best available, random seats, churn). By default the shoppers are split
+  evenly. `--event-weights 3,1,1` (one positive number per event) splits them proportionally. The
+  assignment is deterministic.
+- `--multi-event-ratio` (default 0.1, ignored with a single event) is the share of shoppers who
+  then also enter a second, randomly chosen event, load its seat map and lock one or two seats
+  there (endpoint `LOCK_MULTI`). Their cart spans two events. With `--checkout-ratio`, their order
+  is a multi-event order. The counters `multi_event_carts` and `checkout_ok_multi` show how many
+  there were.
+- **Checked per event:** each event has its own `--hot` hot seats. The leak check compares the
+  locks before and after the run for every event. The assertion sums the events and names the ones
+  with leaked locks. An extra assertion requires every event's hot seats to be won at least once
+  and refused at least once. Give every event clearly more shoppers than `--hot`. The exclusivity
+  check covers all events (seat ids are unique).
+- The console shows a per-event table (shoppers, hot seats won / refused, seat locks, best
+  available, checkouts, multi-event carts, leaked locks) and the JSON has the same data under
+  `events`. The endpoint table stays global. Each generator process probes the fan-out of one event
+  (process `w` probes event `w mod n`). With fewer processes than events, some events are not
+  probed (raise `--workers`).
+- Every event must be **published and on sale**. For bank-transfer orders (`--checkout-ratio`) every
+  event must accept bank transfer. The orders are real, so use a test copy only.
 
 ### Reading the results
 

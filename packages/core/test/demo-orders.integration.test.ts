@@ -17,6 +17,7 @@ import {
   priceCategories,
   priceCategoryTicketTypes,
   seatMaps,
+  seats,
   taxRates,
   tickets,
   ticketTypes,
@@ -26,7 +27,7 @@ import {
 import { runMigrations } from '@tix/db/migrate';
 import type { SeatMapDocumentInput } from '@tix/shared';
 import { createSecretBox, generateKeyRingEntry, parseKeyRing } from '@tix/shared/server';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -60,7 +61,12 @@ describe.skipIf(!adminUrl || !redisUrl)('demo orders generator (integration)', (
   let draftId: string;
   const jobs = { add: vi.fn(async () => undefined), close: async () => {} };
 
-  async function createEvent(title: string, status: 'PUBLISHED' | 'DRAFT', taxRateId: string) {
+  async function createEvent(
+    title: string,
+    status: 'PUBLISHED' | 'DRAFT',
+    taxRateId: string,
+    opts: { startsInDays?: number; wheelchairCategory?: boolean } = {},
+  ) {
     const [venue] = await handle.db
       .insert(venues)
       .values({ name: 'Hall', slug: `hall-${uuid().slice(0, 6)}`, timeZone: 'Europe/Berlin' })
@@ -83,7 +89,7 @@ describe.skipIf(!adminUrl || !redisUrl)('demo orders generator (integration)', (
         slug: `${title.toLowerCase()}-${uuid().slice(0, 6)}`,
         title,
         status,
-        startsAt: new Date(Date.now() + 30 * 86_400_000),
+        startsAt: new Date(Date.now() + (opts.startsInDays ?? 30) * 86_400_000),
         timeZone: 'Europe/Berlin',
         currency: 'EUR',
         taxRateId,
@@ -113,6 +119,19 @@ describe.skipIf(!adminUrl || !redisUrl)('demo orders generator (integration)', (
       { priceCategoryId: category!.id, ticketTypeId: normal!.id },
       { priceCategoryId: category!.id, ticketTypeId: reduced!.id },
     ]);
+    // A category holding only a few wheelchair spaces (like real venues): never usable for the
+    // generator's regular 1–4 ticket orders.
+    const [wheelchair] = opts.wheelchairCategory
+      ? await handle.db
+          .insert(priceCategories)
+          .values({ eventId: ev!.id, name: 'Wheelchair', color: '#999999', basePrice: 1500 })
+          .returning()
+      : [];
+    if (wheelchair) {
+      await handle.db
+        .insert(priceCategoryTicketTypes)
+        .values({ priceCategoryId: wheelchair.id, ticketTypeId: normal!.id });
+    }
     const sectionId = uuid();
     const standingId = uuid();
     const rows = Array.from({ length: ROWS }, (_, r) => ({
@@ -154,16 +173,21 @@ describe.skipIf(!adminUrl || !redisUrl)('demo orders generator (integration)', (
       ],
       rows,
       seats: rows.flatMap((row, r) =>
-        Array.from({ length: SEATS_PER_ROW }, (_, i) => ({
-          id: uuid(),
-          sectionId,
-          rowId: row.id,
-          label: String(i + 1),
-          position: i + 1,
-          x: 20 + i * 30,
-          y: 20 + r * 30,
-          priceCategoryId: category!.id,
-        })),
+        Array.from({ length: SEATS_PER_ROW }, (_, i) => {
+          // Last row: the first four seats are wheelchair spaces of the wheelchair category.
+          const special = wheelchair && r === ROWS - 1 && i < 4;
+          return {
+            id: uuid(),
+            sectionId,
+            rowId: row.id,
+            label: String(i + 1),
+            position: i + 1,
+            x: 20 + i * 30,
+            y: 20 + r * 30,
+            priceCategoryId: special ? wheelchair.id : category!.id,
+            ...(special ? { isWheelchairSpace: true } : {}),
+          };
+        }),
       ),
     };
     const saved = await saveSeatMapDocument(handle.db, map!.id, doc, null);
@@ -333,6 +357,54 @@ describe.skipIf(!adminUrl || !redisUrl)('demo orders generator (integration)', (
       .from(tickets)
       .where(eq(tickets.holderEmail, 'solo-b@example.net'));
     expect(held).toHaveLength(0);
+  });
+
+  it('sells events inside the Vorkasse cut-off only at the box office and never picks wheelchair-only categories', async () => {
+    const [tax] = await handle.db.select().from(taxRates).limit(1);
+    const soonId = await createEvent('Soon', 'PUBLISHED', tax!.id, {
+      startsInDays: 2,
+      wheelchairCategory: true,
+    });
+    const before = new Set(
+      (await handle.db.select({ id: orders.id }).from(orders)).map((o) => o.id),
+    );
+    const result = await generateDemoOrders(ctx, {
+      count: 12,
+      real: ['soon-a@example.net'],
+      seed: 11,
+      eventSlugs: (
+        await handle.db
+          .select({ slug: events.slug })
+          .from(events)
+          .where(inArray(events.id, [...eventIds, soonId]))
+      ).map((e) => e.slug),
+      onPlan: (plan) => {
+        const soon = plan.events.find((e) => e.id === soonId)!;
+        expect(soon).toMatchObject({ vorkasse: false, vorkasseReason: 'TOO_CLOSE_TO_EVENT' });
+        expect(plan.events.filter((e) => e.vorkasse)).toHaveLength(2);
+        return true;
+      },
+    });
+    expect(result.failures).toEqual([]);
+    const created = (await handle.db.select().from(orders)).filter((o) => !before.has(o.id));
+    expect(created).toHaveLength(12 + 3);
+    const soonItems = await handle.db
+      .select({ orderId: orderItems.orderId, seatId: orderItems.seatId })
+      .from(orderItems)
+      .where(eq(orderItems.eventId, soonId));
+    const soonOrders = new Set(soonItems.map((i) => i.orderId));
+    for (const order of created.filter((o) => soonOrders.has(o.id))) {
+      expect(order.channel).toBe('BOX_OFFICE');
+    }
+    // The wheelchair spaces stay free.
+    const wheelchairSeats = await handle.db
+      .select({ id: seats.id })
+      .from(seats)
+      .innerJoin(events, eq(events.seatMapId, seats.seatMapId))
+      .where(and(eq(events.id, soonId), eq(seats.isWheelchairSpace, true)));
+    expect(wheelchairSeats).toHaveLength(4);
+    const taken = new Set(soonItems.map((i) => i.seatId));
+    expect(wheelchairSeats.some((s) => taken.has(s.id))).toBe(false);
   });
 
   it('aborts before creating anything when the plan is declined', async () => {

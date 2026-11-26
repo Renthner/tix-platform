@@ -31,6 +31,14 @@ import {
   redact,
   sliceUsers,
 } from './lib/stats.mjs';
+import {
+  leakReport,
+  mergeEventStats,
+  parseEventList,
+  parseEventWeights,
+  parseMultiEventRatio,
+  perEventHotCheck,
+} from './lib/events.mjs';
 import { loadWorld } from './lib/world.mjs';
 
 const args = parseArgs(process.argv.slice(2));
@@ -40,8 +48,12 @@ const resultsDir = new URL('./results/', import.meta.url);
 const HELP = `Journey load test (see docs/LOAD-TEST.md)
 
   --target <url>            server under test (required; never the regular stack on :8080/:3000)
-  --event-id <uuid>         event to shop on (required; a PUBLISHED, ideally unlisted test event)
-  --event-slug <slug>       also fetch the public event page (optional)
+  --event-id <uuid>[,...]   event(s) to shop on (required; PUBLISHED, ideally unlisted test events;
+                            up to 20 comma-separated ids load several events at once)
+  --event-slug <slug>[,...] also fetch the public event page (optional; one slug per event id)
+  --event-weights <w,...>   share of the shoppers per event, e.g. 3,1,1 (default: even split)
+  --multi-event-ratio <r>   share (0..1) of shoppers who also lock seats on a second event, so
+                            their cart / order spans two events (default 0.1 with several events)
   --loadtest-token <t>      token of Admin -> System -> Load test mode (or env TIX_LOADTEST_TOKEN)
   --yes                     confirm that you are allowed to load this server
   --dry-run                 print the plan, change and send nothing
@@ -85,8 +97,15 @@ if (args['database-url']) {
   });
   if (!dbCheck.ok) refuse(dbCheck.reason);
 }
-const eventId = args['event-id'];
-if (!eventId || !/^[0-9a-f-]{36}$/i.test(String(eventId))) refuse('--event-id <uuid> is required');
+const eventList = parseEventList(args['event-id'], args['event-slug']);
+if (!eventList.ok) refuse(eventList.reason);
+const events = eventList.events;
+const eventId = events[0].eventId;
+const weightsArg = parseEventWeights(args['event-weights'], events.length);
+if (!weightsArg.ok) refuse(weightsArg.reason);
+const multiArg = parseMultiEventRatio(args['multi-event-ratio'], events.length);
+if (!multiArg.ok) refuse(multiArg.reason);
+const multi = events.length > 1;
 const dryRun = Boolean(args['dry-run']);
 const token = dryRun
   ? null
@@ -122,7 +141,10 @@ const plan = {
   runId: Math.random().toString(36).slice(2, 10),
   seed: Number(args.seed ?? 42),
   locale: args.locale ? String(args.locale) : '',
-  eventSlug: args['event-slug'] ? String(args['event-slug']) : null,
+  eventSlug: events[0].eventSlug,
+  eventCount: events.length,
+  eventWeights: weightsArg.weights,
+  multiEventRatio: multiArg.ratio,
   durationMs,
   rampMs,
   rampProfile: String(args['ramp-profile'] ?? 'linear'),
@@ -155,7 +177,12 @@ applyIpv4Only(cfg);
 
 console.log(`Journey load test
   target        ${targetCheck.url.origin}
-  event         ${eventId}${plan.eventSlug ? ` (${plan.eventSlug})` : ''}
+${
+  multi
+    ? `  events        ${events.length}, shoppers ${weightsArg.weights ? `weighted ${weightsArg.weights.join(':')}` : 'split evenly'}, multi-event ratio ${plan.multiEventRatio}
+${events.map((e, i) => `    [${i + 1}] ${e.eventId}${e.eventSlug ? ` (${e.eventSlug})` : ''}${weightsArg.weights ? `  weight ${weightsArg.weights[i]}` : ''}`).join('\n')}`
+    : `  event         ${eventId}${plan.eventSlug ? ` (${plan.eventSlug})` : ''}`
+}
   virtual users ${vus} in ${workers} process(es), ramp ${plan.rampProfile} ${rampMs / 1000}s, run ${durationMs / 1000}s, hold ~${holdMs / 1000}s
   hot seats     ${cfg.hot}, best-available ${plan.bestAvailableRatio}, websocket ${plan.wsRatio}, checkout ${checkoutRatio}
   network       ${cfg.ipv4Only ? 'IPv4 only (--ipv4-only)' : 'default address selection (use --ipv4-only to exclude AAAA / Cloudflare paths)'}
@@ -171,6 +198,13 @@ if (dryRun) {
       ' 4. verify hot-seat exclusivity from the hold intervals, check leaked locks, optional DB check\n' +
       ' 5. write the JSON result + summary',
   );
+  if (multi) {
+    console.log(
+      `With ${events.length} events: steps 2 and 4 run per event (hot seats, leak check, hot-seat\n` +
+        'contention per event); every shopper shops on one primary event, a share of them also locks\n' +
+        'seats on a second event (multi-event cart / order).',
+    );
+  }
   process.exit(0);
 }
 
@@ -226,21 +260,27 @@ async function main() {
   }
   const probeStats = new EndpointStats();
   const probe = new Vu(cfg, 3_000_000, probeStats);
-  const enter = await probe.call('SETUP_ENTER', 'POST', `/api/events/${eventId}/enter`);
-  if (enter.status !== 200) {
-    throw new Error(
-      `cannot enter the event shop (HTTP ${enter.status} ${enter.code}). Is the event published and the id right?`,
+  const setups = [];
+  for (const ev of events) {
+    const enter = await probe.call('SETUP_ENTER', 'POST', `/api/events/${ev.eventId}/enter`);
+    if (enter.status !== 200) {
+      throw new Error(
+        `cannot enter the event shop${multi ? ` of event ${ev.eventId}` : ''} (HTTP ${enter.status} ${enter.code}). Is the event published and the id right?`,
+      );
+    }
+    const world = await loadWorld(cfg, probe, ev.eventId);
+    if (world.hotSeats.length === 0) {
+      throw new Error(`no usable seats on the event${multi ? ` ${ev.eventId}` : ''}`);
+    }
+    const lockedBefore = new Set(
+      (await probe.call('SETUP_AVAILABILITY', 'GET', `/api/events/${ev.eventId}/availability`)).body
+        ?.locked ?? [],
     );
+    console.log(
+      `event${multi ? ` ${ev.eventId}` : ''}: ${world.usable.length} plain seats (${world.hotSeats.length} hot), standing ${world.ga?.available ?? 0}, ${lockedBefore.size} seats held by others before the run`,
+    );
+    setups.push({ ...ev, world, lockedBefore });
   }
-  const world = await loadWorld(cfg, probe, eventId);
-  if (world.hotSeats.length === 0) throw new Error('no usable seats on the event');
-  const lockedBefore = new Set(
-    (await probe.call('SETUP_AVAILABILITY', 'GET', `/api/events/${eventId}/availability`)).body
-      ?.locked ?? [],
-  );
-  console.log(
-    `event: ${world.usable.length} plain seats (${world.hotSeats.length} hot), standing ${world.ga?.available ?? 0}, ${lockedBefore.size} seats held by others before the run`,
-  );
 
   // ── resource sampling ──
   // Every 5 s a few quick parallel scrapes: with several web processes consecutive requests hit
@@ -276,13 +316,25 @@ async function main() {
   const cpu = new CpuSampler(2000);
   cpu.start();
   const progress = new Map();
-  // private seats of the fan-out probes (4 per process), not used by the shoppers' random picks
-  const probeSeats = world.coldSeats.splice(-(slices.length * 4));
-  const slim = {
-    hotSeats: world.hotSeats,
-    coldSeats: world.coldSeats,
-    categories: world.categories,
-  };
+  // Private seats of the fan-out probes (4 per process), not used by the shoppers' random picks.
+  // Worker w probes event w % n; seat ids are UUIDs, unique across events, so a delta is attributed
+  // by the seat id (sentAt) alone.
+  const probeSeats = slices.map((_, w) => setups[w % setups.length].world.coldSeats.splice(-4));
+  if (slices.length < setups.length) {
+    console.log(
+      `note: ${slices.length} generator process(es) for ${setups.length} events - the fan-out probe measures only the first ${slices.length} event(s) (raise --workers to probe all)`,
+    );
+  }
+  const slim = setups.map((s) => ({
+    eventId: s.eventId,
+    eventSlug: s.eventSlug,
+    world: {
+      hotSeats: s.world.hotSeats,
+      coldSeats: s.world.coldSeats,
+      categories: s.world.categories,
+      bestAvailableCategories: s.world.bestAvailableCategories,
+    },
+  }));
   let abortReason = null;
   const finished = new Set();
   const runs = slices.map(
@@ -304,11 +356,11 @@ async function main() {
         child.send({
           type: 'start',
           cfg,
-          eventId,
-          world: slim,
+          events: slim,
           slice: { ...slice, index: w },
           plan: { ...plan, wsRatio: plan.wsRatio },
-          probeSeats: probeSeats.slice(w * 4, w * 4 + 4),
+          probeEventIndex: w % slim.length,
+          probeSeats: probeSeats[w],
           runStart: t0,
         });
       }),
@@ -364,6 +416,10 @@ ABORT: ${abortReason}`);
     for (const s of r.hot.wonSeats) hotWonSeats.add(s);
     ws += r.wsConnectedMax;
   }
+  const perEvent = mergeEventStats(
+    setups.length,
+    results.map((r) => r.perEvent),
+  );
   const diag = new Diagnostics(t0);
   for (const r of results) if (r.diag) diag.merge(Diagnostics.fromJSON(r.diag));
   const generator = {
@@ -377,17 +433,20 @@ ABORT: ${abortReason}`);
   // ── post-run checks ──
   await sleep(1500);
   const after = await snapshot();
-  const availAfter = (await getJson(`/api/events/${eventId}/availability`)).text;
-  let lockedAfter = new Set();
-  try {
-    lockedAfter = new Set(JSON.parse(availAfter).locked ?? []);
-  } catch {
-    /* reported below */
+  for (const s of setups) {
+    const availAfter = (await getJson(`/api/events/${s.eventId}/availability`)).text;
+    s.lockedAfter = new Set();
+    try {
+      s.lockedAfter = new Set(JSON.parse(availAfter).locked ?? []);
+    } catch {
+      /* reported below */
+    }
   }
-  const leaked = [...lockedAfter].filter((s) => !lockedBefore.has(s));
+  const leaks = leakReport(setups);
+  const hotSeatTotal = setups.reduce((a, s) => a + s.world.hotSeats.length, 0);
   const ledger = {
     intervals: intervals.length,
-    hotSeats: world.hotSeats.length,
+    hotSeats: hotSeatTotal,
     hotWon: hot.won,
     hotLost: hot.lost,
     hotContenders: vus,
@@ -408,10 +467,45 @@ ABORT: ${abortReason}`);
     ledger,
     rt,
   });
+  const eventsOut = setups.map((s, i) => {
+    const e = perEvent[i];
+    return {
+      eventId: s.eventId,
+      eventSlug: s.eventSlug,
+      shoppers: e.shoppers,
+      hot: {
+        attempts: e.hotAttempts,
+        won: e.hotWon,
+        lost: e.hotLost,
+        seatsWon: e.hotWonSeats.size,
+        of: s.world.hotSeats.length,
+      },
+      coldLocks: e.coldLocks,
+      bestAvailableOk: e.bestAvailableOk,
+      checkoutsOk: e.checkoutsOk,
+      multiEventCarts: e.multiEventCarts,
+      lockedBefore: s.lockedBefore.size,
+      leakedLocks: leaks.perEvent[i].leaked,
+    };
+  });
+  if (multi) {
+    // the summed ledger alone could hide an event whose hot seats were never fought for
+    checks.push(
+      perEventHotCheck(
+        eventsOut.map((e) => ({
+          eventId: e.eventId,
+          shoppers: e.shoppers,
+          hotSeats: e.hot.of,
+          hotWon: e.hot.won,
+          hotLost: e.hot.lost,
+        })),
+      ),
+    );
+  }
   checks.push({
     title: 'no seat lock leaked after every shopper emptied the cart',
-    ok: leaked.length === 0,
-    detail: `${leaked.length} seats still held${leaked.length ? ' (carts that could not be cleared expire by TTL)' : ''}`,
+    ok: leaks.total === 0,
+    detail: leaks.detail,
   });
   if (args['database-url']) {
     try {
@@ -442,17 +536,19 @@ ABORT: ${abortReason}`);
     startedAt: new Date(t0).toISOString(),
     target: cfg.base,
     eventId,
+    eventIds: setups.map((s) => s.eventId),
     plan: { ...plan, vus, workers, limits, timeoutMs: cfg.timeoutMs },
     seconds: Math.round(seconds * 10) / 10,
     summary,
-    hotSeats: { ...hot, seatsWon: hotWonSeats.size, of: world.hotSeats.length },
+    hotSeats: { ...hot, seatsWon: hotWonSeats.size, of: hotSeatTotal },
+    events: eventsOut,
     realtime: rt,
     counters,
     overlaps: overlaps.length,
     overlapDetails: overlaps.slice(0, 20).map((o) => o.details),
     indeterminateOverlaps: indeterminate.length,
     indeterminateOverlapDetails: indeterminate.slice(0, 20).map((o) => o.details),
-    leakedLocks: leaked.length,
+    leakedLocks: leaks.total,
     resources: { before, after, peaksDuringRun: peaks, metricScrapes: scrapes },
     errorSamples: diag.errorSamples(),
     networkErrorCauses: diag.networkErrorCauses(),
@@ -537,6 +633,17 @@ function print(o, file) {
     `\nrealtime fan-out (lock request -> delta received): ${o.realtime.samples} deliveries, p50 ${o.realtime.p50} ms, p95 ${o.realtime.p95} ms, p99 ${o.realtime.p99} ms, max ${o.realtime.max} ms; sockets ${o.realtime.connected}`,
   );
   line(`hot seats: ${JSON.stringify(o.hotSeats)}`);
+  if (o.events.length > 1) {
+    line(
+      '\nevent                         shoppers  hot won/lost  locks  best-av  checkouts  multi-ev  leaked',
+    );
+    for (const e of o.events) {
+      const name = `${e.eventId.slice(0, 8)}${e.eventSlug ? ` ${e.eventSlug}` : ''}`.slice(0, 29);
+      line(
+        `${name.padEnd(29)} ${String(e.shoppers).padStart(8)} ${`${e.hot.won}/${e.hot.lost}`.padStart(13)} ${String(e.coldLocks).padStart(6)} ${String(e.bestAvailableOk).padStart(8)} ${String(e.checkoutsOk).padStart(10)} ${String(e.multiEventCarts).padStart(9)} ${String(e.leakedLocks).padStart(7)}`,
+      );
+    }
+  }
   const queued = o.counters.queued ?? 0;
   line(
     `waiting room: ${queued > 0 ? `${queued} shopper(s) really queued` : 'waiting room was not active (Warteraum war nicht aktiv), queued 0'}; ENTER timeouts ${o.counters.enter_timeout ?? 0}, ENTER body timeouts ${o.counters.enter_body_timeout ?? 0}`,

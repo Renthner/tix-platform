@@ -31,7 +31,7 @@ import {
 } from './orders/box-office';
 import { placeOrder } from './orders/checkout';
 import { recordPayment } from './orders/fulfillment';
-import { getCheckoutOptions } from './orders/pricing';
+import { getCheckoutOptions, paymentAvailabilityForEvents } from './orders/pricing';
 import { enterShop } from './queue';
 import { getPublicSeatMap, getSeatMapForChannel } from './seatmaps/public';
 import { ensureOrderTickets } from './tickets/issue';
@@ -84,6 +84,12 @@ export interface DemoPlanEvent {
   free: number;
   /** Tickets the generator may take at most (share of `free`). */
   budget: number;
+  /**
+   * Vorkasse can be ordered for this event right now. False e.g. within the "disable N days
+   * before the event" window: the event then only gets box office sales.
+   */
+  vorkasse: boolean;
+  vorkasseReason: string | null;
 }
 
 export interface DemoPlan {
@@ -312,6 +318,8 @@ interface DemoEvent {
   free: number;
   budget: number;
   used: number;
+  vorkasse: boolean;
+  vorkasseReason: string | null;
 }
 
 const freeSeatIds = (map: PublicSeatMap, unavailable: Set<string>) =>
@@ -321,6 +329,15 @@ const freeSeatIds = (map: PublicSeatMap, unavailable: Set<string>) =>
       (s.f & SEAT_FLAG.BLOCKED) === 0 &&
       !unavailable.has(s.i) &&
       allowedTypesFor(map, s.c, s.f).length > 0,
+  );
+
+/**
+ * Free seats a regular buyer can take: wheelchair spaces and companion seats are left alone (a
+ * "wheelchair" category with a handful of such spaces can never serve 2–4 regular tickets).
+ */
+const regularFreeSeats = (map: PublicSeatMap, unavailable: Set<string>) =>
+  freeSeatIds(map, unavailable).filter(
+    (s) => (s.f & (SEAT_FLAG.WHEELCHAIR | SEAT_FLAG.COMPANION)) === 0,
   );
 
 async function loadDemoEvents(
@@ -374,7 +391,18 @@ async function loadDemoEvents(
         skipped.push({ slug: row.slug, reason: 'no free capacity (or no bookable seats)' });
         continue;
       }
-      usable.push({ row, map, config, queueMode: queue.mode, free, budget, used: 0 });
+      const bankReason = (await paymentAvailabilityForEvents(ctx, [row])).BANK_TRANSFER ?? null;
+      usable.push({
+        row,
+        map,
+        config,
+        queueMode: queue.mode,
+        free,
+        budget,
+        used: 0,
+        vorkasse: bankReason === null,
+        vorkasseReason: bankReason,
+      });
     } catch (err) {
       skipped.push({ slug: row.slug, reason: `seating plan not usable: ${errorText(err)}` });
     }
@@ -442,35 +470,54 @@ async function pickItems(
   const standing = map.sections.filter(
     (s) => s.type === 'STANDING' && s.priceCategoryId && (availability.ga[s.id] ?? 0) >= qty,
   );
-  const seatCategories = map.categories.filter((c) =>
-    freeSeatIds(map, unavailable).some((s) => s.c === c.id),
+  // Only categories with enough regular seats for this order (a "wheelchair" category with a few
+  // wheelchair/companion spaces never qualifies).
+  const regular = regularFreeSeats(map, unavailable);
+  const seatCategories = map.categories.filter(
+    (c) =>
+      regular.filter((s) => s.c === c.id).length >= Math.min(qty, c.maxPerOrder ?? qty) &&
+      ((config.bestAvailableEnabled && c.bestAvailable) || config.manualSeatSelectionEnabled),
   );
-  const seatsPossible =
-    seatCategories.length > 0 && (config.bestAvailableEnabled || config.manualSeatSelectionEnabled);
+  const seatsPossible = seatCategories.length > 0;
   if (standing.length > 0 && (!seatsPossible || rng() < 0.2)) {
     const section = pick(rng, standing);
     await setGeneralAdmission(ctx, sessionId, row, section.id, qty);
     return { seatIds: [], ga: { sectionId: section.id, quantity: qty } };
   }
-  if (!seatsPossible) throw new DomainError('DEMO_NO_SEATS', 'No bookable seats left', 409);
-  const category = pick(rng, seatCategories);
-  const quantity = Math.min(qty, category.maxPerOrder ?? qty);
-  if (
-    config.bestAvailableEnabled &&
-    category.bestAvailable &&
-    (rng() < 0.7 || !config.manualSeatSelectionEnabled)
-  ) {
-    const result = await bestAvailable(ctx, sessionId, row, category.id, quantity);
-    return { seatIds: result.seatIds, ga: null };
+  if (!seatsPossible) throw new DomainError('NOT_ENOUGH_SEATS', 'No bookable seats left', 409);
+  // A category whose free seats are too scattered (orphan rule, no contiguous run) is skipped in
+  // favour of the next one; only when none works is the order reported as skipped.
+  let lastError: unknown = null;
+  for (const category of shuffle(rng, [...seatCategories])) {
+    const quantity = Math.min(qty, category.maxPerOrder ?? qty);
+    try {
+      if (
+        config.bestAvailableEnabled &&
+        category.bestAvailable &&
+        (rng() < 0.7 || !config.manualSeatSelectionEnabled)
+      ) {
+        const result = await bestAvailable(ctx, sessionId, row, category.id, quantity);
+        return { seatIds: result.seatIds, ga: null };
+      }
+      const run = manualRun(rng, map, category.id, quantity, unavailable);
+      if (!run) throw new DomainError('NOT_ENOUGH_SEATS', 'No contiguous seats left', 409);
+      await addSeats(ctx, sessionId, row, run);
+      return { seatIds: run, ga: null };
+    } catch (err) {
+      if (!(err instanceof DomainError) || !SEAT_RETRY_CODES.has(err.code)) throw err;
+      lastError = err;
+    }
   }
-  if (!config.manualSeatSelectionEnabled) {
-    throw new DomainError('DEMO_NO_SEATS', 'Best available is off for this category', 409);
-  }
-  const run = manualRun(rng, map, category.id, quantity, unavailable);
-  if (!run) throw new DomainError('NOT_ENOUGH_SEATS', 'No contiguous seats left', 409);
-  await addSeats(ctx, sessionId, row, run);
-  return { seatIds: run, ga: null };
+  throw lastError;
 }
+
+/** Seat picking errors after which the generator tries the next price category. */
+const SEAT_RETRY_CODES: ReadonlySet<string> = new Set([
+  'NOT_ENOUGH_SEATS',
+  'SEAT_UNAVAILABLE',
+  'SEAT_LOCKED',
+  'NOT_AVAILABLE',
+]);
 
 /** Sets a reduced (non-default, not seat-bound) tariff on one item of the cart, if any exists. */
 async function maybeReduce(
@@ -524,14 +571,24 @@ interface OrderSpec {
   transferSource?: boolean;
 }
 
-function planMix(count: number, multiPossible: boolean, boxPossible: boolean) {
+function planMix(
+  count: number,
+  multiPossible: boolean,
+  boxPossible: boolean,
+  onlinePossible = true,
+) {
+  const mix: Record<DemoScenario, number> = { UNPAID: 0, PAID: 0, MULTI_EVENT: 0, BOX_OFFICE: 0 };
+  // No event takes Vorkasse orders right now: only box office sales remain.
+  if (!onlinePossible) {
+    mix.BOX_OFFICE = boxPossible ? count : 0;
+    return mix;
+  }
   const shares: [DemoScenario, number][] = [
     ['UNPAID', 0.35],
     ['PAID', 0.35],
     ['MULTI_EVENT', multiPossible ? 0.1 : 0],
     ['BOX_OFFICE', boxPossible ? 0.15 : 0],
   ];
-  const mix: Record<DemoScenario, number> = { UNPAID: 0, PAID: 0, MULTI_EVENT: 0, BOX_OFFICE: 0 };
   let assigned = 0;
   for (const [scenario, share] of shares) {
     mix[scenario] = Math.floor(count * share);
@@ -564,17 +621,25 @@ export async function generateDemoOrders(
     .limit(1);
   const notes: string[] = [];
   if (!boxUser) notes.push('No active SUPER_ADMIN found: box office orders are skipped.');
-  if (usable.length < 2) notes.push('Fewer than two events on sale: no multi-event orders.');
+  const vorkasseEvents = usable.filter((e) => e.vorkasse).length;
+  if (usable.length > 0 && vorkasseEvents === 0) {
+    notes.push(
+      'No event takes Vorkasse orders right now (e.g. too close to the event): only box office sales, no orders for the real addresses.',
+    );
+  } else if (vorkasseEvents < 2) {
+    notes.push('Fewer than two events take Vorkasse orders: no multi-event orders.');
+  }
 
-  const multiPossible = usable.length >= 2;
-  const mix = planMix(options.count, multiPossible, Boolean(boxUser));
+  const multiPossible = vorkasseEvents >= 2;
+  const mix = planMix(options.count, multiPossible, Boolean(boxUser), vorkasseEvents > 0);
 
   // Real addresses: A = 3 orders + passes a ticket on to B, B = 1 paid order, C = paid + unpaid.
   const labels = ['A', 'B', 'C'] as const;
   const realSpecs: OrderSpec[] = [];
   const realPlan: DemoPlan['real'] = [];
   let serial = 1;
-  real.forEach((email, i) => {
+  // Every real-address order is a Vorkasse order.
+  (vorkasseEvents > 0 ? real : []).forEach((email, i) => {
     const label = labels[i]!;
     const buyer = fakeBuyer(rng, 0, email);
     const steps: string[] = [];
@@ -610,6 +675,8 @@ export async function generateDemoOrders(
       queueMode: e.queueMode,
       free: e.free,
       budget: e.budget,
+      vorkasse: e.vorkasse,
+      vorkasseReason: e.vorkasseReason,
     })),
     skippedEvents: skipped,
     mix,
@@ -673,7 +740,7 @@ export async function generateDemoOrders(
   }
 
   // A passes one ticket of the paid order on to B (customer self-service rules apply).
-  if (real.length > 1) {
+  if (realSpecs.some((s) => s.real === 'B')) {
     if (!transferSource) {
       result.transfer = { status: 'SKIPPED', reason: "A's paid order could not be created" };
     } else {
@@ -734,8 +801,18 @@ async function onlineOrder(
 ): Promise<DemoOrderRow> {
   const wanted = Math.max(spec.minTickets ?? 1, ticketCount(rng));
   const perEvent = spec.eventCount > 1 ? Math.min(2, wanted) : wanted;
-  const chosen = eventsWithRoom(rng, usable, spec.minTickets ?? 1).slice(0, spec.eventCount);
-  if (chosen.length === 0) throw new DemoCapacityError();
+  const chosen = eventsWithRoom(
+    rng,
+    usable.filter((e) => e.vorkasse),
+    spec.minTickets ?? 1,
+  ).slice(0, spec.eventCount);
+  if (chosen.length === 0) {
+    // Only the events without Vorkasse have room left: box office sales may still go on.
+    if (usable.some((e) => e.budget - e.used >= 1)) {
+      throw new DomainError('DEMO_NO_EVENTS', 'No Vorkasse event has capacity left', 409);
+    }
+    throw new DemoCapacityError();
+  }
   if (chosen.length < spec.eventCount) {
     throw new DomainError('DEMO_NO_EVENTS', 'Not enough events with free capacity', 409);
   }

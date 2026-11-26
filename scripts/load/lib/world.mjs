@@ -16,10 +16,12 @@ export async function loadWorld(cfg, vu, eventId) {
   const rand = rng(cfg.seed);
   // Plain seats only (no wheelchair / companion features: those have extra booking rules).
   const usable = map.seats.filter((s) => seated.has(s.s) && !s.f && !unavailable.has(s.i));
-  // Hot seats: the first N seats of the first price category, so they are spread over a few rows.
-  const firstCategory = [...map.categories].sort((a, b) => a.sortOrder - b.sortOrder)[0];
+  // Hot seats: the first N seats of the first price category with plain seats (a wheelchair-only
+  // category has none), so they are spread over a few rows.
+  const sorted = [...map.categories].sort((a, b) => a.sortOrder - b.sortOrder);
+  const firstCategory = sorted.find((c) => usable.some((s) => s.c === c.id)) ?? sorted[0];
   const hotSeats = usable
-    .filter((s) => s.c === firstCategory.id)
+    .filter((s) => s.c === firstCategory?.id)
     .slice(0, cfg.hot)
     .map((s) => s.i);
   const hotSet = new Set(hotSeats);
@@ -32,6 +34,7 @@ export async function loadWorld(cfg, vu, eventId) {
     eventId,
     map,
     categories: map.categories,
+    bestAvailableCategories: bestAvailableCategories(map, usable),
     seatTotal: map.seats.length,
     usable: usable.map((s) => s.i),
     hotSeats,
@@ -39,4 +42,25 @@ export async function loadWorld(cfg, vu, eventId) {
     ga: ga ? { id: ga.id, available: gaAvail } : null,
     ticketTypes: map.ticketTypes,
   };
+}
+
+/**
+ * Categories a best-available request can succeed on, like the server sees them: best available
+ * offered for the category (`bestAvailable`; absent on old servers = offered) and at least 2 plain
+ * usable seats in SEATED sections with best available enabled. `usable` = plain, free seats of the
+ * public map. Returns [{id, seats}] (seats = number of such seats, to clamp the quantity).
+ */
+export function bestAvailableCategories(map, usable) {
+  const enabled = new Set(
+    map.sections
+      .filter((s) => s.type === 'SEATED' && s.isBestAvailableEnabled !== false)
+      .map((s) => s.id),
+  );
+  const perCategory = new Map();
+  for (const s of usable) {
+    if (enabled.has(s.s)) perCategory.set(s.c, (perCategory.get(s.c) ?? 0) + 1);
+  }
+  return map.categories
+    .filter((c) => c.bestAvailable !== false && (perCategory.get(c.id) ?? 0) >= 2)
+    .map((c) => ({ id: c.id, seats: perCategory.get(c.id) }));
 }
