@@ -256,7 +256,7 @@ export function buildApplePassJson(
       {
         latitude: data.latitude,
         longitude: data.longitude,
-        relevantText: data.venueName,
+        ...(data.venueName ? { relevantText: data.venueName } : {}),
       },
     ];
   }

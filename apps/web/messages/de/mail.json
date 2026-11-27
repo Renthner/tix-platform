@@ -11,6 +11,7 @@
     "seat": "Block {section} · Reihe {row} · Platz {seat}",
     "seatWithoutRow": "Block {section} · Platz {seat}",
     "standing": "Stehplatz · {section}",
+    "admission": "Eintritt · {section}",
     "subtotal": "Zwischensumme",
     "fees": "Gebühren",
     "feeQuantity": "{name} ({quantity} ×)",
@@ -85,6 +86,7 @@
     "rowSeat": "Reihe {row} · Platz {seat}",
     "seatOnly": "Platz {seat}",
     "standing": "Stehplatz",
+    "admission": "Eintritt",
     "fileName": "Tickets-{number}.pdf",
     "singleFileName": "Ticket-{code}.pdf",
     "sample": "Muster"
@@ -97,6 +99,7 @@
     "row": "Reihe",
     "seat": "Platz",
     "standing": "Stehplatz",
+    "admission": "Eintritt",
     "place": "Platz",
     "category": "Kategorie",
     "tariff": "Ticketart",

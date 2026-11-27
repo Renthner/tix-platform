@@ -51,6 +51,8 @@ export async function holderTicketVariables(
   return {
     recipientName: data.attendeeName,
     ticketPlace: walletPlaceLabel(data, t),
+    // "Your ticket" instead of "Your seat" in the templates (standing / admission tickets).
+    ticketWithoutSeat: data.kind === 'GENERAL_ADMISSION' || !data.seat ? 'yes' : null,
     ticketCode: data.ticketCode,
     eventTitle: data.eventTitle,
     eventDate: formatDateTime(data.startsAt, order.locale, data.timeZone),

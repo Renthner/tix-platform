@@ -556,7 +556,8 @@ export async function writeEventSeatMap(
   tx: Transaction,
   params: {
     eventId: string;
-    venueId: string;
+    /** NULL for the hidden contingent plan of an admission-only event. */
+    venueId: string | null;
     file: SeatMapFile;
     prepared: PreparedSymbol[];
     imageIds: ReadonlyMap<string, string>;
@@ -564,6 +565,8 @@ export async function writeEventSeatMap(
     userId: string | null;
     name: string;
     version?: number;
+    /** The event is admission-only: the file may hold STANDING sections (contingents) only. */
+    admission?: boolean;
   },
 ): Promise<WriteEventSeatMapResult> {
   const { file } = params;
@@ -646,6 +649,7 @@ export async function writeEventSeatMap(
         seats: doc.seats.map((s) => ({ ...s, priceCategoryId: mapCategory(s.priceCategoryId) })),
       }),
       params.userId,
+      { admissionImport: params.admission === true },
     );
   } catch (err) {
     if (err instanceof SaveAbort) {

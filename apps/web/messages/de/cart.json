@@ -28,6 +28,7 @@
   "row": "Reihe {label}",
   "seat": "Platz {label}",
   "standing": "Stehplatz",
+  "admission": "Eintritt",
   "tariff": "Tarif",
   "proofBadge": "Nachweis beim Einlass",
   "remove": "Entfernen",

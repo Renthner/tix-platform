@@ -104,7 +104,13 @@
       "testOrderPartialPayment": "Die Testbestellung hat eine Teilzahlung. Erstatte sie zuerst (Bankzuordnung rückgängig machen), bevor du stornierst.",
       "testOrderCancelFailed": "Die Testbestellung konnte nicht storniert werden.",
       "testOrderPaymentOpen": "Eine PayPal-Zahlung dieser Testbestellung ist noch offen. Versuche es in ein paar Minuten erneut oder storniere die Bestellung.",
-      "testOrderInvoiceExists": "Zu dieser Testbestellung existiert eine Rechnung, sie kann nicht gelöscht werden."
+      "testOrderInvoiceExists": "Zu dieser Testbestellung existiert eine Rechnung, sie kann nicht gelöscht werden.",
+      "eventNotDraft": "Die Bestuhlung kann nur bei Entwürfen geändert werden.",
+      "seatingHasHolds": "Plätze dieser Veranstaltung liegen gerade in Warenkörben (oder ein Checkout läuft). Versuche es gleich noch einmal.",
+      "contingentInUse": "Plätze dieses Kontingents sind verkauft, reserviert oder liegen in Warenkörben; es kann nicht entfernt werden.",
+      "contingentCategoryInUse": "Plätze dieses Kontingents sind verkauft, reserviert oder liegen in Warenkörben; seine Preiskategorie kann nicht geändert werden.",
+      "contingentConflict": "Das Kontingent wird gerade durch eine andere Aktion geändert. Versuche es gleich noch einmal.",
+      "admissionNotSellable": "Diese Veranstaltung braucht vor dem Veröffentlichen mindestens ein Kontingent mit Kapazität und einer online angebotenen Preiskategorie."
     },
     "email": "Bitte eine gültige E-Mail-Adresse eingeben.",
     "fileRequired": "Bitte eine Datei auswählen.",
@@ -405,9 +411,9 @@
       "sold": "Verkauft / Kapazität"
     },
     "create": {
-      "description": "Der gewählte Master-Plan wird für diese Veranstaltung kopiert und kann danach angepasst werden.",
+      "description": "Neue Veranstaltungen starten als Entwurf – veröffentliche sie, sobald alles eingerichtet ist.",
       "submit": "Veranstaltung anlegen",
-      "noVenues": "Lege zuerst eine Spielstätte an.",
+      "noVenues": "Es gibt noch keine Spielstätte – du kannst nur Veranstaltungen ohne Saalplan anlegen. Lege eine Spielstätte an, um Veranstaltungen mit Saalplan zu erstellen.",
       "noTaxRates": "Es gibt keinen aktiven Steuersatz. Lege zuerst einen in den Einstellungen an.",
       "createVenue": "Spielstätte anlegen"
     },
@@ -431,14 +437,20 @@
       "currency": "Währung",
       "taxRate": "Steuersatz",
       "orphanSeatRule": "Einzelplatz-Regel",
-      "orphanSeatRuleHint": "Wenn aktiviert, können Kunden nicht zum Warenkorb weitergehen, wenn ihre Auswahl einen einzelnen freien Platz in einer Reihe zurücklassen würde. Geprüft wird beim Klick auf „Weiter zum Warenkorb“."
+      "orphanSeatRuleHint": "Wenn aktiviert, können Kunden nicht zum Warenkorb weitergehen, wenn ihre Auswahl einen einzelnen freien Platz in einer Reihe zurücklassen würde. Geprüft wird beim Klick auf „Weiter zum Warenkorb“.",
+      "seatingMode": "Bestuhlung",
+      "seatingModeSeated": "Mit Saalplan",
+      "seatingModeAdmission": "Nur Eintritt (ohne Saalplan)",
+      "seatingModeSeatedHint": "Tickets werden über einen Saalplan der Spielstätte verkauft (Sitzplätze und/oder Stehbereiche).",
+      "seatingModeAdmissionHint": "Kein Saalplan: Du verkaufst Eintrittskarten aus Kontingenten (z. B. eine Messe oder einen Clubeinlass). Die Spielstätte ist optional.",
+      "noVenue": "Keine Spielstätte"
     },
     "tabs": {
       "overview": "Übersicht",
       "details": "Details",
       "sales": "Verkaufseinstellungen",
       "pricing": "Preise & Tarife",
-      "seating": "Saalplan",
+      "seating": "Plätze & Kontingente",
       "waitingRoom": "Warteraum",
       "accessCodes": "Zugangscodes",
       "page": "Shop-Seite",
@@ -462,7 +474,8 @@
         "seatMap": "Saalplan vorhanden",
         "category": "Mindestens eine aktive Preiskategorie",
         "tariff": "Mindestens ein Online-Tarif in einer Kategorie angeboten",
-        "inventory": "Plätze oder Stehbereiche mit Preiskategorie"
+        "inventory": "Plätze oder Stehbereiche mit Preiskategorie",
+        "contingent": "Mindestens ein Kontingent mit Kapazität und angebotener Preiskategorie"
       }
     },
     "sales": {
@@ -550,6 +563,7 @@
           "sourceVenue": "Ursprünglich in: {venue}",
           "plan": "{seats, plural, one {# Platz} other {# Plätze}} in {sections, plural, one {# Block} other {# Blöcken}}",
           "noPlan": "Kein Saalplan",
+          "contingents": "{count, plural, one {# Kontingent} other {# Kontingente}} (nur Eintritt)",
           "categories": "{count, plural, one {# Preiskategorie} other {# Preiskategorien}}",
           "tariffs": "{count, plural, one {# Tarif} other {# Tarife}}",
           "fees": "{count, plural, =0 {Keine Gebühren der Veranstaltung} one {# Gebühr der Veranstaltung} other {# Gebühren der Veranstaltung}}",
@@ -566,6 +580,8 @@
           "slug": "URL-Kürzel (optional)"
         },
         "venueHint": "Der Saalplan wird für diese Spielstätte angelegt. Spielstätten sind nicht Teil der Datei.",
+        "venueHintAdmission": "Optional – Veranstaltungen nur mit Eintritt (ohne Saalplan) brauchen keine Spielstätte.",
+        "noVenue": "Keine Spielstätte",
         "startsAtHint": "Zeitzone der Veranstaltung: {timeZone}. Lässt du den Beginn unverändert, bleiben alle Termine exakt wie in der Datei; änderst du ihn, verschieben sich Einlass, Ende, Vorverkauf und Verkaufsfenster um dieselbe Differenz und behalten ihre Uhrzeiten.",
         "slugHint": "Leer lassen, um es aus dem Titel abzuleiten; ist es vergeben, wird eine Zahl angehängt.",
         "noVenues": "Lege zuerst eine Spielstätte an – der Saalplan der Veranstaltung gehört zu einer Spielstätte.",
@@ -625,6 +641,7 @@
         "COVER": "Titelbild",
         "DESCRIPTION": "Beschreibung",
         "SHOP": "Saalplan & Platzauswahl",
+        "SHOP_ADMISSION": "Tickets (Ticketliste)",
         "WAITLIST": "Warteliste (erscheint nur, wenn keine Tickets mehr da sind)"
       },
       "boxesTitle": "Infoboxen",
@@ -724,7 +741,8 @@
         "venue": "Spielstätte",
         "seatPlan": "Saalplan",
         "openEditor": "Editor öffnen",
-        "noPlan": "Kein Saalplan zugeordnet"
+        "noPlan": "Kein Saalplan zugeordnet",
+        "contingents": "Nur Eintritt – Kontingente verwalten"
       },
       "links": {
         "title": "Schnellzugriff",
@@ -886,6 +904,55 @@
         "SVG_TOO_COMPLEX": "Ein Symbol in der Datei ist zu komplex.",
         "VALIDATION_FAILED": "Bitte wähle einen Plan aus."
       }
+    },
+    "mode": {
+      "title": "Spielstätte & Bestuhlung",
+      "description": "Ob diese Veranstaltung über einen Saalplan oder nur als Eintritt verkauft wird, an welcher Spielstätte und mit welchem Plan.",
+      "mode": "Bestuhlung",
+      "seated": "Mit Saalplan",
+      "admission": "Nur Eintritt (ohne Saalplan)",
+      "venue": "Spielstätte",
+      "noVenue": "Keine Spielstätte",
+      "plan": "Saalplan",
+      "emptyPlan": "Mit leerem Plan beginnen",
+      "change": "Ändern…",
+      "blockedNotDraft": "Bestuhlung, Spielstätte und Plan können nur geändert werden, solange die Veranstaltung ein Entwurf ist.",
+      "blockedInUse": "Zu dieser Veranstaltung gibt es Bestellungen oder Tickets (auch Testbestellungen). Lösche zuerst die Testbestellungen, um die Bestuhlung zu ändern.",
+      "dialogTitle": "Spielstätte & Bestuhlung ändern",
+      "dialogDescription": "Wähle die Bestuhlung, die Spielstätte und – mit Saalplan – den Plan, der kopiert wird.",
+      "cancel": "Abbrechen",
+      "apply": "Übernehmen…",
+      "confirmTitle": "Plan der Veranstaltung ersetzen?",
+      "confirmDescription": "Der aktuelle Plan dieser Veranstaltung – mit seinen Sitzplätzen, Stehbereichen bzw. Kontingenten und allen Änderungen – wird gelöscht und kann nicht wiederhergestellt werden. Preiskategorien und Tarife bleiben erhalten.",
+      "confirm": "Bestuhlung ändern"
+    },
+    "contingents": {
+      "title": "Kontingente",
+      "description": "Eintrittskarten werden nach Menge aus diesen Kontingenten verkauft. Jedes Kontingent hat eine Preiskategorie und eine Kapazität; beides ist jederzeit änderbar, die Kapazität aber nie unter die bereits verkauften, reservierten oder in Warenkörben liegenden Plätze.",
+      "add": "Kontingent hinzufügen",
+      "noCategories": "Lege zuerst eine Preiskategorie an (Preise & Tarife).",
+      "emptyTitle": "Noch keine Kontingente",
+      "emptyDescription": "Füge ein Kontingent hinzu (z. B. „Eintritt“, 500 Plätze), um Tickets für diese Veranstaltung zu verkaufen.",
+      "name": "Name",
+      "category": "Preiskategorie",
+      "entrance": "Eingang",
+      "noEntrance": "Kein Eingang",
+      "capacity": "Kapazität",
+      "capacityMinimum": "Mindestens {minimum} (bereits verkauft, reserviert oder in Warenkörben).",
+      "categoryLocked": "Plätze sind verkauft, reserviert oder liegen in Warenkörben: die Preiskategorie kann nicht geändert werden.",
+      "soldHeld": "Verkauft / gehalten",
+      "noCategory": "Keine Kategorie",
+      "editLabel": "{name} bearbeiten",
+      "editTitle": "Kontingent bearbeiten",
+      "addTitle": "Kontingent hinzufügen",
+      "dialogDescription": "Der Name wird auf die Tickets gedruckt.",
+      "removeLabel": "{name} entfernen",
+      "removeTitle": "„{name}“ entfernen?",
+      "removeDescription": "Das Kontingent wird entfernt und kann nicht mehr verkauft werden.",
+      "removeInUse": "Plätze dieses Kontingents sind verkauft, reserviert oder liegen in Warenkörben; es kann nicht entfernt werden.",
+      "remove": "Entfernen",
+      "cancel": "Abbrechen",
+      "save": "Speichern"
     }
   },
   "queue": {

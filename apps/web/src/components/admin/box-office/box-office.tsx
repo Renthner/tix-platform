@@ -488,6 +488,8 @@ export function BoxOffice({
 
   // ── Render ───────────────────────────────────────────────────────────────
   const selectedEvent = events.find((e) => e.id === eventId);
+  // Admission-only events have no seating plan: the contingent list replaces the plan picker.
+  const admission = selectedEvent?.admission === true;
   const standing = map?.sections.filter((s) => s.type === 'STANDING' && s.priceCategoryId) ?? [];
   const givenCents = given.trim() ? parseMoneyToCents(given) : null;
   const sortedSeats = useMemo(() => {
@@ -517,7 +519,7 @@ export function BoxOffice({
             </SelectContent>
           </Select>
         )}
-        {selectedEvent && (
+        {selectedEvent?.venueName && (
           <p className="text-xs text-muted-foreground">{selectedEvent.venueName}</p>
         )}
       </div>
@@ -531,45 +533,58 @@ export function BoxOffice({
       {map && lookups && (
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
           <div className="space-y-3">
-            <SeatChart
-              map={map}
-              colors={colors}
-              status={status}
-              statusVersion={statusVersion}
-              gaRemaining={inv.ga}
-              gaMine={Object.fromEntries(
-                Object.entries(gaPicks).map(([id, picks]) => [id, sectionTotal(picks)]),
-              )}
-              highlighted={new Set()}
-              interactive
-              onSeatClick={(seat) => void toggleSeat(seat)}
-              onSectionClick={(sectionId) => {
-                const section = lookups.sections.get(sectionId);
-                const category = section?.priceCategoryId;
-                const tariff = category ? defaultTariff(map, category, null) : null;
-                if (section?.type === 'STANDING' && tariff)
-                  void setGa(sectionId, tariff.id, (gaPicks[sectionId]?.[tariff.id] ?? 0) + 1);
-              }}
-              seatTitle={seatText}
-              sellBlocked={allowBlocked}
-            />
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-              <SeatStateLegend map={map} colors={colors} sellBlocked={allowBlocked} />
-            </div>
-            {permissions.blockedSeats && (
-              <label className="flex items-start gap-2 text-sm">
-                <Checkbox
-                  checked={allowBlocked}
-                  onCheckedChange={(v) => setAllowBlocked(v === true)}
-                  className="mt-0.5"
+            {admission ? (
+              <StandingCard
+                map={map}
+                standing={standing}
+                gaPicks={gaPicks}
+                inv={inv}
+                setGa={setGa}
+                title={t('admissionTickets')}
+              />
+            ) : (
+              <>
+                <SeatChart
+                  map={map}
+                  colors={colors}
+                  status={status}
+                  statusVersion={statusVersion}
+                  gaRemaining={inv.ga}
+                  gaMine={Object.fromEntries(
+                    Object.entries(gaPicks).map(([id, picks]) => [id, sectionTotal(picks)]),
+                  )}
+                  highlighted={new Set()}
+                  interactive
+                  onSeatClick={(seat) => void toggleSeat(seat)}
+                  onSectionClick={(sectionId) => {
+                    const section = lookups.sections.get(sectionId);
+                    const category = section?.priceCategoryId;
+                    const tariff = category ? defaultTariff(map, category, null) : null;
+                    if (section?.type === 'STANDING' && tariff)
+                      void setGa(sectionId, tariff.id, (gaPicks[sectionId]?.[tariff.id] ?? 0) + 1);
+                  }}
+                  seatTitle={seatText}
+                  sellBlocked={allowBlocked}
                 />
-                <span>
-                  {t('allowBlocked')}
-                  <span className="block text-xs text-muted-foreground">
-                    {t('allowBlockedHint')}
-                  </span>
-                </span>
-              </label>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                  <SeatStateLegend map={map} colors={colors} sellBlocked={allowBlocked} />
+                </div>
+                {permissions.blockedSeats && (
+                  <label className="flex items-start gap-2 text-sm">
+                    <Checkbox
+                      checked={allowBlocked}
+                      onCheckedChange={(v) => setAllowBlocked(v === true)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      {t('allowBlocked')}
+                      <span className="block text-xs text-muted-foreground">
+                        {t('allowBlockedHint')}
+                      </span>
+                    </span>
+                  </label>
+                )}
+              </>
             )}
           </div>
 
@@ -601,8 +616,9 @@ export function BoxOffice({
                   fe={fe}
                   removeSeat={removeSeat}
                   updatePick={updatePick}
+                  emptyText={admission ? t('emptyAdmission') : undefined}
                 />
-                {standing.length > 0 && (
+                {!admission && standing.length > 0 && (
                   <StandingCard
                     map={map}
                     standing={standing}

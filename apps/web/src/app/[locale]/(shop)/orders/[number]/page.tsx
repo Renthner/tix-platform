@@ -100,6 +100,7 @@ export default async function OrderPage({
   const model = buildOrderViewModel(view, { audience: 'shop', tokenQuery });
   const placeText = (
     item: Pick<OrderItemLine, 'kind' | 'sectionLabel' | 'rowLabel' | 'seatLabel'>,
+    admission: boolean,
   ) =>
     item.kind === 'SEAT'
       ? [
@@ -109,9 +110,11 @@ export default async function OrderPage({
         ]
           .filter(Boolean)
           .join(' · ')
-      : `${item.sectionLabel} · ${t('items.standing')}`;
+      : `${item.sectionLabel} · ${t(admission ? 'items.admission' : 'items.standing')}`;
   const placeByItem = new Map(
-    model.events.flatMap((event) => event.items.map((item) => [item.id, placeText(item)])),
+    model.events.flatMap((event) =>
+      event.items.map((item) => [item.id, placeText(item, event.admission)]),
+    ),
   );
   const invoicing = await getSetting(core, 'invoicing');
   const expectsTickets = view.events.some((event) =>
@@ -234,7 +237,7 @@ export default async function OrderPage({
         labels={{
           title: t('items.title'),
           total: t('items.total'),
-          place: placeText,
+          place: (item) => placeByItem.get(item.id) ?? placeText(item, false),
           eventDate: (event) =>
             format.dateTime(new Date(event.startsAt), {
               dateStyle: 'full',
@@ -337,8 +340,17 @@ export default async function OrderPage({
       {calendarEvents.length > 0 && (
         <Card data-slot="order-calendar">
           <CardHeader>
-            <CardTitle>{t('calendar.title')}</CardTitle>
-            <p className="text-sm text-muted-foreground">{t('calendar.intro')}</p>
+            {/* Without any venue (admission-only events) there are no directions to offer. */}
+            <CardTitle>
+              {calendarEvents.some((e) => e.directionsUrl)
+                ? t('calendar.title')
+                : t('calendar.titleNoVenue')}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {calendarEvents.some((e) => e.directionsUrl)
+                ? t('calendar.intro')
+                : t('calendar.introNoVenue')}
+            </p>
           </CardHeader>
           <CardContent>
             <ul className="divide-y text-sm">
@@ -367,12 +379,14 @@ export default async function OrderPage({
                         {t('calendar.google')}
                       </a>
                     </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <a href={event.directionsUrl} target="_blank" rel="noopener noreferrer">
-                        <MapPin className="size-4" />
-                        {t('calendar.directions')}
-                      </a>
-                    </Button>
+                    {event.directionsUrl && (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={event.directionsUrl} target="_blank" rel="noopener noreferrer">
+                          <MapPin className="size-4" />
+                          {t('calendar.directions')}
+                        </a>
+                      </Button>
+                    )}
                   </div>
                 </li>
               ))}

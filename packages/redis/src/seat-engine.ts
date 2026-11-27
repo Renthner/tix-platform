@@ -460,6 +460,20 @@ export class SeatLockEngine {
     return { seats: seatCount, gaSpots: held.reduce((sum, v) => sum + (Number(v) || 0), 0) };
   }
 
+  /**
+   * GA spots held in carts per section. Read-only: expired holds not yet swept by the worker
+   * (which also broadcasts the release) still count – conservative for capacity checks.
+   */
+  async generalAdmissionHeldBySection(eventId: string): Promise<Record<string, number>> {
+    const held = await this.redis.hgetall(this.keys.generalAdmissionHeld(eventId));
+    const result: Record<string, number> = {};
+    for (const [section, value] of Object.entries(held)) {
+      const n = Number(value) || 0;
+      if (n > 0) result[section] = n;
+    }
+    return result;
+  }
+
   /** `liveHoldCounts` for many events in one Redis round trip (dashboard overview). */
   async liveHoldCountsMany(
     eventIds: readonly string[],

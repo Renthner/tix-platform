@@ -151,7 +151,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([value, label]) => ({ value, label }));
   const cityOptions = [
-    ...new Set(rows.map(({ venue }) => venue.city).filter((c): c is string => !!c)),
+    ...new Set(rows.map(({ venue }) => venue?.city).filter((c): c is string => !!c)),
   ].sort((a, b) => a.localeCompare(b, locale));
 
   await reportCacheHint();
@@ -187,13 +187,13 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
               data-search={[
                 L(event, 'title', event.title),
                 event.subtitle ? L(event, 'subtitle', event.subtitle) : '',
-                L(venue, 'name', venue.name),
-                venue.city ?? '',
+                venue ? L(venue, 'name', venue.name) : '',
+                venue?.city ?? '',
               ]
                 .join(' ')
                 .toLowerCase()}
               data-month={monthKey(event.startsAt, event.timeZone)}
-              data-city={venue.city ?? ''}
+              data-city={venue?.city ?? ''}
               className="@container/event gap-0 overflow-hidden py-0"
             >
               <div className="flex flex-col @3xl/event:flex-row">
@@ -244,12 +244,14 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                       <span className="hidden @xs/event:inline">{when('full')}</span>
                       <span className="@xs/event:hidden">{when('medium')}</span>
                     </p>
-                    <p className="flex items-start gap-2">
-                      <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
-                      <span className="min-w-0 break-words">
-                        {[L(venue, 'name', venue.name), venue.city].filter(Boolean).join(', ')}
-                      </span>
-                    </p>
+                    {venue && (
+                      <p className="flex items-start gap-2">
+                        <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
+                        <span className="min-w-0 break-words">
+                          {[L(venue, 'name', venue.name), venue.city].filter(Boolean).join(', ')}
+                        </span>
+                      </p>
+                    )}
                     {(state === 'NOT_STARTED' || state === 'PRESALE') && saleOpensAt(event) && (
                       <p className="font-medium text-foreground">
                         {t(state === 'PRESALE' ? 'home.publicSaleStarts' : 'home.saleStarts', {

@@ -155,9 +155,9 @@ export function CommandPalette({ entries }: { entries: PaletteEntry[] }) {
         list.push({
           id: `event:${e.id}`,
           label: e.title,
-          hint: [format.dateTime(new Date(e.startsAt), { dateStyle: 'medium' }), e.venueName].join(
-            ' · ',
-          ),
+          hint: [format.dateTime(new Date(e.startsAt), { dateStyle: 'medium' }), e.venueName]
+            .filter(Boolean)
+            .join(' · '),
           href: `/admin/events/${e.id}`,
           icon: <CalendarDays className="size-4" aria-hidden />,
           section: 'events',

@@ -130,6 +130,7 @@ const TRANSFER = names('transfer', [
   'senderName',
   'transferMessage',
   'ticketPlace',
+  'ticketWithoutSeat',
   'ticketCode',
   'eventTitle',
   'eventDate',
@@ -145,6 +146,7 @@ const TRANSFER = names('transfer', [
 const HOLDER = names('transfer', [
   'recipientName',
   'ticketPlace',
+  'ticketWithoutSeat',
   'ticketCode',
   'eventTitle',
   'eventDate',

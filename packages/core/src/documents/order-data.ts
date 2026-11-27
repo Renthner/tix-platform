@@ -30,11 +30,14 @@ export interface DocumentEvent {
   doorsOpenAt: Date | null;
   timeZone: string;
   taxRateId: string;
+  /** Empty for an admission-only event without a venue. */
   venueName: string;
   venueCity: string | null;
   venueAddress: string | null;
   /** The event was cancelled: its items get no tickets (still listed for invoices). */
   cancelled?: boolean;
+  /** Admission-only event (contingents, no seating plan): items are labelled "Admission". */
+  admission?: boolean;
 }
 
 export interface OrderDocumentData {
@@ -78,6 +81,7 @@ export async function loadOrderDocumentData(
             status: events.status,
             translations: events.translations,
             subtitle: events.subtitle,
+            seatingMode: events.seatingMode,
             startsAt: events.startsAt,
             doorsOpenAt: events.doorsOpenAt,
             timeZone: events.timeZone,
@@ -89,7 +93,7 @@ export async function loadOrderDocumentData(
             city: venues.city,
           })
           .from(events)
-          .innerJoin(venues, eq(venues.id, events.venueId))
+          .leftJoin(venues, eq(venues.id, events.venueId))
           .where(inArray(events.id, eventIds))
           .orderBy(asc(events.startsAt));
   // Event texts follow the order's locale (item snapshots were stored in it at checkout).
@@ -104,18 +108,23 @@ export async function loadOrderDocumentData(
     doorsOpenAt: e.doorsOpenAt,
     timeZone: e.timeZone,
     taxRateId: e.taxRateId,
-    venueName: localized(
-      { translations: e.venueTranslations },
-      'name',
-      order.locale,
-      defaultLocale,
-      e.venueName,
-    ),
+    // Admission-only events may have no venue (left join → NULL columns).
+    venueName:
+      e.venueName === null
+        ? ''
+        : localized(
+            { translations: e.venueTranslations ?? {} },
+            'name',
+            order.locale,
+            defaultLocale,
+            e.venueName,
+          ),
     venueCity: e.city,
     venueAddress:
       [e.street, [e.postalCode, e.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') ||
       null,
     cancelled: e.status === 'CANCELLED',
+    admission: e.seatingMode === 'ADMISSION',
   }));
   // Items in the chronological order of their events, then block / row / seat (numeric-aware).
   const rank = new Map(documentEvents.map((e, index) => [e.id, index]));
@@ -136,13 +145,19 @@ export async function loadOrderDocumentData(
   };
 }
 
-/** "Block A · Row 3 · Seat 12" / "Standing area · Floor" (localized). */
+/**
+ * "Block A · Row 3 · Seat 12" / "Standing area · Floor" / "Admission · Day ticket" (localized;
+ * `admission` = the item belongs to an admission-only event).
+ */
 export function describeOrderItem(
   item: Pick<OrderItemRow, 'kind' | 'sectionLabel' | 'rowLabel' | 'seatLabel'>,
   t: MailTranslator,
+  admission = false,
 ): string {
   if (item.kind === 'GENERAL_ADMISSION' || !item.seatLabel) {
-    return t('items.standing', { section: item.sectionLabel });
+    return admission
+      ? t('items.admission', { section: item.sectionLabel })
+      : t('items.standing', { section: item.sectionLabel });
   }
   return item.rowLabel
     ? t('items.seat', { section: item.sectionLabel, row: item.rowLabel, seat: item.seatLabel })

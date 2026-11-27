@@ -30,6 +30,7 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm';
+import { countSellableContingents } from '@tix/core';
 import { getCore } from '@/server/core';
 import { shopOrderBy, shopVisibleCondition } from '@/server/shop-events';
 
@@ -147,7 +148,7 @@ export async function listEventsPage(
     db
       .select({ event: events, venueName: venues.name })
       .from(events)
-      .innerJoin(venues, eq(venues.id, events.venueId))
+      .leftJoin(venues, eq(venues.id, events.venueId))
       .where(where)
       .orderBy(dir === 'asc' ? asc(column) : desc(column), asc(events.id))
       .limit(filter.pageSize)
@@ -155,7 +156,7 @@ export async function listEventsPage(
     db
       .select({ n: count() })
       .from(events)
-      .innerJoin(venues, eq(venues.id, events.venueId))
+      .leftJoin(venues, eq(venues.id, events.venueId))
       .where(where),
   ]);
   return { rows, total: totalRow?.n ?? 0 };
@@ -208,7 +209,7 @@ export async function listEvents(
   return db
     .select({ event: events, venueName: venues.name })
     .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(filter.upcomingOnly ? asc(events.startsAt) : desc(events.startsAt), asc(events.id))
     .limit(filter.pageSize ?? 500)
@@ -236,7 +237,7 @@ export async function listShopVisibleEvents() {
       venueName: venues.name,
     })
     .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(shopVisibleCondition())
     .orderBy(...shopOrderBy())
     .limit(200);
@@ -244,12 +245,12 @@ export async function listShopVisibleEvents() {
 
 export async function getEventWithVenue(
   eventId: string,
-): Promise<{ event: EventRow; venue: VenueRow } | null> {
+): Promise<{ event: EventRow; venue: VenueRow | null } | null> {
   if (!isUuid(eventId)) return null;
   const [row] = await getCore()
     .db.select({ event: events, venue: venues })
     .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(eq(events.id, eventId));
   return row ?? null;
 }
@@ -262,20 +263,52 @@ export async function listTaxRates() {
     .orderBy(asc(taxRates.sortOrder), asc(taxRates.name));
 }
 
-export interface PublishChecklist {
-  seatMap: boolean;
-  category: boolean;
-  tariff: boolean;
-  inventory: boolean;
-}
+/**
+ * Publish checklist. Seated events: seatMap, category, tariff, inventory; admission-only events:
+ * category, tariff, contingent (a sellable contingent – the core re-checks it when publishing).
+ */
+export type PublishChecklist = Partial<
+  Record<'seatMap' | 'category' | 'tariff' | 'inventory' | 'contingent', boolean>
+>;
 
 export function checklistComplete(c: PublishChecklist): boolean {
-  return c.seatMap && c.category && c.tariff && c.inventory;
+  return Object.values(c).every(Boolean);
 }
 
 /** Everything an event needs before it can be published. */
 export async function publishChecklist(event: EventRow): Promise<PublishChecklist> {
   const { db } = getCore();
+  if (event.seatingMode === 'ADMISSION') {
+    const [[categories], [offered], contingents] = await Promise.all([
+      db
+        .select({ n: count() })
+        .from(priceCategories)
+        .where(and(eq(priceCategories.eventId, event.id), eq(priceCategories.isActive, true))),
+      db
+        .select({ n: count() })
+        .from(priceCategoryTicketTypes)
+        .innerJoin(
+          priceCategories,
+          eq(priceCategories.id, priceCategoryTicketTypes.priceCategoryId),
+        )
+        .innerJoin(ticketTypes, eq(ticketTypes.id, priceCategoryTicketTypes.ticketTypeId))
+        .where(
+          and(
+            eq(priceCategories.eventId, event.id),
+            eq(priceCategories.isActive, true),
+            eq(ticketTypes.isActive, true),
+            eq(priceCategoryTicketTypes.isActive, true),
+            sql`'ONLINE' = ANY(${ticketTypes.channels})`,
+          ),
+        ),
+      countSellableContingents(db, event),
+    ]);
+    return {
+      category: (categories?.n ?? 0) > 0,
+      tariff: (offered?.n ?? 0) > 0,
+      contingent: contingents > 0,
+    };
+  }
   const [[categories], [offered], [sellableSeats], [sellableAreas]] = await Promise.all([
     db
       .select({ n: count() })

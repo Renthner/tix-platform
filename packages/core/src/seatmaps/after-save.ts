@@ -1,14 +1,15 @@
 import { eventTags, invalidateShopCache } from '../cache/shop-cache';
 import type { CoreContext } from '../context';
 import { getEventById } from '../events';
-import { rebuildInventory } from '../inventory';
+import { rebuildInventory, scheduleInventoryRebuild } from '../inventory';
 import { publishSeatDelta } from '../realtime';
 import { forgetSeatMapVersion } from './public';
 import type { SaveSeatMapResult } from './document';
 
 /**
  * Side effects after an EVENT seat map was saved (outside the DB transaction):
- *  - rebuild the Redis inventory mirror (blocked / removed seats),
+ *  - rebuild the Redis inventory mirror (blocked / removed seats, standing capacity) and queue a
+ *    second, delayed rebuild (an in-flight checkout / release can make the first one drift),
  *  - force-release cart locks on seats that were removed or blocked,
  *  - tell all connected browsers to reload the plan (new version).
  */
@@ -22,6 +23,7 @@ export async function afterSeatMapSaved(
   // Plan geometry, prices and the event page price range changed: drop them on every instance.
   await invalidateShopCache(ctx, eventTags(event.id));
   await rebuildInventory(ctx, event);
+  await scheduleInventoryRebuild(ctx, event.id, result.version);
   const doc = await ctx.seats.takenSeats(event.id);
   const forced = [
     ...result.removedSeatIds,

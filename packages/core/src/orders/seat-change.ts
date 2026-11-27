@@ -189,6 +189,15 @@ export async function changeOrderSeats(
     if (item.status !== 'PENDING' && item.status !== 'CONFIRMED') {
       throw new DomainError('ITEM_NOT_ACTIVE', 'Only active tickets can be moved', 409);
     }
+    // Admission-only events have no seats (contingents only): nothing a ticket could move to.
+    if (events.get(item.eventId)?.seatingMode === 'ADMISSION') {
+      throw new DomainError(
+        'ITEM_ADMISSION_ONLY',
+        'Tickets of admission-only events have no seat that could be changed',
+        422,
+        { orderItemId: item.id },
+      );
+    }
     if (item.kind !== 'SEAT' || !item.seatId) {
       throw new DomainError('ITEM_NOT_SEAT', 'Standing spots cannot be moved', 422);
     }

@@ -232,7 +232,7 @@ export default async function EventsPage({
                       <TableCell className="whitespace-nowrap">
                         {formatInZone(event.startsAt, event.timeZone, locale)}
                       </TableCell>
-                      <TableCell>{venueName}</TableCell>
+                      <TableCell>{venueName ?? '–'}</TableCell>
                       <TableCell>
                         <EventStatusBadge status={event.status} />
                       </TableCell>

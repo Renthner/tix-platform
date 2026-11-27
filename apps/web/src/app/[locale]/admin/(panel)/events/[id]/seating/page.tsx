@@ -1,10 +1,12 @@
-import { orderItems, priceCategories, tickets } from '@tix/db';
-import { count, eq } from 'drizzle-orm';
+import { listContingents } from '@tix/core';
+import { orderItems, priceCategories, seatMaps, tickets, venues } from '@tix/db';
+import { asc, count, eq } from 'drizzle-orm';
 import { PencilRuler } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SeatPlanReplace } from '@/components/admin/seat-plan-replace';
+import { ContingentsManager, EventSeatingCardBody } from '@/components/admin/event-seating';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -18,7 +20,17 @@ import {
 import { Link } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { requireAdmin } from '@/server/auth';
-import { getEventWithVenue, listTemplates, seatingSummary } from '@/server/admin/queries';
+import {
+  changeEventSeatingAction,
+  removeContingentAction,
+  saveContingentAction,
+} from '@/server/admin/event-seating';
+import {
+  getEventWithVenue,
+  listAllTemplates,
+  listTemplates,
+  seatingSummary,
+} from '@/server/admin/queries';
 import { getCore } from '@/server/core';
 
 export async function generateMetadata() {
@@ -36,18 +48,93 @@ export default async function EventSeatingPage({
   const { id } = await params;
   const row = await getEventWithVenue(id);
   if (!row) notFound();
-  const { event } = row;
+  const { event, venue } = row;
   const t = await getTranslations('admin.seating');
 
-  // Another plan can only be assigned while nothing references the current one.
+  // Another plan / seating mode can only be assigned while nothing references the current one.
   const db = getCore().db;
-  const [templates, [items], [issued]] = await Promise.all([
-    listTemplates(event.venueId),
+  const [templates, [items], [issued], venueRows, allTemplates, [plan]] = await Promise.all([
+    event.venueId ? listTemplates(event.venueId) : Promise.resolve([]),
     db.select({ n: count() }).from(orderItems).where(eq(orderItems.eventId, event.id)),
     db.select({ n: count() }).from(tickets).where(eq(tickets.eventId, event.id)),
+    db
+      .select({ id: venues.id, name: venues.name })
+      .from(venues)
+      .where(eq(venues.isActive, true))
+      .orderBy(asc(venues.name)),
+    listAllTemplates(),
+    event.seatMapId
+      ? db
+          .select({ clonedFromId: seatMaps.clonedFromId })
+          .from(seatMaps)
+          .where(eq(seatMaps.id, event.seatMapId))
+      : Promise.resolve([]),
   ]);
   const replaceBlocked =
     event.status !== 'DRAFT' ? 'notDraft' : (items?.n ?? 0) + (issued?.n ?? 0) > 0 ? 'inUse' : null;
+  const planName = plan?.clonedFromId
+    ? (allTemplates.find((tpl) => tpl.id === plan.clonedFromId)?.name ?? null)
+    : null;
+  const seatingCard = (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('mode.title')}</CardTitle>
+        <CardDescription>{t('mode.description')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <EventSeatingCardBody
+          action={changeEventSeatingAction.bind(null, event.id)}
+          mode={event.seatingMode}
+          venueId={event.venueId}
+          venueName={venue?.name ?? null}
+          planName={planName}
+          venues={venueRows}
+          templates={allTemplates}
+          blocked={replaceBlocked}
+        />
+      </CardContent>
+    </Card>
+  );
+
+  if (event.seatingMode === 'ADMISSION') {
+    const [overview, categories] = await Promise.all([
+      listContingents(getCore(), event.id),
+      db
+        .select({
+          id: priceCategories.id,
+          name: priceCategories.name,
+          color: priceCategories.color,
+        })
+        .from(priceCategories)
+        .where(eq(priceCategories.eventId, event.id))
+        .orderBy(asc(priceCategories.sortOrder), asc(priceCategories.name)),
+    ]);
+    return (
+      <div className="space-y-6">
+        {seatingCard}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('contingents.title')}</CardTitle>
+            <CardDescription>{t('contingents.description')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ContingentsManager
+              saveAction={saveContingentAction.bind(null, event.id)}
+              removeActions={Object.fromEntries(
+                overview.contingents.map((c) => [
+                  c.id,
+                  removeContingentAction.bind(null, event.id, c.id),
+                ]),
+              )}
+              contingents={overview.contingents}
+              categories={categories}
+              entrances={overview.entrances}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const replacePanel = (
     <Card>
       <CardContent className="pt-6">
@@ -63,6 +150,7 @@ export default async function EventSeatingPage({
   if (!event.seatMapId) {
     return (
       <div className="space-y-6">
+        {seatingCard}
         <Alert>
           <AlertDescription>{t('noPlan')}</AlertDescription>
         </Alert>
@@ -93,6 +181,7 @@ export default async function EventSeatingPage({
 
   return (
     <div className="space-y-6">
+      {seatingCard}
       <Card>
         <CardHeader>
           <CardTitle>{t('title')}</CardTitle>

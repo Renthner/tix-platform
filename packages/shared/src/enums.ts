@@ -46,6 +46,13 @@ export type SeatMapKind = (typeof SEAT_MAP_KINDS)[number];
 export const SECTION_TYPES = values('SEATED', 'STANDING');
 export type SectionType = (typeof SECTION_TYPES)[number];
 
+/**
+ * SEATED = the event sells from a seating plan of its venue; ADMISSION = admission only (no
+ * seating plan, e.g. a fair): quantity contingents, the venue is optional.
+ */
+export const EVENT_SEATING_MODES = values('SEATED', 'ADMISSION');
+export type EventSeatingMode = (typeof EVENT_SEATING_MODES)[number];
+
 /** Non-inventory drawables of the seating editor. */
 export const SEAT_MAP_ELEMENT_TYPES = values(
   'STAGE',

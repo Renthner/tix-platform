@@ -51,6 +51,7 @@ export default async function EventSalesPage({
           <EventSalesForm
             action={updateEventSalesAction.bind(null, event.id)}
             timeZone={tz}
+            seated={event.seatingMode === 'SEATED'}
             globals={{
               maxTicketsPerOrder: checkout.maxTicketsPerOrder,
               maxTicketsPerCustomer: checkout.maxTicketsPerCustomer,

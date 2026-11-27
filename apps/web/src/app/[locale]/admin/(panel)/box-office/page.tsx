@@ -30,10 +30,11 @@ export default async function BoxOfficePage({ params }: { params: Promise<{ loca
         startsAt: events.startsAt,
         timeZone: events.timeZone,
         venueName: venues.name,
+        seatingMode: events.seatingMode,
         hasSeatMap: sql<boolean>`${events.seatMapId} IS NOT NULL`,
       })
       .from(events)
-      .innerJoin(venues, eq(venues.id, events.venueId))
+      .leftJoin(venues, eq(venues.id, events.venueId))
       .where(
         and(
           inArray(events.status, ['PUBLISHED', 'POSTPONED']),
@@ -57,6 +58,7 @@ export default async function BoxOfficePage({ params }: { params: Promise<{ loca
     startsAt: e.startsAt.toISOString(),
     timeZone: e.timeZone,
     venueName: e.venueName,
+    admission: e.seatingMode === 'ADMISSION',
   }));
   return (
     <>

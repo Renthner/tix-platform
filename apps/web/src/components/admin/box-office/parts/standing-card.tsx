@@ -15,19 +15,22 @@ export function StandingCard({
   gaPicks,
   inv,
   setGa,
+  title,
 }: {
   map: PublicSeatMap;
   standing: PublicSeatMap['sections'];
   gaPicks: Record<string, Record<string, number>>;
   inv: Inventory;
   setGa: (sectionId: string, tariffId: string, quantity: number) => Promise<void>;
+  /** Card title (default: "Standing areas"). */
+  title?: string;
 }) {
   const t = useTranslations('orders.boxOffice');
   const money = useMoney();
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">{t('standing')}</CardTitle>
+        <CardTitle className="text-base">{title ?? t('standing')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {standing.map((section) => {
@@ -54,7 +57,7 @@ export function StandingCard({
                       <Button
                         size="icon"
                         variant="outline"
-                        aria-label={t('decrease')}
+                        aria-label={`${t('decrease')}: ${section.name} · ${tariff.name}`}
                         disabled={quantity <= 0}
                         onClick={() => void setGa(section.id, tariff.id, quantity - 1)}
                       >
@@ -64,7 +67,7 @@ export function StandingCard({
                       <Button
                         size="icon"
                         variant="outline"
-                        aria-label={t('increase')}
+                        aria-label={`${t('increase')}: ${section.name} · ${tariff.name}`}
                         disabled={remaining <= 0}
                         onClick={() => void setGa(section.id, tariff.id, quantity + 1)}
                       >

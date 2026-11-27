@@ -1,6 +1,6 @@
 'use client';
 
-import { EVENT_STATUSES, type EventStatus } from '@tix/shared';
+import { EVENT_STATUSES, type EventSeatingMode, type EventStatus } from '@tix/shared';
 import { Check, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useActionState, useEffect, useId, useMemo, useState } from 'react';
@@ -51,12 +51,17 @@ export function EventCreateForm({
 }: {
   action: Action;
   venues: { id: string; name: string; timeZone: string }[];
-  templates: { id: string; name: string; venueId: string }[];
+  templates: { id: string; name: string; venueId: string | null }[];
   taxRates: TaxRateOption[];
   defaults: { timeZone: string; currency: string; orphanSeatRuleEnabled: boolean };
 }) {
   const t = useTranslations('admin.events');
   const [state, formAction] = useActionState(action, IDLE);
+  // Without any venue only admission-only events can be created.
+  const [seatingMode, setSeatingMode] = useState<EventSeatingMode>(
+    venues.length > 0 ? 'SEATED' : 'ADMISSION',
+  );
+  const seated = seatingMode === 'SEATED';
   const [venueId, setVenueId] = useState(venues[0]?.id ?? '');
   const [timeZone, setTimeZone] = useState(venues[0]?.timeZone ?? defaults.timeZone);
   const [tzTouched, setTzTouched] = useState(false);
@@ -107,11 +112,30 @@ export function EventCreateForm({
         >
           <Input id="subtitle" name="subtitle" maxLength={300} />
         </Field>
+        <Field
+          label={t('fields.seatingMode')}
+          htmlFor="seatingMode"
+          error={err('seatingMode')}
+          hint={seated ? t('fields.seatingModeSeatedHint') : t('fields.seatingModeAdmissionHint')}
+          className="md:col-span-2"
+        >
+          <NativeSelect
+            id="seatingMode"
+            name="seatingMode"
+            value={seatingMode}
+            onChange={(e) => setSeatingMode(e.target.value as EventSeatingMode)}
+          >
+            <option value="SEATED" disabled={venues.length === 0}>
+              {t('fields.seatingModeSeated')}
+            </option>
+            <option value="ADMISSION">{t('fields.seatingModeAdmission')}</option>
+          </NativeSelect>
+        </Field>
         <Field label={t('fields.venue')} htmlFor="venueId" error={err('venueId')}>
           <NativeSelect
             id="venueId"
             name="venueId"
-            required
+            required={seated}
             value={venueId}
             onChange={(e) => {
               setVenueId(e.target.value);
@@ -119,6 +143,7 @@ export function EventCreateForm({
               if (venue && !tzTouched) setTimeZone(venue.timeZone);
             }}
           >
+            {!seated && <option value="">{t('fields.noVenue')}</option>}
             {venues.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -126,26 +151,28 @@ export function EventCreateForm({
             ))}
           </NativeSelect>
         </Field>
-        <Field
-          label={t('fields.template')}
-          htmlFor="templateId"
-          error={err('templateId')}
-          hint={t('fields.templateHint')}
-        >
-          <NativeSelect
-            id="templateId"
-            name="templateId"
-            key={venueId}
-            defaultValue={venueTemplates[0]?.id ?? ''}
+        {seated && (
+          <Field
+            label={t('fields.template')}
+            htmlFor="templateId"
+            error={err('templateId')}
+            hint={t('fields.templateHint')}
           >
-            {venueTemplates.map((tpl) => (
-              <option key={tpl.id} value={tpl.id}>
-                {tpl.name}
-              </option>
-            ))}
-            <option value="">{t('fields.emptyPlan')}</option>
-          </NativeSelect>
-        </Field>
+            <NativeSelect
+              id="templateId"
+              name="templateId"
+              key={venueId}
+              defaultValue={venueTemplates[0]?.id ?? ''}
+            >
+              {venueTemplates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.name}
+                </option>
+              ))}
+              <option value="">{t('fields.emptyPlan')}</option>
+            </NativeSelect>
+          </Field>
+        )}
         <Field
           label={t('fields.startsAt')}
           htmlFor="startsAt"
@@ -206,7 +233,7 @@ export function EventCreateForm({
           invalid={Boolean(err('description'))}
         />
       </Field>
-      <OrphanRuleSwitch defaultChecked={defaults.orphanSeatRuleEnabled} />
+      {seated && <OrphanRuleSwitch defaultChecked={defaults.orphanSeatRuleEnabled} />}
       <TimeZoneOptions />
       <SubmitButton>{t('create.submit')}</SubmitButton>
     </ActionForm>
@@ -384,7 +411,9 @@ export function EventStatusForm({
 }: {
   action: Action;
   status: EventStatus;
-  checklist: { seatMap: boolean; category: boolean; tariff: boolean; inventory: boolean };
+  checklist: Partial<
+    Record<'seatMap' | 'category' | 'tariff' | 'inventory' | 'contingent', boolean>
+  >;
   /** Test orders on this (draft) event: publishing asks what to do with them. */
   testOrders?: { orders: number; seats: number; withMoney: number };
   canDeleteTestOrders?: boolean;
@@ -550,11 +579,14 @@ export function EventSalesForm({
   initial,
   globals,
   timeZone,
+  seated = true,
 }: {
   action: Action;
   initial: EventSalesValues;
   globals: GlobalCheckoutDefaults;
   timeZone: string;
+  /** FALSE for admission-only events: seat selection options are hidden (values kept). */
+  seated?: boolean;
 }) {
   const t = useTranslations('admin.events.sales');
   const tf = useTranslations('admin.events.fields');
@@ -686,25 +718,49 @@ export function EventSalesForm({
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium">{t('selection')}</h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          {triField('manualSeatSelectionEnabled')}
-          {triField('bestAvailableEnabled')}
-          {triField('companionRequiresWheelchair')}
-        </div>
-        <label className="flex items-start gap-3 rounded-lg border p-4 text-sm">
-          <Switch
-            name="orphanSeatRuleEnabled"
-            defaultChecked={initial.orphanSeatRuleEnabled}
-            className="mt-0.5"
-          />
-          <span>
-            <span className="font-medium">{tf('orphanSeatRule')}</span>
-            <span className="block text-muted-foreground">{tf('orphanSeatRuleHint')}</span>
-          </span>
-        </label>
-      </section>
+      {!seated && (
+        // Seat options do not apply to admission-only events; keep the stored values.
+        <>
+          {(
+            [
+              'manualSeatSelectionEnabled',
+              'bestAvailableEnabled',
+              'companionRequiresWheelchair',
+            ] as const
+          ).map((name) => (
+            <input
+              key={name}
+              type="hidden"
+              name={name}
+              value={initial[name] === null ? 'inherit' : initial[name] ? 'on' : 'off'}
+            />
+          ))}
+          {initial.orphanSeatRuleEnabled && (
+            <input type="hidden" name="orphanSeatRuleEnabled" value="on" />
+          )}
+        </>
+      )}
+      {seated && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">{t('selection')}</h3>
+          <div className="grid gap-4 md:grid-cols-2">
+            {triField('manualSeatSelectionEnabled')}
+            {triField('bestAvailableEnabled')}
+            {triField('companionRequiresWheelchair')}
+          </div>
+          <label className="flex items-start gap-3 rounded-lg border p-4 text-sm">
+            <Switch
+              name="orphanSeatRuleEnabled"
+              defaultChecked={initial.orphanSeatRuleEnabled}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="font-medium">{tf('orphanSeatRule')}</span>
+              <span className="block text-muted-foreground">{tf('orphanSeatRuleHint')}</span>
+            </span>
+          </label>
+        </section>
+      )}
 
       <section className="space-y-3">
         <h3 className="text-sm font-medium">{tp('title')}</h3>

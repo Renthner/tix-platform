@@ -80,7 +80,7 @@ export async function buildManifest(
     })
     .from(scannerDeviceEvents)
     .innerJoin(events, eq(events.id, scannerDeviceEvents.eventId))
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(eq(scannerDeviceEvents.deviceId, device.id))
     .orderBy(asc(events.startsAt), asc(events.id));
 
@@ -141,7 +141,8 @@ export async function buildManifest(
       doorsOpenAt: ev.doorsOpenAt?.toISOString() ?? null,
       endsAt: ev.endsAt?.toISOString() ?? null,
       timeZone: ev.timeZone,
-      venueName: ev.venueName,
+      // Admission-only events may have no venue; the wire contract keeps a string.
+      venueName: ev.venueName ?? '',
       entranceId: ev.entranceId,
       allowCheckOut: settings.allowCheckOut && ev.deviceAllowsCheckOut,
       // A revoked key is listed (so the app drops it) but its public key is never shipped.

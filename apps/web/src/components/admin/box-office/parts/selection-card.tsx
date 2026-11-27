@@ -44,7 +44,10 @@ export function SelectionCard({
   fe,
   removeSeat,
   updatePick,
+  emptyText,
 }: {
+  /** Hint while nothing is picked (default: plan / standing hint). */
+  emptyText?: string;
   map: PublicSeatMap;
   lookups: MapLookups;
   sortedSeats: PublicSeat[];
@@ -79,7 +82,9 @@ export function SelectionCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {lineCount === 0 && <p className="text-sm text-muted-foreground">{t('empty')}</p>}
+        {lineCount === 0 && (
+          <p className="text-sm text-muted-foreground">{emptyText ?? t('empty')}</p>
+        )}
         <ul className="space-y-3 text-sm">
           {sortedSeats.map((seat) => {
             const pick = seatPicks.get(seat.i)!;

@@ -83,6 +83,8 @@ export interface QuoteEvent {
   startsAt: string;
   timeZone: string;
   venueName: string;
+  /** Admission-only event (contingents, no seating plan). */
+  admission: boolean;
   items: QuoteItem[];
   fees: QuoteFee[];
   /** Σ item prices (after tariff reductions). */
@@ -196,7 +198,7 @@ async function loadPricingContextForCart(
   const rows = await ctx.db
     .select({ event: events, venue: venues, rate: taxRates.rateBasisPoints })
     .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .innerJoin(taxRates, eq(taxRates.id, events.taxRateId))
     .where(inArray(events.id, eventIds));
   const eventRows = new Map(
@@ -374,6 +376,7 @@ function buildQuote(
       startsAt: event.startsAt.toISOString(),
       timeZone: event.timeZone,
       venueName: event.venueName,
+      admission: event.seatingMode === 'ADMISSION',
       items,
       fees: eventFees,
       ticketsGross,

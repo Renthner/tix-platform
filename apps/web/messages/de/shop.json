@@ -172,6 +172,17 @@
       "remaining": "{count, plural, =0 {Ausverkauft} one {# Platz frei} other {# Plätze frei}}",
       "quantity": "Stehplatz-Tickets"
     },
+    "admission": {
+      "title": "Tickets",
+      "none": "Für diese Veranstaltung sind gerade keine Tickets im Verkauf.",
+      "soldOut": "Ausverkauft",
+      "fewLeft": "Nur noch {count}",
+      "quantityFor": "Anzahl Tickets: {name}",
+      "quantity": "{name}: {count} ausgewählt",
+      "decrease": "Ein Ticket weniger: {name}",
+      "increase": "Ein Ticket mehr: {name}",
+      "empty": "Wähle die Anzahl der Tickets in der Liste."
+    },
     "yourSelection": "Deine Auswahl",
     "count": "{count} / {max}",
     "emptyManual": "Klicke im Saalplan auf freie Plätze oder einen Stehplatzbereich.",

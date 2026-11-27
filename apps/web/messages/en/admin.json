@@ -104,7 +104,13 @@
       "testOrderPartialPayment": "The test order holds a partial payment. Pay it back (reverse the bank allocation) before cancelling.",
       "testOrderCancelFailed": "The test order could not be cancelled.",
       "testOrderPaymentOpen": "A PayPal payment of this test order is still open. Try again in a few minutes or cancel the order.",
-      "testOrderInvoiceExists": "This test order has an invoice and cannot be deleted."
+      "testOrderInvoiceExists": "This test order has an invoice and cannot be deleted.",
+      "eventNotDraft": "Only draft events can change their seating.",
+      "seatingHasHolds": "Spots of this event are currently held in shopping carts (or a checkout is running). Try again in a moment.",
+      "contingentInUse": "Spots of this contingent are sold, reserved or held in carts; it cannot be removed.",
+      "contingentCategoryInUse": "Spots of this contingent are sold, reserved or held in carts; its price category cannot be changed.",
+      "contingentConflict": "The contingent is being changed by another action right now. Try again in a moment.",
+      "admissionNotSellable": "This event needs at least one contingent with capacity and a price category offered online before it can be published."
     },
     "email": "Enter a valid e-mail address.",
     "fileRequired": "Please choose a file.",
@@ -405,9 +411,9 @@
       "sold": "Sold / capacity"
     },
     "create": {
-      "description": "The selected master plan is copied for this event and can be adjusted afterwards.",
+      "description": "New events start as a draft – publish them once everything is set up.",
       "submit": "Create event",
-      "noVenues": "Create a venue first.",
+      "noVenues": "No venue exists yet – you can only create admission-only events. Create a venue for events with a seating plan.",
       "noTaxRates": "No active tax rate exists. Add one in the settings first.",
       "createVenue": "Create venue"
     },
@@ -431,14 +437,20 @@
       "currency": "Currency",
       "taxRate": "Tax rate",
       "orphanSeatRule": "Orphan seat rule",
-      "orphanSeatRuleHint": "When enabled, customers cannot continue to the cart if their selection would leave a single empty seat in a row. The rule is checked when they click “Continue to cart”."
+      "orphanSeatRuleHint": "When enabled, customers cannot continue to the cart if their selection would leave a single empty seat in a row. The rule is checked when they click “Continue to cart”.",
+      "seatingMode": "Seating",
+      "seatingModeSeated": "With seating plan",
+      "seatingModeAdmission": "Admission only (no seating plan)",
+      "seatingModeSeatedHint": "Tickets are sold from a seating plan of the venue (seats and/or standing areas).",
+      "seatingModeAdmissionHint": "No seating plan: you sell admission tickets from contingents (e.g. a fair or club entry). The venue is optional.",
+      "noVenue": "No venue"
     },
     "tabs": {
       "overview": "Overview",
       "details": "Details",
       "sales": "Sales settings",
       "pricing": "Prices & tariffs",
-      "seating": "Seating plan",
+      "seating": "Seats & admission",
       "waitingRoom": "Waiting room",
       "accessCodes": "Access codes",
       "page": "Shop page",
@@ -462,7 +474,8 @@
         "seatMap": "Seating plan exists",
         "category": "At least one active price category",
         "tariff": "At least one online tariff offered in a category",
-        "inventory": "Seats or standing areas with a price category"
+        "inventory": "Seats or standing areas with a price category",
+        "contingent": "At least one contingent with capacity and an offered price category"
       }
     },
     "sales": {
@@ -550,6 +563,7 @@
           "sourceVenue": "Originally at: {venue}",
           "plan": "{seats, plural, one {# seat} other {# seats}} in {sections, plural, one {# block} other {# blocks}}",
           "noPlan": "No seating plan",
+          "contingents": "{count, plural, one {# contingent} other {# contingents}} (admission only)",
           "categories": "{count, plural, one {# price category} other {# price categories}}",
           "tariffs": "{count, plural, one {# tariff} other {# tariffs}}",
           "fees": "{count, plural, =0 {No event fees} one {# event fee} other {# event fees}}",
@@ -566,6 +580,8 @@
           "slug": "URL slug (optional)"
         },
         "venueHint": "The seating plan is created for this venue. Venues are not part of the file.",
+        "venueHintAdmission": "Optional – events with admission only (no seating plan) need no venue.",
+        "noVenue": "No venue",
         "startsAtHint": "Time zone of the event: {timeZone}. Leave the start as it is to keep all dates exactly as in the file; if you change it, doors, end, presale and sale dates move by the same difference and keep their local times.",
         "slugHint": "Leave empty to derive it from the title; a number is appended if the slug is taken.",
         "noVenues": "Create a venue first – the seating plan of the event belongs to a venue.",
@@ -625,6 +641,7 @@
         "COVER": "Cover image",
         "DESCRIPTION": "Description",
         "SHOP": "Seating plan & seat selection",
+        "SHOP_ADMISSION": "Tickets (ticket list)",
         "WAITLIST": "Waiting list (shown only when tickets are out)"
       },
       "boxesTitle": "Info boxes",
@@ -724,7 +741,8 @@
         "venue": "Venue",
         "seatPlan": "Seating plan",
         "openEditor": "Open editor",
-        "noPlan": "No seating plan assigned"
+        "noPlan": "No seating plan assigned",
+        "contingents": "Admission only – manage contingents"
       },
       "links": {
         "title": "Quick links",
@@ -886,6 +904,55 @@
         "SVG_TOO_COMPLEX": "A symbol in the file is too complex.",
         "VALIDATION_FAILED": "Please choose a plan."
       }
+    },
+    "mode": {
+      "title": "Venue & seating",
+      "description": "Whether this event is sold from a seating plan or as admission only, at which venue, and from which plan.",
+      "mode": "Seating",
+      "seated": "With seating plan",
+      "admission": "Admission only (no seating plan)",
+      "venue": "Venue",
+      "noVenue": "No venue",
+      "plan": "Seating plan",
+      "emptyPlan": "Start with an empty plan",
+      "change": "Change…",
+      "blockedNotDraft": "Seating, venue and plan can only be changed while the event is a draft.",
+      "blockedInUse": "This event has orders or tickets (test orders included). Delete the test orders first to change its seating.",
+      "dialogTitle": "Change venue & seating",
+      "dialogDescription": "Choose the seating mode, the venue and – with a seating plan – the plan to copy.",
+      "cancel": "Cancel",
+      "apply": "Apply…",
+      "confirmTitle": "Replace the event plan?",
+      "confirmDescription": "The current plan of this event – including its seats, standing areas or contingents and every change you made – is deleted and cannot be recovered. Price categories and tariffs stay.",
+      "confirm": "Change seating"
+    },
+    "contingents": {
+      "title": "Contingents",
+      "description": "Admission tickets are sold by quantity from these contingents. Each contingent has a price category and a capacity; both can be changed at any time, but the capacity never below the spots already sold, reserved or held in carts.",
+      "add": "Add contingent",
+      "noCategories": "Create a price category first (Prices & tariffs).",
+      "emptyTitle": "No contingents yet",
+      "emptyDescription": "Add a contingent (e.g. “Admission”, 500 spots) to sell tickets for this event.",
+      "name": "Name",
+      "category": "Price category",
+      "entrance": "Entrance",
+      "noEntrance": "No entrance",
+      "capacity": "Capacity",
+      "capacityMinimum": "At least {minimum} (already sold, reserved or held in carts).",
+      "categoryLocked": "Spots are sold, reserved or held in carts: the price category cannot be changed.",
+      "soldHeld": "Sold / held",
+      "noCategory": "No category",
+      "editLabel": "Edit {name}",
+      "editTitle": "Edit contingent",
+      "addTitle": "Add contingent",
+      "dialogDescription": "The name is printed on the tickets.",
+      "removeLabel": "Remove {name}",
+      "removeTitle": "Remove “{name}”?",
+      "removeDescription": "The contingent is removed and can no longer be sold.",
+      "removeInUse": "Spots of this contingent are sold, reserved or held in carts; it cannot be removed.",
+      "remove": "Remove",
+      "cancel": "Cancel",
+      "save": "Save"
     }
   },
   "queue": {

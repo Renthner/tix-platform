@@ -8,6 +8,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.48] - 2026-11-27
+
+### Update notes
+
+- Migration 0047 (event seating mode; venue optional for admission-only events and their hidden
+  contingent plans) runs automatically. Default e-mail templates that mention the venue are
+  upgraded on start unless they were edited (the venue part is now conditional).
+
+### Added
+
+- **Events without a seating plan** (admission only, e.g. fairs or club nights): chosen when the
+  event is created. Tickets are sold by quantity from **contingents** (name, price category,
+  capacity, optional entrance) – the shop shows a ticket list with price, remaining availability
+  and a quantity stepper instead of the plan, tariffs are still chosen per ticket in the cart. The
+  **venue is optional**: without one, address, map links, directions, the calendar location, the
+  wallet venue and the venue line on tickets and in e-mails are left out, and the event page gets
+  no `Event` structured data (Google requires a location). Box office sells contingents from a
+  quantity list; cart, checkout, order page, e-mails, invoices, tickets and wallet passes label
+  the spots "Admission". Event export / import carries the seating mode and the contingents
+  (older files import as seated events); a plan file cannot be exported for an admission-only
+  event and seat changes are refused for its tickets.
+
+### Changed
+
+- Venue, seating plan and seating mode of an event can only be swapped while it is a draft
+  without orders – test purchases must be deleted first.
+
 ## [1.0.0-alpha.47] - 2026-11-27
 
 ### Added

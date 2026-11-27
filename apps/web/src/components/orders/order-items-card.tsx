@@ -57,7 +57,7 @@ export function OrderItemsCard({
               <div>
                 <div className="font-medium">{event.title}</div>
                 <div className="text-sm text-muted-foreground">
-                  {labels.eventDate(event)} · {event.venueName}
+                  {[labels.eventDate(event), event.venueName].filter(Boolean).join(' · ')}
                 </div>
               </div>
               <ul className="divide-y text-sm">

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EMAIL_VARIABLES,
   TemplateSyntaxError,
+  describeOrderItem,
   documentLocale,
   formatIban,
   htmlToText,
@@ -119,6 +120,42 @@ describe('default e-mail templates', () => {
         }
       }
     }
+  });
+});
+
+describe('events without a venue', () => {
+  it('renders the event line of the default templates without a dangling venue', () => {
+    const venueTemplates = defaultEmailTemplates().filter((t) =>
+      [t.subject, t.bodyHtml, t.bodyText ?? ''].some((part) => part.includes('{{eventVenue}}')),
+    );
+    expect(venueTemplates.length).toBeGreaterThan(0);
+    for (const template of venueTemplates) {
+      for (const [body, mode] of [
+        [template.bodyHtml, 'html'],
+        [template.bodyText ?? '', 'text'],
+      ] as const) {
+        const vars = { eventTitle: 'Fair', eventDate: '1 May 2030', eventVenue: null };
+        const { output } = renderTemplate(body, vars, mode);
+        expect(output, `${template.key}|${template.locale} ${mode}`).not.toMatch(
+          /, \)|, ·|· \.|\(\)/,
+        );
+        expect(renderTemplate(body, { ...vars, eventVenue: 'Town Hall' }, mode).output).toContain(
+          'Town Hall',
+        );
+      }
+    }
+  });
+
+  it('labels admission tickets', () => {
+    const item = {
+      kind: 'GENERAL_ADMISSION' as const,
+      sectionLabel: 'Day ticket',
+      rowLabel: null,
+      seatLabel: null,
+    };
+    expect(describeOrderItem(item, mailTranslator('en'), true)).toBe('Admission · Day ticket');
+    expect(describeOrderItem(item, mailTranslator('en'))).toBe('Standing area · Day ticket');
+    expect(describeOrderItem(item, mailTranslator('de'), true)).toBe('Eintritt · Day ticket');
   });
 });
 

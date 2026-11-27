@@ -202,15 +202,26 @@ export default async function EventOverviewPage({
                 <div>
                   <dt className="text-xs text-muted-foreground">{t('facts.venue')}</dt>
                   <dd>
-                    <Link href={`/admin/venues/${venue.id}`} className="hover:underline">
-                      {venue.name}
-                    </Link>
+                    {venue ? (
+                      <Link href={`/admin/venues/${venue.id}`} className="hover:underline">
+                        {venue.name}
+                      </Link>
+                    ) : (
+                      '—'
+                    )}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">{t('facts.seatPlan')}</dt>
                   <dd>
-                    {event.seatMapId ? (
+                    {event.seatingMode === 'ADMISSION' ? (
+                      <Link
+                        href={`/admin/events/${event.id}/seating`}
+                        className="inline-flex items-center gap-1 hover:underline"
+                      >
+                        {t('facts.contingents')}
+                      </Link>
+                    ) : event.seatMapId ? (
                       <Link
                         href={`/admin/seat-maps/${event.seatMapId}`}
                         className="inline-flex items-center gap-1 hover:underline"

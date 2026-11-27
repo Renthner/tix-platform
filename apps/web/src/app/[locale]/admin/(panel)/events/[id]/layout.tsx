@@ -55,7 +55,7 @@ export default async function EventLayout({
               <SaleStateBadge state={computeSaleState(event)} />
             </span>
           }
-          description={`${formatInZone(event.startsAt, event.timeZone, locale, { dateStyle: 'full', timeStyle: 'short' })} · ${venue.name}`}
+          description={`${formatInZone(event.startsAt, event.timeZone, locale, { dateStyle: 'full', timeStyle: 'short' })} ${venue ? ` · ${venue.name}` : ''}`}
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <EditLocaleSwitcher

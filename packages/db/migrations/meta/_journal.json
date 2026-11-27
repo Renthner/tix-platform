@@ -330,6 +330,13 @@
       "when": 1795698540552,
       "tag": "0046_customer_email_change_mails",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795771536194,
+      "tag": "0047_event_seating_mode",
+      "breakpoints": true
     }
   ]
 }

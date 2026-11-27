@@ -2,6 +2,7 @@ import { getSeatMapMeta, listSymbols, loadSeatMapDocument } from '@tix/core';
 import { events, priceCategories, venues } from '@tix/db';
 import { asc, eq } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
+import { redirect } from '@/i18n/navigation';
 import { resolveLocale } from '@/i18n/locale';
 import { notFound } from 'next/navigation';
 import { translationCompleteness, translationLocales } from '@tix/shared';
@@ -22,7 +23,7 @@ export default async function SeatMapEditorPage({
   params: Promise<{ locale: string; id: string }>;
 }) {
   const { id } = await params;
-  await resolveLocale(params);
+  const locale = await resolveLocale(params);
   await requireAdmin(['EVENT_MANAGER']);
   const { db } = getCore();
   const meta = /^[0-9a-f-]{36}$/i.test(id) ? await getSeatMapMeta(db, id) : null;
@@ -30,12 +31,21 @@ export default async function SeatMapEditorPage({
   const doc = await loadSeatMapDocument(db, id);
   if (!doc) notFound();
 
-  const [venue] = await db
-    .select({ name: venues.name })
-    .from(venues)
-    .where(eq(venues.id, meta.venueId));
+  if (meta.eventId) {
+    // The hidden plan of an admission-only event is edited as contingents in the event.
+    const [owner] = await db
+      .select({ seatingMode: events.seatingMode })
+      .from(events)
+      .where(eq(events.id, meta.eventId));
+    if (owner?.seatingMode === 'ADMISSION') {
+      redirect({ href: `/admin/events/${meta.eventId}/seating`, locale });
+    }
+  }
+  const [venue] = meta.venueId
+    ? await db.select({ name: venues.name }).from(venues).where(eq(venues.id, meta.venueId))
+    : [];
   let title = venue?.name ?? '';
-  let backHref = `/admin/venues/${meta.venueId}`;
+  let backHref = meta.venueId ? `/admin/venues/${meta.venueId}` : NAV_HREFS.events;
   const tNav = await getTranslations('admin.nav');
   let parent: { label: string; href: string } = { label: tNav('venues'), href: NAV_HREFS.venues };
   let categories: { id: string; name: string; color: string }[] = [];

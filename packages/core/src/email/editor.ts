@@ -295,6 +295,7 @@ export function sampleEmailVariables(
     senderName: `${s.firstName} ${s.lastName}`,
     transferMessage: locale === 'de' ? 'Viel Spaß bei der Show!' : 'Enjoy the show!',
     ticketPlace: s.seat,
+    ticketWithoutSeat: null,
     ticketCode: 'SAMPLE-1',
     // The buyer version of the event notices shows the order link, not a holder ticket link.
     ticketPageUrl:

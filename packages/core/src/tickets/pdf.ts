@@ -45,9 +45,12 @@ export interface TicketRenderData {
   eventSubtitle: string | null;
   startsAt: Date;
   doorsOpenAt: Date | null;
+  /** Empty for an admission-only event without a venue (the venue label is not printed then). */
   venueName: string;
   venueAddress: string | null;
   kind: 'SEAT' | 'GENERAL_ADMISSION';
+  /** Ticket of an admission-only event (contingent): "Admission · <contingent>". */
+  admission?: boolean;
   /** Empty when the section's `show_label_on_ticket` is off. */
   sectionLabel: string;
   rowLabel: string | null;
@@ -135,6 +138,11 @@ const hex = (value: string) => {
 
 function seatFull(data: TicketRenderData, t: MailTranslator): string {
   if (data.kind === 'GENERAL_ADMISSION' || !data.seatLabel) {
+    if (data.admission) {
+      return data.sectionLabel
+        ? t('items.admission', { section: data.sectionLabel })
+        : t('ticket.admission');
+    }
     return data.sectionLabel
       ? t('items.standing', { section: data.sectionLabel })
       : t('ticket.standing');
@@ -206,7 +214,17 @@ export function ticketVariables(
 }
 
 /** The text an element prints for this ticket (after upper-casing). */
+/** Static texts that only label a value; they are not printed when that value is empty. */
+const LABEL_OF: Record<string, (data: TicketRenderData) => string> = {
+  // Admission-only events may have no venue: no dangling "Venue" label.
+  '{{label.venue}}': (data) => data.venueName,
+};
+
 export function elementText(element: TicketTextElement, data: TicketRenderData): string {
+  if (element.field === 'STATIC_TEXT') {
+    const labelled = LABEL_OF[(element.text ?? '').replace(/\s+/g, '')];
+    if (labelled && !labelled(data).trim()) return '';
+  }
   const vars = ticketVariables(data, element);
   const raw =
     element.field === 'STATIC_TEXT'

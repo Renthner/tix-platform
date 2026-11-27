@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   DISCOUNT_KINDS,
   EMAIL_TEMPLATE_KEYS,
+  EVENT_SEATING_MODES,
   FEE_CALCULATIONS,
   FEE_SCOPES,
   INFO_BOX_SIZES,
@@ -11,6 +12,7 @@ import {
   SALES_CHANNELS,
   SEAT_FEATURES,
   WAITLIST_TRIGGERS,
+  type EventSeatingMode,
 } from '../enums';
 import { hexColorSchema } from '../schemas/common';
 import {
@@ -91,6 +93,11 @@ const pageLayoutItem = z.object({ ref: z.string().min(1).max(60), span: z.number
 
 const eventSettings = z.object({
   title: z.string().trim().min(1).max(200),
+  /**
+   * SEATED (default – files written before admission-only events existed) or ADMISSION: the
+   * seat plan then holds the contingents (STANDING sections) and the venue is optional.
+   */
+  seatingMode: z.enum(EVENT_SEATING_MODES).default('SEATED'),
   subtitle: z.string().max(300).nullable().default(null),
   description: z.string().max(50_000).nullable().default(null),
   translations,
@@ -398,6 +405,7 @@ export interface EventFileSummary {
   timeZone: string;
   startsAt: string;
   venueName: string | null;
+  seatingMode: EventSeatingMode;
   priceCategories: number;
   ticketTypes: number;
   fees: number;
@@ -420,6 +428,7 @@ export function summarizeEventFile(file: EventFile): EventFileSummary {
     timeZone: file.event.timeZone,
     startsAt: file.event.startsAt,
     venueName: file.source.venueName,
+    seatingMode: file.event.seatingMode,
     priceCategories: file.priceCategories.length,
     ticketTypes: file.ticketTypes.length,
     fees: file.fees.length,

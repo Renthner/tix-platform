@@ -115,7 +115,9 @@ export default async function EventPage({ params }: Params) {
   const core = getCore();
   const content = await loadContentLocale(locale);
   const event = localizeEventRow(found.event, content.locale, content.defaultLocale);
-  const venue = localizeVenueRow(found.venue, content.locale, content.defaultLocale);
+  const venue = found.venue
+    ? localizeVenueRow(found.venue, content.locale, content.defaultLocale)
+    : null;
   const [checkout, queue, format, t, announcements, seatDisplay, priceRange, organizer, nonce] =
     await Promise.all([
       effectiveCheckoutConfig(core, event),
@@ -151,10 +153,12 @@ export default async function EventPage({ params }: Params) {
   const cover = found.cover;
   const base = publicBaseUrl();
   const isDraft = found.event.status === 'DRAFT';
-  // No structured data for drafts, events excluded from search engines or while indexing is off.
+  // No structured data for drafts, events excluded from search engines or while indexing is off,
+  // nor for admission-only events without a venue (Google requires `location`, see
+  // buildEventJsonLd).
   const seoIndexing = (await getSetting(core, 'seo')).indexing;
   const jsonLd =
-    isDraft || found.event.seoNoindex || !seoIndexing
+    isDraft || found.event.seoNoindex || !seoIndexing || !venue
       ? null
       : jsonLdString(
           buildEventJsonLd({
@@ -230,18 +234,20 @@ export default async function EventPage({ params }: Params) {
               })}
             </span>
           )}
-          <a
-            href={venueMapsUrl(venue)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 underline-offset-4 hover:text-foreground hover:underline"
-            title={t('showOnMap')}
-          >
-            <MapPin className="size-4" />
-            {[venue.name, venue.street, venue.city].filter(Boolean).join(', ')}
-            <ExternalLink className="size-3" aria-hidden />
-            <span className="sr-only">{t('showOnMap')}</span>
-          </a>
+          {venue && (
+            <a
+              href={venueMapsUrl(venue)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 underline-offset-4 hover:text-foreground hover:underline"
+              title={t('showOnMap')}
+            >
+              <MapPin className="size-4" />
+              {[venue.name, venue.street, venue.city].filter(Boolean).join(', ')}
+              <ExternalLink className="size-3" aria-hidden />
+              <span className="sr-only">{t('showOnMap')}</span>
+            </a>
+          )}
           <a
             href={`/api/events/${event.id}/calendar.ics?locale=${content.locale}`}
             className="flex items-center gap-2 underline-offset-4 hover:text-foreground hover:underline"
@@ -369,6 +375,7 @@ export default async function EventPage({ params }: Params) {
           maxTicketsPerOrder: checkout.maxTicketsPerOrder,
           orphanSeatRuleEnabled: checkout.orphanSeatRuleEnabled,
           companionRequiresWheelchair: checkout.companionRequiresWheelchair,
+          admission: event.seatingMode === 'ADMISSION',
         }}
         seatColors={seatDisplay}
         queue={{

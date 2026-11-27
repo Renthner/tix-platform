@@ -41,6 +41,8 @@ export interface OrderEventModel {
   startsAt: string;
   timeZone: string;
   venueName: string;
+  /** Admission-only event (contingents, no seating plan). */
+  admission: boolean;
   items: OrderItemLine[];
   /** Fees attached to this event (shop lists them below the event's items). */
   fees: OrderFeeLine[];
@@ -111,6 +113,7 @@ export function buildOrderViewModel(
     startsAt: event.startsAt,
     timeZone: event.timeZone,
     venueName: event.venueName,
+    admission: event.admission,
     items: event.items.map((item) => ({
       id: item.id,
       kind: item.kind,

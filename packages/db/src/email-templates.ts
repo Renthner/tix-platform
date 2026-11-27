@@ -932,7 +932,7 @@ ${COMMON.de.regardsText}`,
       html: [
         paragraph('Hello{{#if recipientName}} {{recipientName}}{{/if}},'),
         paragraph(
-          '<strong>{{senderName}}</strong> has passed a ticket for <strong>{{eventTitle}}</strong> on to you. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Your seat: <strong>{{ticketPlace}}</strong> (ticket {{ticketCode}}).',
+          '<strong>{{senderName}}</strong> has passed a ticket for <strong>{{eventTitle}}</strong> on to you. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}{{#if ticketWithoutSeat}}Your ticket{{else}}Your seat{{/if}}: <strong>{{ticketPlace}}</strong> (ticket {{ticketCode}}).',
         ),
         '{{#if transferMessage}}<blockquote style="margin:0 0 16px;padding:8px 14px;border-left:3px solid #d4d4d8;color:#3f3f46;white-space:pre-line">{{transferMessage}}</blockquote>{{/if}}',
         button('en', 'ticketPageUrl', 'Open your ticket'),
@@ -948,7 +948,7 @@ ${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hello{{#if recipientName}} {{recipientName}}{{/if}},
 
-{{senderName}} has passed a ticket for {{eventTitle}} on to you. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Your seat: {{ticketPlace}} (ticket {{ticketCode}}).
+{{senderName}} has passed a ticket for {{eventTitle}} on to you. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}{{#if ticketWithoutSeat}}Your ticket{{else}}Your seat{{/if}}: {{ticketPlace}} (ticket {{ticketCode}}).
 
 {{#if transferMessage}}"{{transferMessage}}"
 
@@ -968,7 +968,7 @@ ${COMMON.en.regardsText}`,
       html: [
         paragraph('Hallo{{#if recipientName}} {{recipientName}}{{/if}},'),
         paragraph(
-          '<strong>{{senderName}}</strong> hat ein Ticket für <strong>{{eventTitle}}</strong> an dich weitergegeben. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Dein Platz: <strong>{{ticketPlace}}</strong> (Ticket {{ticketCode}}).',
+          '<strong>{{senderName}}</strong> hat ein Ticket für <strong>{{eventTitle}}</strong> an dich weitergegeben. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}{{#if ticketWithoutSeat}}Dein Ticket{{else}}Dein Platz{{/if}}: <strong>{{ticketPlace}}</strong> (Ticket {{ticketCode}}).',
         ),
         '{{#if transferMessage}}<blockquote style="margin:0 0 16px;padding:8px 14px;border-left:3px solid #d4d4d8;color:#3f3f46;white-space:pre-line">{{transferMessage}}</blockquote>{{/if}}',
         button('de', 'ticketPageUrl', 'Ticket öffnen'),
@@ -984,7 +984,7 @@ ${COMMON.en.regardsText}`,
       ].join('\n'),
       text: `Hallo{{#if recipientName}} {{recipientName}}{{/if}},
 
-{{senderName}} hat ein Ticket für {{eventTitle}} an dich weitergegeben. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Dein Platz: {{ticketPlace}} (Ticket {{ticketCode}}).
+{{senderName}} hat ein Ticket für {{eventTitle}} an dich weitergegeben. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}{{#if ticketWithoutSeat}}Dein Ticket{{else}}Dein Platz{{/if}}: {{ticketPlace}} (Ticket {{ticketCode}}).
 
 {{#if transferMessage}}"{{transferMessage}}"
 
@@ -1052,7 +1052,7 @@ ${orderLink('de')}${COMMON.de.regardsText}`,
       html: [
         paragraph('Hello{{#if recipientName}} {{recipientName}}{{/if}},'),
         paragraph(
-          'your ticket for <strong>{{eventTitle}}</strong> was updated by the organiser. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Your seat: <strong>{{ticketPlace}}</strong> (ticket {{ticketCode}}).',
+          'your ticket for <strong>{{eventTitle}}</strong> was updated by the organiser. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}{{#if ticketWithoutSeat}}Your ticket{{else}}Your seat{{/if}}: <strong>{{ticketPlace}}</strong> (ticket {{ticketCode}}).',
         ),
         paragraph(
           '<strong>Your previous QR code is no longer valid.</strong> Please use the new ticket from now on.',
@@ -1066,7 +1066,7 @@ ${orderLink('de')}${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hello{{#if recipientName}} {{recipientName}}{{/if}},
 
-your ticket for {{eventTitle}} was updated by the organiser. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Your seat: {{ticketPlace}} (ticket {{ticketCode}}).
+your ticket for {{eventTitle}} was updated by the organiser. {{#if eventDate}}It is valid for {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}{{#if ticketWithoutSeat}}Your ticket{{else}}Your seat{{/if}}: {{ticketPlace}} (ticket {{ticketCode}}).
 
 Your previous QR code is no longer valid. Please use the new ticket from now on.
 
@@ -1082,7 +1082,7 @@ ${COMMON.en.regardsText}`,
       html: [
         paragraph('Hallo{{#if recipientName}} {{recipientName}}{{/if}},'),
         paragraph(
-          'dein Ticket für <strong>{{eventTitle}}</strong> wurde vom Veranstalter aktualisiert. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Dein Platz: <strong>{{ticketPlace}}</strong> (Ticket {{ticketCode}}).',
+          'dein Ticket für <strong>{{eventTitle}}</strong> wurde vom Veranstalter aktualisiert. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}{{#if ticketWithoutSeat}}Dein Ticket{{else}}Dein Platz{{/if}}: <strong>{{ticketPlace}}</strong> (Ticket {{ticketCode}}).',
         ),
         paragraph(
           '<strong>Dein bisheriger QR-Code ist nicht mehr gültig.</strong> Bitte verwende ab jetzt das neue Ticket.',
@@ -1096,7 +1096,7 @@ ${COMMON.en.regardsText}`,
       ].join('\n'),
       text: `Hallo{{#if recipientName}} {{recipientName}}{{/if}},
 
-dein Ticket für {{eventTitle}} wurde vom Veranstalter aktualisiert. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}Dein Platz: {{ticketPlace}} (Ticket {{ticketCode}}).
+dein Ticket für {{eventTitle}} wurde vom Veranstalter aktualisiert. {{#if eventDate}}Es gilt für {{eventDate}}{{#if eventVenue}} · {{eventVenue}}{{/if}}. {{/if}}{{#if ticketWithoutSeat}}Dein Ticket{{else}}Dein Platz{{/if}}: {{ticketPlace}} (Ticket {{ticketCode}}).
 
 Dein bisheriger QR-Code ist nicht mehr gültig. Bitte verwende ab jetzt das neue Ticket.
 
@@ -1545,7 +1545,7 @@ ${COMMON.de.regardsText}`,
       html: [
         paragraph(COMMON.en.hello),
         paragraph(
-          'good news: tickets for <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) are available again. Everybody on the waiting list is notified at the same time and no seats are reserved – whoever books first gets them, so please be quick.',
+          'good news: tickets for <strong>{{eventTitle}}</strong> ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) are available again. Everybody on the waiting list is notified at the same time and no seats are reserved – whoever books first gets them, so please be quick.',
         ),
         button('en', 'eventUrl', 'Get tickets now'),
         paragraph(
@@ -1555,7 +1555,7 @@ ${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hello{{#if firstName}} {{firstName}}{{/if}},
 
-good news: tickets for {{eventTitle}} ({{eventDate}}, {{eventVenue}}) are available again. Everybody on the waiting list is notified at the same time and no seats are reserved – whoever books first gets them, so please be quick.
+good news: tickets for {{eventTitle}} ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) are available again. Everybody on the waiting list is notified at the same time and no seats are reserved – whoever books first gets them, so please be quick.
 
 {{eventUrl}}
 
@@ -1568,7 +1568,7 @@ ${COMMON.en.regardsText}`,
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          'gute Nachrichten: Für <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) sind wieder Tickets verfügbar. Alle auf der Warteliste werden gleichzeitig benachrichtigt und es werden keine Plätze reserviert – wer zuerst bucht, bekommt sie. Sei also schnell.',
+          'gute Nachrichten: Für <strong>{{eventTitle}}</strong> ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) sind wieder Tickets verfügbar. Alle auf der Warteliste werden gleichzeitig benachrichtigt und es werden keine Plätze reserviert – wer zuerst bucht, bekommt sie. Sei also schnell.',
         ),
         button('de', 'eventUrl', 'Jetzt Tickets sichern'),
         paragraph(
@@ -1578,7 +1578,7 @@ ${COMMON.en.regardsText}`,
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-gute Nachrichten: Für {{eventTitle}} ({{eventDate}}, {{eventVenue}}) sind wieder Tickets verfügbar. Alle auf der Warteliste werden gleichzeitig benachrichtigt und es werden keine Plätze reserviert – wer zuerst bucht, bekommt sie. Sei also schnell.
+gute Nachrichten: Für {{eventTitle}} ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) sind wieder Tickets verfügbar. Alle auf der Warteliste werden gleichzeitig benachrichtigt und es werden keine Plätze reserviert – wer zuerst bucht, bekommt sie. Sei also schnell.
 
 {{eventUrl}}
 
@@ -1788,7 +1788,7 @@ ${COMMON.de.regardsText}`,
       html: [
         paragraph(COMMON.en.hello),
         paragraph(
-          'unfortunately <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) has been cancelled.',
+          'unfortunately <strong>{{eventTitle}}</strong> ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) has been cancelled.',
         ),
         '{{#if eventCancellationReason}}' +
           paragraph('Reason: {{eventCancellationReason}}') +
@@ -1818,7 +1818,7 @@ ${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hello{{#if firstName}} {{firstName}}{{/if}},
 
-unfortunately {{eventTitle}} ({{eventDate}}, {{eventVenue}}) has been cancelled.
+unfortunately {{eventTitle}} ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) has been cancelled.
 {{#if eventCancellationReason}}
 Reason: {{eventCancellationReason}}
 {{/if}}
@@ -1840,7 +1840,7 @@ ${COMMON.en.regardsText}`,
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          'leider wurde <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) abgesagt.',
+          'leider wurde <strong>{{eventTitle}}</strong> ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) abgesagt.',
         ),
         '{{#if eventCancellationReason}}' +
           paragraph('Grund: {{eventCancellationReason}}') +
@@ -1870,7 +1870,7 @@ ${COMMON.en.regardsText}`,
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-leider wurde {{eventTitle}} ({{eventDate}}, {{eventVenue}}) abgesagt.
+leider wurde {{eventTitle}} ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) abgesagt.
 {{#if eventCancellationReason}}
 Grund: {{eventCancellationReason}}
 {{/if}}
@@ -1895,7 +1895,7 @@ ${COMMON.de.regardsText}`,
       html: [
         paragraph(COMMON.en.hello),
         paragraph(
-          '<strong>{{eventTitle}}</strong> (originally {{eventDate}}, {{eventVenue}}) has been postponed.',
+          '<strong>{{eventTitle}}</strong> (originally {{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) has been postponed.',
         ),
         '{{#if eventNewDate}}' +
           paragraph('New date: <strong>{{eventNewDate}}</strong>') +
@@ -1908,7 +1908,7 @@ ${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hello{{#if firstName}} {{firstName}}{{/if}},
 
-{{eventTitle}} (originally {{eventDate}}, {{eventVenue}}) has been postponed.
+{{eventTitle}} (originally {{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) has been postponed.
 {{#if eventNewDate}}
 New date: {{eventNewDate}}
 {{/if}}{{#if eventPostponementNote}}
@@ -1926,7 +1926,7 @@ ${COMMON.en.regardsText}`,
       html: [
         paragraph(COMMON.de.hello),
         paragraph(
-          '<strong>{{eventTitle}}</strong> (ursprünglich {{eventDate}}, {{eventVenue}}) wurde verschoben.',
+          '<strong>{{eventTitle}}</strong> (ursprünglich {{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) wurde verschoben.',
         ),
         '{{#if eventNewDate}}' +
           paragraph('Neuer Termin: <strong>{{eventNewDate}}</strong>') +
@@ -1939,7 +1939,7 @@ ${COMMON.en.regardsText}`,
       ].join('\n'),
       text: `Hallo{{#if firstName}} {{firstName}}{{/if}},
 
-{{eventTitle}} (ursprünglich {{eventDate}}, {{eventVenue}}) wurde verschoben.
+{{eventTitle}} (ursprünglich {{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) wurde verschoben.
 {{#if eventNewDate}}
 Neuer Termin: {{eventNewDate}}
 {{/if}}{{#if eventPostponementNote}}
@@ -2142,7 +2142,7 @@ ${COMMON.de.regardsText}`,
       html: [
         paragraph('Hello{{#if recipientName}} {{recipientName}}{{/if}},'),
         paragraph(
-          'unfortunately <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) has been cancelled.',
+          'unfortunately <strong>{{eventTitle}}</strong> ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) has been cancelled.',
         ),
         '{{#if eventCancellationReason}}' +
           paragraph('Reason: {{eventCancellationReason}}') +
@@ -2158,7 +2158,7 @@ ${COMMON.de.regardsText}`,
       ].join('\n'),
       text: `Hello{{#if recipientName}} {{recipientName}}{{/if}},
 
-unfortunately {{eventTitle}} ({{eventDate}}, {{eventVenue}}) has been cancelled.
+unfortunately {{eventTitle}} ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) has been cancelled.
 {{#if eventCancellationReason}}
 Reason: {{eventCancellationReason}}
 {{/if}}
@@ -2175,7 +2175,7 @@ ${COMMON.en.regardsText}`,
       html: [
         paragraph('Hallo{{#if recipientName}} {{recipientName}}{{/if}},'),
         paragraph(
-          'leider wurde <strong>{{eventTitle}}</strong> ({{eventDate}}, {{eventVenue}}) abgesagt.',
+          'leider wurde <strong>{{eventTitle}}</strong> ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) abgesagt.',
         ),
         '{{#if eventCancellationReason}}' +
           paragraph('Grund: {{eventCancellationReason}}') +
@@ -2191,7 +2191,7 @@ ${COMMON.en.regardsText}`,
       ].join('\n'),
       text: `Hallo{{#if recipientName}} {{recipientName}}{{/if}},
 
-leider wurde {{eventTitle}} ({{eventDate}}, {{eventVenue}}) abgesagt.
+leider wurde {{eventTitle}} ({{eventDate}}{{#if eventVenue}}, {{eventVenue}}{{/if}}) abgesagt.
 {{#if eventCancellationReason}}
 Grund: {{eventCancellationReason}}
 {{/if}}

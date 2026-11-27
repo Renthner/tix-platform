@@ -63,6 +63,7 @@
     "row": "Reihe {label}",
     "seat": "Platz {label}",
     "standing": "Stehplatz",
+    "admission": "Eintritt",
     "proof": "Nachweis erforderlich"
   },
   "proofNote": "Ermäßigte Tickets: Bitte bring deinen Nachweis mit – er wird am Einlass geprüft.",
@@ -137,6 +138,7 @@
       "row": "Reihe {label}",
       "seat": "Platz {label}",
       "standing": "Stehplatz",
+      "admission": "Eintritt",
       "total": "Gesamt",
       "vat": "inkl. {rate} % MwSt.",
       "paid": "Bezahlt",
@@ -201,6 +203,8 @@
     "calendar": {
       "title": "Kalender und Anfahrt",
       "intro": "Trage den Termin in deinen Kalender ein und finde den Weg zur Spielstätte.",
+      "titleNoVenue": "Kalender",
+      "introNoVenue": "Trage den Termin in deinen Kalender ein.",
       "ics": "Zum Kalender hinzufügen (.ics)",
       "google": "Google Kalender",
       "directions": "Anfahrt"

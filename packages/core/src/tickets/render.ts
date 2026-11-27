@@ -236,6 +236,7 @@ async function planOrderTickets(
         venueName: event.venueName,
         venueAddress: event.venueAddress,
         kind: item.kind,
+        admission: event.admission === true,
         // show_label_on_ticket off: the block label is not printed (nor part of the QR seat info).
         sectionLabel: showLabel.get(item.sectionId) === false ? '' : item.sectionLabel,
         rowLabel: item.rowLabel,
@@ -487,9 +488,10 @@ export async function renderTicketPreviewPdf(
         postalCode: venues.postalCode,
         city: venues.city,
         currency: events.currency,
+        seatingMode: events.seatingMode,
       })
       .from(events)
-      .innerJoin(venues, eq(venues.id, events.venueId))
+      .leftJoin(venues, eq(venues.id, events.venueId))
       .where(eq(events.id, options.eventId));
     if (event) {
       coverAssetId = event.hero;
@@ -501,11 +503,21 @@ export async function renderTicketPreviewPdf(
         doorsOpenAt: event.doorsOpenAt,
         timeZone: event.timeZone,
         currency: event.currency,
-        venueName: event.venue,
+        venueName: event.venue ?? '',
         venueAddress:
           [event.street, [event.postalCode, event.city].filter(Boolean).join(' ')]
             .filter(Boolean)
             .join(', ') || null,
+        // Admission-only events: a contingent spot instead of a seat.
+        ...(event.seatingMode === 'ADMISSION'
+          ? {
+              kind: 'GENERAL_ADMISSION' as const,
+              admission: true,
+              sectionLabel: locale === 'de' ? 'Tageskarte' : 'Day ticket',
+              rowLabel: null,
+              seatLabel: null,
+            }
+          : {}),
       };
     }
   }

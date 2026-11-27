@@ -692,6 +692,7 @@ function buildCart(
       venueName: '',
       currency: event.currency,
       orphanSeatRuleEnabled: false,
+      admission: event.seatingMode === 'ADMISSION',
       ticketTypes: map.ticketTypes,
       items,
       subtotalGross: items.reduce((sum, i) => sum + i.priceGross, 0),

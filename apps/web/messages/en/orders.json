@@ -132,6 +132,7 @@
       "price": "Price",
       "rowSeat": "Row {row}, seat {seat}",
       "standing": "Standing",
+      "admission": "Admission",
       "total": "Total",
       "tax": "{rate}% VAT (net + tax)"
     },
@@ -717,6 +718,7 @@
     "loading": "Loading seating plan …",
     "selection": "Selection",
     "empty": "Click seats on the plan or choose standing spots.",
+    "emptyAdmission": "Choose the number of tickets per contingent and ticket type.",
     "remove": "Remove",
     "removeItem": "Remove {item}",
     "tariff": "Ticket type",
@@ -726,6 +728,7 @@
     "priceOverrideHint": "Changes the price of this ticket. A reason is required.",
     "overrideReason": "Reason for the price change",
     "standing": "Standing areas",
+    "admissionTickets": "Tickets",
     "remaining": "{count} left",
     "quantity": "Quantity",
     "decrease": "Fewer",

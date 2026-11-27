@@ -721,7 +721,11 @@ function MethodCard({
   );
 }
 
-function itemPlace(t: ReturnType<typeof useTranslations<'checkout'>>, item: QuoteItem): string {
+function itemPlace(
+  t: ReturnType<typeof useTranslations<'checkout'>>,
+  item: QuoteItem,
+  admission: boolean,
+): string {
   return item.kind === 'SEAT'
     ? [
         item.sectionLabel,
@@ -730,7 +734,9 @@ function itemPlace(t: ReturnType<typeof useTranslations<'checkout'>>, item: Quot
       ]
         .filter(Boolean)
         .join(' · ')
-    : [item.sectionLabel, t('item.standing')].filter(Boolean).join(' · ');
+    : [item.sectionLabel, t(admission ? 'item.admission' : 'item.standing')]
+        .filter(Boolean)
+        .join(' · ');
 }
 
 /** Itemised price summary of a quote (tickets per event, fees, total, included VAT). */
@@ -759,14 +765,14 @@ export function QuoteSummary({ quote }: { quote: CheckoutQuote }) {
           <div>
             <div className="font-medium">{event.title}</div>
             <div className="text-xs text-muted-foreground">
-              {date(event.startsAt, event.timeZone)} · {event.venueName}
+              {[date(event.startsAt, event.timeZone), event.venueName].filter(Boolean).join(' · ')}
             </div>
           </div>
           <ul className="space-y-1.5">
             {event.items.map((item) => (
               <li key={item.key} className="flex justify-between gap-3">
                 <div className="min-w-0">
-                  <div>{itemPlace(t, item)}</div>
+                  <div>{itemPlace(t, item, event.admission)}</div>
                   <div className="text-xs text-muted-foreground">
                     {item.categoryName} · {item.ticketTypeName}
                     {item.requiresProofAtEntry && (

@@ -16,7 +16,7 @@ deinem eigenen Server, ohne Plattformgebühren.**
   <img src="../img/shop-event.webp" alt="Veranstaltungsseite des Ticketshops" width="900">
 </p>
 
-> **Status:** Vorabversion (`1.0.0-alpha.47`). Funktionsumfang vollständig, aber noch nicht als
+> **Status:** Vorabversion (`1.0.0-alpha.48`). Funktionsumfang vollständig, aber noch nicht als
 > stabil freigegeben. Mach vor jedem Update ein Backup (vor Schemaänderungen wird zusätzlich
 > automatisch ein Datenbank-Backup erstellt) und lies das [CHANGELOG](../../CHANGELOG.md) (auf Englisch).
 > Aktualisiere mit dem Skript `tix-update.sh` des Releases ([Installationsanleitung](../INSTALL.de.md#updates-und-backups)).
@@ -25,7 +25,7 @@ deinem eigenen Server, ohne Plattformgebühren.**
 
 <table>
   <tr>
-    <td width="50%"><img src="../img/shop-seat-selection.webp" alt="Sitzplan mit Live-Status"><br><b>Echte Sitzpläne.</b> Kundinnen und Kunden wählen Plätze auf einem zoombaren Plan; jeder belegte Platz wird für alle anderen sofort grau. Bestplatzbuchung, Einzelplatz-Regel, Rollstuhl- und Begleitplätze.</td>
+    <td width="50%"><img src="../img/shop-seat-selection.webp" alt="Sitzplan mit Live-Status"><br><b>Echte Sitzpläne.</b> Kundinnen und Kunden wählen Plätze auf einem zoombaren Plan; jeder belegte Platz wird für alle anderen sofort grau. Bestplatzbuchung, Einzelplatz-Regel, Rollstuhl- und Begleitplätze. Keine Sitzplätze nötig? Veranstaltungen nur mit Eintritt (Messen, Clubabende) verkaufen Tickets aus Kontingenten in einer einfachen Ticketliste – eine Spielstätte ist optional.</td>
     <td width="50%"><img src="../img/waiting-room.webp" alt="Virtueller Warteraum"><br><b>Virtueller Warteraum.</b> Automatisch ab einer Besucherschwelle pro Veranstaltung (plus optionale serverweite Obergrenze über alle Veranstaltungen), geplant mit Vorab-Lobby (der Reihe nach oder per Los) oder per Zugangscode. Position, Wartezeit und Durchsagen aktualisieren sich live.</td>
   </tr>
   <tr>
@@ -113,7 +113,7 @@ Anleitung mit HTTPS-Varianten und Fehlersuche ist [docs/INSTALL.de.md](../INSTAL
 
 ```bash
 # 1. Die zwei Dateien des Releases herunterladen
-export TIX_VERSION=1.0.0-alpha.47
+export TIX_VERSION=1.0.0-alpha.48
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example

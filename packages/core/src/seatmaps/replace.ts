@@ -10,9 +10,10 @@ import {
   withTransaction,
   pgErrorCode,
   seatMapCategories,
+  venues,
   type Executor,
 } from '@tix/db';
-import { seatMapFileSchema, type SeatMapFile } from '@tix/shared';
+import { seatMapFileSchema, type EventSeatingMode, type SeatMapFile } from '@tix/shared';
 import { and, count, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { DomainError, requireCapability, type CoreContext } from '../context';
 import { eventTags, invalidateShopCache } from '../cache/shop-cache';
@@ -35,6 +36,41 @@ export type ReplaceSeatPlanSource =
   | { kind: 'template'; seatMapId: string }
   /** A parsed seat plan file (`parseSeatMapFile`). */
   | { kind: 'file'; file: SeatMapFile };
+
+/** Canvas of a new empty event plan (the editor can resize it). */
+export const EMPTY_PLAN_WIDTH = 2000;
+export const EMPTY_PLAN_HEIGHT = 1400;
+
+/**
+ * Inserts an empty EVENT plan. The hidden plan of an admission-only event has no venue (it never
+ * blocks deleting a venue); a seated event's plan belongs to its venue.
+ */
+export async function insertEmptyEventSeatMap(
+  tx: Executor,
+  params: { venueId: string | null; name: string; version?: number },
+): Promise<string> {
+  const [map] = await tx
+    .insert(seatMaps)
+    .values({
+      venueId: params.venueId,
+      kind: 'EVENT',
+      name: params.name.slice(0, 120),
+      canvasWidth: EMPTY_PLAN_WIDTH,
+      canvasHeight: EMPTY_PLAN_HEIGHT,
+      ...(params.version ? { version: params.version } : {}),
+    })
+    .returning({ id: seatMaps.id });
+  return map!.id;
+}
+
+/** The plan a swap installs: a venue plan copy, an imported file or an empty plan. */
+type SwapSource = ReplaceSeatPlanSource | { kind: 'empty' };
+
+/** New seating mode / venue written together with the plan swap (`changeEventSeating`). */
+interface SwapSeatingTarget {
+  mode: EventSeatingMode;
+  venueId: string | null;
+}
 
 export interface ReplaceSeatPlanResult {
   seatMapId: string;
@@ -74,6 +110,26 @@ export async function replaceEventSeatPlan(
     audit?: (tx: Executor, result: ReplaceSeatPlanResult) => Promise<void>;
   },
 ): Promise<ReplaceSeatPlanResult> {
+  return swapEventSeatPlan(ctx, input);
+}
+
+/**
+ * The one path that swaps an event's plan copy (`replaceEventSeatPlan`, `changeEventSeating`):
+ * same guards (DRAFT, nothing references the old plan, no live holds), same follow-up steps.
+ * Without `target` the event keeps its seating mode and venue (admission-only events are refused:
+ * they get their mode changed instead); with `target` mode and venue are written in the same
+ * transaction.
+ */
+export async function swapEventSeatPlan(
+  ctx: CoreContext,
+  input: {
+    eventId: string;
+    source: SwapSource;
+    target?: SwapSeatingTarget;
+    userId: string | null;
+    audit?: (tx: Executor, result: ReplaceSeatPlanResult) => Promise<void>;
+  },
+): Promise<ReplaceSeatPlanResult> {
   const created: string[] = [];
   let oldSeatMapId: string | null = null;
   let committed = false;
@@ -93,11 +149,12 @@ export async function replaceEventSeatPlan(
       const locked = await tx.execute<{
         id: string;
         status: string;
-        venue_id: string;
+        venue_id: string | null;
+        seating_mode: EventSeatingMode;
         title: string;
         seat_map_id: string | null;
       }>(
-        sql`SELECT id, status, venue_id, title, seat_map_id FROM events WHERE id = ${input.eventId} FOR UPDATE`,
+        sql`SELECT id, status, venue_id, seating_mode, title, seat_map_id FROM events WHERE id = ${input.eventId} FOR UPDATE`,
       );
       const event = locked.rows[0];
       if (!event) throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
@@ -118,6 +175,26 @@ export async function replaceEventSeatPlan(
           'The event has orders or tickets (test orders included); its seat plan cannot be replaced',
           409,
         );
+      }
+      if (!input.target && event.seating_mode === 'ADMISSION') {
+        throw new DomainError(
+          'EVENT_ADMISSION_ONLY',
+          'The event is admission-only (no seating plan); change its seating mode first',
+          409,
+        );
+      }
+      const mode = input.target?.mode ?? event.seating_mode;
+      const venueId = input.target ? input.target.venueId : event.venue_id;
+      if (mode === 'SEATED' && !venueId) {
+        throw new DomainError('VENUE_REQUIRED', 'A seated event needs a venue', 422);
+      }
+      if (input.target && venueId) {
+        const [venue] = await tx
+          .select({ id: venues.id })
+          .from(venues)
+          .where(eq(venues.id, venueId))
+          .for('share');
+        if (!venue) throw new DomainError('VENUE_NOT_FOUND', 'Venue not found', 404);
       }
       const holds = await ctx.seats.liveHoldCounts(event.id);
       if (holds.seats > 0 || holds.gaSpots > 0) {
@@ -140,19 +217,43 @@ export async function replaceEventSeatPlan(
       const version = (old?.version ?? 0) + 1;
       const name = (old?.name ?? event.title).slice(0, 120);
 
+      const seatingFields = input.target
+        ? { seatingMode: input.target.mode, venueId: input.target.venueId }
+        : {};
       let outcome: ReplaceSeatPlanResult;
-      if (input.source.kind === 'template') {
+      if (input.source.kind === 'empty') {
+        // ADMISSION: hidden plan without venue (contingents are added afterwards).
+        const newId = await insertEmptyEventSeatMap(tx, {
+          venueId: mode === 'ADMISSION' ? null : venueId,
+          name,
+          version,
+        });
+        await tx
+          .update(events)
+          .set({ seatMapId: newId, ...seatingFields })
+          .where(eq(events.id, event.id));
+        outcome = {
+          seatMapId: newId,
+          categoriesCreated: 0,
+          categoriesReused: 0,
+          unassignedSeats: 0,
+          scannerEntrancesCleared: 0,
+        };
+      } else if (input.source.kind === 'template') {
         const [template] = await tx
           .select({ id: seatMaps.id, venueId: seatMaps.venueId })
           .from(seatMaps)
           .where(and(eq(seatMaps.id, input.source.seatMapId), eq(seatMaps.kind, 'TEMPLATE')));
         if (!template) throw new DomainError('NOT_FOUND', 'Seat plan not found', 404);
-        if (template.venueId !== event.venue_id) {
+        if (template.venueId !== venueId) {
           throw new DomainError('TEMPLATE_MISMATCH', 'The plan belongs to another venue', 409);
         }
         const newId = await cloneSeatMap(tx, template.id, { kind: 'EVENT', name });
         await tx.update(seatMaps).set({ version }).where(eq(seatMaps.id, newId));
-        await tx.update(events).set({ seatMapId: newId }).where(eq(events.id, event.id));
+        await tx
+          .update(events)
+          .set({ seatMapId: newId, ...seatingFields })
+          .where(eq(events.id, event.id));
         const createdCategories = await applyTemplateCategoriesToEvent(tx, {
           eventId: event.id,
           seatMapId: newId,
@@ -176,9 +277,12 @@ export async function replaceEventSeatPlan(
           scannerEntrancesCleared: 0,
         };
       } else {
+        if (mode !== 'SEATED' || !venueId) {
+          throw new DomainError('EVENT_ADMISSION_ONLY', 'Plan files need a seated event', 409);
+        }
         const written = await writeEventSeatMap(tx, {
           eventId: event.id,
-          venueId: event.venue_id,
+          venueId,
           file: file!,
           prepared,
           imageIds: uploads!.imageIds,
@@ -187,6 +291,11 @@ export async function replaceEventSeatPlan(
           name,
           version,
         });
+        // writeEventSeatMap points the event at the new plan; a seating change also writes its
+        // mode and venue (the same venue the plan was written for).
+        if (input.target) {
+          await tx.update(events).set(seatingFields).where(eq(events.id, event.id));
+        }
         outcome = {
           seatMapId: written.seatMapId,
           categoriesCreated: written.categoriesCreated,

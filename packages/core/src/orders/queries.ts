@@ -58,7 +58,10 @@ export interface OrderEventView {
   title: string;
   startsAt: string;
   timeZone: string;
+  /** Empty for an admission-only event without a venue. */
   venueName: string;
+  /** Admission-only event (contingents, no seating plan). */
+  admission: boolean;
   items: {
     id: string;
     kind: 'SEAT' | 'GENERAL_ADMISSION';
@@ -170,13 +173,14 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
             translations: events.translations,
             startsAt: events.startsAt,
             timeZone: events.timeZone,
+            seatingMode: events.seatingMode,
           },
           venueName: venues.name,
           venueTranslations: venues.translations,
         })
         .from(orderItems)
         .innerJoin(events, eq(events.id, orderItems.eventId))
-        .innerJoin(venues, eq(venues.id, events.venueId))
+        .leftJoin(venues, eq(venues.id, events.venueId))
         .where(eq(orderItems.orderId, orderId))
         .orderBy(...placeOrderBy()),
       ctx.db
@@ -265,6 +269,7 @@ export async function getOrderView(ctx: CoreContext, orderId: string): Promise<O
           defaultLocale,
           venueName,
         ),
+        admission: event.seatingMode === 'ADMISSION',
         items: [],
       };
       byEvent.set(event.id, view);

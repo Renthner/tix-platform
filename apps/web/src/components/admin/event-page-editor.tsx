@@ -94,12 +94,15 @@ export function EventPageEditor({
   initialBoxes,
   symbols,
   templateSymbols,
+  admission = false,
 }: {
   action: Action;
   initialLayout: PageLayout;
   initialBoxes: InfoBoxValue[];
   symbols: EditorSymbol[];
   templateSymbols: { discounts: string | null; accessibility: string | null };
+  /** Admission-only event: the shop block is a ticket list, not a seating plan. */
+  admission?: boolean;
 }) {
   const t = useTranslations('admin.events.page');
   const tc = useTranslations('common.actions');
@@ -113,7 +116,7 @@ export function EventPageEditor({
   const labelOf = (ref: PageBlockRef) => {
     if (ref === 'COVER') return t('blocks.COVER');
     if (ref === 'DESCRIPTION') return t('blocks.DESCRIPTION');
-    if (ref === 'SHOP') return t('blocks.SHOP');
+    if (ref === 'SHOP') return t(admission ? 'blocks.SHOP_ADMISSION' : 'blocks.SHOP');
     if (ref === 'WAITLIST') return t('blocks.WAITLIST');
     const index = boxes.findIndex((b) => boxRef(b.id) === ref);
     const box = boxes[index];

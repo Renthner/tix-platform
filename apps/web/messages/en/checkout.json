@@ -63,6 +63,7 @@
     "row": "Row {label}",
     "seat": "Seat {label}",
     "standing": "Standing",
+    "admission": "Admission",
     "proof": "proof required"
   },
   "proofNote": "Reduced tickets: please bring your proof of eligibility – it is checked at the entrance.",
@@ -137,6 +138,7 @@
       "row": "Row {label}",
       "seat": "Seat {label}",
       "standing": "Standing",
+      "admission": "Admission",
       "total": "Total",
       "vat": "incl. {rate}% VAT",
       "paid": "Paid",
@@ -201,6 +203,8 @@
     "calendar": {
       "title": "Calendar and directions",
       "intro": "Save the date in your calendar and find your way to the venue.",
+      "titleNoVenue": "Calendar",
+      "introNoVenue": "Save the date in your calendar.",
       "ics": "Add to calendar (.ics)",
       "google": "Google Calendar",
       "directions": "Directions"

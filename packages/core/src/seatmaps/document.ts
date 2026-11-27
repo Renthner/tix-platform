@@ -29,7 +29,8 @@ import { sequential } from '../sequential';
 export interface SeatMapMeta {
   id: string;
   kind: 'TEMPLATE' | 'EVENT';
-  venueId: string;
+  /** NULL only for the hidden map of an admission-only event without a venue. */
+  venueId: string | null;
   eventId: string | null;
   version: number;
 }
@@ -260,6 +261,11 @@ export async function applySeatMapDocument(
   seatMapId: string,
   doc: SeatMapDocument,
   actorUserId: string | null,
+  /**
+   * `admissionImport`: the event import writes the hidden contingent plan of an admission-only
+   * event (STANDING sections only, checked here); every other save of such a plan is refused.
+   */
+  options: { admissionImport?: boolean } = {},
 ): Promise<SaveSeatMapResult> {
   const locked = await tx.execute<{
     id: string;
@@ -287,10 +293,28 @@ export async function applySeatMapDocument(
   }
 
   const [event] = await tx
-    .select({ id: events.id })
+    .select({ id: events.id, seatingMode: events.seatingMode })
     .from(events)
     .where(eq(events.seatMapId, seatMapId));
   const eventId = event?.id ?? null;
+  // The hidden plan of an admission-only event holds its contingents only (event seating tab).
+  if (
+    event?.seatingMode === 'ADMISSION' &&
+    !(
+      options.admissionImport &&
+      doc.seats.length === 0 &&
+      doc.sections.every((s) => s.type === 'STANDING')
+    )
+  ) {
+    throw new SaveAbort({
+      ok: false,
+      status: 409,
+      error: {
+        code: 'EVENT_ADMISSION_ONLY',
+        message: 'This event is admission-only; edit its contingents in the event instead',
+      },
+    });
+  }
 
   // ── Price categories must belong to the event (templates carry none) ──────
   // ── Referenced symbols must exist in the library ──────────────────────────

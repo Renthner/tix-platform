@@ -172,6 +172,17 @@
       "remaining": "{count, plural, =0 {Sold out} one {# spot left} other {# spots left}}",
       "quantity": "Standing tickets"
     },
+    "admission": {
+      "title": "Tickets",
+      "none": "No tickets are on sale for this event at the moment.",
+      "soldOut": "Sold out",
+      "fewLeft": "Only {count} left",
+      "quantityFor": "Number of tickets: {name}",
+      "quantity": "{name}: {count} selected",
+      "decrease": "One ticket less: {name}",
+      "increase": "One ticket more: {name}",
+      "empty": "Choose the number of tickets in the list."
+    },
     "yourSelection": "Your selection",
     "count": "{count} / {max}",
     "emptyManual": "Click on available seats or a standing area in the plan.",

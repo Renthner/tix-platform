@@ -323,7 +323,13 @@ export type DocSeat = z.infer<typeof docSeatSchema>;
 
 /** Error body of a rejected save (HTTP 409 / 422). */
 export interface SeatMapSaveError {
-  code: 'VERSION_CONFLICT' | 'VALIDATION_FAILED' | 'SEATS_IN_USE' | 'NOT_FOUND';
+  code:
+    | 'VERSION_CONFLICT'
+    | 'VALIDATION_FAILED'
+    | 'SEATS_IN_USE'
+    | 'NOT_FOUND'
+    /** The plan belongs to an admission-only event (contingents are edited in the event). */
+    | 'EVENT_ADMISSION_ONLY';
   message: string;
   issues?: { path: (string | number)[]; message: string }[];
   /** Seat ids that cannot be removed because they hold active order items. */

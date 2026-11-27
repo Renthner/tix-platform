@@ -181,6 +181,15 @@ const EARLIER_DEFAULT_FINGERPRINTS: Readonly<Record<string, readonly string[]>> 
   'ADMIN_INVITE|de': ['254e8b32643931560fc04f6d9e358c112453f5fe7e07d89f8fbb2bd0c4ae0ecf'],
   'ADMIN_PASSWORD_RESET|en': ['561ae749c806e61da1e771978ba7904464b020db3c8459c453dc31b477a03b89'],
   'ADMIN_PASSWORD_RESET|de': ['1f96fa2bce728d09903e04a78c82f21ccaf5b32676e2522696d69f6f5d379ba3'],
+  // "({{eventDate}}, {{eventVenue}})" – now the venue part is conditional (events without venue).
+  'WAITLIST_AVAILABLE|en': ['d0bfad528800a4730cfccbe2664334834a2da7bd9de7a9476347f86679be0aed'],
+  'WAITLIST_AVAILABLE|de': ['1db58d521c561df7bca305ffcce2b09e2adbe6c04b9b97998c6204063f786a4e'],
+  'EVENT_CANCELLED|en': ['6e80b3491de3fdfc5e3f59a740e4372039b61cad34a85aa6ea885ef6c02e115b'],
+  'EVENT_CANCELLED|de': ['7b53a037f9e4bccd850245155b02594b60ca1f5b05a03320e3d5f7b73a191f97'],
+  'EVENT_POSTPONED|en': ['b0a61abca6851e4ab854d49fb9da41a762ddd52f23bf291eb92ae04753f4a896'],
+  'EVENT_POSTPONED|de': ['a0c383a05737de1133bfbd30b19188d25e558230eb33aa2873b9926246ea9bc8'],
+  'EVENT_CANCELLED_HOLDER|en': ['7f12fe36725327cb324ba4204359bb0ca66010141dfd8eaacbaaa1ee99b78ad3'],
+  'EVENT_CANCELLED_HOLDER|de': ['c5ed904d23f02da362efa9f394d29cbe37be544a5bbe11e77ab033dbcf40eb20'],
 };
 
 /**
@@ -240,14 +249,26 @@ const BEFORE_HEADER_LOGO: Readonly<Record<string, readonly string[]>> = {
   'TICKETS_RESENT|de': ['49ce3428fbc79a2694628fc7e55c5070b67f8ca331f688ff2e1ffad6245413d7'],
   'TICKET_TRANSFER_RECEIVED|en': [
     'e70389f9720d9868dc0d1ceb32fd946888edb5a86ba68e544c20cd83d31e34e6',
+    // Before "Your ticket" for tickets without a seat (standing / admission).
+    'b0f02038cf0d9a9158a984d7a75bcd46ac3805dc51d0a167d9fbd3cb1fcaa24b',
   ],
   'TICKET_TRANSFER_RECEIVED|de': [
     'ec2a33c1b8a4c7e9ca7259044a7d46d97325605812cb80c34baa58332e0193d7',
+    // Before "Your ticket" for tickets without a seat (standing / admission).
+    '3a2b7deda57dcd7eb97fc940de117c22e00d8f5adb410054eb5eebfd8fcd2048',
   ],
   'TICKET_TRANSFER_SENT|en': ['9ff8f827449701316fce1ce5e0de9abac936b198aa29e4088636f46ff68bbfe6'],
   'TICKET_TRANSFER_SENT|de': ['fd8143d54574659e8e1e24e6ab230ad9064594600e8a98828a051560515e5f6d'],
-  'TICKET_HOLDER_UPDATED|en': ['0bb72f1c3812083366845f726a45fc04ab501f08f04395e0efe51b99368a6411'],
-  'TICKET_HOLDER_UPDATED|de': ['d31895a7b8c2590d1e5105e67975fdb28953d9eadc6a1e0886359c0a779f7993'],
+  'TICKET_HOLDER_UPDATED|en': [
+    '0bb72f1c3812083366845f726a45fc04ab501f08f04395e0efe51b99368a6411',
+    // Before "Your ticket" for tickets without a seat (standing / admission).
+    'ed5b6d72a4a5c7dd1a1e9f0bf88b000a260e6bbb55f568ae0d1570e313c35e71',
+  ],
+  'TICKET_HOLDER_UPDATED|de': [
+    'd31895a7b8c2590d1e5105e67975fdb28953d9eadc6a1e0886359c0a779f7993',
+    // Before "Your ticket" for tickets without a seat (standing / admission).
+    '83942a95e3ecb509c36d76f093ce0e8bc890272fbd047b8cb41a5a6c215deb24',
+  ],
   'TICKET_HOLDER_CANCELLED|en': [
     '83f11985c5489128ae2ff3ac6369e9d88185ddbe4a42c025f02cb5edc9552631',
   ],

@@ -9,6 +9,7 @@ import { bankSyncRegistration } from './bank-sync';
 import { documentsRegistration } from './documents';
 import { DUNNING_INTERVAL_MS, DUNNING_JOBS, createDunningProcessor } from './dunning';
 import { emailRegistration } from './email';
+import { inventoryRegistration } from './inventory';
 import { mediaRegistration } from './media';
 import { privacyRegistration } from './privacy';
 import { refundsRegistration } from './refunds';
@@ -59,6 +60,7 @@ export function processorRegistrations(deps: WorkerDeps): ProcessorRegistration[
     mediaRegistration(deps),
     alertsRegistration(deps),
     waitlistRegistration(deps),
+    inventoryRegistration(deps),
     backupsRegistration(deps.backups),
   ]);
 }

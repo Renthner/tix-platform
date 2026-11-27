@@ -22,7 +22,7 @@ export interface AdminSearchResponse {
     paymentReference: string | null;
   }[];
   customers: { id: string; name: string; email: string }[];
-  events: { id: string; title: string; startsAt: string; venueName: string }[];
+  events: { id: string; title: string; startsAt: string; venueName: string | null }[];
 }
 
 /**

@@ -39,33 +39,43 @@ export default async function NewEventPage({ params }: { params: Promise<{ local
     <>
       <PageHeader title={t('new')} description={t('create.description')} />
       <div className="p-6">
-        {venueRows.length === 0 || taxRates.length === 0 ? (
+        {taxRates.length === 0 ? (
           <Alert>
-            <AlertDescription>
-              {venueRows.length === 0 ? t('create.noVenues') : t('create.noTaxRates')}{' '}
-              {venueRows.length === 0 && (
-                <Link href="/admin/venues/new" className="underline">
-                  {t('create.createVenue')}
-                </Link>
-              )}
-            </AlertDescription>
+            <AlertDescription>{t('create.noTaxRates')}</AlertDescription>
           </Alert>
         ) : (
-          <Card>
-            <CardContent>
-              <EventCreateForm
-                action={createEventAction}
-                venues={venueRows}
-                templates={templates}
-                taxRates={taxRates.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault }))}
-                defaults={{
-                  timeZone: general.defaultTimeZone,
-                  currency: general.defaultCurrency,
-                  orphanSeatRuleEnabled: checkout.orphanSeatRuleEnabled,
-                }}
-              />
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            {venueRows.length === 0 && (
+              // Admission-only events need no venue; a seating plan needs one.
+              <Alert>
+                <AlertDescription>
+                  {t('create.noVenues')}{' '}
+                  <Link href="/admin/venues/new" className="underline">
+                    {t('create.createVenue')}
+                  </Link>
+                </AlertDescription>
+              </Alert>
+            )}
+            <Card>
+              <CardContent>
+                <EventCreateForm
+                  action={createEventAction}
+                  venues={venueRows}
+                  templates={templates}
+                  taxRates={taxRates.map((r) => ({
+                    id: r.id,
+                    name: r.name,
+                    isDefault: r.isDefault,
+                  }))}
+                  defaults={{
+                    timeZone: general.defaultTimeZone,
+                    currency: general.defaultCurrency,
+                    orphanSeatRuleEnabled: checkout.orphanSeatRuleEnabled,
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </>

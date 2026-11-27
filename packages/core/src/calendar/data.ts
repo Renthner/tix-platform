@@ -11,8 +11,8 @@ import { googleCalendarUrl, type CalendarEvent } from './ics';
 export interface CalendarEventDetail extends CalendarEvent {
   slug: string;
   timeZone: string;
-  /** Google Maps link (venue's own link, else from coordinates / address). */
-  directionsUrl: string;
+  /** Google Maps link (venue's own link, else from coordinates / address); null without a venue. */
+  directionsUrl: string | null;
   googleUrl: string;
 }
 
@@ -45,17 +45,20 @@ export async function loadCalendarEvents(
   const rows = await ctx.db
     .select({ event: events, venue: venues })
     .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(inArray(events.id, eventIds))
     .orderBy(asc(events.startsAt), asc(events.id));
   const organizerName = organizer.legalName ?? general.shopName;
   return rows.map(({ event, venue }) => {
     const title = localized(event, 'title', loc, defaultLocale);
     const subtitle = event.subtitle ? localized(event, 'subtitle', loc, defaultLocale) : '';
-    const venueName = localized(venue, 'name', loc, defaultLocale, venue.name);
-    const address = [venue.street, [venue.postalCode, venue.city].filter(Boolean).join(' ')]
-      .filter(Boolean)
-      .join(', ');
+    // Admission-only events may have no venue: no location / directions then.
+    const venueName = venue ? localized(venue, 'name', loc, defaultLocale, venue.name) : '';
+    const address = venue
+      ? [venue.street, [venue.postalCode, venue.city].filter(Boolean).join(' ')]
+          .filter(Boolean)
+          .join(', ')
+      : '';
     const url = ctx.appUrl ? `${ctx.appUrl}/${loc}/events/${encodeURIComponent(event.slug)}` : null;
     const description = [
       subtitle,
@@ -76,8 +79,8 @@ export async function loadCalendarEvents(
         event.endsAt ??
         new Date(event.startsAt.getTime() + general.defaultEventDurationMinutes * 60_000),
       location: [venueName, address].filter(Boolean).join(', ') || null,
-      latitude: venue.latitude,
-      longitude: venue.longitude,
+      latitude: venue?.latitude ?? null,
+      longitude: venue?.longitude ?? null,
       url,
       organizerName,
       organizerEmail: organizer.email ?? null,
@@ -86,7 +89,7 @@ export async function loadCalendarEvents(
       ...detail,
       slug: event.slug,
       timeZone: event.timeZone,
-      directionsUrl: venueMapsUrl({ ...venue, name: venueName }),
+      directionsUrl: venue ? venueMapsUrl({ ...venue, name: venueName }) : null,
       googleUrl: googleCalendarUrl(detail),
     };
   });

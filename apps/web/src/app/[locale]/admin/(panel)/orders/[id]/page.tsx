@@ -11,6 +11,7 @@ import {
   orderUrl,
   resendableEmail,
   listOrderEmails,
+  type OrderItemLine,
 } from '@tix/core';
 import { orders } from '@tix/db';
 import { formatTicketCode } from '@tix/shared';
@@ -132,11 +133,17 @@ export default async function OrderDetailPage({
       tEmailKeys.has(`${key}.name` as never) ? tEmailKeys(`${key}.name` as never) : key,
     ]),
   );
-  const placeLabel = (item: (typeof view.events)[number]['items'][number]) =>
+  // Spots of admission-only events read "Admission", standing areas of seated events "Standing".
+  const admissionItemIds = new Set(
+    view.events.filter((e) => e.admission).flatMap((e) => e.items.map((i) => i.id)),
+  );
+  const placeLabel = (
+    item: { id: string } & Pick<OrderItemLine, 'kind' | 'sectionLabel' | 'rowLabel' | 'seatLabel'>,
+  ) =>
     `${item.sectionLabel}${
       item.kind === 'SEAT'
         ? ` · ${t('items.rowSeat', { row: item.rowLabel ?? '–', seat: item.seatLabel ?? '–' })}`
-        : ` · ${t('items.standing')}`
+        : ` · ${t(admissionItemIds.has(item.id) ? 'items.admission' : 'items.standing')}`
     }`;
   const openAdjustment =
     adjustments.find((a) => a.status === 'PROPOSED' || a.status === 'CONFIRMED') ?? null;
@@ -247,6 +254,14 @@ export default async function OrderDetailPage({
               }
               paidCancel={paidCancel}
               tariffChange={tariffChange}
+              hasMovableSeats={view.events.some(
+                (e) =>
+                  !e.admission &&
+                  e.items.some(
+                    (i) =>
+                      i.kind === 'SEAT' && (i.status === 'PENDING' || i.status === 'CONFIRMED'),
+                  ),
+              )}
             />
           </>
         }
@@ -302,8 +317,7 @@ export default async function OrderDetailPage({
                         timeStyle: 'short',
                         timeZone: event.timeZone,
                       })}
-                      {' · '}
-                      {event.venueName}
+                      {event.venueName && ` · ${event.venueName}`}
                     </span>
                   </li>
                 ))}
@@ -471,12 +485,7 @@ export default async function OrderDetailPage({
           labels={{
             title: t('items.title'),
             total: t('items.total'),
-            place: (item) =>
-              `${item.sectionLabel}${
-                item.kind === 'SEAT'
-                  ? ` · ${t('items.rowSeat', { row: item.rowLabel ?? '–', seat: item.seatLabel ?? '–' })}`
-                  : ` · ${t('items.standing')}`
-              }`,
+            place: placeLabel,
             eventDate: (event) =>
               format.dateTime(new Date(event.startsAt), {
                 dateStyle: 'medium',

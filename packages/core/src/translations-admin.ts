@@ -95,7 +95,9 @@ async function collectItems(
   const db = ctx.db;
   const [event] = await db.select().from(events).where(eq(events.id, eventId));
   if (!event) throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
-  const [venue] = await db.select().from(venues).where(eq(venues.id, event.venueId));
+  const [venue] = event.venueId
+    ? await db.select().from(venues).where(eq(venues.id, event.venueId))
+    : [];
   const [categories, types, feeRows, queue] = await Promise.all([
     db.select().from(priceCategories).where(eq(priceCategories.eventId, eventId)),
     db.select().from(ticketTypes).where(eq(ticketTypes.eventId, eventId)),

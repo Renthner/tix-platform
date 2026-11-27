@@ -52,6 +52,7 @@ import {
   uploadPlanImages,
   writeEventSeatMap,
 } from './seatmaps/export-import';
+import { insertEmptyEventSeatMap } from './seatmaps/replace';
 import { ensureEventSigningKeyTx } from './tickets/keys';
 import { wallClockShifter } from './zoned-time';
 
@@ -91,10 +92,9 @@ export async function exportEvent(
   const { db } = ctx;
   const [event] = await db.select().from(events).where(eq(events.id, eventId));
   if (!event) throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
-  const [venue] = await db
-    .select({ name: venues.name })
-    .from(venues)
-    .where(eq(venues.id, event.venueId));
+  const [venue] = event.venueId
+    ? await db.select({ name: venues.name }).from(venues).where(eq(venues.id, event.venueId))
+    : [];
   const [tax] = await db.select().from(taxRates).where(eq(taxRates.id, event.taxRateId));
   if (!tax) throw new DomainError('TAX_RATE_NOT_FOUND', 'Tax rate not found', 409);
   const taxRef = (t: { name: string; rateBasisPoints: number }) => ({
@@ -238,6 +238,7 @@ export async function exportEvent(
     source: { appVersion: options.appVersion ?? 'unknown', venueName: venue?.name ?? null },
     event: {
       title: e.title,
+      seatingMode: e.seatingMode,
       subtitle: e.subtitle,
       description: e.description,
       translations: e.translations,
@@ -440,8 +441,11 @@ export type EventImportWarning =
 
 export interface ImportEventInput {
   file: unknown;
-  /** Venue of the new event (its seat plan belongs to it). */
-  venueId: string;
+  /**
+   * Venue of the new event (its seat plan belongs to it). Required for seated events, optional
+   * for admission-only ones (`event.seatingMode` ADMISSION in the file).
+   */
+  venueId: string | null;
   userId: string | null;
   /** Defaults to the title in the file. */
   title?: string;
@@ -515,6 +519,24 @@ export async function importEvent(
   const plan = file.seatPlan ? seatMapFileSchema.parse(file.seatPlan) : null;
   const planSymbols = plan ? prepareSymbols(plan.symbols) : [];
   if (plan) assertPlanStructure(plan);
+  // Files written before admission-only events existed carry no mode: SEATED.
+  const admission = src.seatingMode === 'ADMISSION';
+  if (!admission && !input.venueId) {
+    throw new DomainError('VENUE_REQUIRED', 'A seated event needs a venue', 422, {
+      field: 'venueId',
+    });
+  }
+  if (
+    admission &&
+    plan &&
+    (plan.plan.seats.length > 0 || plan.plan.sections.some((s) => s.type !== 'STANDING'))
+  ) {
+    throw new DomainError(
+      'EVENT_FILE_INVALID',
+      'The contingents of an admission-only event must be standing sections without seats',
+      422,
+    );
+  }
   const layouts = file.ticketTemplates.map((t) => ({ key: t.key, layout: t.layout }));
   for (const t of layouts) {
     // Image keys are replaced by (placeholder) ids only to run the layout through its schema.
@@ -564,11 +586,13 @@ export async function importEvent(
 
     const result = await withTransaction(ctx.db, async (tx): Promise<ImportEventResult> => {
       const warnings: EventImportWarning[] = [];
-      const [venue] = await tx
-        .select({ id: venues.id })
-        .from(venues)
-        .where(eq(venues.id, input.venueId));
-      if (!venue) throw new DomainError('NOT_FOUND', 'Venue not found', 404);
+      if (input.venueId) {
+        const [venue] = await tx
+          .select({ id: venues.id })
+          .from(venues)
+          .where(eq(venues.id, input.venueId));
+        if (!venue) throw new DomainError('NOT_FOUND', 'Venue not found', 404);
+      }
 
       // Slug: explicit → must be free; derived → numeric suffix on collision.
       let slug = explicitSlug ?? deriveSlug(title);
@@ -630,6 +654,7 @@ export async function importEvent(
         ...overrides,
         id: eventId,
         venueId: input.venueId,
+        seatingMode: src.seatingMode,
         seatMapId: null,
         slug,
         title,
@@ -831,7 +856,9 @@ export async function importEvent(
       if (plan) {
         const written = await writeEventSeatMap(tx, {
           eventId,
-          venueId: input.venueId,
+          // The hidden contingent plan of an admission-only event never belongs to a venue.
+          venueId: admission ? null : input.venueId,
+          admission,
           file: plan,
           prepared: planSymbols,
           imageIds: planUploads!.imageIds,
@@ -844,6 +871,13 @@ export async function importEvent(
           categoriesCreated: written.categoriesCreated,
           unassigned: written.unassigned,
         };
+      } else if (admission) {
+        // Contingents are edited on the event: an admission-only event always has its hidden plan.
+        const seatMapId = await insertEmptyEventSeatMap(tx, {
+          venueId: null,
+          name: title.slice(0, 120),
+        });
+        await tx.update(events).set({ seatMapId }).where(eq(events.id, eventId));
       }
 
       // ── Fresh Ed25519 signing key (never part of a file) ──────────────

@@ -149,6 +149,11 @@ export function OrderHeaderActions(props: {
   paidCancel: PaidCancelProps | null;
   /** Tariff change form (PAID, no open additional payment, allowed role); null hides it. */
   tariffChange: TariffChangeProps | null;
+  /**
+   * The order has active seat tickets of a seated event (false: only standing spots / admission
+   * tickets – there is nothing to change seats for).
+   */
+  hasMovableSeats?: boolean;
 }) {
   const t = useTranslations('orders.admin');
   const tMessage = useTranslations('communication.orderMessage');
@@ -182,7 +187,7 @@ export function OrderHeaderActions(props: {
   const paid = props.status === 'PAID' || props.status === 'PARTIALLY_REFUNDED';
   const canPay =
     props.canRecordPayment && (open || (props.status === 'PAID' && props.outstanding > 0));
-  const canChangeSeats = open || paid;
+  const canChangeSeats = (open || paid) && props.hasMovableSeats !== false;
   const canPaidCancel = Boolean(props.paidCancel) && paid;
 
   // A dialog whose action is no longer offered (e.g. the status changed on revalidation) is

@@ -186,6 +186,43 @@ describe('field values and layout schema', () => {
     );
   });
 
+  it('labels admission tickets and drops the venue label without a venue', () => {
+    const text = (field: string, value?: string) => {
+      const element = ticketLayoutSchema.parse({
+        version: 1,
+        qr: { x: 0, y: 0, size: 30 },
+        elements: [{ kind: 'text', id: 't', field, text: value, x: 0, y: 0, width: 50, height: 5 }],
+      }).elements[0]!;
+      if (element.kind !== 'text') throw new Error('text expected');
+      return element;
+    };
+    const admission = data({
+      locale: 'en',
+      kind: 'GENERAL_ADMISSION',
+      admission: true,
+      sectionLabel: 'Day ticket',
+      rowLabel: null,
+      seatLabel: null,
+      venueName: '',
+      venueAddress: null,
+    });
+    expect(elementText(text('STATIC_TEXT', '{{seatFull}}'), admission)).toBe(
+      'Admission · Day ticket',
+    );
+    expect(elementText(text('STATIC_TEXT', '{{label.venue}}'), admission)).toBe('');
+    expect(elementText(text('VENUE_NAME'), admission)).toBe('');
+    // With a venue the label stays; standing areas of seated events keep their wording.
+    expect(elementText(text('STATIC_TEXT', '{{label.venue}}'), data({ locale: 'en' }))).not.toBe(
+      '',
+    );
+    expect(
+      elementText(
+        text('STATIC_TEXT', '{{seatFull}}'),
+        data({ locale: 'en', kind: 'GENERAL_ADMISSION', seatLabel: null, rowLabel: null }),
+      ),
+    ).toBe('Standing area · Parkett');
+  });
+
   it('accepts layouts saved before the cover element existed', () => {
     const legacy = {
       version: 1,

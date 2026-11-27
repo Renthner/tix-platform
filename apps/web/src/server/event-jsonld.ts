@@ -71,7 +71,11 @@ export interface EventJsonLdInput {
   organizer: { name?: string; url?: string };
 }
 
-/** schema.org `Event` (Google rich results) for a shop-visible event. */
+/**
+ * schema.org `Event` (Google rich results) for a shop-visible event. Google requires `location`:
+ * admission-only events without a venue get no Event structured data at all (the caller skips
+ * it) rather than an invalid one or an invented Place.
+ */
 export function buildEventJsonLd(i: EventJsonLdInput): Record<string, unknown> {
   const v = i.venue;
   const hasAddress = v.street || v.postalCode || v.city || v.country;

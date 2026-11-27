@@ -105,7 +105,10 @@ export function PricingManager({
   createCategory,
   createTicketType,
   saveMatrix,
+  seated = true,
 }: {
+  /** FALSE for admission-only events: seat-only options (best available, seat feature) are hidden. */
+  seated?: boolean;
   currency: string;
   categories: CategoryRow[];
   ticketTypes: TicketTypeRow[];
@@ -126,6 +129,7 @@ export function PricingManager({
         action={
           <CategoryDialog
             action={createCategory}
+            seated={seated}
             trigger={
               <>
                 <Plus /> {t('categories.new')}
@@ -169,7 +173,12 @@ export function PricingManager({
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
-                      <CategoryDialog action={c.save} initial={c} trigger={<Pencil />} />
+                      <CategoryDialog
+                        action={c.save}
+                        initial={c}
+                        seated={seated}
+                        trigger={<Pencil />}
+                      />
                       <ConfirmAction
                         action={c.remove}
                         title={t('categories.deleteTitle')}
@@ -203,6 +212,7 @@ export function PricingManager({
         action={
           <TicketTypeDialog
             action={createTicketType}
+            seated={seated}
             trigger={
               <>
                 <Plus /> {t('types.new')}
@@ -248,7 +258,12 @@ export function PricingManager({
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
-                      <TicketTypeDialog action={tt.save} initial={tt} trigger={<Pencil />} />
+                      <TicketTypeDialog
+                        action={tt.save}
+                        initial={tt}
+                        seated={seated}
+                        trigger={<Pencil />}
+                      />
                       <ConfirmAction
                         action={tt.remove}
                         title={t('types.deleteTitle')}
@@ -338,10 +353,12 @@ function CategoryDialog({
   action,
   initial,
   trigger,
+  seated = true,
 }: {
   action: Action;
   initial?: CategoryRow;
   trigger: ReactNode;
+  seated?: boolean;
 }) {
   const t = useTranslations('admin.pricing');
   const tc = useTranslations('common.actions');
@@ -434,19 +451,25 @@ function CategoryDialog({
             <Switch name="isActive" defaultChecked={initial?.isActive ?? true} />
             {t('active')}
           </label>
-          <div className="space-y-1">
-            <label className="flex items-center gap-3 text-sm">
-              <Switch
-                name="bestAvailableEnabled"
-                defaultChecked={initial?.bestAvailableEnabled ?? true}
-                aria-describedby="cat-best-hint"
-              />
-              {t('categories.bestAvailable')}
-            </label>
-            <p id="cat-best-hint" className="text-xs text-muted-foreground">
-              {t('categories.bestAvailableHint')}
-            </p>
-          </div>
+          {/* Best available picks seats: not offered for admission-only events (value kept). */}
+          {!seated && (initial?.bestAvailableEnabled ?? true) && (
+            <input type="hidden" name="bestAvailableEnabled" value="on" />
+          )}
+          {seated && (
+            <div className="space-y-1">
+              <label className="flex items-center gap-3 text-sm">
+                <Switch
+                  name="bestAvailableEnabled"
+                  defaultChecked={initial?.bestAvailableEnabled ?? true}
+                  aria-describedby="cat-best-hint"
+                />
+                {t('categories.bestAvailable')}
+              </label>
+              <p id="cat-best-hint" className="text-xs text-muted-foreground">
+                {t('categories.bestAvailableHint')}
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <SubmitButton>{tc('save')}</SubmitButton>
           </DialogFooter>
@@ -460,10 +483,12 @@ function TicketTypeDialog({
   action,
   initial,
   trigger,
+  seated = true,
 }: {
   action: Action;
   initial?: TicketTypeRow;
   trigger: ReactNode;
+  seated?: boolean;
 }) {
   const t = useTranslations('admin.pricing.types');
   const tp = useTranslations('admin.pricing');
@@ -564,20 +589,33 @@ function TicketTypeDialog({
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label={t('seatFeature')} htmlFor="tt-feature" error={err('requiredSeatFeature')}>
-              <NativeSelect
-                id="tt-feature"
-                name="requiredSeatFeature"
-                defaultValue={initial?.requiredSeatFeature ?? ''}
+            {seated ? (
+              <Field
+                label={t('seatFeature')}
+                htmlFor="tt-feature"
+                error={err('requiredSeatFeature')}
               >
-                <option value="">{t('features.none')}</option>
-                {SEAT_FEATURES.map((f) => (
-                  <option key={f} value={f}>
-                    {t(`features.${f}`)}
-                  </option>
-                ))}
-              </NativeSelect>
-            </Field>
+                <NativeSelect
+                  id="tt-feature"
+                  name="requiredSeatFeature"
+                  defaultValue={initial?.requiredSeatFeature ?? ''}
+                >
+                  <option value="">{t('features.none')}</option>
+                  {SEAT_FEATURES.map((f) => (
+                    <option key={f} value={f}>
+                      {t(`features.${f}`)}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            ) : (
+              // Admission-only events have no wheelchair / companion seats (value kept).
+              <input
+                type="hidden"
+                name="requiredSeatFeature"
+                value={initial?.requiredSeatFeature ?? ''}
+              />
+            )}
             <Field label={t('maxPerOrder')} htmlFor="tt-max" error={err('maxPerOrder')}>
               <Input
                 id="tt-max"

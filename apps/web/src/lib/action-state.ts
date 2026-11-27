@@ -59,6 +59,12 @@ export const FORM_ERROR_CODES = [
   'testOrderPaymentOpen',
   'testOrderInvoiceExists',
   'waitlistAckRequired',
+  'eventNotDraft',
+  'seatingHasHolds',
+  'contingentInUse',
+  'contingentCategoryInUse',
+  'contingentConflict',
+  'admissionNotSellable',
 ] as const;
 export type FormErrorCode = (typeof FORM_ERROR_CODES)[number];
 

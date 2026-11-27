@@ -387,15 +387,21 @@ export function buildGoogleClass(
       data.classTexts?.eventTranslations,
       'title',
     ),
-    venue: {
-      name: translatedText(
-        language,
-        data.classTexts?.venueName ?? data.venueName,
-        data.classTexts?.venueTranslations,
-        'name',
-      ),
-      address: localized(language, data.venueAddress ?? data.venueName),
-    },
+    // Admission-only events may have no venue: Google rejects empty localized strings, so the
+    // venue object is left out entirely.
+    ...((data.classTexts?.venueName ?? data.venueName)
+      ? {
+          venue: {
+            name: translatedText(
+              language,
+              data.classTexts?.venueName ?? data.venueName,
+              data.classTexts?.venueTranslations,
+              'name',
+            ),
+            address: localized(language, data.venueAddress ?? data.venueName),
+          },
+        }
+      : {}),
     dateTime,
     customSectionLabel: localizedLabel(language, 'wallet.block'),
     customRowLabel: localizedLabel(language, 'wallet.row'),

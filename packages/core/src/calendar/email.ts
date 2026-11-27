@@ -35,13 +35,15 @@ export async function calendarVariables(
       const icsUrl = base + orderCalendarPath(token, orderId, event.id);
       return {
         directionsUrl: event.directionsUrl,
-        html: `<p style="margin:0 0 4px;font-size:13px;color:#52525b">${escapeHtml(event.title)}</p><p style="margin:0 0 14px">${button(icsUrl, t('calendar.ics'))}${button(event.googleUrl, t('calendar.google'))}${button(event.directionsUrl, t('calendar.directions'))}</p>`,
+        html: `<p style="margin:0 0 4px;font-size:13px;color:#52525b">${escapeHtml(event.title)}</p><p style="margin:0 0 14px">${button(icsUrl, t('calendar.ics'))}${button(event.googleUrl, t('calendar.google'))}${event.directionsUrl ? button(event.directionsUrl, t('calendar.directions')) : ''}</p>`,
         text: [
           event.title,
           `${t('calendar.ics')}: ${icsUrl}`,
           `${t('calendar.google')}: ${event.googleUrl}`,
-          `${t('calendar.directions')}: ${event.directionsUrl}`,
-        ].join('\n'),
+          event.directionsUrl ? `${t('calendar.directions')}: ${event.directionsUrl}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
       };
     });
     return {
@@ -49,7 +51,7 @@ export async function calendarVariables(
         blocks.map((b) => b.html).join(''),
         blocks.map((b) => b.text).join('\n\n'),
       ),
-      directionsUrl: blocks[0]!.directionsUrl,
+      directionsUrl: blocks.find((b) => b.directionsUrl)?.directionsUrl ?? null,
     };
   } catch (err) {
     coreLog.error({ err }, '[calendar] could not build calendar links');

@@ -3,7 +3,10 @@ export interface BoxOfficeEvent {
   title: string;
   startsAt: string;
   timeZone: string;
-  venueName: string;
+  /** NULL for an admission-only event without a venue. */
+  venueName: string | null;
+  /** Admission-only event: contingents are sold by quantity, there is no seating plan. */
+  admission: boolean;
 }
 
 export interface Permissions {

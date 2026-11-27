@@ -171,11 +171,11 @@ export async function getEventCached(
 export async function getEventWithVenueBySlug(
   ctx: Pick<CoreContext, 'db'>,
   slug: string,
-): Promise<{ event: EventRow; venue: VenueRow } | null> {
+): Promise<{ event: EventRow; venue: VenueRow | null } | null> {
   const [row] = await ctx.db
     .select({ event: events, venue: venues })
     .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(and(eq(events.slug, slug)));
   return row ?? null;
 }

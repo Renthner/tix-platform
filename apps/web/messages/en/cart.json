@@ -28,6 +28,7 @@
   "row": "Row {label}",
   "seat": "Seat {label}",
   "standing": "Standing",
+  "admission": "Admission",
   "tariff": "Tariff",
   "proofBadge": "Proof at entry",
   "remove": "Remove",

@@ -57,6 +57,8 @@ export default async function ChangeSeatsPage({
           and(
             eq(orderItems.orderId, id),
             eq(orderItems.kind, 'SEAT'),
+            // Admission-only events have no seats to move to.
+            eq(events.seatingMode, 'SEATED'),
             inArray(orderItems.status, ['PENDING', 'CONFIRMED']),
           ),
         )

@@ -132,6 +132,7 @@
       "price": "Preis",
       "rowSeat": "Reihe {row}, Platz {seat}",
       "standing": "Stehplatz",
+      "admission": "Eintritt",
       "total": "Summe",
       "tax": "{rate} % MwSt. (netto + Steuer)"
     },
@@ -717,6 +718,7 @@
     "loading": "Saalplan wird geladen …",
     "selection": "Auswahl",
     "empty": "Plätze im Plan anklicken oder Stehplätze wählen.",
+    "emptyAdmission": "Wähle die Anzahl der Tickets je Kontingent und Tarif.",
     "remove": "Entfernen",
     "removeItem": "{item} entfernen",
     "tariff": "Ticketart",
@@ -726,6 +728,7 @@
     "priceOverrideHint": "Ändert den Preis dieses Tickets. Ein Grund ist erforderlich.",
     "overrideReason": "Grund für die Preisänderung",
     "standing": "Stehplatzbereiche",
+    "admissionTickets": "Tickets",
     "remaining": "{count} frei",
     "quantity": "Anzahl",
     "decrease": "Weniger",

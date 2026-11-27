@@ -1,6 +1,7 @@
 import {
   bankAccounts,
   customers,
+  events,
   invoices,
   orderAdjustments,
   orderItems,
@@ -135,6 +136,8 @@ export const EMAIL_VARIABLES = {
     'senderName',
     'transferMessage',
     'ticketPlace',
+    // "yes" for a standing / admission ticket (the templates say "Your ticket" instead of "Your seat").
+    'ticketWithoutSeat',
     'ticketCode',
     'ticketPageUrl',
     'ticketPdfUrl',
@@ -302,7 +305,10 @@ export async function orderVariables(
     orderUrl: ctx.appUrl ? orderUrl(ctx, order) : null,
     eventTitle: first?.title ?? null,
     eventDate: first ? formatDateTime(first.startsAt, locale, first.timeZone) : null,
-    eventVenue: first ? [first.venueName, first.venueCity].filter(Boolean).join(', ') : null,
+    // Null without a venue (admission-only events): templates use `{{#if eventVenue}}`.
+    eventVenue: first
+      ? [first.venueName, first.venueCity].filter(Boolean).join(', ') || null
+      : null,
     eventList: eventList(data, locale),
     itemsTable: itemsTable(data, items, locale, t),
     // Items of a cancelled event are listed (money) but never get a ticket.
@@ -361,7 +367,7 @@ function itemsTable(
     );
     text.push(event.title, eventWhenWhere(event, locale) + doors);
     for (const item of eventItems) {
-      const what = describeOrderItem(item, t);
+      const what = describeOrderItem(item, t, event.admission);
       const detail = [item.categoryName, item.ticketTypeName].filter(Boolean).join(' · ');
       html.push(
         `<tr><td style="${CELL}">${escapeHtml(what)}<br><span style="color:#52525b;font-size:13px">${escapeHtml(detail)}</span></td><td align="right" style="${CELL};white-space:nowrap">${escapeHtml(money(item.priceGross + item.codeDiscountAmount))}</td></tr>`,
@@ -497,8 +503,10 @@ export async function adjustmentVariables(
             sectionLabel: orderItems.sectionLabel,
             rowLabel: orderItems.rowLabel,
             seatLabel: orderItems.seatLabel,
+            seatingMode: events.seatingMode,
           })
           .from(orderItems)
+          .innerJoin(events, eq(events.id, orderItems.eventId))
           .where(
             inArray(
               orderItems.id,
@@ -506,7 +514,7 @@ export async function adjustmentVariables(
             ),
           )
       : []
-    ).map((r) => [r.id, describeOrderItem(r, t)] as const),
+    ).map((r) => [r.id, describeOrderItem(r, t, r.seatingMode === 'ADMISSION')] as const),
   );
   const rows = adjustment.items.map((item) => ({
     label: [places.get(item.orderItemId), `${item.fromName} → ${item.toName}`]

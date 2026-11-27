@@ -14,7 +14,7 @@ export interface ShopOrderItem {
   id: string;
   title: string;
   when: string;
-  venue: string;
+  venue: string | null;
   startsAtMs: number;
 }
 
@@ -71,7 +71,8 @@ export function ShopOrderEditor({ initial }: { initial: ShopOrderItem[] }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{item.title}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {item.when} · {item.venue}
+                  {item.when}
+                  {item.venue && ` · ${item.venue}`}
                 </p>
               </div>
               <Button

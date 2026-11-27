@@ -64,6 +64,8 @@ export interface CartEventView {
   venueName: string;
   currency: string;
   orphanSeatRuleEnabled: boolean;
+  /** Admission-only event (contingents, no seating plan). */
+  admission: boolean;
   ticketTypes: PublicTicketType[];
   items: CartItemView[];
   subtotalGross: number;
@@ -991,7 +993,7 @@ export async function getCart(
   const rows = await ctx.db
     .select({ event: events, venue: venues })
     .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(inArray(events.id, eventIds));
   const fields = await ctx.redis.hgetall(ctx.keys.cart(sessionId));
 
@@ -1094,6 +1096,7 @@ export async function getCart(
       venueName: localized(venue, 'name', loc, defaultLocale),
       currency: event.currency,
       orphanSeatRuleEnabled: config.orphanSeatRuleEnabled,
+      admission: event.seatingMode === 'ADMISSION',
       ticketTypes: map.ticketTypes,
       items,
       subtotalGross: items.reduce((sum, i) => sum + i.priceGross, 0),

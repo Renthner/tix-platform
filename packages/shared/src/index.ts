@@ -10,6 +10,7 @@ export * from './schemas/ticket-template';
 export * from './schemas/bank';
 export * from './schemas/checkout';
 export * from './schemas/fees';
+export * from './schemas/event-seating';
 export * from './schemas/accounting';
 export * from './schemas/settings';
 export * from './seating/document';

@@ -117,9 +117,8 @@ export const seatMaps = pgTable(
   'seat_maps',
   {
     id: id(),
-    venueId: uuid('venue_id')
-      .notNull()
-      .references(() => venues.id, { onDelete: 'restrict' }),
+    /** NULL only for the hidden EVENT map of an admission-only event (never blocks venue deletion). */
+    venueId: uuid('venue_id').references(() => venues.id, { onDelete: 'restrict' }),
     kind: seatMapKindEnum('kind').notNull(),
     name: text('name').notNull(),
     description: text('description'),
@@ -144,6 +143,7 @@ export const seatMaps = pgTable(
     unique('seat_maps_id_kind_uq').on(t.id, t.kind),
     check('seat_maps_canvas_positive', sql`${t.canvasWidth} > 0 AND ${t.canvasHeight} > 0`),
     check('seat_maps_version_positive', sql`${t.version} > 0`),
+    check('seat_maps_template_has_venue', sql`${t.kind} = 'EVENT' OR ${t.venueId} IS NOT NULL`),
   ],
 );
 

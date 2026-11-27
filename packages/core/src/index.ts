@@ -23,6 +23,7 @@ export * from './seatmaps/public';
 export * from './seatmaps/after-save';
 export * from './seatmaps/export-import';
 export * from './seatmaps/replace';
+export * from './event-seating';
 export * from './event-transfer';
 export * from './symbols';
 export * from './event-admin';

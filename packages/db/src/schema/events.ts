@@ -21,6 +21,7 @@ import {
   accessCodeTypeEnum,
   announcementSeverityEnum,
   discountKindEnum,
+  eventSeatingModeEnum,
   eventStatusEnum,
   feeCalculationEnum,
   feeScopeEnum,
@@ -62,9 +63,14 @@ export const events = pgTable(
   {
     id: id(),
     seriesId: uuid('series_id').references(() => eventSeries.id, { onDelete: 'set null' }),
-    venueId: uuid('venue_id')
-      .notNull()
-      .references((): AnyPgColumn => venues.id, { onDelete: 'restrict' }),
+    /** NULL only for admission-only events (`seating_mode` = ADMISSION) without a venue. */
+    venueId: uuid('venue_id').references((): AnyPgColumn => venues.id, { onDelete: 'restrict' }),
+    /**
+     * SEATED = sold from a seating plan of the venue; ADMISSION = admission only: the event map is
+     * a hidden plan with STANDING sections only (quantity contingents), the venue is optional.
+     * Changeable only while the event is a DRAFT without orders (`changeEventSeating`).
+     */
+    seatingMode: eventSeatingModeEnum('seating_mode').notNull().default('SEATED'),
     /** The event's own EVENT-kind seat map (FK below enforces kind = EVENT). */
     seatMapId: uuid('seat_map_id'),
     seatMapKind: seatMapKindEnum('seat_map_kind').notNull().default('EVENT'),
@@ -206,6 +212,10 @@ export const events = pgTable(
     check(
       'events_published_has_seat_map',
       sql`${t.status} = 'DRAFT' OR ${t.seatMapId} IS NOT NULL`,
+    ),
+    check(
+      'events_seated_has_venue',
+      sql`${t.seatingMode} = 'ADMISSION' OR ${t.venueId} IS NOT NULL`,
     ),
     check('events_ends_after_start', sql`${t.endsAt} IS NULL OR ${t.endsAt} > ${t.startsAt}`),
     check(

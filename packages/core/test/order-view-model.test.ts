@@ -19,6 +19,7 @@ const view = {
       startsAt: '2030-01-01T10:00:00Z',
       timeZone: 'UTC',
       venueName: 'Hall',
+      admission: false,
       items: [
         {
           id: 'i1',

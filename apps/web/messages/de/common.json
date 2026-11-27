@@ -124,6 +124,8 @@
     "SEAT_PRICE_DIFFERS": "Der neue Platz hat einen anderen Preis. Bitte stattdessen das Ticket stornieren und neu verkaufen.",
     "ITEM_NOT_ACTIVE": "Dieses Ticket ist nicht mehr aktiv (storniert oder erstattet).",
     "ITEM_NOT_SEAT": "Stehplätze können nicht auf einen Sitzplatz verschoben werden.",
+    "ITEM_ADMISSION_ONLY": "Tickets von Veranstaltungen nur mit Eintritt haben keinen Platz, der geändert werden könnte.",
+    "EVENT_ADMISSION_ONLY": "Diese Veranstaltung hat nur Eintritt (keinen Saalplan); ihre Kontingente bearbeitest du in der Veranstaltung.",
     "ORDER_NOT_CHANGEABLE": "Die Plätze dieser Bestellung können nicht mehr geändert werden.",
     "ORDER_CHANGED": "Die Bestellung wurde zwischenzeitlich geändert. Bitte die Seite neu laden.",
     "ORDER_ITEM_NOT_FOUND": "Ticket in dieser Bestellung nicht gefunden.",

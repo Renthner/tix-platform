@@ -38,6 +38,7 @@ export default async function EventPricingPage({
 
   return (
     <PricingManager
+      seated={event.seatingMode === 'SEATED'}
       currency={event.currency}
       createCategory={saveCategoryAction.bind(null, event.id, null)}
       createTicketType={saveTicketTypeAction.bind(null, event.id, null)}

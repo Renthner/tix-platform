@@ -54,7 +54,11 @@ fun EventsScreen(vm: MainViewModel, onSelected: () -> Unit) {
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(row.event.title, style = MaterialTheme.typography.titleMedium)
-                        Text(formatTime(context, row.event.startsAt) + " - " + row.event.venueName, style = MaterialTheme.typography.bodyMedium)
+                        // Admission-only events may have no venue: no dangling separator then.
+                        val line = listOf(formatTime(context, row.event.startsAt), row.event.venueName)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" - ")
+                        Text(line, style = MaterialTheme.typography.bodyMedium)
                         // Entrance of this device for the event (name from the manifest).
                         Text(
                             stringResource(R.string.events_entrance, entranceName(vm, row) ?: stringResource(R.string.events_entrance_any)),

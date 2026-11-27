@@ -154,7 +154,7 @@ async function loadEventInfo(db: Executor, eventId: string) {
       venueCity: venues.city,
     })
     .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(eq(events.id, eventId));
   if (!row) throw new DomainError('EVENT_NOT_FOUND', 'Event not found', 404);
   return row;

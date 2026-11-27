@@ -25,7 +25,8 @@ const SAFETY_TTL_MS = 60_000;
 /** Event page data of one slug (event row, venue, cover, info box symbols). */
 export interface ShopEventBundle {
   event: EventRow;
-  venue: VenueRow;
+  /** NULL for an admission-only event without a venue. */
+  venue: VenueRow | null;
   cover: MediaAssetRow | null;
   /** Symbols used by the info boxes, by id. */
   symbols: Record<string, PublicSymbol>;
@@ -49,7 +50,7 @@ export async function getShopEventBySlug(
       const [row] = await ctx.db
         .select({ event: events, venue: venues })
         .from(events)
-        .innerJoin(venues, eq(venues.id, events.venueId))
+        .leftJoin(venues, eq(venues.id, events.venueId))
         .where(eq(events.slug, slug));
       if (!row || (row.event.status !== 'PUBLISHED' && row.event.status !== 'POSTPONED')) {
         return null;
@@ -71,7 +72,7 @@ export async function getShopEventBySlug(
 
 async function buildShopEventBundle(
   ctx: Pick<CoreContext, 'db'>,
-  row: { event: EventRow; venue: VenueRow },
+  row: { event: EventRow; venue: VenueRow | null },
 ): Promise<ShopEventBundle> {
   const [coverRows, symbolList] = await Promise.all([
     row.event.heroImageAssetId
@@ -104,7 +105,7 @@ export async function getDraftEventBySlug(
   const [row] = await ctx.db
     .select({ event: events, venue: venues })
     .from(events)
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(and(eq(events.slug, slug), eq(events.status, 'DRAFT')));
   return row ? buildShopEventBundle(ctx, row) : null;
 }
@@ -177,7 +178,7 @@ export async function getShopAnnouncements(
 
 export interface ShopListEvent {
   event: EventRow;
-  venue: Pick<VenueRow, 'name' | 'city' | 'translations'>;
+  venue: Pick<VenueRow, 'name' | 'city' | 'translations'> | null;
   cover: { id: string; width: number | null; height: number | null } | null;
   /** Lowest base price of the active price categories (cents), null = none. */
   fromPrice: number | null;
@@ -201,7 +202,7 @@ export async function getShopEventList(ctx: Pick<CoreContext, 'db'>): Promise<Sh
           cover: { id: mediaAssets.id, width: mediaAssets.width, height: mediaAssets.height },
         })
         .from(events)
-        .innerJoin(venues, eq(venues.id, events.venueId))
+        .leftJoin(venues, eq(venues.id, events.venueId))
         .leftJoin(mediaAssets, eq(mediaAssets.id, events.heroImageAssetId))
         .where(
           and(inArray(events.status, ['PUBLISHED', 'POSTPONED']), gt(events.startsAt, sql`now()`)),

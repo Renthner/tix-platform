@@ -46,11 +46,14 @@ export interface WalletTicketData {
   timeZone: string;
   googleWalletClassId: string | null;
   heroImageAssetId: string | null;
+  /** Empty for an admission-only event without a venue. */
   venueName: string;
   venueAddress: string | null;
   latitude: number | null;
   longitude: number | null;
   kind: 'SEAT' | 'GENERAL_ADMISSION';
+  /** Ticket of an admission-only event (contingent): "Admission · <contingent>". */
+  admission?: boolean;
   /** Block label, only when the section's `show_label_on_ticket` is on. */
   block: string | null;
   row: string | null;
@@ -112,6 +115,7 @@ export async function loadWalletTicketData(
       timeZone: events.timeZone,
       googleWalletClassId: events.googleWalletClassId,
       heroImageAssetId: events.heroImageAssetId,
+      seatingMode: events.seatingMode,
       venueName: venues.name,
       street: venues.street,
       postalCode: venues.postalCode,
@@ -131,7 +135,7 @@ export async function loadWalletTicketData(
     .innerJoin(orderItems, eq(orderItems.id, tickets.orderItemId))
     .innerJoin(seatMapSections, eq(seatMapSections.id, orderItems.sectionId))
     .innerJoin(events, eq(events.id, tickets.eventId))
-    .innerJoin(venues, eq(venues.id, events.venueId))
+    .leftJoin(venues, eq(venues.id, events.venueId))
     .where(condition)
     .orderBy(...placeOrderBy());
   const { defaultLocale } = await getSetting({ db }, 'general');
@@ -166,9 +170,9 @@ export async function loadWalletTicketData(
             ),
       classTexts: {
         eventTitle: r.eventTitle,
-        venueName: r.venueName,
+        venueName: r.venueName ?? '',
         eventTranslations: r.eventTranslations,
-        venueTranslations: r.venueTranslations,
+        venueTranslations: r.venueTranslations ?? {},
       },
       startsAt: r.startsAt,
       endsAt: r.endsAt,
@@ -177,11 +181,11 @@ export async function loadWalletTicketData(
       googleWalletClassId: r.googleWalletClassId,
       heroImageAssetId: r.heroImageAssetId,
       venueName: localized(
-        { translations: r.venueTranslations },
+        { translations: r.venueTranslations ?? {} },
         'name',
         r.locale,
         defaultLocale,
-        r.venueName,
+        r.venueName ?? '',
       ),
       venueAddress:
         [r.street, [r.postalCode, r.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') ||
@@ -189,6 +193,7 @@ export async function loadWalletTicketData(
       latitude: r.latitude,
       longitude: r.longitude,
       kind: r.kind,
+      admission: r.seatingMode === 'ADMISSION',
       block: r.showLabelOnTicket ? r.sectionLabel : null,
       row: r.rowLabel,
       seat: r.seatLabel,
@@ -219,6 +224,9 @@ export async function assertTicketNotOfTestOrder(db: Executor, ticketId: string)
 /** Short place text, e.g. "Block A · Row 3 · Seat 12" / "Standing area" (honours the block flag). */
 export function walletPlaceLabel(data: WalletTicketData, t: MailTranslator): string {
   if (data.kind === 'GENERAL_ADMISSION' || !data.seat) {
+    if (data.admission) {
+      return data.block ? t('items.admission', { section: data.block }) : t('wallet.admission');
+    }
     return data.block ? t('items.standing', { section: data.block }) : t('wallet.standing');
   }
   const parts = [

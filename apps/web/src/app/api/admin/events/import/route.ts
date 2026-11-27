@@ -63,7 +63,10 @@ export async function POST(request: Request) {
         { headers: { 'cache-control': 'no-store' } },
       );
     }
-    if (!input.venueId) return apiError('VALIDATION_FAILED', 'A venue is required', 422);
+    // Admission-only events (file mode ADMISSION) may be imported without a venue.
+    if (!input.venueId && parsed.event.seatingMode !== 'ADMISSION') {
+      return apiError('VALIDATION_FAILED', 'A venue is required', 422);
+    }
     let startsAt: Date | null = null;
     if (input.startsAt) {
       startsAt = zonedWallTimeToUtc(input.startsAt, parsed.event.timeZone);
@@ -72,7 +75,7 @@ export async function POST(request: Request) {
     const core = getCore();
     const result = await importEvent(core, {
       file: parsed,
-      venueId: input.venueId,
+      venueId: input.venueId ?? null,
       userId: session.userId,
       title: input.title,
       slug: input.slug ?? null,
@@ -85,7 +88,7 @@ export async function POST(request: Request) {
     await audit(core.db, session, 'event.import', 'event', result.eventId, {
       title: input.title ?? parsed.event.title,
       slug: result.slug,
-      venueId: input.venueId,
+      venueId: input.venueId ?? null,
       warnings: result.warnings.length,
     });
     await refreshShop(eventTags(result.eventId)).catch(() => {});

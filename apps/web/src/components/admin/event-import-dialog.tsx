@@ -24,6 +24,8 @@ interface Summary {
   exportedAt: string;
   timeZone: string;
   venueName: string | null;
+  /** ADMISSION: contingents instead of a seating plan, the venue is optional. */
+  seatingMode: 'SEATED' | 'ADMISSION';
   priceCategories: number;
   ticketTypes: number;
   fees: number;
@@ -99,7 +101,7 @@ export function EventImportDialog({ venues }: { venues: { id: string; name: stri
     body.set('file', chosen);
     body.set('mode', mode);
     if (mode === 'import') {
-      body.set('venueId', venueId);
+      if (venueId) body.set('venueId', venueId);
       body.set('title', title.trim());
       if (slug.trim()) body.set('slug', slug.trim());
       // Only a changed start moves the other dates; the unchanged one keeps the file's dates.
@@ -129,7 +131,11 @@ export function EventImportDialog({ venues }: { venues: { id: string; name: stri
       setTitle(json.summary.title);
       setStartsAt(json.startsAtLocal);
       const match = venues.find((v) => v.name === json.summary.venueName);
-      setVenueId((current) => match?.id ?? (current || venues[0]?.id || ''));
+      setVenueId((current) =>
+        json.summary.seatingMode === 'ADMISSION'
+          ? (match?.id ?? '')
+          : (match?.id ?? (current || venues[0]?.id || '')),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'GENERIC');
     } finally {
@@ -159,6 +165,7 @@ export function EventImportDialog({ venues }: { venues: { id: string; name: stri
   };
 
   const s = preview?.summary;
+  const admission = s?.seatingMode === 'ADMISSION';
   return (
     <Dialog
       open={open}
@@ -177,11 +184,7 @@ export function EventImportDialog({ venues }: { venues: { id: string; name: stri
           <DialogTitle>{t('title')}</DialogTitle>
           <DialogDescription>{t('description')}</DialogDescription>
         </DialogHeader>
-        {venues.length === 0 ? (
-          <Alert>
-            <AlertDescription>{t('noVenues')}</AlertDescription>
-          </Alert>
-        ) : done ? (
+        {done ? (
           <div className="space-y-3">
             <Alert>
               <AlertDescription>
@@ -233,12 +236,14 @@ export function EventImportDialog({ venues }: { venues: { id: string; name: stri
                   )}
                   <ul className="grid gap-1 pt-1 sm:grid-cols-2">
                     <li>
-                      {s.seatPlan
-                        ? t('summary.plan', {
-                            seats: s.seatPlan.seats,
-                            sections: s.seatPlan.sections,
-                          })
-                        : t('summary.noPlan')}
+                      {admission
+                        ? t('summary.contingents', { count: s.seatPlan?.sections ?? 0 })
+                        : s.seatPlan
+                          ? t('summary.plan', {
+                              seats: s.seatPlan.seats,
+                              sections: s.seatPlan.sections,
+                            })
+                          : t('summary.noPlan')}
                     </li>
                     <li>{t('summary.categories', { count: s.priceCategories })}</li>
                     <li>{t('summary.tariffs', { count: s.ticketTypes })}</li>
@@ -255,19 +260,30 @@ export function EventImportDialog({ venues }: { venues: { id: string; name: stri
                     })}
                   </p>
                 </div>
-                <Field label={t('fields.venue')} htmlFor="eventImportVenue" hint={t('venueHint')}>
-                  <NativeSelect
-                    id="eventImportVenue"
-                    value={venueId}
-                    onChange={(e) => setVenueId(e.target.value)}
+                {!admission && venues.length === 0 ? (
+                  <Alert>
+                    <AlertDescription>{t('noVenues')}</AlertDescription>
+                  </Alert>
+                ) : (
+                  <Field
+                    label={t('fields.venue')}
+                    htmlFor="eventImportVenue"
+                    hint={admission ? t('venueHintAdmission') : t('venueHint')}
                   >
-                    {venues.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </Field>
+                    <NativeSelect
+                      id="eventImportVenue"
+                      value={venueId}
+                      onChange={(e) => setVenueId(e.target.value)}
+                    >
+                      {admission && <option value="">{t('noVenue')}</option>}
+                      {venues.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </Field>
+                )}
                 <Field label={t('fields.title')} htmlFor="eventImportTitle">
                   <Input
                     id="eventImportTitle"
@@ -309,7 +325,7 @@ export function EventImportDialog({ venues }: { venues: { id: string; name: stri
               </Button>
               <Button
                 type="button"
-                disabled={busy || !preview || !title.trim() || !venueId}
+                disabled={busy || !preview || !title.trim() || (!venueId && !admission)}
                 onClick={() => void onImport()}
               >
                 {busy && preview ? <Loader2 className="animate-spin" /> : <Upload />}{' '}

@@ -52,7 +52,11 @@ export function buildInvoiceDraft(
   const items = data.items.filter((i) => i.status === 'CONFIRMED' || i.status === 'REFUNDED');
   for (const item of items) {
     const event = data.eventById.get(item.eventId);
-    const detail = [describeOrderItem(item, t), item.categoryName, item.ticketTypeName]
+    const detail = [
+      describeOrderItem(item, t, event?.admission),
+      item.categoryName,
+      item.ticketTypeName,
+    ]
       .filter(Boolean)
       .join(' · ');
     const code = item.codeDiscountAmount;

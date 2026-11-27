@@ -127,7 +127,7 @@ function CartEventCard({
           </Link>
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          {date(event.startsAt, event.timeZone)} · {event.venueName}
+          {[date(event.startsAt, event.timeZone), event.venueName].filter(Boolean).join(' · ')}
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -191,7 +191,9 @@ function CartItemRow({
         ]
           .filter(Boolean)
           .join(' · ')
-      : [item.sectionLabel, t('standing')].filter(Boolean).join(' · ');
+      : [item.sectionLabel, t(event.admission ? 'admission' : 'standing')]
+          .filter(Boolean)
+          .join(' · ');
 
   return (
     <li className="flex flex-wrap items-center gap-3 py-3">

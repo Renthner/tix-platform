@@ -294,6 +294,56 @@ describe('Google Wallet payloads', () => {
     expect(hidden.seatInfo.section).toBeUndefined();
   });
 
+  it('leaves the venue out for admission-only events without a venue', () => {
+    const data = ticket({
+      venueName: '',
+      venueAddress: null,
+      latitude: null,
+      longitude: null,
+      classTexts: {
+        eventTitle: 'Sample Fair',
+        venueName: '',
+        eventTranslations: {},
+        venueTranslations: {},
+      },
+      kind: 'GENERAL_ADMISSION',
+      admission: true,
+      block: 'Day ticket',
+      row: null,
+      seat: null,
+    });
+    // Google rejects empty localized strings: no venue object at all.
+    const cls = buildGoogleClass(
+      gConfig,
+      data,
+      design,
+      { logo: null, hero: null, wideLogo: null },
+      'en',
+    ) as any;
+    expect(cls).not.toHaveProperty('venue');
+    expect(cls).not.toHaveProperty('locations');
+    expect(JSON.stringify(cls)).not.toContain('"value":""');
+    const obj = buildGoogleObject(gConfig, data) as any;
+    expect(obj.seatInfo.section.defaultValue.value).toBe('Eintritt · Day ticket');
+    // Apple: no location, no venue back field; the place reads "Admission".
+    const pass = buildApplePassJson(data, design, config) as any;
+    expect(pass.locations).toBeUndefined();
+    expect(pass.eventTicket.backFields.map((f: { key: string }) => f.key)).not.toContain('venue');
+    expect(pass.eventTicket.auxiliaryFields[0]).toMatchObject({
+      key: 'place',
+      value: 'Eintritt · Day ticket',
+    });
+    // A seated event with a venue keeps it.
+    const seated = buildGoogleClass(
+      gConfig,
+      ticket(),
+      design,
+      { logo: null, hero: null, wideLogo: null },
+      'en',
+    ) as any;
+    expect(seated.venue.name.defaultValue.value).toBe('Town Hall');
+  });
+
   it('picks Google images: design first, then shop logo / event cover; wide logo only from the design', () => {
     const fallbacks = { shopLogo: 'https://s/logo', eventCover: 'https://s/cover' };
     expect(

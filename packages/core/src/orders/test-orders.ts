@@ -20,6 +20,7 @@ import {
 import { INVENTORY_HOLDING_ITEM_STATUSES, type EventStatus } from '@tix/shared';
 import { and, count, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import { cartEventIds } from '../cart';
+import { assertAdmissionSellable } from '../event-seating';
 import { DomainError, type CoreContext } from '../context';
 import { coreLog } from '../log';
 import { reconcilePayPalOrder } from '../payments/paypal';
@@ -500,6 +501,8 @@ export async function changeEventStatus(
         id: events.id,
         status: events.status,
         hadTestOrders: events.hadTestOrders,
+        seatingMode: events.seatingMode,
+        seatMapId: events.seatMapId,
         publishedAt: events.publishedAt,
         cancelledAt: events.cancelledAt,
       })
@@ -532,6 +535,8 @@ export async function changeEventStatus(
     }
     let rotatedKeys = 0;
     if (live(params.status) && !live(event.status)) {
+      // Admission-only events go live only with a sellable contingent (seated: admin checklist).
+      await assertAdmissionSellable(tx, event);
       const [tests] = await tx
         .select({ n: sql<number>`count(DISTINCT ${orders.id})::int` })
         .from(orderItems)

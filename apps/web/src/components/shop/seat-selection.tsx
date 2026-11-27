@@ -46,6 +46,7 @@ import {
   onRoomJoinChange,
   subscribeRoom,
 } from '@/lib/realtime';
+import { AdmissionTicketList } from './admission-ticket-list';
 import { useCart } from './cart-context';
 import {
   SeatChart,
@@ -67,6 +68,11 @@ export interface ShopConfig {
   orphanSeatRuleEnabled: boolean;
   /** Companion seats only together with their wheelchair space. */
   companionRequiresWheelchair: boolean;
+  /**
+   * Admission-only event (no seating plan): a ticket list per contingent replaces plan, list view,
+   * legend and best-available.
+   */
+  admission?: boolean;
 }
 
 interface Inventory {
@@ -707,6 +713,7 @@ export function SeatSelection({
   const seatedCategories = map.categories.filter((c) => map.seats.some((s) => s.c === c.id));
   // Best-available is offered per category (the operator may switch it off, e.g. wheelchair places).
   const bestCategories = seatedCategories.filter((c) => c.bestAvailable);
+  const admission = config.admission === true;
 
   return (
     <div
@@ -732,95 +739,115 @@ export function SeatSelection({
           {announcement.text}
           {announcement.n % 2 === 0 ? '' : '\u00a0'}
         </div>
-        <div className="flex justify-end">
-          <Button
-            ref={viewToggleRef}
-            variant="outline"
-            size="sm"
-            data-testid="seat-view-toggle"
-            onClick={() => setView((v) => (v === 'plan' ? 'list' : 'plan'))}
-          >
-            {view === 'plan' ? <List /> : <MapIcon />}
-            {view === 'plan' ? t('view.toList') : t('view.toPlan')}
-          </Button>
-        </div>
-        {view === 'list' && (
-          <SeatList
+        {admission && (
+          <AdmissionTicketList
             map={map}
-            status={status}
-            statusVersion={statusVersion}
-            seatLabel={seatLabel}
-            onToggle={(seat) => void toggleSeat(seat)}
-            onSectionClick={setActiveSection}
-            gaRemaining={inv.ga}
-            standingEnabled
+            remaining={inv.ga}
+            mine={inv.gaMine}
+            busy={busy}
+            maxPerRow={Math.min(
+              config.maxTicketsPerOrder ?? GA_MAX_PER_REQUEST,
+              GA_MAX_PER_REQUEST,
+            )}
+            priceLabel={priceRangeLabel}
+            onChange={(sectionId, quantity) => void setGa(sectionId, quantity)}
           />
         )}
-        {/* Stays mounted while the list is shown (the legend swatches use the plan's symbols). */}
-        <div className={view === 'list' ? 'hidden' : undefined}>
-          <SeatChart
-            map={map}
-            colors={colors}
-            status={status}
-            statusVersion={statusVersion}
-            gaRemaining={inv.ga}
-            gaMine={inv.gaMine}
-            highlighted={highlighted}
-            interactive={config.manualSeatSelectionEnabled || standingSections.length > 0}
-            onSeatClick={toggleSeat}
-            onSectionClick={setActiveSection}
-            seatTitle={seatTitle}
-            seatLabel={seatLabel}
-            keyboardHelp={tChart('keyboardHelp')}
-            standingLabel={standingLabel}
-            onUnavailableSeat={(seat) => void toggleSeat(seat)}
-            onFocusSeat={handleFocusSeat}
-            onSeatInfo={(seat) => setSeatInfo((prev) => ({ id: seat.i, n: (prev?.n ?? 0) + 1 }))}
-            onEscape={() => viewToggleRef.current?.focus()}
-          />
-        </div>
-        {seatInfo &&
-          (() => {
-            const seat = lookups.seats.get(seatInfo.id);
-            if (!seat) return null;
-            const availability: SeatAvailability = inv.mine.has(seat.i)
-              ? 'selected'
-              : isSeatUnavailable(seat)
-                ? 'unavailable'
-                : 'available';
-            return (
-              <p
-                role="status"
-                data-testid="seat-info"
-                className="rounded-md border bg-muted/50 px-3 py-2 text-sm lg:hidden"
+        {!admission && (
+          <>
+            <div className="flex justify-end">
+              <Button
+                ref={viewToggleRef}
+                variant="outline"
+                size="sm"
+                data-testid="seat-view-toggle"
+                onClick={() => setView((v) => (v === 'plan' ? 'list' : 'plan'))}
               >
-                {seatTitle(seat)} · {t(`state.${availability}`)}
-              </p>
-            );
-          })()}
-        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-          {map.categories.map((c) => {
-            const seated = map.seats.some((seat) => seat.c === c.id);
-            return (
-              <span key={c.id} className="flex items-center gap-1.5">
-                {seated || !map.sections.some((sec) => sec.priceCategoryId === c.id) ? (
-                  <SeatSwatch map={map} colors={colors} kind="free" categoryId={c.id} />
-                ) : (
-                  <StandingSwatch color={c.color} />
-                )}
-                {c.name} ·{' '}
-                {t('from', {
-                  price: money(lookups.priceRange.get(c.id)?.min ?? c.basePrice, map.currency),
-                })}
-              </span>
-            );
-          })}
-          <SeatStateLegend map={map} colors={colors} />
-        </div>
+                {view === 'plan' ? <List /> : <MapIcon />}
+                {view === 'plan' ? t('view.toList') : t('view.toPlan')}
+              </Button>
+            </div>
+            {view === 'list' && (
+              <SeatList
+                map={map}
+                status={status}
+                statusVersion={statusVersion}
+                seatLabel={seatLabel}
+                onToggle={(seat) => void toggleSeat(seat)}
+                onSectionClick={setActiveSection}
+                gaRemaining={inv.ga}
+                standingEnabled
+              />
+            )}
+            {/* Stays mounted while the list is shown (the legend swatches use the plan's symbols). */}
+            <div className={view === 'list' ? 'hidden' : undefined}>
+              <SeatChart
+                map={map}
+                colors={colors}
+                status={status}
+                statusVersion={statusVersion}
+                gaRemaining={inv.ga}
+                gaMine={inv.gaMine}
+                highlighted={highlighted}
+                interactive={config.manualSeatSelectionEnabled || standingSections.length > 0}
+                onSeatClick={toggleSeat}
+                onSectionClick={setActiveSection}
+                seatTitle={seatTitle}
+                seatLabel={seatLabel}
+                keyboardHelp={tChart('keyboardHelp')}
+                standingLabel={standingLabel}
+                onUnavailableSeat={(seat) => void toggleSeat(seat)}
+                onFocusSeat={handleFocusSeat}
+                onSeatInfo={(seat) =>
+                  setSeatInfo((prev) => ({ id: seat.i, n: (prev?.n ?? 0) + 1 }))
+                }
+                onEscape={() => viewToggleRef.current?.focus()}
+              />
+            </div>
+            {seatInfo &&
+              (() => {
+                const seat = lookups.seats.get(seatInfo.id);
+                if (!seat) return null;
+                const availability: SeatAvailability = inv.mine.has(seat.i)
+                  ? 'selected'
+                  : isSeatUnavailable(seat)
+                    ? 'unavailable'
+                    : 'available';
+                return (
+                  <p
+                    role="status"
+                    data-testid="seat-info"
+                    className="rounded-md border bg-muted/50 px-3 py-2 text-sm lg:hidden"
+                  >
+                    {seatTitle(seat)} · {t(`state.${availability}`)}
+                  </p>
+                );
+              })()}
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+              {map.categories.map((c) => {
+                const seated = map.seats.some((seat) => seat.c === c.id);
+                return (
+                  <span key={c.id} className="flex items-center gap-1.5">
+                    {seated || !map.sections.some((sec) => sec.priceCategoryId === c.id) ? (
+                      <SeatSwatch map={map} colors={colors} kind="free" categoryId={c.id} />
+                    ) : (
+                      <StandingSwatch color={c.color} />
+                    )}
+                    {c.name} ·{' '}
+                    {t('from', {
+                      price: money(lookups.priceRange.get(c.id)?.min ?? c.basePrice, map.currency),
+                    })}
+                  </span>
+                );
+              })}
+              <SeatStateLegend map={map} colors={colors} />
+            </div>
+          </>
+        )}
       </div>
 
       <aside className="space-y-4">
-        {config.bestAvailableEnabled && bestCategories.length > 0 && (
+        {!admission && config.bestAvailableEnabled && bestCategories.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -874,7 +901,7 @@ export function SeatSelection({
           </Card>
         )}
 
-        {activeGa && activeGa.priceCategoryId && (
+        {!admission && activeGa && activeGa.priceCategoryId && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-base">
@@ -929,7 +956,11 @@ export function SeatSelection({
           <CardContent className="space-y-3">
             {selectionCount === 0 && (
               <p className="text-sm text-muted-foreground">
-                {config.manualSeatSelectionEnabled ? t('emptyManual') : t('emptyBest')}
+                {admission
+                  ? t('admission.empty')
+                  : config.manualSeatSelectionEnabled
+                    ? t('emptyManual')
+                    : t('emptyBest')}
               </p>
             )}
             <ul className="space-y-2 text-sm">

@@ -48,6 +48,7 @@ export default async function EventShopPage({
       <CardContent>
         <EventPageEditor
           action={updateEventPageAction.bind(null, event.id)}
+          admission={event.seatingMode === 'ADMISSION'}
           initialLayout={normalizePageLayout(
             event.pageLayout,
             event.infoBoxes.map((b) => b.id),

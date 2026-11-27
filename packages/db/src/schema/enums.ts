@@ -16,6 +16,7 @@ export const seatBlockReasonEnum = pgEnum('seat_block_reason', E.SEAT_BLOCK_REAS
 export const seatFeatureEnum = pgEnum('seat_feature', E.SEAT_FEATURES);
 
 export const eventStatusEnum = pgEnum('event_status', E.EVENT_STATUSES);
+export const eventSeatingModeEnum = pgEnum('event_seating_mode', E.EVENT_SEATING_MODES);
 export const discountKindEnum = pgEnum('discount_kind', E.DISCOUNT_KINDS);
 export const discountCodeTypeEnum = pgEnum('discount_code_type', E.DISCOUNT_CODE_TYPES);
 export const feeScopeEnum = pgEnum('fee_scope', E.FEE_SCOPES);

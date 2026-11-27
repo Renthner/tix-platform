@@ -11,6 +11,7 @@ import {
   duplicateEvent,
   getSetting,
   eventTags,
+  insertEmptyEventSeatMap,
 } from '@tix/core';
 import {
   events,
@@ -23,6 +24,7 @@ import {
   withTransaction,
 } from '@tix/db';
 import {
+  EVENT_SEATING_MODES,
   EVENT_STATUSES,
   WAITLIST_TRIGGERS,
   isMediaKindAllowed,
@@ -48,9 +50,6 @@ function cleanDescription(raw: string | undefined): string | null {
   const html = sanitizeRichText(raw);
   return html && richTextToPlain(html) !== '' ? html : null;
 }
-
-const EMPTY_PLAN_WIDTH = 2000;
-const EMPTY_PLAN_HEIGHT = 1400;
 
 /** Parses datetime-local fields in the given zone; collects field errors. */
 function readDates(
@@ -95,8 +94,14 @@ function checkEventDates(
 
 export async function createEventAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const session = await requireAdmin(['EVENT_MANAGER']);
+  // Admission-only events (no seating plan): venue optional, never a template.
+  const seatingMode = z.enum(EVENT_SEATING_MODES).catch('SEATED').parse(text(fd, 'seatingMode'));
+  const admission = seatingMode === 'ADMISSION';
   const parsed = baseSchema
-    .extend({ venueId: z.uuid(), templateId: z.uuid().optional() })
+    .extend({
+      venueId: admission ? z.uuid().optional() : z.uuid(),
+      templateId: z.uuid().optional(),
+    })
     .safeParse({
       title: text(fd, 'title'),
       slug: text(fd, 'slug'),
@@ -104,7 +109,7 @@ export async function createEventAction(_prev: ActionState, fd: FormData): Promi
       currency: text(fd, 'currency'),
       taxRateId: text(fd, 'taxRateId'),
       venueId: text(fd, 'venueId'),
-      templateId: text(fd, 'templateId'),
+      templateId: admission ? undefined : text(fd, 'templateId'),
     });
   const errors: Partial<Record<string, FieldErrorCode>> = parsed.success
     ? {}
@@ -119,11 +124,11 @@ export async function createEventAction(_prev: ActionState, fd: FormData): Promi
 
   const { db } = getCore();
   const t = await getTranslations('admin.events');
-  const [venue] = await db
-    .select({ id: venues.id })
-    .from(venues)
-    .where(eq(venues.id, data.venueId));
-  if (!venue) return fieldError({ venueId: 'invalid' });
+  const venueId = data.venueId ?? null;
+  if (venueId) {
+    const [venue] = await db.select({ id: venues.id }).from(venues).where(eq(venues.id, venueId));
+    if (!venue) return fieldError({ venueId: 'invalid' });
+  }
   const [tax] = await db
     .select({ id: taxRates.id })
     .from(taxRates)
@@ -134,33 +139,27 @@ export async function createEventAction(_prev: ActionState, fd: FormData): Promi
       .select({ venueId: seatMaps.venueId })
       .from(seatMaps)
       .where(and(eq(seatMaps.id, data.templateId), eq(seatMaps.kind, 'TEMPLATE')));
-    if (!template || template.venueId !== data.venueId) return formError('templateMismatch');
+    if (!template || template.venueId !== venueId) return formError('templateMismatch');
   }
 
   let eventId: string;
   try {
     eventId = await withTransaction(db, async (tx) => {
+      // ADMISSION: hidden plan without venue that takes the contingents.
       const seatMapId = data.templateId
         ? await cloneSeatMap(tx, data.templateId, { kind: 'EVENT', name: data.title.slice(0, 120) })
-        : (
-            await tx
-              .insert(seatMaps)
-              .values({
-                venueId: data.venueId,
-                kind: 'EVENT',
-                name: data.title.slice(0, 120),
-                canvasWidth: EMPTY_PLAN_WIDTH,
-                canvasHeight: EMPTY_PLAN_HEIGHT,
-              })
-              .returning({ id: seatMaps.id })
-          )[0]!.id;
+        : await insertEmptyEventSeatMap(tx, {
+            venueId: admission ? null : venueId,
+            name: data.title,
+          });
       const [created] = await tx
         .insert(events)
         .values({
           title: data.title,
           subtitle: subtitle ?? null,
           slug: data.slug,
-          venueId: data.venueId,
+          venueId,
+          seatingMode,
           seatMapId,
           status: 'DRAFT',
           startsAt: dates.startsAt!,
@@ -170,7 +169,7 @@ export async function createEventAction(_prev: ActionState, fd: FormData): Promi
           currency: data.currency,
           taxRateId: data.taxRateId,
           description: cleanDescription(text(fd, 'description')),
-          orphanSeatRuleEnabled: flag(fd, 'orphanSeatRuleEnabled'),
+          orphanSeatRuleEnabled: admission ? null : flag(fd, 'orphanSeatRuleEnabled'),
           createdByUserId: session.userId,
         })
         .returning({ id: events.id });
@@ -184,6 +183,8 @@ export async function createEventAction(_prev: ActionState, fd: FormData): Promi
       });
       await audit(tx, session, 'event.create', 'event', created!.id, {
         title: data.title,
+        seatingMode,
+        venueId,
         templateId: data.templateId ?? null,
       });
       return created!.id;
@@ -309,6 +310,7 @@ export async function setEventStatusAction(
       if (err.code === 'TEST_ORDERS_PRESENT') return formError('testOrdersKept');
       if (err.code === 'TEST_KEY_ROTATION_REAL_TICKETS') return formError('testKeyRealTickets');
       if (err.code === 'EVENT_CANCELLATION_RUNNING') return formError('cancellationRunning');
+      if (err.code === 'ADMISSION_NOT_SELLABLE') return formError('admissionNotSellable');
     }
     throw err;
   }

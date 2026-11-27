@@ -124,6 +124,8 @@
     "SEAT_PRICE_DIFFERS": "The new seat has a different price. Cancel the ticket and sell a new one instead.",
     "ITEM_NOT_ACTIVE": "This ticket is not active any more (cancelled or refunded).",
     "ITEM_NOT_SEAT": "Standing spots cannot be moved to a seat.",
+    "ITEM_ADMISSION_ONLY": "Tickets of admission-only events have no seat that could be changed.",
+    "EVENT_ADMISSION_ONLY": "This event has admission only (no seating plan); its contingents are edited in the event.",
     "ORDER_NOT_CHANGEABLE": "The seats of this order cannot be changed any more.",
     "ORDER_CHANGED": "The order was changed in the meantime. Please reload the page.",
     "ORDER_ITEM_NOT_FOUND": "Ticket not found in this order.",
