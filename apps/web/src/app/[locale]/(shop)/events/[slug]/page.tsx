@@ -37,6 +37,7 @@ import { Badge } from '@/components/ui/badge';
 import { resolveLocale } from '@/i18n/locale';
 import { cn } from '@/lib/utils';
 import { getCore } from '@/server/core';
+import { reportPageCacheBoundary } from '@/server/page-cache';
 import { getShopActor } from '@/server/shop-actor';
 import { buildEventJsonLd, jsonLdString } from '@/server/event-jsonld';
 import { descriptionToHtml } from '@/server/rich-text';
@@ -174,6 +175,16 @@ export default async function EventPage({ params }: Params) {
             organizer: { name: organizer.legalName, url: organizer.website },
           }),
         );
+  // HTML page cache: a shared render must not outlive the event's next sale-state change (which
+  // also decides the waiting-list block) nor the expiry of a shown announcement. The waiting-room
+  // state (lobby, countdown) is fetched by the browser, not rendered here.
+  reportPageCacheBoundary(await headers(), [
+    found.event.presaleStartsAt,
+    found.event.publicSaleStartsAt,
+    found.event.saleEndsAt,
+    found.event.startsAt,
+    ...announcements.map((a) => a.expiresAt),
+  ]);
   const infoBoxes = event.infoBoxes.filter((b) => b.title || b.content);
   const boxSymbols = new Map(Object.entries(found.symbols));
   const descriptionHtml = descriptionToHtml(event.description);

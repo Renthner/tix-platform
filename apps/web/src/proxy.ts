@@ -7,6 +7,18 @@ import { AREA_HEADER } from './lib/theme';
 import { buildCsp, newNonce } from './server/csp';
 import { getDefaultLocale } from './server/default-locale';
 import { maintenanceGate } from './server/maintenance-gate';
+import { logger } from './server/logger';
+import {
+  PAGE_CACHE_FILL_HEADER,
+  PAGE_CACHE_FILL_ID_HEADER,
+  withPageCacheFallback,
+} from './server/page-cache';
+import {
+  isPageCacheFill,
+  markPageCache,
+  pageCacheDecision,
+  type PageCacheDecision,
+} from './server/page-cache-proxy';
 import { getSeoIndexing } from './server/seo-indexing';
 import {
   SESSION_COOKIE,
@@ -38,7 +50,8 @@ const ADMIN_LOGIN = new RegExp(
  * Runs before every page request:
  *  1. locale negotiation / prefixing (next-intl),
  *  2. issues the anonymous session cookie (cart + waiting-room identity),
- *  3. optimistic admin guard (real authorisation happens in layouts and actions).
+ *  3. optimistic admin guard (real authorisation happens in layouts and actions),
+ *  4. HTML page cache for anonymous visitors of the start and event pages (`server/page-cache*`).
  * While a backup restore runs, every page (and server action) answers 503 first.
  */
 export default async function proxy(request: NextRequest): Promise<NextResponse | Response> {
@@ -64,7 +77,32 @@ export default async function proxy(request: NextRequest): Promise<NextResponse 
   // Shop or admin portal (the colour theme and brand colour only apply to the shop).
   request.headers.set(AREA_HEADER, isAdminPath(pathname) ? 'admin' : 'shop');
   request.headers.set('Content-Security-Policy', csp);
-  const response = intlFor(defaultLocale)(request);
+  // Page cache: only the internal render of this process may carry the fill headers (the page
+  // reports its sale-state hint under the fill id); never let a client set them.
+  const internalFill = isPageCacheFill(request.headers);
+  request.headers.delete(PAGE_CACHE_FILL_HEADER);
+  if (!internalFill) request.headers.delete(PAGE_CACHE_FILL_ID_HEADER);
+  const intl = intlFor(defaultLocale)(request);
+  // Any failure of the page cache (decision, fill, building the hit) falls back to the normal
+  // render of this request without a cache marker.
+  const cached: PageCacheDecision = internalFill
+    ? { kind: 'none' }
+    : await withPageCacheFallback<PageCacheDecision>(
+        () =>
+          pageCacheDecision({
+            request,
+            intl,
+            nonce,
+            defaultLocale,
+            locales: routing.locales,
+          }),
+        { kind: 'none' },
+        (err) => logger.error({ err, path: pathname }, 'page cache failed, rendering normally'),
+      );
+  const response = cached.kind === 'served' ? cached.response : intl;
+  if (cached.kind !== 'none') {
+    markPageCache(response, cached.kind === 'served' ? cached.outcome : cached.kind);
+  }
   response.headers.set('Content-Security-Policy', csp);
   // Settings → SEO: indexing switched off (e.g. a test or demo server).
   if (!(await getSeoIndexing())) response.headers.set('X-Robots-Tag', 'noindex, nofollow');

@@ -188,6 +188,7 @@
         "title": "Veranstaltungen im Verkauf & demnächst",
         "all": "Alle Veranstaltungen",
         "inShop": "{active} gerade im Shop, {waiting} wartend",
+        "serverCapacity": "{active} von max. {cap} aktiven Käufern serverweit",
         "showing": "{shown} von {total} Veranstaltungen angezeigt.",
         "saveFailed": "Der Status-Filter konnte nicht gespeichert werden.",
         "columns": {
@@ -901,7 +902,7 @@
       },
       "AUTO_THRESHOLD": {
         "label": "Automatisch",
-        "description": "Besucher warten nur, solange die Zahl aktiver Käufer den Schwellwert erreicht."
+        "description": "Besucher warten nur, solange die Zahl aktiver Käufer dieser Veranstaltung den Schwellwert erreicht."
       },
       "SCHEDULED_PRE_REGISTRATION": {
         "label": "Geplant mit Lobby",
@@ -918,7 +919,7 @@
     },
     "fields": {
       "mode": "Modus",
-      "activeSessionThreshold": "Max. aktive Käufer",
+      "activeSessionThreshold": "Max. aktive Käufer pro Veranstaltung",
       "admissionBatchSize": "Einlass pro Gruppe",
       "admissionIntervalSeconds": "Gruppen-Intervall (Sekunden)",
       "passTokenTtlSeconds": "Einkaufszeitfenster (Sekunden)",
@@ -928,14 +929,17 @@
       "accessCodeBypassesQueue": "Zugangscodes überspringen die Warteschlange",
       "isPaused": "Einlass pausieren",
       "title": "Titel des Warteraums",
-      "message": "Nachricht im Warteraum"
+      "message": "Nachricht im Warteraum",
+      "maxActiveShoppers": "Max. aktive Käufer serverweit (alle Veranstaltungen)"
     },
     "hints": {
-      "activeSessionThreshold": "Wie viele Käufer gleichzeitig im Saalplan einkaufen dürfen.",
+      "activeSessionThreshold": "Zählt pro Veranstaltung: Käufer, die gleichzeitig im Saalplan dieser Veranstaltung einkaufen.",
       "admissionBatchSize": "Besucher, die pro Intervall eingelassen werden.",
       "passTokenTtlSeconds": "Wie lange ein eingelassener Besucher einkaufen darf, bevor er sich erneut anstellen muss.",
       "lobbyOpensMinutesBefore": "Nur im geplanten Modus.",
-      "maxQueueSize": "Leer = unbegrenzt."
+      "maxQueueSize": "Leer = unbegrenzt.",
+      "activeSessionThresholdGlobal": "Zählt pro Veranstaltung: gilt für jede Veranstaltung einzeln (6 Veranstaltungen × 300 = bis zu 1.800 Käufer insgesamt).",
+      "maxActiveShoppers": "Optionale Grenze für alle Veranstaltungen zusammen, z. B. was der Server verkraftet. Darüber warten die Besucher jeder Veranstaltung in der Warteschlange. Zugangscodes, die die Warteschlange überspringen, und Veranstaltungen ohne Warteraum zählen mit, werden aber nie zurückgehalten. Frei werdende Plätze gehen reihum an die Warteschlangen der Veranstaltungen, eine feste Reihenfolge über Veranstaltungen hinweg gibt es aber nicht: Neue Besucher einer Veranstaltung ohne Warteschlange können zuerst hineinkommen. Weiche Grenze: Wer kurz inaktiv war, zählt bei der Rückkehr wieder mit und kann den Wert kurzzeitig leicht überschreiten. Leer = aus."
     },
     "orders": {
       "FIFO": "Wer zuerst kommt",

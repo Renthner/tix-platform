@@ -64,6 +64,23 @@ export async function purgeEventRedisState(ctx: CoreContext, eventId: string): P
     if (keys.length > 0) removed += await ctx.redis.unlink(...keys);
     cursor = next;
   } while (cursor !== '0');
+  // The event's members (`<eventId>:<sessionId>`) of the server-wide waiting-room active set.
+  const activeAll = ctx.keys.queueActiveAll();
+  cursor = '0';
+  do {
+    const [next, entries] = await ctx.redis.zscan(
+      activeAll,
+      cursor,
+      'MATCH',
+      `${eventId}:*`,
+      'COUNT',
+      500,
+    );
+    // WITHSCORES-style reply: member, score, member, score, ...
+    const members = entries.filter((_, i) => i % 2 === 0);
+    if (members.length > 0) await ctx.redis.zrem(activeAll, ...members);
+    cursor = next;
+  } while (cursor !== '0');
   await ctx.redis
     .multi()
     .srem(ctx.keys.activeLockEvents(), eventId)

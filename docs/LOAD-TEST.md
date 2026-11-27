@@ -232,8 +232,9 @@ node scripts/load/journey.mjs --target https://shop.example.org --event-id a,b,c
 - The console shows a per-event table (shoppers, hot seats won / refused, seat locks, best
   available, checkouts, multi-event carts, leaked locks) and the JSON has the same data under
   `events`. The endpoint table stays global. Each generator process probes the fan-out of one event
-  (process `w` probes event `w mod n`). With fewer processes than events, some events are not
-  probed (raise `--workers`).
+  (process `w` probes event `w mod n`). By default `--workers` is raised to the number of events
+  (max 8), so every event is probed; with an explicit lower `--workers` or more than 8 events, some
+  events are not probed.
 - Every event must be **published and on sale**. For bank-transfer orders (`--checkout-ratio`) every
   event must accept bank transfer. The orders are real, so use a test copy only.
 
@@ -353,6 +354,15 @@ web processes (`TIX_WEB_PROCESSES`) or use the waiting room; see "Overload behav
 
 ### Sizing hints
 
+- Page cache: anonymous visitors of the start page and the event pages share one render per web process
+  for `TIX_PAGE_CACHE_TTL_MS` (default 5 s, see [INSTALL.md](INSTALL.md#scaling-to-more-cores)), so a
+  page-load spike costs a few renders instead of one per visitor. Each page response says what happened in
+  `X-Tix-Page-Cache` (`hit`, `miss`, `bypass`); check it with
+  `curl -s -o /dev/null -D - -H 'Accept: text/html' https://shop.example.org/events/<slug> | grep -i x-tix-page-cache` (twice:
+  the second answer of the same web process is a `hit`). `/api/metrics` counts the results per process
+  (`tix_page_cache_requests_total`). Only HTML document requests are served from the cache (`Accept: text/html`,
+  as browsers send for navigations); requests without it and signed-in sessions (admin or customer
+  cookies) always get `bypass`, so measure page loads anonymously and with that header; set `TIX_PAGE_CACHE_TTL_MS=0` to measure raw rendering.
 - The web part is CPU-bound: pages are rendered per request, and by default one web process uses
   about one core. Set `TIX_WEB_PROCESSES` (`auto` = the CPUs of the container, see
   [INSTALL.md](INSTALL.md#scaling-to-more-cores)) to use more: budget 2-4 vCPU for the container for a
@@ -406,7 +416,11 @@ companion pairs. Seats per block: 600 / 780 / 600 / 420 / 420 / 420 / 360; per c
 6. **Waiting room.** Leave the event's waiting room **off** (event tab **Waiting room**) to measure
    the seat map and the locks. A second run with mode `AUTO_THRESHOLD` and a threshold well below the
    number of simulated users measures the queue; do not touch the waiting room settings of real
-   events. Then run `journey.mjs` with the event id as described above.
+   events. The threshold counts the active shoppers **per event** (the global setting applies to
+   each event separately: 1,000 users over 6 events with threshold 300 never queue, about 167 per
+   event). To limit all events together, set the optional **server-wide max. active shoppers**
+   under Settings → Waiting room (empty = off). Then run `journey.mjs` with the event id as
+   described above.
 
 Measured on a throwaway database (PostgreSQL 18): importing the 3,600-seat file took about 1.1 s;
 the public seat map the shop downloads is about 915 KB of JSON (about 113 KB gzipped, the

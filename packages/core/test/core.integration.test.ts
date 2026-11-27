@@ -688,7 +688,15 @@ describe.skipIf(!adminUrl || !redisUrl)('core services (integration)', () => {
     });
     await handle.db.update(events).set({ status: 'ARCHIVED' }).where(eq(events.id, old!.id));
     await ctx.redis.set(ctx.keys.seatsTaken(old!.id), 'x');
+    // server-wide waiting-room set: the event's members go, other events' members stay
+    const until = Date.now() + 60_000;
+    await ctx.redis.zadd(ctx.keys.queueActiveAll(), until, `${old!.id}:s1`, until, `${old!.id}:s2`);
+    await ctx.redis.zadd(ctx.keys.queueActiveAll(), until, `${event.id}:keep`);
     expect(await deleteArchivedEvent(ctx, old!.id)).toEqual({ slug, title: 'Old show' });
+    expect(await ctx.redis.zscore(ctx.keys.queueActiveAll(), `${old!.id}:s1`)).toBeNull();
+    expect(await ctx.redis.zscore(ctx.keys.queueActiveAll(), `${old!.id}:s2`)).toBeNull();
+    expect(await ctx.redis.zscore(ctx.keys.queueActiveAll(), `${event.id}:keep`)).not.toBeNull();
+    await ctx.redis.zrem(ctx.keys.queueActiveAll(), `${event.id}:keep`);
     expect(await handle.db.select().from(events).where(eq(events.slug, slug))).toHaveLength(0);
     expect(await handle.db.select().from(seatMaps).where(eq(seatMaps.id, mapId))).toHaveLength(0);
     expect(await ctx.redis.exists(ctx.keys.seatsTaken(old!.id))).toBe(0);

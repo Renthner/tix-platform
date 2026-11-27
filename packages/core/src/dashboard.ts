@@ -94,6 +94,11 @@ export interface DashboardOverview extends DashboardStats {
   eventCount: number;
   /** Events in another currency than the shop default: left out of revenue and payments. */
   otherCurrencyEvents?: number;
+  /**
+   * Server-wide waiting-room cap (`queueCapacity.maxActiveShoppers`), only when it is set:
+   * active + admitted shoppers of ALL events against the cap.
+   */
+  serverCapacity?: { active: number; cap: number };
 }
 
 export interface DashboardData {
@@ -173,6 +178,7 @@ export async function getDashboardData(
   const tasks: Promise<void>[] = [];
   let kpis: DashboardKpis | undefined;
   let shopWidePresence = 0;
+  let serverCapacity: DashboardOverview['serverCapacity'];
 
   if (options.money) {
     tasks.push(
@@ -323,6 +329,10 @@ export async function getDashboardData(
         }
         shopWidePresence = presence.shop;
       })(),
+      (async () => {
+        const cap = (await getSetting(ctx, 'queueCapacity')).maxActiveShoppers;
+        if (cap !== null) serverCapacity = { active: await ctx.queue.activeAllCount(), cap };
+      })(),
     );
   }
 
@@ -385,6 +395,7 @@ export async function getDashboardData(
     overview.inventory = inv;
     overview.queue = queue;
     overview.presence = shopWidePresence;
+    if (serverCapacity) overview.serverCapacity = serverCapacity;
   }
   if (options.checkIn) {
     const checkIn = { checkedIn: 0, valid: 0 };

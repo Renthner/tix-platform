@@ -276,6 +276,12 @@ export function LiveDashboard({
                   })}
                 </>
               )}
+              {sections.inventory && data.overview.serverCapacity && (
+                <>
+                  {' · '}
+                  {t('events.serverCapacity', data.overview.serverCapacity)}
+                </>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

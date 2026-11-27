@@ -281,6 +281,131 @@ describe.skipIf(!url)('redis engines (integration)', () => {
     expect(await queue.ping(e, 'b')).toBe(false);
   });
 
+  // The server-wide set is shared by all events of this prefix → each cap test uses its own prefix.
+  const isolatedQueue = () => {
+    const k = createKeyspace(`${prefix}:cap${randomUUID().slice(0, 6)}`);
+    return { k, q: new QueueEngine(redis, k) };
+  };
+  const direct = {
+    activeWindowMs: 60_000,
+    claimWindowMs: 60_000,
+    threshold: 100,
+    passTtlMs: 60_000,
+    bypassQueue: false,
+  };
+
+  it('keeps direct entry unchanged when no server-wide cap is set (but still counts)', async () => {
+    const { q } = isolatedQueue();
+    const [e1, e2] = [event(), event()];
+    for (let i = 0; i < 5; i += 1) {
+      expect(await q.enterDirectly(i % 2 ? e1 : e2, `s${i}`, { ...direct, jti: `j${i}` })).toBe(
+        true,
+      );
+    }
+    expect(await q.activeAllCount()).toBe(5);
+  });
+
+  it('applies the server-wide cap across events for direct entry and admission', async () => {
+    const { q } = isolatedQueue();
+    const [e1, e2] = [event(), event()];
+    const capped = { ...direct, globalCap: 3 };
+    expect(await q.enterDirectly(e1, 'a', { ...capped, jti: 'ja' })).toBe(true);
+    expect(await q.enterDirectly(e1, 'b', { ...capped, jti: 'jb' })).toBe(true);
+    expect(await q.enterDirectly(e2, 'c', { ...capped, jti: 'jc' })).toBe(true);
+    // both events are far below their own threshold (100), but the server is full
+    expect(await q.enterDirectly(e2, 'd', { ...capped, jti: 'jd' })).toBe(false);
+    expect(await q.enterDirectly(e1, 'e', { ...capped, jti: 'je' })).toBe(false);
+    // re-entry of somebody already counted is not refused
+    expect(await q.enterDirectly(e1, 'a', { ...capped, jti: 'ja2' })).toBe(true);
+    // bypass entries are counted but never refused
+    expect(await q.enterDirectly(e2, 'vip', { ...capped, jti: 'jv', bypassQueue: true })).toBe(
+      true,
+    );
+    expect(await q.activeAllCount()).toBe(4);
+
+    // the ticker does not admit beyond the cap either
+    await q.join(e2, 'w1', false);
+    const timing = { activeWindowMs: 60_000, claimWindowMs: 60_000 };
+    expect(
+      (await q.admit(e2, { ...timing, batchSize: 5, threshold: 100, globalCap: 3 })).admitted,
+    ).toEqual([]);
+    // without the cap the same tick admits
+    expect(
+      (await q.admit(e2, { ...timing, batchSize: 5, threshold: 100, globalCap: 0 })).admitted,
+    ).toEqual(['w1']);
+    expect(await q.activeAllCount()).toBe(5);
+  });
+
+  it('reserves admitted slots globally, frees them on expiry and on reset', async () => {
+    const { k, q } = isolatedQueue();
+    const [e1, e2] = [event(), event()];
+    const timing = { activeWindowMs: 60_000, claimWindowMs: 60_000 };
+    for (const s of ['w1', 'w2', 'w3']) await q.join(e1, s, false);
+    const admitted = await q.admit(e1, { ...timing, batchSize: 5, threshold: 100, globalCap: 2 });
+    expect(admitted.admitted).toEqual(['w1', 'w2']);
+    // the two pending admissions fill the cap → no direct entry on another event
+    expect(await q.enterDirectly(e2, 'x', { ...direct, jti: 'jx', globalCap: 2 })).toBe(false);
+    // claiming needs no free slot (it was reserved at admission)
+    expect(await q.claim(e1, 'w1', { claimWindowMs: 60_000, jti: 'j1', passTtlMs: 60_000 })).toBe(
+      true,
+    );
+    expect(await q.activeAllCount()).toBe(2);
+
+    // reset removes the event's members from the global set
+    await q.reset(e1);
+    expect(await q.activeAllCount()).toBe(0);
+    expect(await q.enterDirectly(e2, 'x', { ...direct, jti: 'jx', globalCap: 2 })).toBe(true);
+
+    // a stale member (no heartbeat within the window) is pruned and frees its slot
+    const short = { ...direct, activeWindowMs: 50, globalCap: 2 };
+    expect(await q.enterDirectly(e2, 'y', { ...short, jti: 'jy' })).toBe(true);
+    expect(await q.enterDirectly(e1, 'z', { ...short, jti: 'jz' })).toBe(false);
+    await sleep(80);
+    expect(await q.enterDirectly(e1, 'z', { ...short, jti: 'jz' })).toBe(true);
+    expect(await redis.zscore(k.queueActiveAll(), `${e2}:y`)).toBeNull();
+    // a heartbeat keeps the member counted (re-scored to now + window)
+    expect(await q.ping(e1, 'z', 60_000)).toBe(true);
+    expect(Number(await redis.zscore(k.queueActiveAll(), `${e1}:z`))).toBeGreaterThan(
+      Date.now() + 50_000,
+    );
+  });
+
+  it('claim window ends exactly where the global slot is pruned (no claim past the cap)', async () => {
+    const { k, q } = isolatedQueue();
+    const e = event();
+    const t0 = Date.now();
+    const timing = { activeWindowMs: 60_000, claimWindowMs: 1_000 };
+    for (const s of ['p', 'q']) await q.join(e, s, false);
+    expect(
+      (await q.admit(e, { ...timing, batchSize: 5, threshold: 100, now: t0 })).admitted,
+    ).toEqual(['p', 'q']);
+    expect(Number(await redis.zscore(k.queueActiveAll(), `${e}:p`))).toBe(t0 + 1_000);
+    const claim = (s: string, now: number) =>
+      q.claim(e, s, { claimWindowMs: 1_000, jti: `j${s}`, passTtlMs: 60_000, now });
+    // last millisecond of the window: still claimable
+    expect(await claim('p', t0 + 999)).toBe(true);
+    // at admittedAt + window the global slot (score == now) is already pruned → refused
+    expect(await claim('q', t0 + 1_000)).toBe(false);
+  });
+
+  it('reset removes many global members in batches', async () => {
+    const { k, q } = isolatedQueue();
+    const [e1, e2] = [event(), event()];
+    const pipeline = redis.pipeline();
+    const until = Date.now() + 60_000;
+    for (let i = 0; i < 1_234; i += 1) {
+      pipeline.zadd(k.queueActive(e1), Date.now(), `s${i}`);
+      pipeline.zadd(k.queueActiveAll(), until, `${e1}:s${i}`);
+    }
+    pipeline.zadd(k.queueAdmitted(e1), Date.now(), 'adm');
+    pipeline.zadd(k.queueActiveAll(), until, `${e1}:adm`);
+    pipeline.zadd(k.queueActiveAll(), until, `${e2}:other`);
+    await pipeline.exec();
+    expect(await q.activeAllCount()).toBe(1_236);
+    await q.reset(e1);
+    expect(await redis.zrange(k.queueActiveAll(), 0, -1)).toEqual([`${e2}:other`]);
+  });
+
   it('rate-limits per window', async () => {
     const results = [];
     for (let i = 0; i < 4; i += 1)

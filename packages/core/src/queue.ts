@@ -12,6 +12,7 @@ import {
   type EventRow,
   type SaleState,
 } from './events';
+import { getSetting } from './settings';
 
 /**
  * Virtual waiting room & access control for the shop of one event.
@@ -24,7 +25,26 @@ import {
  *  HYBRID                     everyone queues; valid access codes skip the queue
  * Independently of the mode, the presale window (presale start … public sale start) is open
  * to code holders with presale permission only.
+ *
+ * The threshold of a queue config counts the active shoppers (pass holders with a recent
+ * heartbeat + admitted visitors who have not claimed yet) of THAT event only – the global config
+ * applies to every event separately. The optional server-wide cap (setting
+ * `queueCapacity.maxActiveShoppers`) counts the same figure across ALL events. When set, it gates
+ * every non-bypass entry: direct entry (AUTO_THRESHOLD, SCHEDULED_PRE_REGISTRATION after the draw)
+ * and the ticker's batch admission; visitors beyond it queue in their event's queue. Entries that
+ * bypass the queue (mode OFF, VIP_CODE_ONLY, access codes that skip the queue) are counted against
+ * the cap but never refused by it; super-admins are neither counted nor refused. The ticker
+ * rotates the event it starts with on every tick, so freed global slots are shared across the
+ * events' lines over consecutive ticks; there is no strict cross-event order (a newcomer of an
+ * event with an empty queue can still take a freed slot directly before another event's next
+ * tick). The cap is SOFT: a pass holder whose heartbeat lapsed (pruned after the active window)
+ * re-registers with its next heartbeat without a cap check and can briefly push the count over it.
  */
+
+/** Server-wide cap of active shoppers (0 = off). */
+export async function globalShopperCap(ctx: Pick<CoreContext, 'db'>): Promise<number> {
+  return (await getSetting(ctx, 'queueCapacity')).maxActiveShoppers ?? 0;
+}
 
 export const PASS_TOKEN_TYPE = 'qp';
 
@@ -177,6 +197,7 @@ export async function enterShop(
     (code.hasCode && code.bypass && (config.mode === 'HYBRID' || config.accessCodeBypassesQueue));
 
   if (bypass) {
+    // Counted against the server-wide cap, never refused by it (no globalCap here).
     await ctx.queue.enterDirectly(event.id, sessionId, {
       ...timing,
       threshold: 0,
@@ -204,6 +225,7 @@ export async function enterShop(
       jti,
       passTtlMs,
       bypassQueue: false,
+      globalCap: await globalShopperCap(ctx),
     });
     if (entered) return issuePass(ctx, event, sessionId, config, jti);
   }
@@ -272,6 +294,7 @@ export async function claimPass(
     claimWindowMs: claimWindowMs(config),
     jti,
     passTtlMs: config.passTokenTtlSeconds * 1000,
+    activeWindowMs: ACTIVE_WINDOW_MS,
   });
   if (!claimed) {
     const position = await ctx.queue.position(event.id, sessionId);

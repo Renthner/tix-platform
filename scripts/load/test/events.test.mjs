@@ -9,6 +9,7 @@ import {
   parseEventWeights,
   parseMultiEventRatio,
   perEventHotCheck,
+  resolveWorkers,
 } from '../lib/events.mjs';
 import { bestAvailableCategories } from '../lib/world.mjs';
 
@@ -189,4 +190,22 @@ test('bestAvailableCategories: offered, in best-available blocks, at least 2 pla
     { id: 'c1', seats: 2 },
     { id: 'c5', seats: 3 },
   ]);
+});
+
+test('workers: default covers every event (max 8), explicit value is kept', () => {
+  // single event: the old formula min(cpus, ceil(vus / 250))
+  assert.equal(resolveWorkers(undefined, { cpus: 16, vus: 1000, eventCount: 1 }), 4);
+  assert.equal(resolveWorkers(undefined, { cpus: 2, vus: 1000, eventCount: 1 }), 2);
+  // raised to the number of events so the fan-out probe covers all of them
+  assert.equal(resolveWorkers(undefined, { cpus: 16, vus: 1000, eventCount: 6 }), 6);
+  assert.equal(resolveWorkers(undefined, { cpus: 2, vus: 100, eventCount: 3 }), 3);
+  // never above 8
+  assert.equal(resolveWorkers(undefined, { cpus: 32, vus: 10_000, eventCount: 12 }), 8);
+  // an explicit --workers wins (clamped to 1..8), even below the number of events
+  assert.equal(resolveWorkers('2', { cpus: 16, vus: 1000, eventCount: 6 }), 2);
+  assert.equal(resolveWorkers('20', { cpus: 16, vus: 1000, eventCount: 1 }), 8);
+  assert.equal(resolveWorkers('0', { cpus: 16, vus: 1000, eventCount: 1 }), 1);
+  // a bare flag or garbage falls back to the default
+  assert.equal(resolveWorkers(true, { cpus: 16, vus: 1000, eventCount: 6 }), 6);
+  assert.equal(resolveWorkers('x', { cpus: 16, vus: 1000, eventCount: 6 }), 6);
 });

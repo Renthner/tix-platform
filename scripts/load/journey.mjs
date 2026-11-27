@@ -38,6 +38,7 @@ import {
   parseEventWeights,
   parseMultiEventRatio,
   perEventHotCheck,
+  resolveWorkers,
 } from './lib/events.mjs';
 import { loadWorld } from './lib/world.mjs';
 
@@ -58,7 +59,8 @@ const HELP = `Journey load test (see docs/LOAD-TEST.md)
   --yes                     confirm that you are allowed to load this server
   --dry-run                 print the plan, change and send nothing
   --vus <n>                 virtual users (default 1000)
-  --workers <n>             generator processes (default min(cpus, ceil(vus/250)), max 8)
+  --workers <n>             generator processes (default min(cpus, ceil(vus/250)), at least the
+                            number of events so every event's fan-out is probed; max 8)
   --ramp <dur>              ramp-up time (default 60s)   --ramp-profile linear|step|spike
   --duration <dur>          total run time incl. ramp (default 4m)
   --hold <dur>              average time a shopper keeps the cart (default 60s, max 8m)
@@ -130,10 +132,11 @@ if (checkoutRatio > 0 && !args['allow-orders']) {
 }
 
 const vus = Math.max(1, Math.floor(Number(args.vus ?? 1000)));
-const workers = Math.max(
-  1,
-  Math.min(8, Math.floor(Number(args.workers ?? Math.min(os.cpus().length, Math.ceil(vus / 250))))),
-);
+const workers = resolveWorkers(args.workers, {
+  cpus: os.cpus().length,
+  vus,
+  eventCount: events.length,
+});
 const durationMs = parseDuration(args.duration, 240_000);
 const rampMs = Math.min(parseDuration(args.ramp, 60_000), durationMs);
 const holdMs = Math.min(parseDuration(args.hold, 60_000), 8 * 60_000);

@@ -5,8 +5,9 @@
  * Cluster readiness: all keys of one event share the hash tag `{ev:<eventId>}` and
  * therefore the same slot. Lua scripts that atomically touch many seats of an event
  * (multi-seat lock, GA holds, queue admission) stay within one slot. Exception: the seat engine
- * scripts also register the event in the global `activeLockEvents` set, so they require a
- * single-node Redis (CROSSSLOT on Cluster).
+ * scripts also register the event in the global `activeLockEvents` set, and the queue scripts
+ * (enter, admit, claim, ping, reset) maintain the server-wide `queueActiveAll` set, so they
+ * require a single-node Redis (CROSSSLOT on Cluster).
  *
  * The spec's seat lock `SET seat:{eventId}:{seatId} {sessionId} NX EX {ttl}` maps to
  * `seatLock(eventId, seatId)` = `<prefix>:{ev:<eventId>}:seat:<seatId>`.
@@ -91,6 +92,11 @@ export function createKeyspace(prefix: string) {
     /** STRING access code id redeemed by a session for this event. */
     queueAccessCode: (eventId: string, sessionId: string) =>
       `${ev(eventId)}:queue:code:${sid(sessionId)}`,
+    /**
+     * ZSET `<eventId>:<sessionId>` → moment the entry stops counting (epoch ms): active pass
+     * holders and admitted-but-unclaimed visitors of ALL events (server-wide cap). Not hash-tagged.
+     */
+    queueActiveAll: () => `${prefix}:queue:active:all`,
     /** SET of eventIds with an active waiting room (iterated by the admission ticker). */
     activeQueueEvents: () => `${prefix}:queue:events`,
 

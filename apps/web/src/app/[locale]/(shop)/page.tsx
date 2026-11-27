@@ -8,6 +8,7 @@ import {
 import { applyTitleTemplate, localized, SHOP_EVENTS_PER_ROW_MAX } from '@tix/shared';
 import { CalendarDays, MapPin } from 'lucide-react';
 import { getFormatter, getTranslations } from 'next-intl/server';
+import { headers } from 'next/headers';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +16,7 @@ import { Link } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
 import { resolveLocale } from '@/i18n/locale';
 import { getCore } from '@/server/core';
+import { reportPageCacheBoundary } from '@/server/page-cache';
 import { loadContentLocale, loadSeoContext, pageSeo, publicBaseUrl } from '@/server/seo';
 import { MediaImage } from '@/components/media-image';
 import { EventFilter } from '@/components/shop/event-filter';
@@ -78,11 +80,24 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const [t, format] = await Promise.all([getTranslations('shop'), getFormatter()]);
   // Cached read model (tag invalidated by admin changes); sale state is computed below.
   const rows = await getShopEventList(getCore());
+  // HTML page cache (called once all data is loaded): a shared render must not outlive the next
+  // sale-state change of a listed event (sale start/end, or the event leaving the list at its start).
+  const reportCacheHint = async () =>
+    reportPageCacheBoundary(
+      await headers(),
+      rows.flatMap(({ event }) => [
+        event.presaleStartsAt,
+        event.publicSaleStartsAt,
+        event.saleEndsAt,
+        event.startsAt,
+      ]),
+    );
 
   // No event published: the configured start page replaces the built-in text.
   if (rows.length === 0) {
     const startPage = await getSetting(getCore(), 'startPage');
     if (hasStartPageContent(startPage, content.locale, content.defaultLocale)) {
+      await reportCacheHint();
       return (
         <StartPage
           settings={startPage}
@@ -139,6 +154,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     ...new Set(rows.map(({ venue }) => venue.city).filter((c): c is string => !!c)),
   ].sort((a, b) => a.localeCompare(b, locale));
 
+  await reportCacheHint();
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t('home.title')}</h1>

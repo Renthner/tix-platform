@@ -9,6 +9,7 @@ import { DomainError } from '@tix/core';
 import { logger } from '@/server/logger';
 import { getCore } from '@/server/core';
 import { clientIp, enforceRateLimit } from '@/server/http';
+import { pageCacheStats, renderPageCachePrometheus } from '@/server/page-cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,8 +68,12 @@ export async function GET(request: Request) {
         timer = setTimeout(() => resolve(null), FULL_COLLECTION_BUDGET_MS);
       }),
     ]).finally(() => clearTimeout(timer));
-    if (!stats) return text(renderProcessPrometheus(collectWebProcess(core.db)), 200, headers);
-    return text(renderPrometheus(stats), 200, headers);
+    // HTML page cache figures of this web process (in-memory, also in the degraded answer).
+    const pageCache = renderPageCachePrometheus(pageCacheStats());
+    if (!stats) {
+      return text(renderProcessPrometheus(collectWebProcess(core.db)) + pageCache, 200, headers);
+    }
+    return text(renderPrometheus(stats) + pageCache, 200, headers);
   } catch (err) {
     if (err instanceof DomainError && err.status === 429) {
       return text('Too many failed attempts\n', 429, { 'retry-after': '60' });

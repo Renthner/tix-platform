@@ -47,6 +47,8 @@ export interface QueueConfigValues {
   isPaused: boolean;
   title: string | null;
   message: string | null;
+  /** Server-wide cap of active shoppers (global form only; null = off). */
+  maxActiveShoppers?: number | null;
 }
 
 export function QueueConfigForm({
@@ -54,11 +56,14 @@ export function QueueConfigForm({
   initial,
   scope,
   usesGlobal = false,
+  canEditServerCapacity = false,
 }: {
   action: Action;
   initial: QueueConfigValues;
   scope: 'global' | 'event';
   usesGlobal?: boolean;
+  /** Global form: show the server-wide cap (SUPER_ADMIN only). */
+  canEditServerCapacity?: boolean;
 }) {
   const t = useTranslations('admin.queue');
   const tc = useTranslations('common.actions');
@@ -75,7 +80,7 @@ export function QueueConfigForm({
         min={min}
         max={max}
         defaultValue={(initial[name] as number | null) ?? ''}
-        required={name !== 'maxQueueSize'}
+        required={name !== 'maxQueueSize' && name !== 'maxActiveShoppers'}
       />
     </Field>
   );
@@ -128,12 +133,24 @@ export function QueueConfigForm({
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
-          {num('activeSessionThreshold', 1, 1_000_000, t('hints.activeSessionThreshold'))}
+          {num(
+            'activeSessionThreshold',
+            1,
+            1_000_000,
+            t(
+              scope === 'global'
+                ? 'hints.activeSessionThresholdGlobal'
+                : 'hints.activeSessionThreshold',
+            ),
+          )}
           {num('admissionBatchSize', 1, 100_000, t('hints.admissionBatchSize'))}
           {num('admissionIntervalSeconds', 1, 3600)}
           {num('passTokenTtlSeconds', 60, 86_400, t('hints.passTokenTtlSeconds'))}
           {num('lobbyOpensMinutesBefore', 0, 10_080, t('hints.lobbyOpensMinutesBefore'))}
           {num('maxQueueSize', 1, 10_000_000, t('hints.maxQueueSize'))}
+          {scope === 'global' &&
+            canEditServerCapacity &&
+            num('maxActiveShoppers', 1, 1_000_000, t('hints.maxActiveShoppers'))}
           <Field label={t('fields.admissionOrder')} htmlFor="q-order" error={err('admissionOrder')}>
             <NativeSelect id="q-order" name="admissionOrder" defaultValue={initial.admissionOrder}>
               {QUEUE_ADMISSION_ORDERS.map((o) => (

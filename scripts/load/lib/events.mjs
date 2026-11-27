@@ -12,6 +12,21 @@ const list = (raw) =>
     .split(',')
     .map((s) => s.trim());
 
+/** Upper limit of generator processes. */
+export const MAX_WORKERS = 8;
+
+/**
+ * Number of generator processes. An explicit `--workers` is kept (clamped to 1..8). The default is
+ * min(cpus, ceil(vus / 250)), raised to the number of events so the fan-out probe (process `w`
+ * probes event `w mod n`) covers every event, capped at 8.
+ */
+export function resolveWorkers(arg, { cpus, vus, eventCount }) {
+  const clamp = (n) => Math.max(1, Math.min(MAX_WORKERS, Math.floor(n)));
+  const explicit = arg === undefined || arg === null || arg === true ? NaN : Number(arg);
+  if (Number.isFinite(explicit)) return clamp(explicit);
+  return clamp(Math.max(Math.min(cpus, Math.ceil(vus / 250)), eventCount));
+}
+
 /**
  * Parses `--event-id` (comma-separated, 1..20 distinct UUIDs) and the optional `--event-slug`
  * (comma-separated, same length, positional). Returns {ok:true, events:[{eventId, eventSlug}]} or

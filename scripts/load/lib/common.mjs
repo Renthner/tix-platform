@@ -142,6 +142,12 @@ export class Vu {
     // Sanctioned load test (docs/LOAD-TEST.md): skips ONLY the per-IP throughput limits.
     if (this.cfg.loadtestToken) headers['x-tix-loadtest'] = this.cfg.loadtestToken;
     if (json !== undefined) headers['content-type'] = 'application/json';
+    // Page loads look like a browser navigation (the shop's page cache only serves those).
+    if (method === 'GET' && label.startsWith('PAGE_')) {
+      headers.accept = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
+      headers['sec-fetch-dest'] = 'document';
+      headers['sec-fetch-mode'] = 'navigate';
+    }
     const t0 = now();
     const wallStart = Date.now();
     let status = 0;
@@ -198,7 +204,8 @@ export class Vu {
       code,
       secret: this.cfg.loadtestToken,
     });
-    return { status, body, code, ms, bytes, wallStart, wallEnd };
+    const pageCache = resHeaders?.get('x-tix-page-cache') ?? null;
+    return { status, body, code, ms, bytes, wallStart, wallEnd, pageCache };
   }
 }
 

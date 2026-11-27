@@ -1,5 +1,7 @@
 import 'server-only';
 import type { QueueConfigValues } from '@/components/admin/queue-forms';
+import { getSetting } from '@tix/core';
+import { getCore } from '@/server/core';
 import { getQueueConfigRow } from './queries';
 
 /** Form values of a queue config row, falling back to the global row, then to built-in defaults. */
@@ -37,5 +39,8 @@ export async function queueFormValues(
         title: null,
         message: null,
       };
+  if (eventId === null) {
+    values.maxActiveShoppers = (await getSetting(getCore(), 'queueCapacity')).maxActiveShoppers;
+  }
   return { values, hasOwnRow: own !== null };
 }

@@ -47,6 +47,10 @@ async function run(m) {
   const fanout = new Histogram();
   const counters = {};
   const count = (k, by = 1) => (counters[k] = (counters[k] ?? 0) + by);
+  // Shop page cache (x-tix-page-cache: hit | miss | bypass), counted per page load.
+  const countPageCache = (r) => {
+    if (r?.pageCache) count(`page_cache_${r.pageCache}`);
+  };
   const intervals = []; // {seat,sid,from,to,eventIndex}
   const hotAttempts = { attempts: 0, won: 0, lost: 0 };
   const hotWon = new Set();
@@ -102,8 +106,9 @@ async function run(m) {
     const evStats = perEvent[ei];
     evStats.shoppers++;
     // 1) shop pages (HTML)
-    await vu.call('PAGE_HOME', 'GET', `${base}/`);
-    if (ev.eventSlug) await vu.call('PAGE_EVENT', 'GET', `${base}/events/${ev.eventSlug}`);
+    countPageCache(await vu.call('PAGE_HOME', 'GET', `${base}/`));
+    if (ev.eventSlug)
+      countPageCache(await vu.call('PAGE_EVENT', 'GET', `${base}/events/${ev.eventSlug}`));
     // 2) enter the shop / waiting room
     if (!(await enter(vu, rand, eventId))) return;
     // 3) seat map + availability like the seating chart page

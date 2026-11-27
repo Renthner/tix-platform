@@ -8,6 +8,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with pre-r
 
 ## [Unreleased]
 
+## [1.0.0-alpha.47] - 2026-11-27
+
+### Added
+
+- Shop page cache: the start page and event pages are rendered once and shared between anonymous
+  visitors for a few seconds (per web process, single-flight; `TIX_PAGE_CACHE_TTL_MS`, default
+  5000, `0` = off, at most 60000). Every response still gets its own CSP nonce and session cookie;
+  signed-in customers and admins, bots, URLs with a query string and app-internal navigations bypass
+  it. Flushed on every shop data or settings change and never kept past a sale-state boundary.
+  Response header `x-tix-page-cache: hit|miss|bypass`, metrics `tix_page_cache_*`.
+- Waiting room: optional server-wide cap of active shoppers across all events (Settings -> Waiting
+  room, SUPER_ADMIN only; empty = off). Direct entry and the admission ticker respect it; freed
+  slots are shared between events in turn. Events in mode Off and access-code bypasses are counted
+  but never held back. The live dashboard shows the server-wide figure.
+- Journey load test: page loads are sent like browser navigations, the run reports page cache
+  hits / misses, and the default number of generator processes is at least the number of events.
+
+### Changed
+
+- Waiting room: the threshold is labelled and explained as active shoppers **per event**.
+
 ## [1.0.0-alpha.46] - 2026-11-26
 
 ### Added

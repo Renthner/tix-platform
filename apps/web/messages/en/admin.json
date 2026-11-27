@@ -188,6 +188,7 @@
         "title": "Events on sale & upcoming",
         "all": "All events",
         "inShop": "{active} in the shop right now, {waiting} waiting",
+        "serverCapacity": "{active} of max. {cap} active shoppers server-wide",
         "showing": "Showing {shown} of {total} events.",
         "saveFailed": "Could not save the status filter.",
         "columns": {
@@ -901,7 +902,7 @@
       },
       "AUTO_THRESHOLD": {
         "label": "Automatic",
-        "description": "Visitors queue only while the number of active shoppers is at the threshold."
+        "description": "Visitors queue only while the number of active shoppers of this event is at the threshold."
       },
       "SCHEDULED_PRE_REGISTRATION": {
         "label": "Scheduled with lobby",
@@ -918,7 +919,7 @@
     },
     "fields": {
       "mode": "Mode",
-      "activeSessionThreshold": "Max. active shoppers",
+      "activeSessionThreshold": "Max. active shoppers per event",
       "admissionBatchSize": "Admissions per batch",
       "admissionIntervalSeconds": "Batch interval (seconds)",
       "passTokenTtlSeconds": "Shopping window (seconds)",
@@ -928,14 +929,17 @@
       "accessCodeBypassesQueue": "Access codes skip the queue",
       "isPaused": "Pause admissions",
       "title": "Waiting room title",
-      "message": "Waiting room message"
+      "message": "Waiting room message",
+      "maxActiveShoppers": "Server-wide max. active shoppers (all events)"
     },
     "hints": {
-      "activeSessionThreshold": "Capacity of shoppers browsing the seating plan at the same time.",
+      "activeSessionThreshold": "Counted per event: shoppers in the seating plan of this event at the same time.",
       "admissionBatchSize": "Visitors admitted per interval.",
       "passTokenTtlSeconds": "How long an admitted visitor may shop before re-queueing.",
       "lobbyOpensMinutesBefore": "Only for scheduled mode.",
-      "maxQueueSize": "Empty = unlimited."
+      "maxQueueSize": "Empty = unlimited.",
+      "activeSessionThresholdGlobal": "Counted per event: applies to each event separately (6 events × 300 = up to 1,800 shoppers in total).",
+      "maxActiveShoppers": "Optional limit for all events together, e.g. what the server can handle. Above it, visitors of every event queue. Access codes that skip the queue and events without waiting room still count but are never held back. Freed places are shared between the waiting lines of the events in turn, but there is no strict order across events: a newcomer of an event without a queue can get in first. Soft limit: a shopper who was briefly inactive counts again on return and can push the figure slightly above it for a short time. Empty = off."
     },
     "orders": {
       "FIFO": "First come, first served",

@@ -16,7 +16,7 @@ English | [Deutsch](docs/de/README.md)
   <img src="docs/img/shop-event.webp" alt="Event page of the ticket shop" width="900">
 </p>
 
-> **Status:** pre-release (`1.0.0-alpha.46`). Feature-complete, but not yet declared stable. Take a
+> **Status:** pre-release (`1.0.0-alpha.47`). Feature-complete, but not yet declared stable. Take a
 > backup before every update (a database backup is also taken automatically before schema changes)
 > and read the [CHANGELOG](CHANGELOG.md). Update with the `tix-update.sh` script of the release
 > ([install guide](docs/INSTALL.md#updating-and-backups)).
@@ -26,7 +26,7 @@ English | [Deutsch](docs/de/README.md)
 <table>
   <tr>
     <td width="50%"><img src="docs/img/shop-seat-selection.webp" alt="Seating plan with live seat status"><br><b>Real seating plans.</b> Customers pick seats on a zoomable plan; every seat turns grey for all other visitors within a moment. Best-available booking, orphan-seat rule, wheelchair and companion seats.</td>
-    <td width="50%"><img src="docs/img/waiting-room.webp" alt="Virtual waiting room"><br><b>Virtual waiting room.</b> Automatic at a visitor threshold, scheduled with a pre-registration lobby (first come or lottery), or by access code. Position, estimated wait and announcements update live.</td>
+    <td width="50%"><img src="docs/img/waiting-room.webp" alt="Virtual waiting room"><br><b>Virtual waiting room.</b> Automatic at a visitor threshold per event (plus an optional server-wide cap across all events), scheduled with a pre-registration lobby (first come or lottery), or by access code. Position, estimated wait and announcements update live.</td>
   </tr>
   <tr>
     <td><img src="docs/img/shop-cart.webp" alt="Shopping cart"><br><b>Multi-event cart.</b> One cart and one order can span several events. Reduced, wheelchair or companion tariffs are chosen per seat; proofs are checked at the door.</td>
@@ -111,7 +111,7 @@ and troubleshooting is [docs/INSTALL.md](docs/INSTALL.md).
 
 ```bash
 # 1. Download the two files of the release
-export TIX_VERSION=1.0.0-alpha.46
+export TIX_VERSION=1.0.0-alpha.47
 mkdir tix && cd tix
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/docker-compose.yml
 curl -fLO https://github.com/Renthner/tix-platform/releases/download/v$TIX_VERSION/env.example

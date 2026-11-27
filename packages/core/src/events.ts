@@ -1,4 +1,5 @@
 import { events, queueConfigs, venues } from '@tix/db';
+import { QUEUE_ACTIVE_WINDOW_MS } from '@tix/redis';
 import type { QueueAdmissionOrder, QueueMode, Translations } from '@tix/shared';
 import { and, eq, isNull, or } from 'drizzle-orm';
 import { DomainError, type CoreContext } from './context';
@@ -91,8 +92,8 @@ export interface EffectiveQueueConfig {
   translations: Translations;
 }
 
-/** Shoppers without heartbeat for this long stop counting as active. */
-export const ACTIVE_WINDOW_MS = 2 * 60 * 1000;
+/** Shoppers without heartbeat for this long stop counting as active (same window as the Redis engine). */
+export const ACTIVE_WINDOW_MS = QUEUE_ACTIVE_WINDOW_MS;
 
 export async function effectiveQueueConfig(
   ctx: Pick<CoreContext, 'db'>,

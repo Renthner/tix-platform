@@ -84,6 +84,7 @@ import {
 } from '@/server/admin/fees';
 import { saveQueueConfigAction } from '@/server/admin/queue';
 import { queueFormValues } from '@/server/admin/queue-defaults';
+import { canEditServerCapacity } from '@/lib/queue-capacity';
 import {
   saveSettingsAction,
   sendTestEmailAction,
@@ -771,6 +772,7 @@ async function TabContent({
               action={saveQueueConfigAction.bind(null, null)}
               initial={form.values}
               scope="global"
+              canEditServerCapacity={canEditServerCapacity(session.roles)}
             />
           </CardContent>
         </Card>

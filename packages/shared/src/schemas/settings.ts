@@ -712,6 +712,15 @@ const privacySchema = z.object({
   /** Personal fields of stored payment webhooks (payer, name, e-mail, address) are erased after this many days; 0 = keep. */
   webhookRetentionDays: z.number().int().min(0).max(3_650).default(90),
 });
+/**
+ * Server-wide limit of the virtual waiting room. The per-event threshold (queue config) counts the
+ * active shoppers of ONE event; this cap counts active + admitted shoppers of ALL events together.
+ */
+const queueCapacitySchema = z.object({
+  /** null = off. When set, direct entry and batch admission of every event also need a free global slot. */
+  maxActiveShoppers: z.number().int().min(1).max(1_000_000).nullable().default(null),
+});
+
 /** Waiting list of sold-out events (event tab "Sales" can override `enabled` per event). */
 const waitlistSchema = z.object({
   enabled: z.boolean().default(true),
@@ -919,6 +928,11 @@ export const SETTINGS = {
     schema: privacySchema,
     secret: false,
     description: 'Data retention periods (GDPR)',
+  }),
+  queueCapacity: define({
+    schema: queueCapacitySchema,
+    secret: false,
+    description: 'Waiting room: server-wide cap of active shoppers across all events',
   }),
   waitlist: define({
     schema: waitlistSchema,

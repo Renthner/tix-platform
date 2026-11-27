@@ -235,8 +235,10 @@ node scripts/load/journey.mjs --target https://shop.example.org --event-id a,b,c
 - Die Konsole zeigt eine Tabelle je Event (Käufer:innen, Hot Seats vergeben / abgewiesen,
   Platzsperren, Bestplatz, Bestellungen, Warenkörbe über zwei Events, hängende Sperren). Die
   JSON-Datei enthält dieselben Daten unter `events`. Die Endpunkt-Tabelle bleibt global. Jeder
-  Generator-Prozess misst die Verteilzeit eines Events (Prozess `w` misst Event `w mod n`). Mit
-  weniger Prozessen als Events werden manche Events nicht gemessen (erhöhe `--workers`).
+  Generator-Prozess misst die Verteilzeit eines Events (Prozess `w` misst Event `w mod n`).
+  Standardmäßig wird `--workers` auf die Zahl der Events angehoben (max. 8), so dass jedes Event
+  gemessen wird; mit einem ausdrücklich kleineren `--workers` oder mehr als 8 Events werden manche
+  Events nicht gemessen.
 - Jedes Event muss **veröffentlicht und im Verkauf** sein. Für Vorkasse-Bestellungen
   (`--checkout-ratio`) muss jedes Event Vorkasse annehmen. Die Bestellungen sind echt, also nur auf
   einer Testkopie.
@@ -363,6 +365,16 @@ des Containers) müssen `ListenOverflows` / `ListenDrops` konstant bleiben.
 
 ## Größenhinweise
 
+- Seiten-Cache: anonyme Besucher der Startseite und der Veranstaltungsseiten teilen sich je Web-Prozess ein
+  Rendern für `TIX_PAGE_CACHE_TTL_MS` (Standard 5 s, siehe
+  [INSTALL.de.md](INSTALL.de.md#auf-mehr-kerne-skalieren)); eine Lastspitze beim Seitenaufruf kostet so
+  wenige Renderings statt eines je Besucher. Jede Seitenantwort nennt das Ergebnis in `X-Tix-Page-Cache`
+  (`hit`, `miss`, `bypass`); prüfen mit
+  `curl -s -o /dev/null -D - -H 'Accept: text/html' https://shop.example.org/events/<slug> | grep -i x-tix-page-cache` (zweimal:
+  die zweite Antwort desselben Web-Prozesses ist ein `hit`). `/api/metrics` zählt die Ergebnisse je Prozess
+  (`tix_page_cache_requests_total`). Aus dem Cache kommen nur Anfragen nach einem HTML-Dokument (`Accept: text/html`,
+  wie Browser es beim Seitenaufruf senden); Anfragen ohne diesen Header und angemeldete Sitzungen (Admin- oder
+  Kunden-Cookies) bekommen immer `bypass`, Seitenaufrufe also anonym und mit diesem Header messen; `TIX_PAGE_CACHE_TTL_MS=0` misst das reine Rendern.
 - Der Web-Teil ist CPU-gebunden: die Seiten werden je Anfrage gerendert, und ein Web-Prozess nutzt
   standardmäßig etwa einen Kern. Setze `TIX_WEB_PROCESSES` (`auto` = die CPUs des Containers, siehe
   [INSTALL.de.md](INSTALL.de.md#auf-mehr-kerne-skalieren)), um mehr zu nutzen: plane 2-4 vCPU für den
@@ -419,7 +431,11 @@ Reihenbeschriftung, Sitznummern und vier Rollstuhl-/Begleitplatz-Paare. Plätze 
 6. **Warteraum.** Den Warteraum der Veranstaltung (Tab **Warteraum**) **aus** lassen, um Saalplan und
    Sperren zu messen. Ein zweiter Lauf mit Modus `AUTO_THRESHOLD` und einer Schwelle deutlich unter der
    Zahl der simulierten Nutzer misst die Warteschlange; die Warteraum-Einstellungen echter
-   Veranstaltungen nicht anfassen. Danach `journey.mjs` mit der Event-ID starten, wie oben beschrieben.
+   Veranstaltungen nicht anfassen. Die Schwelle zählt aktive Käufer **pro Veranstaltung** (die
+   globale Einstellung gilt für jede Veranstaltung einzeln: 1.000 Nutzer auf 6 Veranstaltungen mit
+   Schwelle 300 warten nie, etwa 167 pro Veranstaltung). Um alle Veranstaltungen zusammen zu
+   begrenzen, unter Einstellungen → Warteraum die optionale **serverweite Obergrenze aktiver
+   Käufer** setzen (leer = aus). Danach `journey.mjs` mit der Event-ID starten, wie oben beschrieben.
 
 Gemessen auf einer Wegwerf-Datenbank (PostgreSQL 18): Der Import der Datei mit 3.600 Plätzen dauerte
 etwa 1,1 s; der öffentliche Saalplan, den der Shop lädt, hat etwa 915 KB JSON (etwa 113 KB gzip, der

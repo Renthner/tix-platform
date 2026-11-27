@@ -157,7 +157,11 @@ export async function cleanupRedisAfterRestore(ctx: {
   const prefix = ctx.keys.prefix;
   await deleteByPattern(ctx.redis, `${prefix}:{ev:*`);
   await deleteByPattern(ctx.redis, `${prefix}:cart:*`);
-  await ctx.redis.del(ctx.keys.activeLockEvents(), ctx.keys.activeQueueEvents());
+  await ctx.redis.del(
+    ctx.keys.activeLockEvents(),
+    ctx.keys.activeQueueEvents(),
+    ctx.keys.queueActiveAll(),
+  );
   // Connected browsers still show the old locks/availability: a new epoch makes them resync fully.
   await ctx.redis.set(ctx.keys.realtimeEpoch(), randomUUID());
   if (ctx.jobs) {

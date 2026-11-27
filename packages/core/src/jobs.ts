@@ -3,6 +3,7 @@ import { events } from '@tix/db';
 import { eq } from 'drizzle-orm';
 import type { CoreContext } from './context';
 import { ACTIVE_WINDOW_MS, computeSaleState, effectiveQueueConfig, saleOpensAt } from './events';
+import { globalShopperCap } from './queue';
 import { publishQueueUpdate, publishSeatDelta, publishSessionMessage } from './realtime';
 
 /**
@@ -67,8 +68,29 @@ async function loadEventForTick(ctx: CoreContext, eventId: string) {
 }
 const lastBroadcast = new Map<string, number>();
 
+/**
+ * Start offset of the next tick in the sorted event list. With a server-wide cap the first event
+ * of a tick may take every freed global slot; rotating the start shares freed slots across the
+ * events' lines over consecutive ticks (module state: the ticker runs in the elected leader only,
+ * a leader change merely restarts the rotation).
+ */
+let tickRotation = 0;
+
+/** `ids` sorted and rotated to start at `offset` (mod length). */
+export function rotateEventOrder(ids: readonly string[], offset: number): string[] {
+  const sorted = [...ids].sort();
+  if (sorted.length === 0) return sorted;
+  const start = ((offset % sorted.length) + sorted.length) % sorted.length;
+  return [...sorted.slice(start), ...sorted.slice(0, start)];
+}
+
 export async function tickWaitingRooms(ctx: CoreContext, now = Date.now()): Promise<void> {
-  const eventIds = await ctx.redis.smembers(ctx.keys.activeQueueEvents());
+  const eventIds = rotateEventOrder(
+    await ctx.redis.smembers(ctx.keys.activeQueueEvents()),
+    tickRotation++,
+  );
+  if (tickRotation >= Number.MAX_SAFE_INTEGER) tickRotation = 0;
+  const globalCap = eventIds.length > 0 ? await globalShopperCap(ctx) : 0;
   for (const eventId of eventIds) {
     const event = await loadEventForTick(ctx, eventId);
     if (!event) {
@@ -110,6 +132,7 @@ export async function tickWaitingRooms(ctx: CoreContext, now = Date.now()): Prom
       now,
       batchSize: config.admissionBatchSize,
       threshold: config.activeSessionThreshold,
+      globalCap,
       activeWindowMs: ACTIVE_WINDOW_MS,
       claimWindowMs,
     });

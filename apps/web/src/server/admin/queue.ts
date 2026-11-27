@@ -1,6 +1,6 @@
 'use server';
 
-import { getSetting, publishQueueUpdate, SHOP_TAGS } from '@tix/core';
+import { getSetting, publishQueueUpdate, saveSetting, SHOP_TAGS } from '@tix/core';
 import { events, queueAnnouncements, queueConfigs } from '@tix/db';
 import {
   ANNOUNCEMENT_SEVERITIES,
@@ -14,6 +14,7 @@ import { eq, inArray, isNull } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionState } from '@/lib/action-state';
+import { shouldSaveServerCapacity } from '@/lib/queue-capacity';
 import { requireAdmin } from '@/server/auth';
 import { getCore } from '@/server/core';
 import { audit } from './audit';
@@ -31,6 +32,14 @@ const configSchema = z.object({
   maxQueueSize: z.coerce.number().int().min(1).max(10_000_000).optional(),
   title: z.string().max(200).optional(),
   message: z.string().max(4_000).optional(),
+});
+
+/**
+ * Global form only, SUPER_ADMIN only: server-wide cap of active shoppers across all events
+ * (empty = off).
+ */
+const capSchema = z.object({
+  maxActiveShoppers: z.coerce.number().int().min(1).max(1_000_000).optional(),
 });
 
 async function eventExists(eventId: string): Promise<boolean> {
@@ -74,6 +83,15 @@ export async function saveQueueConfigAction(
     message: text(fd, 'message'),
   });
   if (!parsed.success) return fieldError(zodFieldErrors(parsed.error));
+  // Only when the (super-admin only) field was posted: other posts never touch the setting.
+  const cap = shouldSaveServerCapacity({
+    eventId,
+    hasField: fd.has('maxActiveShoppers'),
+    roles: session.roles,
+  })
+    ? capSchema.safeParse({ maxActiveShoppers: text(fd, 'maxActiveShoppers') })
+    : null;
+  if (cap && !cap.success) return fieldError(zodFieldErrors(cap.error));
   const values = {
     ...parsed.data,
     maxQueueSize: parsed.data.maxQueueSize ?? null,
@@ -90,6 +108,17 @@ export async function saveQueueConfigAction(
     .where(eventId ? eq(queueConfigs.eventId, eventId) : isNull(queueConfigs.eventId));
   if (existing) await db.update(queueConfigs).set(values).where(eq(queueConfigs.id, existing.id));
   else await db.insert(queueConfigs).values({ ...values, eventId });
+  if (cap?.success) {
+    const saved = await saveSetting(
+      getCore(),
+      'queueCapacity',
+      { maxActiveShoppers: cap.data.maxActiveShoppers ?? null },
+      session.userId,
+    );
+    await audit(db, session, 'settings.update', 'system_setting', 'queueCapacity', {
+      value: saved,
+    });
+  }
   await audit(
     db,
     session,
